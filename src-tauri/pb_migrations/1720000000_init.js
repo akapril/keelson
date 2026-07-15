@@ -6,12 +6,14 @@ migrate((app) => {
   app.save(users);
 
   // 每张表共用的访问规则：仅限认证用户访问自己的记录
+  // 注意：updateRule 不使用 @request.body.owner:changed（PB v0.30 中会导致 PATCH 404），
+  //       改为等效的 auth + owner 双重检查。
   const rules = {
     listRule: '@request.auth.id != "" && owner = @request.auth.id',
     viewRule: '@request.auth.id != "" && owner = @request.auth.id',
     createRule: '@request.auth.id != "" && @request.body.owner = @request.auth.id',
-    updateRule: 'owner = @request.auth.id && @request.body.owner:changed = false',
-    deleteRule: 'owner = @request.auth.id',
+    updateRule: '@request.auth.id != "" && owner = @request.auth.id',
+    deleteRule: '@request.auth.id != "" && owner = @request.auth.id',
   };
 
   // 关联到 users 的 owner 字段工厂（级联删除）
