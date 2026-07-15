@@ -1,0 +1,147 @@
+// providers/mod.rs — 4-责任 SessionProvider trait + ProviderRegistry
+// Task 9: 为所有 provider（Claude、Codex 等）定义统一接口，
+// 下游的扫描/更新/时间轴/终端任务（Task 10–16）通过本模块路由，
+// 无需任何 `match provider` 分支。
+
+use std::path::{Path, PathBuf};
+use crate::models::{Session, TimelineMessage};
+
+/// 文件系统监听根节点
+pub struct WatchRoot {
+    /// 要监听的目录路径
+    pub path: PathBuf,
+    /// 是否递归监听子目录
+    pub recursive: bool,
+}
+
+/// 文件事件分类：决定 watcher 收到事件后应触发哪种扫描策略
+#[derive(Debug, PartialEq)]
+pub enum EventKind {
+    /// 忽略此事件（与本 provider 无关）
+    Ignore,
+    /// 增量扫描：仅重新解析该单一路径
+    Incremental,
+    /// 全量重扫：provider 的完整 scan_all
+    FullRescan,
+}
+
+/// SessionProvider：涵盖 provider 的 4 大职责：
+/// 1. 全量扫描（scan_all）
+/// 2. 增量扫描（classify_event + scan_one）
+/// 3. 恢复命令生成（resume_command）
+/// 4. 时间轴读取（read_timeline）
+pub trait SessionProvider: Send + Sync {
+    /// provider 唯一标识符，如 "claude" / "codex"
+    fn id(&self) -> &'static str;
+
+    /// 面向用户的显示名称，如 "Claude Code" / "OpenAI Codex"
+    fn display_name(&self) -> &'static str;
+
+    /// 检测本 provider 在当前系统上是否可用（CLI 是否存在等）
+    fn is_available(&self) -> bool;
+
+    /// 返回本 provider 需要 watcher 监听的根目录列表
+    fn watch_roots(&self) -> Vec<WatchRoot>;
+
+    /// 返回需要探测/刷新的路径列表（用于定期轮询）
+    fn refresh_probe_paths(&self) -> Vec<PathBuf>;
+
+    /// 全量扫描：返回该 provider 下所有会话
+    fn scan_all(&self) -> Vec<Session>;
+
+    /// 将文件系统事件路径分类为 Ignore / Incremental / FullRescan
+    fn classify_event(&self, path: &Path) -> EventKind;
+
+    /// 增量扫描：解析单一路径对应的会话，返回 None 表示无需更新
+    fn scan_one(&self, path: &Path) -> Option<Session>;
+
+    /// 生成在终端中恢复指定会话的命令字符串
+    fn resume_command(&self, project_path: &str, session_id: &str) -> String;
+
+    /// 读取指定会话的时间轴消息列表（用于详情页展示）
+    fn read_timeline(&self, session_id: &str) -> Vec<TimelineMessage>;
+}
+
+/// ProviderRegistry：统一注册并路由所有已安装的 provider，
+/// 消除下游代码中的 `match provider` 分支。
+pub struct ProviderRegistry {
+    providers: Vec<Box<dyn SessionProvider>>,
+}
+
+impl ProviderRegistry {
+    /// 创建空注册表（Task 10/11 将注入 Claude、Codex provider）
+    pub fn new() -> Self {
+        // push claude, codex (Task 10/11)
+        Self { providers: vec![] }
+    }
+
+    /// 返回当前已安装（is_available）的所有 provider 迭代器
+    pub fn installed(&self) -> impl Iterator<Item = &dyn SessionProvider> {
+        self.providers.iter().map(|b| b.as_ref()).filter(|p| p.is_available())
+    }
+
+    /// 按 id 查找 provider（不限 is_available）
+    pub fn by_id(&self, id: &str) -> Option<&dyn SessionProvider> {
+        self.providers.iter().map(|b| b.as_ref()).find(|p| p.id() == id)
+    }
+
+    /// watcher/scanner 用：某路径归哪个 provider + 该走增量还是全量。
+    /// 遍历所有 provider，返回第一个不忽略该路径的 provider 及其事件分类。
+    pub fn route_path(&self, path: &Path) -> Option<(&dyn SessionProvider, EventKind)> {
+        for p in self.providers.iter().map(|b| b.as_ref()) {
+            let k = p.classify_event(path);
+            if k != EventKind::Ignore {
+                return Some((p, k));
+            }
+        }
+        None
+    }
+
+    /// 汇总所有已安装 provider 的监听根目录
+    pub fn all_watch_roots(&self) -> Vec<WatchRoot> {
+        self.installed().flat_map(|p| p.watch_roots()).collect()
+    }
+
+    /// 汇总所有已安装 provider 的全量扫描结果
+    pub fn scan_all(&self) -> Vec<Session> {
+        self.installed().flat_map(|p| p.scan_all()).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Fake provider：用于单元测试，识别路径中含 ".fake" 的为增量事件
+    struct Fake;
+
+    impl SessionProvider for Fake {
+        fn id(&self) -> &'static str { "fake" }
+        fn display_name(&self) -> &'static str { "Fake" }
+        fn is_available(&self) -> bool { true }
+        fn watch_roots(&self) -> Vec<WatchRoot> { vec![] }
+        fn refresh_probe_paths(&self) -> Vec<PathBuf> { vec![] }
+        fn scan_all(&self) -> Vec<Session> { vec![] }
+        fn classify_event(&self, p: &Path) -> EventKind {
+            if p.to_string_lossy().contains(".fake") {
+                EventKind::Incremental
+            } else {
+                EventKind::Ignore
+            }
+        }
+        fn scan_one(&self, _: &Path) -> Option<Session> { None }
+        fn resume_command(&self, _: &str, _: &str) -> String { String::new() }
+        fn read_timeline(&self, _: &str) -> Vec<TimelineMessage> { vec![] }
+    }
+
+    /// 验证 route_path 能按 classify_event 正确路由，
+    /// 未匹配路径返回 None
+    #[test]
+    fn routes_by_classify_event() {
+        let reg = ProviderRegistry { providers: vec![Box::new(Fake)] };
+        let (p, k) = reg.route_path(Path::new("/x/.fake/a.jsonl")).unwrap();
+        assert_eq!(p.id(), "fake");
+        assert_eq!(k, EventKind::Incremental);
+        assert!(reg.route_path(Path::new("/x/other/a.jsonl")).is_none());
+    }
+}
