@@ -1,0 +1,19 @@
+rework
+Copyright 2026 the rework authors
+
+This product includes software developed as part of the workavera project
+(https://github.com/xusenlin/workavera), licensed under the Apache License,
+Version 2.0 ("License"); you may not use these files except in compliance with
+the License. You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Portions adapted from workavera (Apache-2.0):
+- src/components/ui/*            (shadcn/ui primitives, HugeIcons-themed)
+- src/components/theme-provider.tsx, src/lib/utils.ts, src/hooks/use-mobile.ts
+- src/index.css design tokens (oklch neutral palette + radius ladder)
+- app shell, board components, and workspace deep-linking (as ported)
+
+Modifications: data layer rewired to a PocketBase Tauri sidecar with strict
+frontend isolation; multi-project/board features adapted to a "project workspace"
+information architecture; backend-persist and workavera-specific modules removed.
