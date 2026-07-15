@@ -4,9 +4,11 @@
 pub mod models;
 // 应用路径管理：AppPaths（替代 retalk 硬编码的 ~/.claude/retalk/）
 pub mod paths;
+// 应用配置：AppConfig（hotkey + terminal_pref，持久化到 config.toml）
+pub mod config;
 // PocketBase 集成层（进程、客户端、首启初始化）
 mod pb;
-// 命令模块（Task 16 实现具体命令，当前为占位）
+// 命令模块（Task 16 按领域分域实现）
 mod commands;
 // provider 抽象层：SessionProvider trait + ProviderRegistry（Task 9）
 pub mod providers;
@@ -27,20 +29,40 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 use tauri::Manager;
 
-/// 全局应用状态：持有首启认证结果 + 扫描会话缓存。
-/// Task 16 可在此基础上扩展只读命令查询字段（sessions / index）。
+/// 全局应用状态。
+///
+/// Task 16 扩展：在 Task 15 的 `auth + sessions` 基础上增加：
+/// - `reg`   — ProviderRegistry（路由 provider 命令，无需 Mutex：构建后只读）
+/// - `index` — Option<SessionIndex>（Tantivy 索引，启动后填充）
+/// - `paths` — AppPaths（目录路径集合，构建后只读）
+/// - `config` — AppConfig（hotkey + terminal_pref，需写入故包一层 Mutex）
 pub struct AppState {
     /// PocketBase bootstrap 认证结果（base_url / token / user_id）
     pub auth: Arc<Mutex<Option<pb::bootstrap::BootstrapAuth>>>,
     /// 最近一次全量扫描的会话列表缓存（Task 16 命令层读取用）
     pub sessions: Arc<Mutex<Vec<crate::models::Session>>>,
+    /// Provider 注册表（claude + codex；启动后只读，无需 Mutex）
+    pub reg: providers::ProviderRegistry,
+    /// Tantivy 会话全文索引（启动时构建，搜索命令只读访问）
+    pub index: Arc<Mutex<Option<indexer::SessionIndex>>>,
+    /// 应用路径集合（home / app_data 等）
+    pub paths: paths::AppPaths,
+    /// 应用配置（hotkey + terminal_pref，可被命令写入）
+    pub config: Arc<Mutex<config::AppConfig>>,
 }
 
 impl Default for AppState {
     fn default() -> Self {
+        let paths = paths::AppPaths::detect();
+        let config_path = paths.app_data.join("config.toml");
+        let cfg = config::AppConfig::load(&config_path);
         Self {
             auth: Arc::new(Mutex::new(None)),
             sessions: Arc::new(Mutex::new(Vec::new())),
+            reg: providers::ProviderRegistry::new(),
+            index: Arc::new(Mutex::new(None)),
+            paths,
+            config: Arc::new(Mutex::new(cfg)),
         }
     }
 }
@@ -88,6 +110,7 @@ pub fn run() {
             let state: tauri::State<AppState> = app.state();
             let auth_slot = state.auth.clone();
             let sessions_slot = state.sessions.clone();
+            let index_slot = state.index.clone();
 
             // 确定 PB 数据目录和迁移文件目录
             let data_dir = app.path().app_data_dir()?.join("pb_data");
@@ -96,14 +119,31 @@ pub fn run() {
 
             // 在后台 tokio 任务中完成 PB 启动 + bootstrap + 会话同步
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = setup_pocketbase(handle, data_dir, mig_dir, auth_slot, sessions_slot).await {
+                if let Err(e) = setup_pocketbase(handle, data_dir, mig_dir, auth_slot, sessions_slot, index_slot).await {
                     // 仅记录错误，不 panic（UI 层通过 get_bootstrap_auth 的 Err 感知）
                     eprintln!("[rework] PocketBase 初始化失败: {e:#}");
                 }
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_bootstrap_auth, commands::ping])
+        // ───── 命令注册（按领域分组） ─────
+        // 注意：generate_handler! 宏要求使用函数定义所在的完整路径，
+        // 不能使用 re-export 路径（宏展开需要原始路径上的辅助符号）。
+        .invoke_handler(tauri::generate_handler![
+            // 基础命令
+            get_bootstrap_auth,
+            commands::ping,
+            // 会话相关（Task 16 - sessions.rs）
+            commands::sessions::sessions_list,
+            commands::sessions::sessions_search,
+            commands::sessions::sessions_timeline,
+            commands::sessions::sessions_project_paths,
+            // 终端（Task 16 - terminal.rs）
+            commands::terminal::terminal_resume,
+            // 配置（Task 16 - config.rs）
+            commands::config::config_get_hotkey,
+            commands::config::config_set_hotkey,
+        ])
         .run(tauri::generate_context!())
         .expect("运行 rework 失败");
 }
@@ -114,7 +154,7 @@ pub fn run() {
 /// 3. 启动 `serve`
 /// 4. 等待健康检查通过
 /// 5. 执行 `bootstrap`（确保 local-user，返回 token；传入已获取密码，无第二次 keychain 调用）
-/// 6. 全量扫描会话，重建 Tantivy 索引，同步到 PB sessions_meta（Task 15）
+/// 6. 全量扫描会话，重建 Tantivy 索引（存入 AppState），同步到 PB sessions_meta（Task 15）
 /// 7. 启动文件系统 Watcher，增量同步变化会话（Task 15）
 async fn setup_pocketbase(
     handle: tauri::AppHandle,
@@ -122,6 +162,7 @@ async fn setup_pocketbase(
     mig_dir: std::path::PathBuf,
     auth_slot: Arc<Mutex<Option<pb::bootstrap::BootstrapAuth>>>,
     sessions_slot: Arc<Mutex<Vec<crate::models::Session>>>,
+    index_slot: Arc<Mutex<Option<indexer::SessionIndex>>>,
 ) -> anyhow::Result<()> {
     let port = pb::process::pick_free_port();
     let base = format!("http://127.0.0.1:{port}");
@@ -151,18 +192,20 @@ async fn setup_pocketbase(
     let pb_client = pb::client::PbClient::new(&auth.base_url, &auth.token);
     *auth_slot.lock() = Some(auth);
 
-    // 步骤 6：全量扫描会话 + 重建 Tantivy 索引 + 同步到 PB
+    // 步骤 6：全量扫描会话 + 重建 Tantivy 索引（存入 AppState）+ 同步到 PB
     let reg = Arc::new(providers::ProviderRegistry::new());
     let sessions = scanner::scan_all(&reg);
     eprintln!("[rework] 首次扫描完成：{} 条会话", sessions.len());
 
-    // 重建 Tantivy 全文索引
+    // 重建 Tantivy 全文索引，并将 SessionIndex 存入 AppState.index 供搜索命令使用
     let index_dir = data_dir.join("tantivy_index");
     match indexer::SessionIndex::new(&index_dir) {
         Ok(idx) => {
             if let Err(e) = idx.rebuild(&sessions) {
                 eprintln!("[rework] Tantivy rebuild 失败（非致命）: {e:#}");
             }
+            // 存入 AppState，供 sessions_search 命令访问
+            *index_slot.lock() = Some(idx);
         }
         Err(e) => eprintln!("[rework] SessionIndex::new 失败（非致命）: {e:#}"),
     }
