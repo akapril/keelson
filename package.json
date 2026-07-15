@@ -10,27 +10,30 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-global-shortcut": "^2",
+    "@tauri-apps/plugin-shell": "^2",
+    "pocketbase": "latest",
     "react": "^19",
     "react-dom": "^19",
     "react-router-dom": "latest",
-    "zustand": "latest",
-    "pocketbase": "latest",
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-shell": "^2",
-    "@tauri-apps/plugin-global-shortcut": "^2"
+    "zustand": "latest"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "latest",
+    "@tauri-apps/cli": "^2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "latest",
-    "@tailwindcss/vite": "latest",
     "tailwindcss": "^4",
     "typescript": "~5.8.3",
     "vite": "latest",
-    "@tauri-apps/cli": "^2"
-  }
+    "vitest": "^4.1.10"
+  },
+  "packageManager": "pnpm@10.15.1+sha512.34e538c329b5553014ca8e8f4535997f96180a1d0f614339357449935350d924e22f8614682191264ec33d1462ac21561aff97f6bb18065351c162c7e8f6de67"
 }
