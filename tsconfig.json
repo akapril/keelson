@@ -6,6 +6,10 @@
     "module": "ESNext",
     "skipLibCheck": true,
 
+    /* 路径别名 @ -> ./src（对齐 workavera 组件的导入约定） */
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] },
+
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
