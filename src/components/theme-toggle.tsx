@@ -1,12 +1,40 @@
-import { useTheme } from "./theme-provider";
+// 主题切换按钮 —— 移植自 workavera（Apache-2.0），已剥离其后端持久化。
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Moon02Icon, Sun02Icon } from "@hugeicons/core-free-icons";
+
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useTheme } from "@/components/theme-provider";
+
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+
+  // 解析当前是否为暗色（system 时读系统偏好）
+  const isDark =
+    theme === "dark" ||
+    (theme === "system" &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+
   return (
-    <button
-      className="rounded-md border border-border px-3 py-1 text-sm"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-    >
-      {theme === "dark" ? "☾ 暗" : "☀ 明"}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setTheme(isDark ? "light" : "dark")}
+          aria-label="切换主题"
+        >
+          <HugeiconsIcon icon={isDark ? Sun02Icon : Moon02Icon} strokeWidth={2} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        切换主题（按 <kbd>d</kbd>）
+      </TooltipContent>
+    </Tooltip>
   );
 }

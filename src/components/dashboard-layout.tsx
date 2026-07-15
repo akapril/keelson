@@ -1,0 +1,21 @@
+// 应用主布局 —— 移植自 workavera（Apache-2.0），去掉 ChatRunMonitor 与 full-bleed 分支。
+// rework 各页面自管内边距与滚动，故 main 只提供全高容器。
+import { Outlet } from "react-router-dom";
+
+import { AppSidebar } from "@/components/app-sidebar";
+import { AppHeader } from "@/components/app-header";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+
+export function DashboardLayout() {
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <AppHeader />
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <Outlet />
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
