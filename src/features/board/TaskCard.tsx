@@ -30,13 +30,15 @@ function isOverdue(dateStr: string): boolean {
 // ── 组件属性 ───────────────────────────────────────────────────
 interface TaskCardProps {
   task: BoardTask;
+  /** 点击卡片进入编辑（拖拽激活距离 6px，纯点击不会触发拖拽）。 */
+  onEdit?: (task: BoardTask) => void;
 }
 
 /**
  * 可拖拽任务卡片：title / 优先级点 / 标签 chip / 截止日期 / 来源会话徽章。
  * inline style 仅用于用户数据颜色（label.color）和 dnd transform。
  */
-export function TaskCard({ task }: TaskCardProps) {
+export function TaskCard({ task, onEdit }: TaskCardProps) {
   const labels = useBoardStore((s) => s.labels);
 
   const {
@@ -69,6 +71,7 @@ export function TaskCard({ task }: TaskCardProps) {
       style={style}
       {...attributes}
       {...listeners}
+      onClick={() => onEdit?.(task)}
       className={[
         "cursor-grab rounded-lg border border-border/60 bg-card p-3 shadow-sm",
         "select-none transition-all hover:border-border hover:shadow-md",

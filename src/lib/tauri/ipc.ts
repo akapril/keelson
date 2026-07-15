@@ -33,4 +33,9 @@ export const ipc = {
 
   /** 保存全局快捷键配置（Task 17） */
   setHotkey: (hotkey: string) => invoke<void>("config_set_hotkey", { hotkey }),
+
+  // ── Board / retalk 集成 ────────────────────────────────────
+  /** 读取本地仓库的当前分支与未提交变更数（Task 13，包装 git_info 命令） */
+  gitInfo: (path: string) =>
+    invoke<{ branch: string | null; dirty_count: number; is_repo: boolean }>("git_info", { path }),
 };
