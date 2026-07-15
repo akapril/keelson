@@ -208,6 +208,8 @@ pub fn run() {
             // 配置（Task 16 - config.rs）
             commands::config::config_get_hotkey,
             commands::config::config_set_hotkey,
+            // git 状态（Board - git.rs）
+            commands::git::git_info,
         ])
         .run(tauri::generate_context!())
         .expect("运行 rework 失败");

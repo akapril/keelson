@@ -16,6 +16,8 @@ pub mod terminal;
 pub mod config;
 // 工作台命令（MVP 存根；收藏/备注由前端经 PocketBase 写入）
 pub mod workbench;
+// git 状态命令（git_info；Board 项目详情的 git 状态条用）
+pub mod git;
 
 // 注意：generate_handler! 宏需要使用函数定义所在的原始路径（含辅助符号），
 // 故不做 re-export；lib.rs 中直接使用 commands::sessions::sessions_list 等完整路径。
