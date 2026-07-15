@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useSessionsStore } from "../../store/sessions";
 import { useSessionSearchStore } from "../../store/session-search";
 import { SessionCard } from "./SessionCard";
+import { PromoteToProjectDialog } from "../board/PromoteToProjectDialog";
 import type { Session } from "../../types/session";
 
 // ── Props ──────────────────────────────────────────────────
@@ -27,6 +29,9 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
 
   // 搜索词非空时进入搜索模式
   const isSearching = query.trim().length > 0;
+
+  // 本地状态：当前正在“提升为看板项目”的分组路径（null = 未打开对话框）
+  const [promotingPath, setPromotingPath] = useState<string | null>(null);
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -79,13 +84,23 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
                   projectPath.split(/[\\/]/).filter(Boolean).at(-1) ?? projectPath;
                 return (
                   <section key={projectPath}>
-                    {/* 分组标题 */}
-                    <h2
-                      className="mb-2 truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                      title={projectPath}
-                    >
-                      {projectName}
-                    </h2>
+                    {/* 分组标题行：项目名 + “提升为看板项目”入口 */}
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <h2
+                        className="min-w-0 truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                        title={projectPath}
+                      >
+                        {projectName}
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={() => setPromotingPath(projectPath)}
+                        title="提升为看板项目"
+                        className="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        提升为看板项目
+                      </button>
+                    </div>
                     <div className="flex flex-col gap-1.5">
                       {sessions.map((session) => (
                         <SessionCard
@@ -103,6 +118,14 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
           </div>
         )}
       </div>
+
+      {/* 提升为看板项目对话框（受本地状态控制） */}
+      {promotingPath && (
+        <PromoteToProjectDialog
+          projectPath={promotingPath}
+          onClose={() => setPromotingPath(null)}
+        />
+      )}
     </div>
   );
 }
