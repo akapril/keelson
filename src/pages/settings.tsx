@@ -167,7 +167,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-8 py-6">
+    <div className="mx-auto max-w-xl space-y-8 px-6 py-6">
       <h1 className="text-lg font-semibold">设置</h1>
 
       {/* 错误提示 */}

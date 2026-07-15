@@ -12,7 +12,9 @@ export function DashboardLayout() {
       <AppSidebar />
       <SidebarInset>
         <AppHeader />
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {/* 全高容器：自然高度的页面（如设置）在此滚动；
+            自管高度的页面（会话/看板用 h-full + 内部滚动）正好铺满。 */}
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
           <Outlet />
         </main>
       </SidebarInset>
