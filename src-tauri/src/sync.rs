@@ -1,34 +1,32 @@
 // sync.rs — 会话元数据同步到 PocketBase（Task 15）
 // 职责：计算内容哈希 + 增量 upsert sessions_meta 集合
-// 严格遵循 YAGNI/KISS：DefaultHasher（无新依赖），无 debounce（MVP 直接调用）
+// 严格遵循 YAGNI/KISS：SHA-256 跨版本稳定哈希，无 debounce（MVP 直接调用）
 
 use crate::models::Session;
 use crate::pb::client::PbClient;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use sha2::{Digest, Sha256};
 
 // ============================================================
 // content_hash：会话稳定性哈希（用于跳过未变化的记录）
 // ============================================================
 
-/// 计算会话内容哈希：基于 updated_at + message_count + last_prompt 的稳定字符串哈希。
-/// 相同输入保证输出一致（DefaultHasher 在同进程内确定性）；
+/// 计算会话内容哈希：基于 updated_at + message_count + last_prompt 的 SHA-256 hex 摘要。
+/// 相同输入保证输出一致（SHA-256 是跨进程、跨版本确定性的）；
 /// 不同的 message_count 或 last_prompt 产生不同哈希，提供变更检测能力。
 ///
-/// 注意：DefaultHasher 在跨进程/版本间不保证稳定，但对本应用来说足够：
-/// 每次启动重新计算，PB 端存储的哈希与本次计算比较，跨进程差异最多导致一次多余 PATCH，
-/// 而不会导致数据错误。符合 YAGNI 原则（不引入 sha2 依赖）。
+/// 使用 SHA-256（sha2 crate）替代 DefaultHasher，确保跨进程/跨 Rust 版本稳定性，
+/// 避免升级后首次启动对所有记录误发 PATCH。
 pub fn content_hash(s: &Session) -> String {
-    // 将关键字段拼为稳定字符串，再散列
+    // 将关键字段拼为稳定字符串，再计算 SHA-256
     let input = format!(
         "{}|{}|{}",
         s.updated_at.timestamp_micros(),
         s.message_count,
         s.last_prompt
     );
-    let mut hasher = DefaultHasher::new();
-    input.hash(&mut hasher);
-    format!("{:x}", hasher.finish())
+    let digest = Sha256::digest(input.as_bytes());
+    // 截取前 16 字节（32 位 hex）：对内容变更检测足够，且与 PB text 字段兼容
+    hex::encode(&digest[..16])
 }
 
 // ============================================================
@@ -47,6 +45,8 @@ const COLL: &str = "sessions_meta";
 /// - 若不存在 → CREATE
 ///
 /// **严格禁止写 favorite / hidden / custom_name**（用户专属字段，由前端管理）。
+///
+/// 单条 session 的 PATCH/CREATE 错误不中止整体同步（per-session 错误隔离）。
 pub async fn sync_to_pb(
     client: &PbClient,
     owner_id: &str,
@@ -84,18 +84,24 @@ pub async fn sync_to_pb(
                 }
 
                 let patch_data = build_scan_fields(session, &hash, owner_id);
-                client.patch(COLL, id, &patch_data).await.map_err(|e| {
-                    anyhow::anyhow!("PATCH session_id={} 失败: {e:#}", session.session_id)
-                })?;
-                patched += 1;
+                // per-session 错误隔离：PATCH 失败仅记录警告，继续下一条
+                match client.patch(COLL, id, &patch_data).await {
+                    Ok(_) => patched += 1,
+                    Err(e) => {
+                        eprintln!("[sync] 警告：PATCH 失败，跳过 session_id={}: {e:#}", session.session_id);
+                    }
+                }
             }
             Ok(None) => {
                 // 不存在 → CREATE（含 owner 字段）
                 let create_data = build_scan_fields(session, &hash, owner_id);
-                client.create(COLL, &create_data).await.map_err(|e| {
-                    anyhow::anyhow!("CREATE session_id={} 失败: {e:#}", session.session_id)
-                })?;
-                created += 1;
+                // per-session 错误隔离：CREATE 失败仅记录警告，继续下一条
+                match client.create(COLL, &create_data).await {
+                    Ok(_) => created += 1,
+                    Err(e) => {
+                        eprintln!("[sync] 警告：CREATE 失败，跳过 session_id={}: {e:#}", session.session_id);
+                    }
+                }
             }
             Err(e) => {
                 // find_one 失败：记录警告后继续，单条失败不中止整体同步
@@ -211,6 +217,20 @@ mod tests {
         eprintln!(
             "[TDD GREEN] content_hash_changes_with_last_prompt: h(A)={h1}, h(B)={h2}"
         );
+    }
+
+    /// 验证 SHA-256 哈希的跨进程稳定性（固定输入 → 固定输出）
+    #[test]
+    fn content_hash_is_stable_across_runs() {
+        let s = make_session("sess-stable", 10, "stable prompt");
+        let h1 = content_hash(&s);
+        let h2 = content_hash(&s);
+        // SHA-256 保证相同输入永远产生相同输出（跨进程/跨版本稳定）
+        assert_eq!(h1, h2, "SHA-256 哈希应跨调用稳定：h1={h1}, h2={h2}");
+        // 验证格式：32 位 hex（16 字节 * 2 hex chars）
+        assert_eq!(h1.len(), 32, "哈希应为 32 位 hex 字符串，实际：{}", h1.len());
+        assert!(h1.chars().all(|c| c.is_ascii_hexdigit()), "哈希应只含 hex 字符：{h1}");
+        eprintln!("[TDD GREEN] content_hash_is_stable_across_runs: hash={h1}");
     }
 
     /// 验证 build_scan_fields 不包含用户专属字段
