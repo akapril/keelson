@@ -13,6 +13,17 @@ import { useBoardStore } from "../../store/board";
 import type { BoardTask } from "../../types/board";
 import { StatusColumn } from "./StatusColumn";
 import { TaskCard } from "./TaskCard";
+import { TaskSheet } from "./TaskSheet";
+import { GitStatusBar } from "./GitStatusBar";
+import { LinkedSessionsPanel } from "./LinkedSessionsPanel";
+
+// TaskSheet 的受控状态：新建（预填 state）或编辑（携带 task）。
+interface SheetState {
+  open: boolean;
+  mode: "create" | "edit";
+  stateId?: string;
+  task?: BoardTask;
+}
 
 /**
  * 看板视图：
@@ -27,9 +38,19 @@ export function KanbanBoard() {
   const tasksByState = useBoardStore((s) => s.tasksByState);
   const moveTask = useBoardStore((s) => s.moveTask);
   const openedProjectId = useBoardStore((s) => s.openedProjectId);
+  const projects = useBoardStore((s) => s.projects);
 
   // 当前正在拖拽的任务（用于 DragOverlay）
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
+
+  // TaskSheet 受控状态（新建/编辑任务）
+  const [sheet, setSheet] = useState<SheetState>({
+    open: false,
+    mode: "create",
+  });
+
+  // 当前项目的仓库路径（存在时才挂载 git 状态条与关联会话面板）
+  const repoPath = projects.find((p) => p.id === openedProjectId)?.repo_path;
 
   // PointerSensor，激活约束：移动 6px 后才开始拖拽（防止误触点击）
   const sensors = useSensors(
@@ -97,37 +118,73 @@ export function KanbanBoard() {
   if (!openedProjectId) return null;
 
   return (
-    <DndContext
-      sensors={sensors}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveTask(null)}
-    >
-      {/* 横向滚动的看板列容器 */}
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {sortedStates.map((state) => (
-          <StatusColumn
-            key={state.id}
-            state={state}
-            tasks={grouped[state.id] ?? []}
-          />
-        ))}
+    <div className="flex h-full min-h-0 flex-col">
+      {/* git 状态条（仅当项目绑定了仓库路径） */}
+      {repoPath && (
+        <div className="mb-3 shrink-0">
+          <GitStatusBar repoPath={repoPath} />
+        </div>
+      )}
 
-        {sortedStates.length === 0 && (
-          <div className="flex min-h-48 flex-1 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-            此项目暂无状态列
-          </div>
+      {/* 主体：看板列（左，可拖拽） + 关联会话面板（右，只读） */}
+      <div className="flex min-h-0 flex-1 gap-4">
+        <div className="min-w-0 flex-1">
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => setActiveTask(null)}
+          >
+            {/* 横向滚动的看板列容器 */}
+            <div className="flex gap-4 overflow-x-auto pb-4">
+              {sortedStates.map((state) => (
+                <StatusColumn
+                  key={state.id}
+                  state={state}
+                  tasks={grouped[state.id] ?? []}
+                  onAddTask={(stateId) =>
+                    setSheet({ open: true, mode: "create", stateId })
+                  }
+                  onEditTask={(task) =>
+                    setSheet({ open: true, mode: "edit", task })
+                  }
+                />
+              ))}
+
+              {sortedStates.length === 0 && (
+                <div className="flex min-h-48 flex-1 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
+                  此项目暂无状态列
+                </div>
+              )}
+            </div>
+
+            {/* 拖拽幽灵：跟随光标，旋转 3° 半透明显示 */}
+            <DragOverlay>
+              {activeTask ? (
+                <div className="w-72 rotate-3 opacity-80">
+                  <TaskCard task={activeTask} />
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        </div>
+
+        {/* 关联会话面板（仅当项目绑定了仓库路径） */}
+        {repoPath && (
+          <aside className="hidden w-72 shrink-0 overflow-y-auto lg:block">
+            <LinkedSessionsPanel repoPath={repoPath} />
+          </aside>
         )}
       </div>
 
-      {/* 拖拽幽灵：跟随光标，旋转 3° 半透明显示 */}
-      <DragOverlay>
-        {activeTask ? (
-          <div className="w-72 rotate-3 opacity-80">
-            <TaskCard task={activeTask} />
-          </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+      {/* 任务新建/编辑面板（受控） */}
+      <TaskSheet
+        open={sheet.open}
+        mode={sheet.mode}
+        stateId={sheet.stateId}
+        task={sheet.task}
+        onClose={() => setSheet((s) => ({ ...s, open: false }))}
+      />
+    </div>
   );
 }

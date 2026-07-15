@@ -7,6 +7,10 @@ import { TaskCard } from "./TaskCard";
 interface StatusColumnProps {
   state: BoardState;
   tasks: BoardTask[];
+  /** 点击"+ 任务"在本列新建任务（预填 state）。 */
+  onAddTask: (stateId: string) => void;
+  /** 点击任务卡片进入编辑。 */
+  onEditTask: (task: BoardTask) => void;
 }
 
 /**
@@ -16,7 +20,12 @@ interface StatusColumnProps {
  * - 列头颜色点使用 inline style（用户数据颜色）
  * - "+ 任务"按钮由 Task 9（TaskSheet）实现，此处占位
  */
-export function StatusColumn({ state, tasks }: StatusColumnProps) {
+export function StatusColumn({
+  state,
+  tasks,
+  onAddTask,
+  onEditTask,
+}: StatusColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `state:${state.id}`,
     data: { type: "state", stateId: state.id },
@@ -54,30 +63,29 @@ export function StatusColumn({ state, tasks }: StatusColumnProps) {
           strategy={verticalListSortingStrategy}
         >
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
+            <TaskCard key={task.id} task={task} onEdit={onEditTask} />
           ))}
         </SortableContext>
 
-        {/* 空列占位 + 新建任务（Task 9 实现） */}
+        {/* 空列占位 */}
         {tasks.length === 0 && (
           <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed py-4">
-            {/* Task 9: TaskSheet 新建任务 */}
             <span className="text-xs text-muted-foreground">暂无任务</span>
           </div>
         )}
       </div>
 
-      {/* "+ 任务"按钮（Task 9 实现） */}
+      {/* "+ 任务"按钮：在本列新建任务（预填当前 state） */}
       <button
         type="button"
+        onClick={() => onAddTask(state.id)}
         className={[
           "mt-2 w-full rounded-lg border border-dashed py-1.5 text-xs",
           "text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground",
+          "focus:outline-none focus:ring-2 focus:ring-ring",
         ].join(" ")}
-        disabled
-        title="新建任务（Task 9）"
+        title="新建任务"
       >
-        {/* Task 9: 点击打开 TaskSheet 新建任务 */}
         + 任务
       </button>
     </div>
