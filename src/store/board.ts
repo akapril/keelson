@@ -14,6 +14,10 @@ import {
 import { COL } from "../lib/pb/collections";
 import { currentUserId } from "../lib/pb";
 import { nextRank } from "./board-rank";
+import {
+  createProjectFromTemplate as _createProjectFromTemplate,
+  type CreateProjectInput,
+} from "../features/board/create-project";
 import type {
   BoardTemplate,
   BoardProject,
@@ -94,6 +98,11 @@ interface BoardStoreState {
   deleteTask: (id: string) => Promise<void>;
   /** 按状态 ID 分组当前所有任务，用于看板列渲染 */
   tasksByState: () => Record<string, BoardTask[]>;
+  /**
+   * 从模板创建项目（前端编排 + 补偿）并刷新项目列表。
+   * 委托给 src/features/board/create-project.ts。
+   */
+  createProject: (input: CreateProjectInput) => Promise<BoardProject>;
 }
 
 // ── Store 实现 ─────────────────────────────────────────────
@@ -214,4 +223,12 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
 
   // ── 按状态分组（计算属性） ──────────────────────────────
   tasksByState: () => groupTasksByState(get().tasks),
+
+  // ── 从模板创建项目（编排 + 补偿 + 刷新列表） ──────────
+  createProject: async (input: CreateProjectInput) => {
+    const project = await _createProjectFromTemplate(input);
+    // 创建成功后刷新项目列表
+    await get().loadProjects();
+    return project;
+  },
 }));
