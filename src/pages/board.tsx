@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useBoardStore } from "../store/board";
 import { ProjectList } from "../features/board/ProjectList";
+import { CreateProjectDialog } from "../features/board/CreateProjectDialog";
 
 /**
  * 看板首页。
@@ -9,6 +10,9 @@ import { ProjectList } from "../features/board/ProjectList";
  * 新建项目对话框由 Task 7 实现，此处仅预留按钮占位。
  */
 export default function Board() {
+  // 控制"新建项目"对话框是否显示
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+
   // 挂载时并行加载模板和项目列表
   useEffect(() => {
     useBoardStore.getState().loadTemplates();
@@ -22,10 +26,7 @@ export default function Board() {
         <h1 className="text-base font-semibold">看板</h1>
         <button
           type="button"
-          // Task 7: 点击打开"新建项目"对话框
-          onClick={() => {
-            // Task 7
-          }}
+          onClick={() => setShowCreateDialog(true)}
           className={[
             "rounded-md bg-primary px-4 py-1.5 text-sm font-medium",
             "text-primary-foreground shadow-sm transition-colors",
@@ -40,6 +41,11 @@ export default function Board() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <ProjectList />
       </div>
+
+      {/* 新建项目对话框（按需挂载） */}
+      {showCreateDialog && (
+        <CreateProjectDialog onClose={() => setShowCreateDialog(false)} />
+      )}
     </div>
   );
 }
