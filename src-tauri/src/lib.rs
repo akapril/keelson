@@ -72,7 +72,7 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_bootstrap_auth])
+        .invoke_handler(tauri::generate_handler![get_bootstrap_auth, commands::ping])
         .run(tauri::generate_context!())
         .expect("运行 rework 失败");
 }
