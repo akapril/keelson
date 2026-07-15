@@ -25,14 +25,14 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
   const favorites = useSessionMetaStore((s) => s.favorites);
   const toggleFavorite = useSessionMetaStore((s) => s.toggleFavorite);
 
-  // 从 project_path 提取最后一段作为项目名
-  const projectName = session.project_path.split(/[\\/]/).filter(Boolean).at(-1) ?? session.project_path;
-  const isFav = favorites.has(session.id);
+  // 直接使用 Rust 序列化的 project_name 字段
+  const projectName = session.project_name;
+  const isFav = favorites.has(session.session_id);
 
   function handleStarClick(e: React.MouseEvent) {
     // 阻止冒泡，避免同时触发 onSelect
     e.stopPropagation();
-    toggleFavorite(session.id);
+    toggleFavorite(session.session_id);
   }
 
   return (
@@ -72,10 +72,10 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
         <span>{session.message_count} 条消息</span>
       </div>
 
-      {/* 第三行：last_prompt（用 summary 字段截断展示） */}
-      {session.summary && (
+      {/* 第三行：last_prompt 截断展示 */}
+      {session.last_prompt && (
         <p className="line-clamp-2 text-xs text-muted-foreground">
-          {truncate(session.summary)}
+          {truncate(session.last_prompt)}
         </p>
       )}
     </div>

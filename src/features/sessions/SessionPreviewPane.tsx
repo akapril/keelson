@@ -40,7 +40,7 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
     setLoading(true);
     setError(null);
 
-    ipc.sessionTimeline(session.provider, session.id)
+    ipc.sessionTimeline(session.provider, session.session_id)
       .then((timeline) => {
         if (cancelled) return;
         // 只展示最近 PREVIEW_LIMIT 条
@@ -56,7 +56,7 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
     return () => {
       cancelled = true;
     };
-  }, [session?.id, session?.provider]);
+  }, [session?.session_id, session?.provider]);
 
   // ── 空状态 ────────────────────────────────────────────
   if (!session) {
@@ -67,9 +67,8 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
     );
   }
 
-  // ── 从 project_path 提取项目名 ────────────────────────
-  const projectName =
-    session.project_path.split(/[\\/]/).filter(Boolean).at(-1) ?? session.project_path;
+  // 直接使用 Rust 序列化的 project_name 字段
+  const projectName = session.project_name;
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -81,7 +80,7 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
           <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{session.provider}</span>
           <span>{session.message_count} 条消息</span>
-          <span className="ml-auto font-mono">{session.id.slice(0, 8)}…</span>
+          <span className="ml-auto font-mono">{session.session_id.slice(0, 8)}…</span>
         </div>
       </div>
 

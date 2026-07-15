@@ -17,7 +17,7 @@ export const useRestoreStore = create<RestoreState>((set) => ({
   restore: async (session: Session, asTab: boolean) => {
     set({ loading: true, error: undefined });
     try {
-      await ipc.restore(session.provider, session.project_path, session.id, asTab);
+      await ipc.restore(session.provider, session.project_path, session.session_id, asTab);
       set({ loading: false });
     } catch (e) {
       set({ error: String(e), loading: false });

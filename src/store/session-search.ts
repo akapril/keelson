@@ -13,7 +13,7 @@ interface SessionSearchState {
   /**
    * 执行搜索。
    * MVP：对 useSessionsStore.sessions 进行客户端过滤，
-   * 匹配 project_path / summary / id（不调用 ipc.searchSessions）。
+   * 匹配 project_path / last_prompt / first_prompt / session_id（不调用 ipc.searchSessions）。
    */
   run: (q: string) => void;
 }
@@ -43,8 +43,9 @@ export const useSessionSearchStore = create<SessionSearchState>((set) => ({
     const results = allSessions.filter(
       (s) =>
         s.project_path.toLowerCase().includes(lower) ||
-        s.id.toLowerCase().includes(lower) ||
-        (s.summary ?? "").toLowerCase().includes(lower),
+        s.session_id.toLowerCase().includes(lower) ||
+        s.last_prompt.toLowerCase().includes(lower) ||
+        s.first_prompt.toLowerCase().includes(lower),
     );
 
     // 更新搜索历史（去重 + 截断）

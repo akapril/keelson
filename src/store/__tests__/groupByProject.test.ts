@@ -2,15 +2,20 @@ import { describe, it, expect } from "vitest";
 import { groupByProject } from "../sessions";
 import type { Session } from "../../types/session";
 
-/** 构造最小化测试用 Session */
-function makeSession(id: string, project_path: string): Session {
+/** 构造最小化测试用 Session（所有必填字段均填充默认值） */
+function makeSession(session_id: string, project_path: string): Session {
   return {
-    id,
+    session_id,
     provider: "claude",
     project_path,
+    project_name: project_path.split(/[\\/]/).filter(Boolean).at(-1) ?? project_path,
+    first_prompt: "test prompt",
+    last_prompt: "test prompt",
     created_at: "2024-01-01T00:00:00Z",
     updated_at: "2024-01-01T00:00:00Z",
     message_count: 0,
+    user_messages: [],
+    total_tokens: 0,
   };
 }
 
