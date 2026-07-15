@@ -14,6 +14,10 @@ pub mod providers;
 pub mod scanner;
 // 注册表驱动的文件系统 Watcher + 三策略更新管理器（Task 12）
 pub mod updater;
+// Tantivy 全文索引管理器（Task 13）
+pub mod indexer;
+// 会话搜索后端：SessionHit + session_backend（Task 13）
+pub mod search;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
