@@ -8,6 +8,8 @@ pub mod paths;
 mod pb;
 // 命令模块（Task 16 实现具体命令，当前为占位）
 mod commands;
+// provider 抽象层：SessionProvider trait + ProviderRegistry（Task 9）
+pub mod providers;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
