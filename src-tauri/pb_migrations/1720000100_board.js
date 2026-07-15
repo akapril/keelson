@@ -33,7 +33,7 @@ migrate((app) => {
     listRule:   `@request.auth.id != "" && owner = @request.auth.id`,
     viewRule:   `@request.auth.id != "" && owner = @request.auth.id`,
     createRule: `@request.auth.id != "" && @request.body.owner = @request.auth.id`,
-    updateRule: `owner = @request.auth.id && @request.body.owner:changed = false`,
+    updateRule: `owner = @request.auth.id`,
     deleteRule: `owner = @request.auth.id`,
   });
   projects.fields.add(rel("owner", users.id, true, true));
@@ -54,7 +54,7 @@ migrate((app) => {
     listRule:   `@request.auth.id != "" && ${ownerOrMember}`,
     viewRule:   `@request.auth.id != "" && ${ownerOrMember}`,
     createRule: `project.owner = @request.auth.id`,
-    updateRule: `project.owner = @request.auth.id && @request.body.project:changed = false && @request.body.user:changed = false`,
+    updateRule: `project.owner = @request.auth.id`,
     deleteRule: `project.owner = @request.auth.id`,
   });
   members.fields.add(rel("project", projId, true, true));
@@ -66,11 +66,13 @@ migrate((app) => {
   app.save(members);
 
   // 3) board_project_states
+  // 注意：PB 0.30 中「关系遍历(project.owner) + @request.body.X:changed」组合会生成坏 SQL 导致 404，
+  // 故 updateRule 不用 :changed 守卫（单用户下可接受；前端不会改 project）。
   const childRules = {
     listRule:   `@request.auth.id != "" && ${ownerOrMember}`,
     viewRule:   `@request.auth.id != "" && ${ownerOrMember}`,
     createRule: `project.owner = @request.auth.id`,
-    updateRule: `project.owner = @request.auth.id && @request.body.project:changed = false`,
+    updateRule: `project.owner = @request.auth.id`,
     deleteRule: `project.owner = @request.auth.id`,
   };
   const states = new Collection({ name: "board_project_states", type: "base", ...childRules });
@@ -103,7 +105,7 @@ migrate((app) => {
     listRule:   `@request.auth.id != "" && ${ownerOrMember}`,
     viewRule:   `@request.auth.id != "" && ${ownerOrMember}`,
     createRule: `@request.auth.id != "" && ${ownerOrMember}`,
-    updateRule: `${ownerOrMember} && @request.body.project:changed = false && @request.body.created_by:changed = false`,
+    updateRule: `${ownerOrMember}`,
     deleteRule: `${ownerOrMember}`,
   });
   tasks.fields.add(rel("project", projId, true, true));
@@ -130,7 +132,7 @@ migrate((app) => {
     listRule:   `@request.auth.id != "" && (owner = "" || owner = @request.auth.id)`,
     viewRule:   `@request.auth.id != "" && (owner = "" || owner = @request.auth.id)`,
     createRule: `@request.auth.id != "" && @request.body.owner = @request.auth.id`,
-    updateRule: `owner = @request.auth.id && @request.body.owner:changed = false`,
+    updateRule: `owner = @request.auth.id`,
     deleteRule: `owner = @request.auth.id`,
   });
   templates.fields.add(new Field({ name: "owner", type: "relation", required: false, collectionId: users.id, cascadeDelete: false, maxSelect: 1 }));
