@@ -4,6 +4,7 @@
 // 无需任何 `match provider` 分支。
 
 pub mod claude;
+pub mod codex;
 
 use std::path::{Path, PathBuf};
 use crate::models::{Session, TimelineMessage};
@@ -71,11 +72,12 @@ pub struct ProviderRegistry {
 }
 
 impl ProviderRegistry {
-    /// 创建注册表：注册 Claude provider（Task 10），后续 Task 11 追加 Codex
+    /// 创建注册表：注册 Claude provider（Task 10）+ Codex provider（Task 11）
     pub fn new() -> Self {
         Self {
             providers: vec![
                 Box::new(claude::ClaudeProvider),
+                Box::new(codex::CodexProvider),
             ],
         }
     }
