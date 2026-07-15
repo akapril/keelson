@@ -1,24 +1,33 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { ThemeProvider } from "./components/theme-provider";
-import { ThemeToggle } from "./components/theme-toggle";
 import { useAuthStore } from "./store/auth";
-import { ipc } from "./lib/tauri/ipc";
+import { AppRouter } from "./router";
 
 export default function App() {
   const { ready, error, init } = useAuthStore();
-  const [pong, setPong] = useState("");
-  useEffect(() => { init(); ipc.ping().then(setPong); }, [init]);
+
+  useEffect(() => {
+    init();
+  }, [init]);
+
   return (
     <ThemeProvider>
-      <div className="min-h-screen p-6">
-        <div className="flex items-center justify-between">
-          <span className="text-lg">rework</span><ThemeToggle />
+      {ready ? (
+        <AppRouter />
+      ) : (
+        <div className="flex h-screen items-center justify-center bg-background text-foreground">
+          <div className="space-y-2 text-center">
+            {error ? (
+              <>
+                <div className="text-red-500">错误</div>
+                <div className="text-sm text-muted-foreground">{error}</div>
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">启动中…</div>
+            )}
+          </div>
         </div>
-        <ul className="mt-6 space-y-1 text-sm text-muted-foreground">
-          <li>Tauri IPC: {pong === "pong" ? "✓ 通" : "…"}</li>
-          <li>PocketBase: {ready ? "✓ 已登录" : error ? `✗ ${error}` : "…"}</li>
-        </ul>
-      </div>
+      )}
     </ThemeProvider>
   );
 }
