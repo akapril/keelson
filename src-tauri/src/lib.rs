@@ -18,6 +18,8 @@ pub mod updater;
 pub mod indexer;
 // 会话搜索后端：SessionHit + session_backend（Task 13）
 pub mod search;
+// 终端启动模块：TerminalKind 检测、LaunchPlan 纯函数构建、execute spawn（Task 14）
+pub mod terminal;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
