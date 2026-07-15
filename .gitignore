@@ -15,7 +15,8 @@ node_modules/
 pb_data/
 
 # Bundled sidecar binaries (downloaded at build time)
-/src-tauri/binaries/
+/src-tauri/binaries/*
+!/src-tauri/binaries/.gitkeep
 
 # OS / editor
 .DS_Store

@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "fetch:pb": "node scripts/fetch-pocketbase.mjs",
+    "predev": "node scripts/fetch-pocketbase.mjs",
+    "prebuild": "node scripts/fetch-pocketbase.mjs",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
