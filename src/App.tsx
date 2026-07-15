@@ -19,7 +19,7 @@ export default function App() {
           <div className="space-y-2 text-center">
             {error ? (
               <>
-                <div className="text-red-500">错误</div>
+                <div className="text-destructive">错误</div>
                 <div className="text-sm text-muted-foreground">{error}</div>
               </>
             ) : (
