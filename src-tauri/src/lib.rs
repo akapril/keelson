@@ -20,15 +20,29 @@ pub mod indexer;
 pub mod search;
 // 终端启动模块：TerminalKind 检测、LaunchPlan 纯函数构建、execute spawn（Task 14）
 pub mod terminal;
+// 会话元数据同步到 PocketBase（Task 15）
+pub mod sync;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
 use tauri::Manager;
 
-/// 全局应用状态：持有首启认证结果。
-#[derive(Default)]
+/// 全局应用状态：持有首启认证结果 + 扫描会话缓存。
+/// Task 16 可在此基础上扩展只读命令查询字段（sessions / index）。
 pub struct AppState {
+    /// PocketBase bootstrap 认证结果（base_url / token / user_id）
     pub auth: Arc<Mutex<Option<pb::bootstrap::BootstrapAuth>>>,
+    /// 最近一次全量扫描的会话列表缓存（Task 16 命令层读取用）
+    pub sessions: Arc<Mutex<Vec<crate::models::Session>>>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            auth: Arc::new(Mutex::new(None)),
+            sessions: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
 }
 
 /// IPC 命令：返回 bootstrap 认证信息（baseUrl / token / userId）。
@@ -73,15 +87,16 @@ pub fn run() {
             let handle = app.handle().clone();
             let state: tauri::State<AppState> = app.state();
             let auth_slot = state.auth.clone();
+            let sessions_slot = state.sessions.clone();
 
             // 确定 PB 数据目录和迁移文件目录
             let data_dir = app.path().app_data_dir()?.join("pb_data");
             let mig_dir = resolve_migrations_dir(&handle);
             std::fs::create_dir_all(&data_dir)?;
 
-            // 在后台 tokio 任务中完成 PB 启动 + bootstrap
+            // 在后台 tokio 任务中完成 PB 启动 + bootstrap + 会话同步
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = setup_pocketbase(handle, data_dir, mig_dir, auth_slot).await {
+                if let Err(e) = setup_pocketbase(handle, data_dir, mig_dir, auth_slot, sessions_slot).await {
                     // 仅记录错误，不 panic（UI 层通过 get_bootstrap_auth 的 Err 感知）
                     eprintln!("[rework] PocketBase 初始化失败: {e:#}");
                 }
@@ -99,11 +114,14 @@ pub fn run() {
 /// 3. 启动 `serve`
 /// 4. 等待健康检查通过
 /// 5. 执行 `bootstrap`（确保 local-user，返回 token；传入已获取密码，无第二次 keychain 调用）
+/// 6. 全量扫描会话，重建 Tantivy 索引，同步到 PB sessions_meta（Task 15）
+/// 7. 启动文件系统 Watcher，增量同步变化会话（Task 15）
 async fn setup_pocketbase(
     handle: tauri::AppHandle,
     data_dir: std::path::PathBuf,
     mig_dir: std::path::PathBuf,
     auth_slot: Arc<Mutex<Option<pb::bootstrap::BootstrapAuth>>>,
+    sessions_slot: Arc<Mutex<Vec<crate::models::Session>>>,
 ) -> anyhow::Result<()> {
     let port = pb::process::pick_free_port();
     let base = format!("http://127.0.0.1:{port}");
@@ -129,8 +147,86 @@ async fn setup_pocketbase(
 
     // 步骤 5：bootstrap — 确保 local-user，缓存 token（传入已获取的密码，避免再次访问 keychain）
     let auth = pb::bootstrap::bootstrap(&base, &super_pw, &user_pw).await?;
+    let user_id = auth.user_id.clone();
+    let pb_client = pb::client::PbClient::new(&auth.base_url, &auth.token);
     *auth_slot.lock() = Some(auth);
 
-    // TODO(Task 15)：挂载会话扫描→PB 同步任务
+    // 步骤 6：全量扫描会话 + 重建 Tantivy 索引 + 同步到 PB
+    let reg = Arc::new(providers::ProviderRegistry::new());
+    let sessions = scanner::scan_all(&reg);
+    eprintln!("[rework] 首次扫描完成：{} 条会话", sessions.len());
+
+    // 重建 Tantivy 全文索引
+    let index_dir = data_dir.join("tantivy_index");
+    match indexer::SessionIndex::new(&index_dir) {
+        Ok(idx) => {
+            if let Err(e) = idx.rebuild(&sessions) {
+                eprintln!("[rework] Tantivy rebuild 失败（非致命）: {e:#}");
+            }
+        }
+        Err(e) => eprintln!("[rework] SessionIndex::new 失败（非致命）: {e:#}"),
+    }
+
+    // 同步到 PocketBase sessions_meta
+    if let Err(e) = sync::sync_to_pb(&pb_client, &user_id, &sessions).await {
+        eprintln!("[rework] 首次 sync_to_pb 失败（非致命）: {e:#}");
+    }
+
+    // 缓存会话供 Task 16 命令层使用
+    *sessions_slot.lock() = sessions;
+
+    // 步骤 7：启动文件系统 Watcher（增量同步）
+    // 克隆依赖项供回调闭包持有
+    let pb_client_for_watcher = pb_client.clone();
+    let user_id_for_watcher = user_id.clone();
+    let reg_for_watcher = Arc::clone(&reg);
+    let sessions_slot_for_watcher = Arc::clone(&sessions_slot);
+
+    // 构造回调：full_rescan=true 时重新 scan_all；false 时仅同步增量变化的会话
+    let watcher_cb: updater::SessionChangedCallback = Arc::new(move |changed_sessions: Vec<crate::models::Session>, full_rescan: bool| {
+        let client = pb_client_for_watcher.clone();
+        let owner = user_id_for_watcher.clone();
+        let reg = Arc::clone(&reg_for_watcher);
+        let slot = Arc::clone(&sessions_slot_for_watcher);
+
+        // 在 Tauri 的异步运行时执行同步任务（回调本身是同步的，故 spawn）
+        tauri::async_runtime::spawn(async move {
+            // 决定本次要同步的会话列表
+            let to_sync: Vec<crate::models::Session> = if full_rescan {
+                // full_rescan=true：scan_single 返回 None，需全量重扫
+                let fresh = scanner::scan_all(&reg);
+                *slot.lock() = fresh.clone();
+                fresh
+            } else {
+                // 增量：更新缓存中对应的会话后同步
+                {
+                    let mut cache = slot.lock();
+                    for s in &changed_sessions {
+                        // 替换缓存中同 session_id 的旧记录
+                        if let Some(pos) = cache.iter().position(|c| c.session_id == s.session_id) {
+                            cache[pos] = s.clone();
+                        } else {
+                            cache.push(s.clone());
+                        }
+                    }
+                }
+                changed_sessions
+            };
+
+            if let Err(e) = sync::sync_to_pb(&client, &owner, &to_sync).await {
+                eprintln!("[rework] Watcher 触发的 sync_to_pb 失败（非致命）: {e:#}");
+            }
+        });
+    });
+
+    // 启动 Watcher（_watcher 持有 handle，drop 时停止监听；通过 leak 使其存活到进程退出）
+    match updater::Watcher::start(Arc::clone(&reg), watcher_cb) {
+        Ok(watcher) => {
+            // 通过 Box::leak 使 watcher 存活到进程退出（与 Tauri 生命周期对齐）
+            Box::leak(Box::new(watcher));
+        }
+        Err(e) => eprintln!("[rework] Watcher 启动失败（非致命）: {e:#}"),
+    }
+
     Ok(())
 }
