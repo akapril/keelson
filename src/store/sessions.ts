@@ -1,0 +1,52 @@
+import { create } from "zustand";
+import { ipc } from "../lib/tauri/ipc";
+import type { Session } from "../types/session";
+
+// ── 纯函数辅助：按 project_path 分组 ──────────────────────
+/** 将会话列表按 project_path 分组，返回 Record<string, Session[]> */
+export function groupByProject(sessions: Session[]): Record<string, Session[]> {
+  const result: Record<string, Session[]> = {};
+  for (const s of sessions) {
+    const key = s.project_path;
+    if (!result[key]) result[key] = [];
+    result[key].push(s);
+  }
+  return result;
+}
+
+// ── 视图模式 ──────────────────────────────────────────────
+export type ViewMode = "list" | "grouped";
+
+// ── Store 状态类型 ─────────────────────────────────────────
+interface SessionsState {
+  sessions: Session[];
+  /** 按 project_path 分组的会话（由 load() 自动计算） */
+  groups: Record<string, Session[]>;
+  viewMode: ViewMode;
+  loading: boolean;
+  error?: string;
+  /** 从 Tauri 后端加载全部会话 */
+  load: () => Promise<void>;
+  /** 切换列表 / 分组视图 */
+  setViewMode: (mode: ViewMode) => void;
+}
+
+export const useSessionsStore = create<SessionsState>((set) => ({
+  sessions: [],
+  groups: {},
+  viewMode: "list",
+  loading: false,
+  error: undefined,
+
+  load: async () => {
+    set({ loading: true, error: undefined });
+    try {
+      const sessions = await ipc.listSessions();
+      set({ sessions, groups: groupByProject(sessions), loading: false });
+    } catch (e) {
+      set({ error: String(e), loading: false });
+    }
+  },
+
+  setViewMode: (viewMode) => set({ viewMode }),
+}));
