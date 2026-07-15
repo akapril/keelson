@@ -1,3 +1,239 @@
+import { useEffect, useRef, useState } from "react";
+import { useSettingsStore } from "../store/settings";
+
+// ── 快捷键字符串构建辅助 ───────────────────────────────────────
+/**
+ * 从 KeyboardEvent 构建形如 "CommandOrControl+Shift+Space" 的快捷键字符串。
+ * 遵循 tauri_plugin_global_shortcut 期望的格式。
+ */
+function buildHotkeyString(e: KeyboardEvent): string {
+  const parts: string[] = [];
+
+  // 修饰键（按固定顺序，避免 "Shift+Ctrl" vs "Ctrl+Shift" 歧义）
+  if (e.ctrlKey || e.metaKey) parts.push("CommandOrControl");
+  if (e.altKey) parts.push("Alt");
+  if (e.shiftKey) parts.push("Shift");
+
+  // 主键（排除纯修饰键按下）
+  const MODIFIER_KEYS = new Set([
+    "Control", "Meta", "Alt", "Shift",
+    "CapsLock", "NumLock", "ScrollLock",
+  ]);
+  if (!MODIFIER_KEYS.has(e.key)) {
+    // 将浏览器 key 名称标准化为 Tauri 期望格式
+    const key = normalizeKey(e.key, e.code);
+    parts.push(key);
+  }
+
+  return parts.join("+");
+}
+
+/**
+ * 将浏览器 KeyboardEvent.key 标准化为 Tauri 快捷键格式。
+ * 参考：https://docs.rs/global-hotkey/latest/global_hotkey/hotkey/enum.Code.html
+ */
+function normalizeKey(key: string, code: string): string {
+  // 功能键直接使用
+  if (/^F\d+$/.test(key)) return key;
+  // 空格
+  if (key === " " || key === "Spacebar") return "Space";
+  // 方向键
+  const arrowMap: Record<string, string> = {
+    ArrowUp: "Up", ArrowDown: "Down", ArrowLeft: "Left", ArrowRight: "Right",
+  };
+  if (key in arrowMap) return arrowMap[key];
+  // 单字符：数字和字母直接大写
+  if (key.length === 1) return key.toUpperCase();
+  // 其余（Escape、Enter、Tab、Backspace 等）直接透传
+  // 对于 code 中的 Key* / Digit* 作为兜底
+  if (code.startsWith("Key")) return code.slice(3);
+  if (code.startsWith("Digit")) return code.slice(5);
+  return key;
+}
+
+// ── 快捷键捕获控件 ────────────────────────────────────────────
+interface HotkeyCaptureProps {
+  value: string;
+  onCapture: (hotkey: string) => void;
+  disabled?: boolean;
+}
+
+function HotkeyCapture({ value, onCapture, disabled }: HotkeyCaptureProps) {
+  // 是否处于"捕获中"状态
+  const [capturing, setCapturing] = useState(false);
+  // 捕获中显示的预览字符串
+  const [preview, setPreview] = useState("");
+  const divRef = useRef<HTMLDivElement>(null);
+
+  // 进入捕获模式：聚焦 div 并重置预览
+  function startCapture() {
+    if (disabled) return;
+    setCapturing(true);
+    setPreview("");
+    divRef.current?.focus();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (!capturing) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Escape 取消捕获
+    if (e.key === "Escape") {
+      setCapturing(false);
+      setPreview("");
+      return;
+    }
+
+    const combo = buildHotkeyString(e.nativeEvent);
+    setPreview(combo);
+
+    // 只有包含非修饰键时才视为完整组合，触发回调
+    const MODIFIER_KEYS = new Set(["Control", "Meta", "Alt", "Shift"]);
+    if (!MODIFIER_KEYS.has(e.key) && combo.includes("+")) {
+      setCapturing(false);
+      onCapture(combo);
+    }
+  }
+
+  function handleBlur() {
+    // 失焦时退出捕获模式
+    setCapturing(false);
+    setPreview("");
+  }
+
+  // 显示文本：捕获中 → 预览；否则 → 当前值（或提示）
+  const displayText = capturing
+    ? preview || "按下快捷键组合…"
+    : value || "点击以设置";
+
+  return (
+    <div
+      ref={divRef}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={`快捷键输入，当前：${value || "未设置"}`}
+      aria-disabled={disabled}
+      onMouseDown={startCapture}
+      onKeyDown={handleKeyDown}
+      onBlur={handleBlur}
+      className={[
+        "inline-flex min-w-48 cursor-pointer select-none items-center",
+        "rounded-md border px-3 py-1.5 font-mono text-sm",
+        "transition-colors focus:outline-none",
+        capturing
+          ? "border-ring bg-accent text-accent-foreground ring-2 ring-ring"
+          : "border-border bg-muted text-foreground hover:bg-accent hover:text-accent-foreground",
+        disabled ? "pointer-events-none opacity-50" : "",
+      ].join(" ")}
+    >
+      {displayText}
+    </div>
+  );
+}
+
+// ── 设置页面主体 ───────────────────────────────────────────────
+/**
+ * 设置页面。
+ *
+ * 功能：
+ * 1. 全局唤起快捷键 — 通过 HotkeyCapture 控件捕获，经 useSettingsStore.saveHotkey
+ *    调用 ipc.setHotkey 持久化，并在 Rust 端立即重新注册（Task 21）。
+ * 2. 工作区路径 — 本地状态编辑，MVP 阶段前端维护（useSettingsStore.workspacePath
+ *    暂不持久化到后端，符合 Task 17 设计）。
+ *
+ * 颜色全部使用 Tailwind 语义类（无硬编码 hex/rgba），自动适配明暗主题。
+ */
 export default function Settings() {
-  return <div>设置（占位）</div>;
+  const { hotkey, workspacePath, loading, error, load, saveHotkey } =
+    useSettingsStore();
+
+  // 本地工作区路径编辑状态（不直接写 store 的 workspacePath 避免频繁触发渲染）
+  const [localPath, setLocalPath] = useState(workspacePath);
+
+  // 挂载时从后端加载设置
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // 当 store 中的 workspacePath 更新时同步本地状态
+  useEffect(() => {
+    setLocalPath(workspacePath);
+  }, [workspacePath]);
+
+  // 捕获到完整快捷键组合时保存
+  function handleHotkeyCapture(combo: string) {
+    saveHotkey(combo);
+  }
+
+  return (
+    <div className="mx-auto max-w-xl space-y-8 py-6">
+      <h1 className="text-lg font-semibold">设置</h1>
+
+      {/* 错误提示 */}
+      {error && (
+        <div
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          {error}
+        </div>
+      )}
+
+      {/* ── 全局唤起快捷键 ── */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium">全局唤起快捷键</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            在任意界面按下此组合键，即可唤起 / 隐藏 Spotlight 搜索窗口。
+            修改后立即生效，无需重启。
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <HotkeyCapture
+            value={hotkey}
+            onCapture={handleHotkeyCapture}
+            disabled={loading}
+          />
+          {loading && (
+            <span className="text-xs text-muted-foreground">保存中…</span>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          点击上方控件后，按下目标组合键（需含修饰键，如 Ctrl / Alt / Shift）；按 Esc 取消捕获。
+        </p>
+      </section>
+
+      <div className="border-t border-border" />
+
+      {/* ── 工作区路径 ── */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium">工作区路径</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Claude / Codex 会话所在的根目录（MVP 阶段仅本地保存，不同步后端）。
+          </p>
+        </div>
+
+        <input
+          type="text"
+          aria-label="工作区路径"
+          placeholder="/Users/you/projects 或 C:\Users\you\projects"
+          value={localPath}
+          onChange={(e) => setLocalPath(e.target.value)}
+          className={[
+            "w-full rounded-md border border-input bg-background px-3 py-1.5",
+            "text-sm text-foreground placeholder:text-muted-foreground",
+            "focus:outline-none focus:ring-2 focus:ring-ring",
+          ].join(" ")}
+        />
+
+        <p className="text-xs text-muted-foreground">
+          留空则使用默认路径（~/.claude / ~/.codex）。
+        </p>
+      </section>
+    </div>
+  );
 }

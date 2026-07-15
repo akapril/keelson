@@ -30,6 +30,49 @@ use parking_lot::Mutex;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
+/// 注册 Spotlight 全局快捷键的可复用辅助函数。
+///
+/// 先注销所有已注册的旧快捷键，再注册新的快捷键。
+/// 快捷键触发时切换 spotlight 窗口的显示/隐藏状态（toggle 行为）。
+///
+/// # 参数
+/// - `app`    — Tauri AppHandle，用于访问插件和窗口
+/// - `hotkey` — 快捷键字符串，如 "CommandOrControl+Shift+Space"
+///
+/// # 错误
+/// 注册失败时返回错误信息字符串（非致命，调用方可记录日志后继续）。
+pub fn register_spotlight_hotkey(app: &tauri::AppHandle, hotkey: &str) -> Result<(), String> {
+    // 先注销所有已注册快捷键（清除旧绑定）
+    app.global_shortcut()
+        .unregister_all()
+        .map_err(|e| format!("注销旧快捷键失败: {e:#}"))?;
+
+    // 注册新快捷键（克隆 handle 供回调持有）
+    let handle_for_cb = app.clone();
+    app.global_shortcut()
+        .on_shortcut(hotkey, move |_app, _shortcut, event| {
+            // 仅响应 Pressed 事件，避免重复触发
+            if event.state() != ShortcutState::Pressed {
+                return;
+            }
+            // 获取 spotlight 窗口并切换可见性
+            if let Some(win) = handle_for_cb.get_webview_window("spotlight") {
+                let is_visible = win.is_visible().unwrap_or(false);
+                if is_visible {
+                    // 已可见 → 隐藏（toggle）
+                    let _ = win.hide();
+                } else {
+                    // 不可见 → 显示并设置焦点
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                }
+            }
+        })
+        .map_err(|e| format!("注册快捷键 '{hotkey}' 失败: {e:#}"))?;
+
+    Ok(())
+}
+
 /// 全局应用状态。
 ///
 /// Task 16 扩展：在 Task 15 的 `auth + sessions` 基础上增加：
@@ -114,34 +157,13 @@ pub fn run() {
             let index_slot = state.index.clone();
 
             // ── Spotlight 全局快捷键注册 ───────────────────────────────
-            // 从配置中读取 hotkey 字符串，注册全局快捷键
-            // 按下时：若 spotlight 窗口已可见则隐藏；否则显示并获取焦点（toggle 行为）
+            // 从配置中读取 hotkey 字符串，通过可复用的辅助函数注册全局快捷键
+            // Task 21：已重构为 register_spotlight_hotkey，供启动和 config_set_hotkey 命令共用
             let hotkey_str = {
                 let cfg = state.config.lock();
                 cfg.hotkey.clone()
             };
-            let shortcut_handle = app.handle().clone();
-            if let Err(e) = app.global_shortcut().on_shortcut(
-                hotkey_str.as_str(),
-                move |_app, _shortcut, event| {
-                    // 仅响应 Pressed 事件，避免重复触发
-                    if event.state() != ShortcutState::Pressed {
-                        return;
-                    }
-                    // 获取 spotlight 窗口并切换可见性
-                    if let Some(win) = shortcut_handle.get_webview_window("spotlight") {
-                        let is_visible = win.is_visible().unwrap_or(false);
-                        if is_visible {
-                            // 已可见 → 隐藏（toggle）
-                            let _ = win.hide();
-                        } else {
-                            // 不可见 → 显示并设置焦点
-                            let _ = win.show();
-                            let _ = win.set_focus();
-                        }
-                    }
-                },
-            ) {
+            if let Err(e) = register_spotlight_hotkey(app.handle(), &hotkey_str) {
                 eprintln!("[rework] 全局快捷键注册失败（非致命）: {e:#}");
             }
 
