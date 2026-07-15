@@ -1,0 +1,30 @@
+# Rust / Tauri
+/src-tauri/target/
+**/*.rs.bk
+*.pdb
+
+# Node / frontend
+node_modules/
+/dist/
+/frontend/dist/
+.vite/
+*.local
+
+# PocketBase runtime data (never commit)
+/src-tauri/pb_data/
+pb_data/
+
+# Bundled sidecar binaries (downloaded at build time)
+/src-tauri/binaries/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Env / secrets
+.env
+.env.*
+!.env.example
