@@ -23,5 +23,14 @@
 - 主题：中性明暗双主题（**非莫兰迪**，用户对本项目的显式覆盖），全走 CSS 变量。
 - 隐私：会话正文留磁盘不进 PB；RAG 倾向本地 embedding，正文不发第三方。
 
+## 设计决定（待正式 spec 时落实）
+
+**Board × retalk 结合（Phase ②+④）—— 两层项目模型 + repo_path 缝合：**
+- **缝合键**：`board_projects` 加可选 `repo_path`(text)，用 `board_project.repo_path == session.project_path` 关联本地会话；`board_tasks` 加 `source_session_id` + `source_anchor`（溯源回跳）。
+- **Tier 0 自动轻量项目**：retalk 会话按 `project_path` 分组视图，每个有会话的目录自动即是，零 PB、只读。
+- **Tier 1 受管 Board 项目**：PB `board_project` 记录，来源①从 Tier-0 一键"提升"(自动 set repo_path) ②独立新建(不绑 repo)。
+- **能力**：看板项目详情 = 任务看板 + 关联会话栏 + git 状态 + 活跃度；会话→任务(化学反应，带溯源)；任务↔会话双向跳转；活跃度驱动排期。
+- **数据边界**：Board 数据进 PB；会话留磁盘(仅 sessions_meta 进 PB)；关联是字符串外部键非 PB relation。
+
 ## 已完成里程碑
 - **MVP（Phase 0+①）**：branch `feat/mvp-phase-0-1`，cargo 49 + vitest 17 全绿，含 5 个实测修复。收尾决定（merge/keep/PR）仍挂起。
