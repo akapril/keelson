@@ -1,1 +1,67 @@
 @import "tailwindcss";
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.985 0.002 250);   /* 极浅暖中性，非纯白 */
+  --foreground: oklch(0.21 0.006 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.006 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.006 250);
+  --primary: oklch(0.45 0.03 250);        /* 克制的中性蓝灰强调 */
+  --primary-foreground: oklch(0.985 0.002 250);
+  --muted: oklch(0.955 0.004 250);
+  --muted-foreground: oklch(0.5 0.01 250);
+  --accent: oklch(0.955 0.004 250);
+  --accent-foreground: oklch(0.21 0.006 250);
+  --border: oklch(0.9 0.004 250);
+  --input: oklch(0.9 0.004 250);
+  --ring: oklch(0.45 0.03 250);
+  --destructive: oklch(0.55 0.2 25);
+  /* Spotlight / 玻璃层 —— 用 color-mix，禁止裸 rgba */
+  --glass-surface: color-mix(in oklab, var(--card) 88%, transparent);
+  --glass-border: color-mix(in oklab, var(--border) 70%, transparent);
+  --glass-blur: 20px;
+  --item-selected: oklch(0.93 0.006 250);
+}
+.dark {
+  --background: oklch(0.2 0.005 250);
+  --foreground: oklch(0.95 0.003 250);
+  --card: oklch(0.24 0.006 250);
+  --card-foreground: oklch(0.95 0.003 250);
+  --popover: oklch(0.24 0.006 250);
+  --popover-foreground: oklch(0.95 0.003 250);
+  --primary: oklch(0.7 0.03 250);
+  --primary-foreground: oklch(0.2 0.005 250);
+  --muted: oklch(0.28 0.006 250);
+  --muted-foreground: oklch(0.68 0.01 250);
+  --accent: oklch(0.3 0.006 250);
+  --accent-foreground: oklch(0.95 0.003 250);
+  --border: oklch(0.32 0.006 250);
+  --input: oklch(0.32 0.006 250);
+  --ring: oklch(0.7 0.03 250);
+  --destructive: oklch(0.7 0.19 25);
+  --glass-surface: color-mix(in oklab, var(--card) 82%, transparent);
+  --glass-border: color-mix(in oklab, var(--border) 60%, transparent);
+  --item-selected: oklch(0.3 0.008 250);
+}
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --radius-lg: var(--radius);
+}
+body { @apply bg-background text-foreground; }
