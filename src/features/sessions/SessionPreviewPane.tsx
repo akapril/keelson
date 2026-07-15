@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ipc } from "../../lib/tauri/ipc";
 import type { Session } from "../../types/session";
 import type { TimelineMessage } from "../../types/session";
+import { RestoreDialog } from "./RestoreDialog";
 
 // ── 预览消息的显示数量上限 ────────────────────────────────
 const PREVIEW_LIMIT = 10;
@@ -27,6 +28,25 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   const [messages, setMessages] = useState<TimelineMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 控制恢复对话框：Enter 键触发时，直接填入当前 session
+  const [restoreTarget, setRestoreTarget] = useState<Session | null>(null);
+
+  // 面板容器 ref，用于注册键盘监听
+  const paneRef = useRef<HTMLDivElement>(null);
+
+  // Enter 键：在预览面板聚焦时，触发恢复当前选中会话（默认新终端窗）
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // 仅在面板容器内（或面板内元素聚焦）时响应 Enter
+      if (e.key === "Enter" && session && paneRef.current?.contains(document.activeElement)) {
+        e.preventDefault();
+        setRestoreTarget(session);
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [session]);
 
   // 每次选中的 session 变化时重新加载时间线
   useEffect(() => {
@@ -71,12 +91,24 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   const projectName = session.project_name;
 
   return (
-    <div className="flex h-full flex-col gap-3">
-      {/* 顶部：会话基本信息 */}
+    <>
+    {/* tabIndex=0 使面板可聚焦，从而响应 Enter 快捷键 */}
+    <div ref={paneRef} tabIndex={0} className="flex h-full flex-col gap-3 outline-none">
+      {/* 顶部：会话基本信息 + 恢复按钮 */}
       <div className="shrink-0 border-b border-border pb-3">
-        <h2 className="truncate text-sm font-semibold" title={session.project_path}>
-          {projectName}
-        </h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="truncate text-sm font-semibold" title={session.project_path}>
+            {projectName}
+          </h2>
+          {/* 恢复按钮：点击打开恢复对话框；Enter 快捷键同样触发 */}
+          <button
+            onClick={() => setRestoreTarget(session)}
+            className="shrink-0 rounded-lg border border-border bg-card px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            title="恢复会话（或按 Enter）"
+          >
+            恢复
+          </button>
+        </div>
         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
           <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{session.provider}</span>
           <span>{session.message_count} 条消息</span>
@@ -131,5 +163,12 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
         </p>
       )}
     </div>
+
+    {/* 恢复对话框：由"恢复"按钮或 Enter 键触发 */}
+    <RestoreDialog
+      session={restoreTarget}
+      onClose={() => setRestoreTarget(null)}
+    />
+    </>
   );
 }

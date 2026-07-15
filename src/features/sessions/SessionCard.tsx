@@ -1,5 +1,7 @@
+import { useState } from "react";
 import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
+import { RestoreDialog } from "./RestoreDialog";
 
 // ── 工具函数：截断 last_prompt 文本 ────────────────────────
 /** 将字符串截断至 maxLen 字符，超出部分用省略号代替 */
@@ -25,6 +27,9 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
   const favorites = useSessionMetaStore((s) => s.favorites);
   const toggleFavorite = useSessionMetaStore((s) => s.toggleFavorite);
 
+  // 控制恢复对话框的显示状态
+  const [restoreTarget, setRestoreTarget] = useState<Session | null>(null);
+
   // 直接使用 Rust 序列化的 project_name 字段
   const projectName = session.project_name;
   const isFav = favorites.has(session.session_id);
@@ -35,49 +40,74 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
     toggleFavorite(session.session_id);
   }
 
+  function handleRestoreClick(e: React.MouseEvent) {
+    // 阻止冒泡，避免触发卡片选中
+    e.stopPropagation();
+    setRestoreTarget(session);
+  }
+
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-pressed={selected}
-      onClick={() => onSelect(session)}
-      onKeyDown={(e) => e.key === "Enter" && onSelect(session)}
-      className={[
-        // 基础卡片样式
-        "flex cursor-pointer flex-col gap-1 rounded-lg border border-border p-3 text-left transition-colors",
-        // 选中 vs 默认状态
-        selected
-          ? "bg-accent text-accent-foreground"
-          : "bg-card text-card-foreground hover:bg-accent/50",
-      ].join(" ")}
-    >
-      {/* 首行：项目名 + 收藏星标 */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-sm font-medium" title={session.project_path}>
-          {projectName}
-        </span>
-        <button
-          aria-label={isFav ? "取消收藏" : "收藏"}
-          onClick={handleStarClick}
-          className="shrink-0 text-base leading-none text-muted-foreground transition-colors hover:text-primary"
-        >
-          {/* 实心星 / 空心星，使用 unicode 避免引入图标库 */}
-          {isFav ? "★" : "☆"}
-        </button>
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-pressed={selected}
+        onClick={() => onSelect(session)}
+        onKeyDown={(e) => e.key === "Enter" && onSelect(session)}
+        className={[
+          // 基础卡片样式
+          "flex cursor-pointer flex-col gap-1 rounded-lg border border-border p-3 text-left transition-colors",
+          // 选中 vs 默认状态
+          selected
+            ? "bg-accent text-accent-foreground"
+            : "bg-card text-card-foreground hover:bg-accent/50",
+        ].join(" ")}
+      >
+        {/* 首行：项目名 + 收藏星标 + 恢复按钮 */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate text-sm font-medium" title={session.project_path}>
+            {projectName}
+          </span>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {/* 恢复按钮：打开恢复对话框 */}
+            <button
+              aria-label="恢复会话"
+              onClick={handleRestoreClick}
+              className="rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+            >
+              恢复
+            </button>
+            {/* 收藏星标 */}
+            <button
+              aria-label={isFav ? "取消收藏" : "收藏"}
+              onClick={handleStarClick}
+              className="text-base leading-none text-muted-foreground transition-colors hover:text-primary"
+            >
+              {/* 实心星 / 空心星，使用 unicode 避免引入图标库 */}
+              {isFav ? "★" : "☆"}
+            </button>
+          </div>
+        </div>
+
+        {/* 第二行：provider 标签 + 消息数量 */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{session.provider}</span>
+          <span>{session.message_count} 条消息</span>
+        </div>
+
+        {/* 第三行：last_prompt 截断展示 */}
+        {session.last_prompt && (
+          <p className="line-clamp-2 text-xs text-muted-foreground">
+            {truncate(session.last_prompt)}
+          </p>
+        )}
       </div>
 
-      {/* 第二行：provider 标签 + 消息数量 */}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{session.provider}</span>
-        <span>{session.message_count} 条消息</span>
-      </div>
-
-      {/* 第三行：last_prompt 截断展示 */}
-      {session.last_prompt && (
-        <p className="line-clamp-2 text-xs text-muted-foreground">
-          {truncate(session.last_prompt)}
-        </p>
-      )}
-    </div>
+      {/* 恢复对话框（挂载于 SessionCard 外层，避免被卡片样式裁剪） */}
+      <RestoreDialog
+        session={restoreTarget}
+        onClose={() => setRestoreTarget(null)}
+      />
+    </>
   );
 }
