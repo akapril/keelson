@@ -1,6 +1,7 @@
 // TaskCard —— 看板单任务卡片，支持 dnd-kit 拖拽排序。
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useNavigate } from "react-router-dom";
 import { useBoardStore } from "../../store/board";
 import type { BoardTask } from "../../types/board";
 
@@ -40,6 +41,18 @@ interface TaskCardProps {
  */
 export function TaskCard({ task, onEdit }: TaskCardProps) {
   const labels = useBoardStore((s) => s.labels);
+  const navigate = useNavigate();
+
+  // 点击"来源会话"徽章：跳转到会话中枢，并通过 query 携带会话 id 作为
+  // 最佳努力的定位信号（会话页选中状态目前为组件局部 state，无 store 选中位）。
+  function handleSourceClick(e: React.MouseEvent) {
+    // 阻止冒泡，避免触发卡片编辑（onEdit）与拖拽
+    e.stopPropagation();
+    if (!task.source_session_id) return;
+    const params = new URLSearchParams({ session: task.source_session_id });
+    if (task.source_provider) params.set("provider", task.source_provider);
+    navigate(`/sessions?${params.toString()}`);
+  }
 
   const {
     attributes,
@@ -122,15 +135,17 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
           </span>
         )}
 
-        {/* 来源会话徽章（点击联动由 Task 12 实现） */}
+        {/* 来源会话徽章：点击跳转到会话中枢并定位来源会话 */}
         {task.source_session_id && (
-          <span
-            className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
-            title={task.source_session_id}
+          <button
+            type="button"
+            onClick={handleSourceClick}
+            aria-label="跳转到来源会话"
+            title={`来源会话：${task.source_session_id}`}
+            className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
           >
             来源会话
-            {/* Task 12: 点击跳转来源会话 */}
-          </span>
+          </button>
         )}
       </div>
     </div>

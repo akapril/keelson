@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
 import { RestoreDialog } from "./RestoreDialog";
+import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 
 // ── 工具函数：截断 last_prompt 文本 ────────────────────────
 /** 将字符串截断至 maxLen 字符，超出部分用省略号代替 */
@@ -29,6 +30,8 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
 
   // 控制恢复对话框的显示状态
   const [restoreTarget, setRestoreTarget] = useState<Session | null>(null);
+  // 控制"从会话建任务"对话框的显示状态
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 
   // 直接使用 Rust 序列化的 project_name 字段
   const projectName = session.project_name;
@@ -44,6 +47,12 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
     // 阻止冒泡，避免触发卡片选中
     e.stopPropagation();
     setRestoreTarget(session);
+  }
+
+  function handleCreateTaskClick(e: React.MouseEvent) {
+    // 阻止冒泡，避免触发卡片选中
+    e.stopPropagation();
+    setTaskDialogOpen(true);
   }
 
   return (
@@ -69,6 +78,14 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
             {projectName}
           </span>
           <div className="flex shrink-0 items-center gap-1.5">
+            {/* 建任务按钮：打开"从会话建任务"对话框（阻止冒泡避免选中卡片） */}
+            <button
+              aria-label="从会话建任务"
+              onClick={handleCreateTaskClick}
+              className="rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+            >
+              建任务
+            </button>
             {/* 恢复按钮：打开恢复对话框 */}
             <button
               aria-label="恢复会话"
@@ -108,6 +125,14 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
         session={restoreTarget}
         onClose={() => setRestoreTarget(null)}
       />
+
+      {/* 从会话建任务对话框 */}
+      {taskDialogOpen && (
+        <CreateTaskFromSessionDialog
+          session={session}
+          onClose={() => setTaskDialogOpen(false)}
+        />
+      )}
     </>
   );
 }

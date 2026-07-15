@@ -3,6 +3,7 @@ import { ipc } from "../../lib/tauri/ipc";
 import type { Session } from "../../types/session";
 import type { TimelineMessage } from "../../types/session";
 import { RestoreDialog } from "./RestoreDialog";
+import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 
 // ── 预览消息的显示数量上限 ────────────────────────────────
 const PREVIEW_LIMIT = 10;
@@ -31,6 +32,8 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
 
   // 控制恢复对话框：Enter 键触发时，直接填入当前 session
   const [restoreTarget, setRestoreTarget] = useState<Session | null>(null);
+  // 控制"从会话建任务"对话框的显示状态
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 
   // 面板容器 ref，用于注册键盘监听
   const paneRef = useRef<HTMLDivElement>(null);
@@ -100,14 +103,25 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
           <h2 className="truncate text-sm font-semibold" title={session.project_path}>
             {projectName}
           </h2>
-          {/* 恢复按钮：点击打开恢复对话框；Enter 快捷键同样触发 */}
-          <button
-            onClick={() => setRestoreTarget(session)}
-            className="shrink-0 rounded-lg border border-border bg-card px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-            title="恢复会话（或按 Enter）"
-          >
-            恢复
-          </button>
+          {/* 操作按钮组：建任务 + 恢复 */}
+          <div className="flex shrink-0 items-center gap-2">
+            {/* 建任务按钮：打开"从会话建任务"对话框 */}
+            <button
+              onClick={() => setTaskDialogOpen(true)}
+              className="rounded-lg border border-border bg-card px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              title="从此会话创建看板任务"
+            >
+              建任务
+            </button>
+            {/* 恢复按钮：点击打开恢复对话框；Enter 快捷键同样触发 */}
+            <button
+              onClick={() => setRestoreTarget(session)}
+              className="rounded-lg border border-border bg-card px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              title="恢复会话（或按 Enter）"
+            >
+              恢复
+            </button>
+          </div>
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
           <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{session.provider}</span>
@@ -169,6 +183,14 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
       session={restoreTarget}
       onClose={() => setRestoreTarget(null)}
     />
+
+    {/* 从会话建任务对话框 */}
+    {taskDialogOpen && (
+      <CreateTaskFromSessionDialog
+        session={session}
+        onClose={() => setTaskDialogOpen(false)}
+      />
+    )}
     </>
   );
 }
