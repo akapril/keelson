@@ -21,6 +21,7 @@
     "@tauri-apps/plugin-global-shortcut": "^2"
   },
   "devDependencies": {
+    "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "latest",

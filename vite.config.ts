@@ -3,7 +3,6 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 // Tauri 期望固定端口，且需暴露给 webview
-// @ts-expect-error process 是 Node.js 全局变量
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
