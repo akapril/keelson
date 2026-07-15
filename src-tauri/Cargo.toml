@@ -1,0 +1,27 @@
+[package]
+name = "rework"
+version = "0.1.0"
+description = "rework — Tauri v2 + React 19 桌面应用"
+authors = ["you"]
+edition = "2021"
+
+# 更多键及其定义参见 https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# _lib 后缀看似冗余，但在 Windows 上必须如此，
+# 以避免 lib 名与 bin 名冲突。
+# 参见：https://github.com/rust-lang/cargo/issues/8519
+name = "rework_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-global-shortcut = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
