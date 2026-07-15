@@ -3,6 +3,7 @@ import { useBoardStore } from "../store/board";
 import { ProjectList } from "../features/board/ProjectList";
 import { CreateProjectDialog } from "../features/board/CreateProjectDialog";
 import { KanbanBoard } from "../features/board/KanbanBoard";
+import { ProjectSheet } from "../features/board/ProjectSheet";
 
 /**
  * 看板首页。
@@ -13,6 +14,8 @@ import { KanbanBoard } from "../features/board/KanbanBoard";
 export default function Board() {
   // 控制"新建项目"对话框是否显示
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  // 控制"项目设置"抽屉是否显示
+  const [showProjectSheet, setShowProjectSheet] = useState(false);
   const openedProjectId = useBoardStore((s) => s.openedProjectId);
   const projects = useBoardStore((s) => s.projects);
 
@@ -69,6 +72,22 @@ export default function Board() {
             新建项目
           </button>
         )}
+
+        {/* 项目设置按钮（只在已打开项目时显示） */}
+        {openedProjectId && (
+          <button
+            type="button"
+            onClick={() => setShowProjectSheet(true)}
+            className={[
+              "rounded-md border border-border px-4 py-1.5 text-sm font-medium",
+              "text-foreground transition-colors",
+              "hover:bg-accent hover:text-accent-foreground",
+              "focus:outline-none focus:ring-2 focus:ring-ring",
+            ].join(" ")}
+          >
+            项目设置
+          </button>
+        )}
       </div>
 
       {/* 主内容区：项目列表 或 看板 */}
@@ -86,6 +105,12 @@ export default function Board() {
       {showCreateDialog && (
         <CreateProjectDialog onClose={() => setShowCreateDialog(false)} />
       )}
+
+      {/* 项目设置抽屉（受控，作用于当前打开的项目） */}
+      <ProjectSheet
+        open={showProjectSheet}
+        onClose={() => setShowProjectSheet(false)}
+      />
     </div>
   );
 }

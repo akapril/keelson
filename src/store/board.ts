@@ -25,6 +25,7 @@ import type {
   BoardLabel,
   BoardTask,
   TaskPriority,
+  StateCategory,
 } from "../types/board";
 
 // ── 纯辅助函数（可独立测试） ─────────────────────────────
@@ -108,6 +109,50 @@ interface BoardStoreState {
    * 委托给 src/features/board/create-project.ts。
    */
   createProject: (input: CreateProjectInput) => Promise<BoardProject>;
+
+  // ── 项目设置：状态列 CRUD（作用于当前打开的项目） ─────────
+  /** 在当前项目新建状态列；未指定 sort_order 时追加到末尾。 */
+  createState: (input: {
+    name: string;
+    color: string;
+    category: StateCategory;
+    sort_order?: number;
+  }) => Promise<void>;
+  /** 更新状态列字段。 */
+  updateState: (
+    id: string,
+    patch: Partial<{
+      name: string;
+      color: string;
+      category: StateCategory;
+      sort_order: number;
+    }>,
+  ) => Promise<void>;
+  /** 删除状态列；若该状态下仍有任务则拒绝删除。 */
+  deleteState: (id: string) => Promise<void>;
+
+  // ── 项目设置：标签 CRUD（作用于当前打开的项目） ───────────
+  /** 在当前项目新建标签。 */
+  createLabel: (input: { name: string; color: string }) => Promise<void>;
+  /** 更新标签字段。 */
+  updateLabel: (
+    id: string,
+    patch: Partial<{ name: string; color: string }>,
+  ) => Promise<void>;
+  /** 删除标签。 */
+  deleteLabel: (id: string) => Promise<void>;
+
+  // ── 项目设置：更新项目本身 ────────────────────────────────
+  /** 更新项目字段，并同步 projects 数组中的对应条目。 */
+  updateProject: (
+    id: string,
+    patch: Partial<{
+      name: string;
+      description: string;
+      repo_path: string;
+      archived: boolean;
+    }>,
+  ) => Promise<void>;
 }
 
 // ── Store 实现 ─────────────────────────────────────────────
@@ -270,5 +315,98 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
     // 创建成功后刷新项目列表
     await get().loadProjects();
     return project;
+  },
+
+  // ── 新建状态列 ───────────────────────────────────────────
+  createState: async (input) => {
+    const { openedProjectId, states } = get();
+    if (!openedProjectId) throw new Error("未打开任何项目");
+    // 未指定 sort_order 时，追加到当前状态列末尾
+    const sortOrder =
+      input.sort_order ??
+      (states.length > 0
+        ? Math.max(...states.map((s) => s.sort_order)) + 1024
+        : 1024);
+    const created = await createRecord<BoardState>(COL.boardStates, {
+      project: openedProjectId,
+      name: input.name,
+      color: input.color,
+      category: input.category,
+      sort_order: sortOrder,
+    });
+    // 追加后按 sort_order 排序，保持与列表约定一致
+    set((s) => ({
+      states: [...s.states, created].sort(
+        (a, b) => a.sort_order - b.sort_order,
+      ),
+    }));
+  },
+
+  // ── 更新状态列 ───────────────────────────────────────────
+  updateState: async (id, patch) => {
+    const updated = await updateRecord<BoardState>(
+      COL.boardStates,
+      id,
+      patch as Record<string, unknown>,
+    );
+    set((s) => ({
+      states: s.states
+        .map((st) => (st.id === id ? updated : st))
+        .sort((a, b) => a.sort_order - b.sort_order),
+    }));
+  },
+
+  // ── 删除状态列（带任务占用守卫） ─────────────────────────
+  deleteState: async (id) => {
+    const { tasks } = get();
+    // 守卫：该状态下仍有任务则拒绝删除
+    if (tasks.some((t) => t.state === id)) {
+      throw new Error("该状态下仍有任务，无法删除");
+    }
+    await deleteRecord(COL.boardStates, id);
+    set((s) => ({ states: s.states.filter((st) => st.id !== id) }));
+  },
+
+  // ── 新建标签 ─────────────────────────────────────────────
+  createLabel: async (input) => {
+    const { openedProjectId } = get();
+    if (!openedProjectId) throw new Error("未打开任何项目");
+    const created = await createRecord<BoardLabel>(COL.boardLabels, {
+      project: openedProjectId,
+      name: input.name,
+      color: input.color,
+    });
+    set((s) => ({ labels: [...s.labels, created] }));
+  },
+
+  // ── 更新标签 ─────────────────────────────────────────────
+  updateLabel: async (id, patch) => {
+    const updated = await updateRecord<BoardLabel>(
+      COL.boardLabels,
+      id,
+      patch as Record<string, unknown>,
+    );
+    set((s) => ({
+      labels: s.labels.map((l) => (l.id === id ? updated : l)),
+    }));
+  },
+
+  // ── 删除标签 ─────────────────────────────────────────────
+  deleteLabel: async (id) => {
+    await deleteRecord(COL.boardLabels, id);
+    set((s) => ({ labels: s.labels.filter((l) => l.id !== id) }));
+  },
+
+  // ── 更新项目（同步 projects 数组 + 打开中的项目） ────────
+  updateProject: async (id, patch) => {
+    const updated = await updateRecord<BoardProject>(
+      COL.boardProjects,
+      id,
+      patch as Record<string, unknown>,
+    );
+    // 同步 projects 数组中的对应条目
+    set((s) => ({
+      projects: s.projects.map((p) => (p.id === id ? updated : p)),
+    }));
   },
 }));
