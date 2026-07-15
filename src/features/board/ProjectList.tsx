@@ -1,23 +1,29 @@
 import { useBoardStore } from "../../store/board";
 import type { BoardProject } from "../../types/board";
 
+// openProject 从 store 读取（Task 8：点击卡片打开看板）
+
 // ── 单个项目卡片 ────────────────────────────────────────────────
 interface ProjectCardProps {
   project: BoardProject;
 }
 
 function ProjectCard({ project }: ProjectCardProps) {
+  // Task 8: 点击项目卡片 → 打开看板视图
+  const openProject = useBoardStore((s) => s.openProject);
+
+  const handleOpen = () => {
+    void openProject(project.id);
+  };
+
   return (
     <div
       role="button"
       tabIndex={0}
-      // Task 8: 点击打开看板（kanban 视图待实现）
-      onClick={() => {
-        // Task 8
-      }}
+      onClick={handleOpen}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
-          // Task 8
+          handleOpen();
         }
       }}
       className={[

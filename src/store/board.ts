@@ -13,7 +13,7 @@ import {
 } from "../lib/pb/board";
 import { COL } from "../lib/pb/collections";
 import { currentUserId } from "../lib/pb";
-import { nextRank } from "./board-rank";
+import { nextRank, rankBetween } from "./board-rank";
 import {
   createProjectFromTemplate as _createProjectFromTemplate,
   type CreateProjectInput,
@@ -98,6 +98,11 @@ interface BoardStoreState {
   deleteTask: (id: string) => Promise<void>;
   /** 按状态 ID 分组当前所有任务，用于看板列渲染 */
   tasksByState: () => Record<string, BoardTask[]>;
+  /**
+   * 拖拽移动任务：将任务移到目标状态列的指定位置（乐观更新 + 回滚）。
+   * toIndex 为目标列（排除被拖拽任务本身后）的插入位置。
+   */
+  moveTask: (taskId: string, toStateId: string, toIndex: number) => Promise<void>;
   /**
    * 从模板创建项目（前端编排 + 补偿）并刷新项目列表。
    * 委托给 src/features/board/create-project.ts。
@@ -223,6 +228,41 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
 
   // ── 按状态分组（计算属性） ──────────────────────────────
   tasksByState: () => groupTasksByState(get().tasks),
+
+  // ── 拖拽移动任务（rank 计算 + 乐观更新 + 回滚） ────────
+  moveTask: async (taskId: string, toStateId: string, toIndex: number) => {
+    const { tasks } = get();
+    // 快照，用于失败时回滚
+    const snapshot = tasks;
+
+    // 目标列已排序任务（排除被拖拽任务本身）
+    const targetTasks = tasks
+      .filter((t) => t.state === toStateId && t.id !== taskId)
+      .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+
+    // 计算插入位置的前后邻居
+    const before = targetTasks[toIndex - 1];
+    const after = targetTasks[toIndex];
+    const rank = rankBetween(before?.rank, after?.rank);
+
+    // 乐观更新：修改 state 和 rank
+    set({
+      tasks: tasks.map((t) =>
+        t.id === taskId ? { ...t, state: toStateId, rank } : t,
+      ),
+    });
+
+    try {
+      // 写回 PB
+      await updateRecord(COL.boardTasks, taskId, {
+        state: toStateId,
+        rank,
+      });
+    } catch (e) {
+      // 失败则回滚到快照
+      set({ tasks: snapshot, error: String(e) });
+    }
+  },
 
   // ── 从模板创建项目（编排 + 补偿 + 刷新列表） ──────────
   createProject: async (input: CreateProjectInput) => {
