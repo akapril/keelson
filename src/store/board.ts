@@ -10,6 +10,7 @@ import {
   createRecord,
   updateRecord,
   deleteRecord,
+  subscribeProject,
 } from "../lib/pb/board";
 import { COL } from "../lib/pb/collections";
 import { currentUserId } from "../lib/pb";
@@ -27,6 +28,23 @@ import type {
   TaskPriority,
   StateCategory,
 } from "../types/board";
+
+// ── 实时订阅的退订句柄（模块级，仅保留当前打开项目的订阅） ──
+let unsub: (() => void) | null = null;
+
+/** upsert：按 id 替换，不存在则追加（使实时 echo 幂等，收敛乐观更新） */
+function upsertById<T extends { id: string }>(list: T[], rec: T): T[] {
+  const idx = list.findIndex((x) => x.id === rec.id);
+  if (idx === -1) return [...list, rec];
+  const next = list.slice();
+  next[idx] = rec;
+  return next;
+}
+
+/** remove：按 id 过滤移除 */
+function removeById<T extends { id: string }>(list: T[], id: string): T[] {
+  return list.filter((x) => x.id !== id);
+}
 
 // ── 纯辅助函数（可独立测试） ─────────────────────────────
 /**
@@ -91,6 +109,11 @@ interface BoardStoreState {
    * 同时更新 openedProjectId。
    */
   openProject: (id: string) => Promise<void>;
+  /**
+   * 关闭当前项目：取消实时订阅并清空 states / labels / tasks，
+   * 将 openedProjectId 置空。
+   */
+  closeProject: () => void;
   /** 在当前项目的指定状态列末尾新建任务 */
   createTask: (input: CreateTaskInput) => Promise<BoardTask>;
   /** 更新任务字段（乐观更新 + 写回 PB） */
@@ -188,8 +211,13 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
     }
   },
 
-  // ── 打开项目（并行加载 states / labels / tasks） ──────────
+  // ── 打开项目（并行加载 states / labels / tasks + 实时订阅） ──
   openProject: async (id: string) => {
+    // 切换项目前先取消上一个项目的订阅，避免泄漏
+    if (unsub) {
+      unsub();
+      unsub = null;
+    }
     set({ loading: true, error: undefined, openedProjectId: id });
     try {
       const [states, labels, tasks] = await Promise.all([
@@ -198,9 +226,41 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
         listTasks(id),
       ]);
       set({ states, labels, tasks, loading: false });
+      // 加载成功后订阅该项目的实时变更；upsert-by-id 使 echo 幂等
+      unsub = await subscribeProject(id, {
+        onTask: (action, rec) =>
+          set((s) => ({
+            tasks:
+              action === "delete"
+                ? removeById(s.tasks, rec.id)
+                : upsertById(s.tasks, rec),
+          })),
+        onState: (action, rec) =>
+          set((s) => ({
+            states:
+              action === "delete"
+                ? removeById(s.states, rec.id)
+                : upsertById(s.states, rec),
+          })),
+        onLabel: (action, rec) =>
+          set((s) => ({
+            labels:
+              action === "delete"
+                ? removeById(s.labels, rec.id)
+                : upsertById(s.labels, rec),
+          })),
+      });
     } catch (e) {
       set({ error: String(e), loading: false });
     }
+  },
+
+  // ── 关闭项目（退订 + 清空当前项目数据） ──────────────────
+  closeProject: () => {
+    // 取消实时订阅并释放句柄
+    unsub?.();
+    unsub = null;
+    set({ openedProjectId: null, states: [], labels: [], tasks: [] });
   },
 
   // ── 新建任务 ─────────────────────────────────────────────

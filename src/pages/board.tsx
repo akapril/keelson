@@ -37,14 +37,7 @@ export default function Board() {
           {openedProjectId && (
             <button
               type="button"
-              onClick={() =>
-                useBoardStore.setState({
-                  openedProjectId: null,
-                  states: [],
-                  labels: [],
-                  tasks: [],
-                })
-              }
+              onClick={() => useBoardStore.getState().closeProject()}
               className="text-sm text-muted-foreground hover:text-foreground"
             >
               看板

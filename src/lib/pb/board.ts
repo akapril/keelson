@@ -87,3 +87,49 @@ export function deleteRecord(coll: string, id: string): Promise<void> {
   // PB .delete() 返回 true，包装为 void
   return pb.collection(coll).delete(id).then(() => undefined);
 }
+
+// ── 实时订阅 ──────────────────────────────────────────────
+
+/** 订阅回调处理器：按集合分发 action + 记录 */
+interface SubscribeHandlers {
+  onTask: (action: string, rec: BoardTask) => void;
+  onState: (action: string, rec: BoardState) => void;
+  onLabel: (action: string, rec: BoardLabel) => void;
+}
+
+/**
+ * 订阅指定项目的 tasks / states / labels 实时变更（仅当前打开的项目 —— YAGNI）。
+ * 三个集合各自订阅通配主题 '*'，用 project 过滤器限定范围。
+ * @returns 单一 unsubscribe 函数，调用后取消全部三个订阅。
+ */
+export async function subscribeProject(
+  projectId: string,
+  handlers: SubscribeHandlers,
+): Promise<() => void> {
+  const filter = byProject(projectId);
+  // PB subscribe 事件类型为 { action: string; record: <RecordType> }
+  const [unTask, unState, unLabel] = await Promise.all([
+    pb.collection(COL.boardTasks).subscribe<BoardTask>(
+      "*",
+      (e) => handlers.onTask(e.action, e.record),
+      { filter },
+    ),
+    pb.collection(COL.boardStates).subscribe<BoardState>(
+      "*",
+      (e) => handlers.onState(e.action, e.record),
+      { filter },
+    ),
+    pb.collection(COL.boardLabels).subscribe<BoardLabel>(
+      "*",
+      (e) => handlers.onLabel(e.action, e.record),
+      { filter },
+    ),
+  ]);
+
+  // 返回聚合退订函数：一次性取消三个订阅
+  return () => {
+    void unTask();
+    void unState();
+    void unLabel();
+  };
+}
