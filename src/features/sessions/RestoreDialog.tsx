@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useRestoreStore } from "../../store/restore";
 import type { Session } from "../../types/session";
 
@@ -23,14 +23,13 @@ export function RestoreDialog({ session, onClose }: RestoreDialogProps) {
   const restore = useRestoreStore((s) => s.restore);
   const loading = useRestoreStore((s) => s.loading);
   const error = useRestoreStore((s) => s.error);
+  const clearError = useRestoreStore((s) => s.clearError);
 
-  // 关闭时重置错误状态（通过重新挂载不同的 session）
-  const prevSessionId = useRef<string | null>(null);
+  // 当对话框切换到不同的 session 时，清除上一次的错误信息，
+  // 避免旧的"恢复失败"错误在新 session 打开时残留显示。
   useEffect(() => {
-    if (session?.session_id !== prevSessionId.current) {
-      prevSessionId.current = session?.session_id ?? null;
-    }
-  }, [session?.session_id]);
+    clearError();
+  }, [session?.session_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 点击遮罩层关闭对话框（加载中禁止关闭）
   function handleOverlayClick() {
@@ -72,7 +71,7 @@ export function RestoreDialog({ session, onClose }: RestoreDialogProps) {
     // 全屏遮罩层，点击可关闭
     <div
       role="presentation"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 backdrop-blur-sm"
       onClick={handleOverlayClick}
     >
       {/* 对话框主体 */}

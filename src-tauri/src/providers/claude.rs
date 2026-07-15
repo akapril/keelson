@@ -661,6 +661,30 @@ mod tests {
         );
     }
 
+    /// 从 fixture 文件读取 Claude 时间轴消息列表（对标 Codex 的 read_timeline_from_codex_fixture）
+    #[test]
+    fn read_timeline_from_claude_fixture() {
+        // sample.jsonl 含：
+        //   user(string)  → "请帮我分析这段代码"
+        //   assistant(array[text]) → "好的，我来帮你分析。"
+        //   user(array[text]) → "能再详细一些吗？"
+        //   assistant(array[text]) → "当然，以下是详细分析..."
+        let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/claude/sample.jsonl");
+        let messages = read_timeline_from_path(&fixture);
+
+        // 断言：共 4 条消息（2 用户 + 2 助手）
+        assert_eq!(messages.len(), 4, "应有 4 条时间轴消息（2 user + 2 assistant）");
+        assert_eq!(messages[0].role, "user");
+        assert_eq!(messages[0].content, "请帮我分析这段代码");
+        assert_eq!(messages[1].role, "assistant");
+        assert_eq!(messages[1].content, "好的，我来帮你分析。");
+        assert_eq!(messages[2].role, "user");
+        assert_eq!(messages[2].content, "能再详细一些吗？");
+        assert_eq!(messages[3].role, "assistant");
+        assert_eq!(messages[3].content, "当然，以下是详细分析...");
+    }
+
     /// 测试 resume_command 格式正确
     #[test]
     fn resume_command_format() {

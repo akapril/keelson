@@ -6,7 +6,7 @@ import { currentUserId } from "../lib/pb";
 interface SessionMetaRecord {
   id: string;
   session_id: string;
-  user_id: string;
+  owner: string;      // PB schema 字段名为 owner（relation → users），非 user_id
   favorite: boolean;
   hidden: boolean;
   custom_name?: string;
@@ -15,7 +15,7 @@ interface SessionMetaRecord {
 interface SessionNoteRecord {
   id: string;
   session_id: string;
-  user_id: string;
+  owner: string;      // PB schema 字段名为 owner（relation → users），非 user_id
   content: string;
 }
 
@@ -47,9 +47,9 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
     set({ loading: true, error: undefined });
     try {
       const userId = currentUserId();
-      // 读取 sessions_meta
+      // 读取 sessions_meta（filter 使用 PB schema 字段 owner）
       const metaRows = await list<SessionMetaRecord>(COL.sessionsMeta, {
-        filter: `user_id="${userId}"`,
+        filter: `owner="${userId}"`,
       });
       const favorites = new Set<string>();
       metaRecordMap = new Map();
@@ -58,9 +58,9 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
         metaRecordMap.set(row.session_id, row.id);
       }
 
-      // 读取 session_notes
+      // 读取 session_notes（filter 使用 PB schema 字段 owner）
       const noteRows = await list<SessionNoteRecord>(COL.sessionNotes, {
-        filter: `user_id="${userId}"`,
+        filter: `owner="${userId}"`,
       });
       const notes = new Map<string, string>();
       noteRecordMap = new Map();
@@ -90,10 +90,10 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
         // 已有记录：更新
         await pbUpdate(COL.sessionsMeta, recordId, { favorite: !isFav });
       } else {
-        // 无记录：新建
+        // 无记录：新建（Rust sync_to_pb 通常已预建此行，此分支仅防御性兜底）
         const row = await pbCreate<SessionMetaRecord>(COL.sessionsMeta, {
           session_id: sessionId,
-          user_id: userId,
+          owner: userId,     // PB schema 要求 owner 字段（createRule 校验 owner = auth.id）
           favorite: !isFav,
           hidden: false,
         });
@@ -118,9 +118,10 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
       if (recordId) {
         await pbUpdate(COL.sessionNotes, recordId, { content: text });
       } else {
+        // 无记录：新建（owner 字段，满足 createRule 校验）
         const row = await pbCreate<SessionNoteRecord>(COL.sessionNotes, {
           session_id: sessionId,
-          user_id: userId,
+          owner: userId,     // PB schema 要求 owner 字段（createRule 校验 owner = auth.id）
           content: text,
         });
         noteRecordMap.set(sessionId, row.id);
