@@ -78,8 +78,9 @@ pub async fn create_superuser_via_sidecar(
     // 使用 output() 等待命令完成并收集输出
     let output = cmd.output().await?;
     if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("superuser upsert 失败: {stderr}");
+        anyhow::bail!("superuser upsert 失败\nstdout: {stdout}\nstderr: {stderr}");
     }
     Ok(())
 }

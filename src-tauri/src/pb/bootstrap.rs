@@ -19,51 +19,59 @@ const LOCAL_EMAIL: &str = "you@local.rework";
 /// keychain 服务名称。
 const KEYRING_SERVICE: &str = "rework";
 
-/// 公开：获取 superuser 密码（供 lib.rs 在启动 CLI 时使用）。
-pub fn superuser_password() -> String {
-    get_or_make_secret("superuser-pw")
+/// 公开：一次性获取 superuser 密码和本地用户密码（供 lib.rs 统一调用）。
+/// 保证每次启动只调用一次 keychain，避免多处调用导致的不一致。
+pub fn get_passwords() -> (String, String) {
+    let super_pw = get_or_make_secret("superuser-pw");
+    let user_pw = get_or_make_secret("local-user-pw");
+    (super_pw, user_pw)
 }
 
 /// 从 keychain 读取密码；若不存在则随机生成并写入。
+/// 若 keychain Entry 无法创建（系统不支持），则生成临时随机密码并打印安全警告。
 fn get_or_make_secret(account: &str) -> String {
+    /// 内部辅助：生成 32 字符随机字母数字密码。
+    fn random_pw() -> String {
+        use rand::Rng;
+        rand::thread_rng()
+            .sample_iter(&rand::distributions::Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect()
+    }
+
     if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, account) {
         if let Ok(pw) = entry.get_password() {
             return pw;
         }
         // 首次生成随机密码并持久化
-        let pw: String = {
-            use rand::Rng;
-            rand::thread_rng()
-                .sample_iter(&rand::distributions::Alphanumeric)
-                .take(32)
-                .map(char::from)
-                .collect()
-        };
+        let pw = random_pw();
         let _ = entry.set_password(&pw);
         return pw;
     }
-    // keychain 不可用时的硬编码回退（开发/CI 场景）
-    "rework-fallback-pass-please-rotate".into()
+    // keychain 不可用：生成临时随机密码，凭据不会跨启动持久化
+    eprintln!("[安全警告] 系统密钥链不可用，本次使用临时随机密码，凭据不会跨启动持久化");
+    random_pw()
 }
 
 /// 核心入口：幂等地确保 superuser + local-user，返回 local-user 的 token。
 ///
+/// - `super_pw` 和 `user_pw` 由调用方（lib.rs）通过 `get_passwords()` 统一获取并传入，
+///   保证整个启动流程中只有一处 keychain 调用，避免密码不一致。
 /// - 如果 superuser 尚未创建（首次启动），调用方须先执行 `superuser upsert`（见 lib.rs）。
 /// - 如果 local-user 已存在则直接登录；否则先创建再登录。
 /// - token 同时写入 keychain（account: `local-user-token`）。
-pub async fn bootstrap(base_url: &str) -> anyhow::Result<BootstrapAuth> {
+pub async fn bootstrap(base_url: &str, super_pw: &str, user_pw: &str) -> anyhow::Result<BootstrapAuth> {
     let http = reqwest::Client::new();
-    let super_pw = get_or_make_secret("superuser-pw");
-    let user_pw = get_or_make_secret("local-user-pw");
 
     // 1) 以 superuser 身份登录，获取管理员 token
-    let admin_token = admin_login(&http, base_url, SUPERUSER_EMAIL, &super_pw).await?;
+    let admin_token = admin_login(&http, base_url, SUPERUSER_EMAIL, super_pw).await?;
 
     // 2) 确保 local-user 存在，返回其 id
-    let user_id = ensure_user(&http, base_url, &admin_token, LOCAL_EMAIL, &user_pw).await?;
+    let user_id = ensure_user(&http, base_url, &admin_token, LOCAL_EMAIL, user_pw).await?;
 
     // 3) 以 local-user 身份登录，获取用户 token
-    let token = user_login(&http, base_url, LOCAL_EMAIL, &user_pw).await?;
+    let token = user_login(&http, base_url, LOCAL_EMAIL, user_pw).await?;
 
     // 4) 将 token 写入 keychain 供复用
     if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, "local-user-token") {
@@ -124,7 +132,11 @@ async fn ensure_user(
         .await?;
 
     if let Some(u) = existing["items"].as_array().and_then(|a| a.first()) {
-        return Ok(u["id"].as_str().unwrap_or_default().to_string());
+        let id = u["id"].as_str().unwrap_or_default().to_string();
+        if id.is_empty() {
+            anyhow::bail!("查询已有用户时返回了空 id，响应数据异常");
+        }
+        return Ok(id);
     }
 
     // 不存在则创建
@@ -143,7 +155,11 @@ async fn ensure_user(
         .json::<Value>()
         .await?;
 
-    Ok(created["id"].as_str().unwrap_or_default().to_string())
+    let id = created["id"].as_str().unwrap_or_default().to_string();
+    if id.is_empty() {
+        anyhow::bail!("创建用户后返回了空 id，响应数据异常");
+    }
+    Ok(id)
 }
 
 /// 以 local-user 身份登录，返回用户 JWT token。
