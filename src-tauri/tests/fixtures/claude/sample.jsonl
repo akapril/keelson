@@ -1,0 +1,4 @@
+{"type":"user","message":{"role":"user","content":"请帮我分析这段代码"},"timestamp":"2025-01-15T10:00:00Z","sessionId":"test-session-0001","cwd":"D:\\workspace\\test-project"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"好的，我来帮你分析。"}],"usage":{"input_tokens":100,"output_tokens":50}},"timestamp":"2025-01-15T10:00:05Z","sessionId":"test-session-0001"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"能再详细一些吗？"}]},"timestamp":"2025-01-15T10:01:00Z","sessionId":"test-session-0001","cwd":"D:\\workspace\\test-project"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"当然，以下是详细分析..."}],"usage":{"input_tokens":200,"output_tokens":150}},"timestamp":"2025-01-15T10:01:10Z","sessionId":"test-session-0001"}

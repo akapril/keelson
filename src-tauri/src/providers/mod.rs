@@ -3,6 +3,8 @@
 // 下游的扫描/更新/时间轴/终端任务（Task 10–16）通过本模块路由，
 // 无需任何 `match provider` 分支。
 
+pub mod claude;
+
 use std::path::{Path, PathBuf};
 use crate::models::{Session, TimelineMessage};
 
@@ -69,10 +71,13 @@ pub struct ProviderRegistry {
 }
 
 impl ProviderRegistry {
-    /// 创建空注册表（Task 10/11 将注入 Claude、Codex provider）
+    /// 创建注册表：注册 Claude provider（Task 10），后续 Task 11 追加 Codex
     pub fn new() -> Self {
-        // push claude, codex (Task 10/11)
-        Self { providers: vec![] }
+        Self {
+            providers: vec![
+                Box::new(claude::ClaudeProvider),
+            ],
+        }
     }
 
     /// 返回当前已安装（is_available）的所有 provider 迭代器
