@@ -57,9 +57,9 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
             ) : (
               results.map((session) => (
                 <SessionCard
-                  key={session.id}
+                  key={session.session_id}
                   session={session}
-                  selected={session.id === selectedId}
+                  selected={session.session_id === selectedId}
                   onSelect={onSelect}
                 />
               ))
@@ -89,9 +89,9 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
                     <div className="flex flex-col gap-1.5">
                       {sessions.map((session) => (
                         <SessionCard
-                          key={session.id}
+                          key={session.session_id}
                           session={session}
-                          selected={session.id === selectedId}
+                          selected={session.session_id === selectedId}
                           onSelect={onSelect}
                         />
                       ))}

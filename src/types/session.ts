@@ -1,26 +1,53 @@
-// Task 17: 会话相关的 TypeScript 类型，镜像 Rust 结构体（Task 8/13）
+// Task 17/18 修正：TypeScript 类型严格镜像 Rust serde 序列化输出（默认 snake_case）
 
-/** 单条会话记录（对应 Rust Session 结构） */
+/** 单条会话记录（对应 Rust Session 结构体，serde 默认 snake_case） */
 export interface Session {
-  id: string;
+  /** 会话唯一标识符 */
+  session_id: string;
+  /** provider 名称，如 "claude" / "codex" */
   provider: string;
+  /** 项目所在目录的绝对路径 */
   project_path: string;
+  /** 项目名称（通常为目录名） */
+  project_name: string;
+  /** 会话的第一条用户提示词 */
+  first_prompt: string;
+  /** 会话的最后一条用户提示词 */
+  last_prompt: string;
+  /** 会话创建时间（RFC3339 字符串，由 chrono DateTime<Utc> 序列化） */
   created_at: string;
+  /** 会话最后更新时间（RFC3339 字符串） */
   updated_at: string;
+  /** 会话消息总数（含 user + assistant） */
   message_count: number;
-  summary?: string;
+  /** 所有用户消息列表（用于全文检索） */
+  user_messages: string[];
+  /** 总 token 数 */
+  total_tokens: number;
 }
 
-/** 搜索命中条目（对应 Rust SessionHit 结构） */
+/** 搜索命中条目（对应 Rust SessionHit 结构体，扁平结构） */
 export interface SessionHit {
-  session: Session;
+  /** 会话唯一标识符 */
+  session_id: string;
+  /** 项目名称 */
+  project_name: string;
+  /** 搜索结果片段（当前使用 first_prompt 作为摘要） */
+  snippet: string;
+  /** provider 名称 */
+  provider: string;
+  /** 更新时间（格式化字符串，如 "07-15 14:30"） */
+  updated_at: string;
+  /** Tantivy 相关性评分 */
   score: number;
-  snippet?: string;
 }
 
-/** 会话时间线中的单条消息（对应 Rust TimelineMessage 结构） */
+/** 会话时间线中的单条消息（对应 Rust TimelineMessage 结构体） */
 export interface TimelineMessage {
+  /** 消息角色 */
   role: "user" | "assistant" | "system";
+  /** 消息内容文本 */
   content: string;
-  timestamp?: string;
+  /** ISO 8601 格式的消息时间戳（Rust 为非 Option，必填） */
+  timestamp: string;
 }

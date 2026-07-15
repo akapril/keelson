@@ -28,7 +28,7 @@ export default function Sessions() {
         <h1 className="mb-4 shrink-0 text-base font-semibold">会话中枢</h1>
         <div className="min-h-0 flex-1">
           <SessionListView
-            selectedId={selectedSession?.id ?? null}
+            selectedId={selectedSession?.session_id ?? null}
             onSelect={setSelectedSession}
           />
         </div>
