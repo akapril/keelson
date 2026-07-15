@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { ThemeProvider } from "./components/theme-provider";
 import { useAuthStore } from "./store/auth";
 import { AppRouter } from "./router";
+import { thisWindowLabel } from "./lib/tauri/window";
+import { SpotlightApp } from "./features/spotlight/SpotlightApp";
 
 export default function App() {
   const { ready, error, init } = useAuthStore();
@@ -10,9 +12,15 @@ export default function App() {
     init();
   }, [init]);
 
+  // 根据窗口 label 分派渲染：spotlight 窗口渲染独立的聚光灯 UI
+  const isSpotlight = thisWindowLabel() === "spotlight";
+
   return (
     <ThemeProvider>
-      {ready ? (
+      {isSpotlight ? (
+        // Spotlight 窗口不需要等待认证，直接渲染 SpotlightApp
+        <SpotlightApp />
+      ) : ready ? (
         <AppRouter />
       ) : (
         <div className="flex h-screen items-center justify-center bg-background text-foreground">

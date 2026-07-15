@@ -28,6 +28,7 @@ pub mod sync;
 use std::sync::Arc;
 use parking_lot::Mutex;
 use tauri::Manager;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 /// 全局应用状态。
 ///
@@ -112,6 +113,38 @@ pub fn run() {
             let sessions_slot = state.sessions.clone();
             let index_slot = state.index.clone();
 
+            // ── Spotlight 全局快捷键注册 ───────────────────────────────
+            // 从配置中读取 hotkey 字符串，注册全局快捷键
+            // 按下时：若 spotlight 窗口已可见则隐藏；否则显示并获取焦点（toggle 行为）
+            let hotkey_str = {
+                let cfg = state.config.lock();
+                cfg.hotkey.clone()
+            };
+            let shortcut_handle = app.handle().clone();
+            if let Err(e) = app.global_shortcut().on_shortcut(
+                hotkey_str.as_str(),
+                move |_app, _shortcut, event| {
+                    // 仅响应 Pressed 事件，避免重复触发
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    // 获取 spotlight 窗口并切换可见性
+                    if let Some(win) = shortcut_handle.get_webview_window("spotlight") {
+                        let is_visible = win.is_visible().unwrap_or(false);
+                        if is_visible {
+                            // 已可见 → 隐藏（toggle）
+                            let _ = win.hide();
+                        } else {
+                            // 不可见 → 显示并设置焦点
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                },
+            ) {
+                eprintln!("[rework] 全局快捷键注册失败（非致命）: {e:#}");
+            }
+
             // 确定 PB 数据目录和迁移文件目录
             let data_dir = app.path().app_data_dir()?.join("pb_data");
             let mig_dir = resolve_migrations_dir(&handle);
@@ -125,6 +158,16 @@ pub fn run() {
                 }
             });
             Ok(())
+        })
+        // ── Spotlight 失焦自动隐藏 ────────────────────────────────────
+        // 当 spotlight 窗口失去焦点时（WindowEvent::Focused(false)）自动隐藏
+        .on_window_event(|window, event| {
+            if window.label() == "spotlight" {
+                if let tauri::WindowEvent::Focused(false) = event {
+                    // 失去焦点 → 隐藏 spotlight 窗口
+                    let _ = window.hide();
+                }
+            }
         })
         // ───── 命令注册（按领域分组） ─────
         // 注意：generate_handler! 宏要求使用函数定义所在的完整路径，
