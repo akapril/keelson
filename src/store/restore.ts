@@ -8,6 +8,8 @@ interface RestoreState {
   error?: string;
   /** 恢复（打开）会话终端 */
   restore: (session: Session, asTab: boolean) => Promise<void>;
+  /** 清除错误状态（切换会话时调用，避免旧错误残留） */
+  clearError: () => void;
 }
 
 export const useRestoreStore = create<RestoreState>((set) => ({
@@ -23,4 +25,6 @@ export const useRestoreStore = create<RestoreState>((set) => ({
       set({ error: String(e), loading: false });
     }
   },
+
+  clearError: () => set({ error: undefined }),
 }));
