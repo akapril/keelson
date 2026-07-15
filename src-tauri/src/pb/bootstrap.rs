@@ -136,6 +136,17 @@ async fn ensure_user(
         if id.is_empty() {
             anyhow::bail!("查询已有用户时返回了空 id，响应数据异常");
         }
+        // 用户已存在：重置密码为当前 keychain 中的值，防止因密码漂移导致登录失败。
+        // 与 superuser upsert 逻辑保持一致，确保每次启动都能幂等地同步凭据。
+        http.patch(format!("{base}/api/collections/users/records/{id}"))
+            .bearer_auth(admin_token)
+            .json(&json!({
+                "password": pw,
+                "passwordConfirm": pw
+            }))
+            .send()
+            .await?
+            .error_for_status()?;
         return Ok(id);
     }
 
