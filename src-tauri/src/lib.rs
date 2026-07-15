@@ -10,6 +10,10 @@ mod pb;
 mod commands;
 // provider 抽象层：SessionProvider trait + ProviderRegistry（Task 9）
 pub mod providers;
+// 注册表驱动的全量/增量扫描器（Task 12）
+pub mod scanner;
+// 注册表驱动的文件系统 Watcher + 三策略更新管理器（Task 12）
+pub mod updater;
 
 use std::sync::Arc;
 use parking_lot::Mutex;

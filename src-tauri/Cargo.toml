@@ -31,4 +31,5 @@ anyhow = "1"
 rand = "0.8"
 dirs = "5"
 chrono = { version = "0.4", features = ["serde"] }
+notify = "7"
 
