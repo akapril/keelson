@@ -78,24 +78,24 @@ pub fn run() {
 }
 
 /// 完整的 PocketBase 初始化流程：
-/// 1. 获取 superuser 密码（来自 keychain，首次随机生成）
+/// 1. 统一从 keychain 获取 superuser 密码和本地用户密码（仅一次调用，后续共用）
 /// 2. 通过 CLI `superuser upsert` 幂等地创建 superuser（迁移也在此时运行）
 /// 3. 启动 `serve`
 /// 4. 等待健康检查通过
-/// 5. 执行 `bootstrap`（确保 local-user，返回 token）
+/// 5. 执行 `bootstrap`（确保 local-user，返回 token；传入已获取密码，无第二次 keychain 调用）
 async fn setup_pocketbase(
     handle: tauri::AppHandle,
     data_dir: std::path::PathBuf,
     mig_dir: std::path::PathBuf,
     auth_slot: Arc<Mutex<Option<pb::bootstrap::BootstrapAuth>>>,
 ) -> anyhow::Result<()> {
-    use pb::bootstrap::superuser_password;
-
     let port = pb::process::pick_free_port();
     let base = format!("http://127.0.0.1:{port}");
 
+    // 步骤 0：统一获取密码（keychain 仅调用一次），后续所有步骤共用同一份密码
+    let (super_pw, user_pw) = pb::bootstrap::get_passwords();
+
     // 步骤 1+2：superuser upsert（同时触发 JS 迁移 automigrate）
-    let super_pw = superuser_password();
     pb::process::create_superuser_via_sidecar(
         &handle,
         &data_dir,
@@ -111,8 +111,8 @@ async fn setup_pocketbase(
     // 步骤 4：等待 PB 就绪
     pb::process::wait_healthy(&base, 15_000).await?;
 
-    // 步骤 5：bootstrap — 确保 local-user，缓存 token
-    let auth = pb::bootstrap::bootstrap(&base).await?;
+    // 步骤 5：bootstrap — 确保 local-user，缓存 token（传入已获取的密码，避免再次访问 keychain）
+    let auth = pb::bootstrap::bootstrap(&base, &super_pw, &user_pw).await?;
     *auth_slot.lock() = Some(auth);
 
     // TODO(Task 15)：挂载会话扫描→PB 同步任务
