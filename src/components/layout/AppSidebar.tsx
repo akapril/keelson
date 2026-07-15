@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 
 const items = [
   { to: "/sessions", label: "会话中枢" },
+  { to: "/board", label: "看板" },
   { to: "/settings", label: "设置" },
 ];
 

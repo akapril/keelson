@@ -2,6 +2,7 @@ import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { MainWindowLayout } from "./components/layout/MainWindowLayout";
 import Sessions from "./pages/sessions";
 import Settings from "./pages/settings";
+import Board from "./pages/board";
 
 export function AppRouter() {
   return (
@@ -9,6 +10,7 @@ export function AppRouter() {
       <Routes>
         <Route element={<MainWindowLayout />}>
           <Route path="/sessions" element={<Sessions />} />
+          <Route path="/board" element={<Board />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/sessions" replace />} />
         </Route>
