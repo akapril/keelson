@@ -1,0 +1,5 @@
+{"type":"session_meta","timestamp":"2025-03-01T09:00:00Z","payload":{"id":"codex-session-abc123","cwd":"/home/user/workspace/myproject"}}
+{"type":"event_msg","timestamp":"2025-03-01T09:00:05Z","payload":{"type":"user_message","message":"请帮我写一个快速排序算法"}}
+{"type":"event_msg","timestamp":"2025-03-01T09:00:10Z","payload":{"type":"agent_message","message":"好的，以下是快速排序的 Rust 实现..."}}
+{"type":"event_msg","timestamp":"2025-03-01T09:01:00Z","payload":{"type":"user_message","message":"能加上详细注释吗？"}}
+{"type":"event_msg","timestamp":"2025-03-01T09:01:30Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":320,"output_tokens":180}}}}
