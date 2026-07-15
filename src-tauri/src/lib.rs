@@ -1,5 +1,9 @@
 // 了解更多 Tauri 命令：https://tauri.app/develop/calling-rust/
 
+// 核心数据模型：Session、TimelineMessage、SessionMeta
+pub mod models;
+// 应用路径管理：AppPaths（替代 retalk 硬编码的 ~/.claude/retalk/）
+pub mod paths;
 // PocketBase 集成层（进程、客户端、首启初始化）
 mod pb;
 // 命令模块（Task 16 实现具体命令，当前为占位）
