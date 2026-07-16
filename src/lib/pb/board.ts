@@ -1,6 +1,6 @@
 // Board PB SDK 数据访问层 —— 唯一允许调用 pb.collection 的 board 文件。
 // 组件 / Store 禁止直接调用 pb.collection；统一走此模块。
-import { pb } from "../pb";
+import { pb, currentUserId } from "../pb";
 import { COL } from "./collections";
 import type {
   BoardTemplate,
@@ -9,6 +9,24 @@ import type {
   BoardLabel,
   BoardTask,
 } from "../../types/board";
+
+/** 速记 Inbox 项目名（约定名；用于承载未归类的临时文档速记）。 */
+export const INBOX_PROJECT_NAME = "速记";
+
+/**
+ * 确保「速记」Inbox 项目存在（用于文档速记的临时归属）。
+ * 已存在则返回，否则创建一个极简项目（无状态列，仅用于放文档）。
+ */
+export async function ensureInboxProject(): Promise<BoardProject> {
+  const projects = await listProjects();
+  const existing = projects.find((p) => p.name === INBOX_PROJECT_NAME);
+  if (existing) return existing;
+  return pb.collection(COL.boardProjects).create<BoardProject>({
+    name: INBOX_PROJECT_NAME,
+    owner: currentUserId(),
+    description: "临时速记，可移动到项目",
+  });
+}
 
 // ── 查询辅助 ──────────────────────────────────────────────
 /** 按项目 ID 过滤的 PB filter 字符串 */
