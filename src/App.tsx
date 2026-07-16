@@ -7,6 +7,7 @@ import { AppRouter } from "./router";
 import { thisWindowLabel } from "./lib/tauri/window";
 import { SpotlightApp } from "./features/spotlight/SpotlightApp";
 import { LoginScreen } from "./features/auth/LoginScreen";
+import { TitleBar } from "./components/title-bar";
 
 export default function App() {
   const { ready, authed, error, init } = useAuthStore();
@@ -22,25 +23,32 @@ export default function App() {
     <ThemeProvider>
       <TooltipProvider delayDuration={200}>
         {isSpotlight ? (
-          // Spotlight 窗口不需要等待认证，直接渲染 SpotlightApp
+          // Spotlight 窗口不需要等待认证，也无自建标题栏，直接渲染 SpotlightApp
           <SpotlightApp />
-        ) : ready ? (
-          // 已就绪：认证则进主界面，否则登录界面（多用户登出/切换）
-          authed ? (
-            <AppRouter />
-          ) : (
-            <LoginScreen />
-          )
         ) : (
-          <div className="flex h-screen items-center justify-center bg-background text-foreground">
-            <div className="space-y-2 text-center">
-              {error ? (
-                <>
-                  <div className="text-destructive">错误</div>
-                  <div className="text-sm text-muted-foreground">{error}</div>
-                </>
+          // 主窗口：顶部自建标题栏 + 其余内容（覆盖 加载/登录/主界面 各状态）
+          <div className="flex h-screen flex-col overflow-hidden bg-background">
+            <TitleBar />
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {ready ? (
+                authed ? (
+                  <AppRouter />
+                ) : (
+                  <LoginScreen />
+                )
               ) : (
-                <div className="text-sm text-muted-foreground">启动中…</div>
+                <div className="flex h-full items-center justify-center text-foreground">
+                  <div className="space-y-2 text-center">
+                    {error ? (
+                      <>
+                        <div className="text-destructive">错误</div>
+                        <div className="text-sm text-muted-foreground">{error}</div>
+                      </>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">启动中…</div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>

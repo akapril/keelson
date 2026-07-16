@@ -17,7 +17,8 @@
         "width": 1200,
         "height": 800,
         "minWidth": 920,
-        "minHeight": 640
+        "minHeight": 640,
+        "decorations": false
       },
       {
         "label": "spotlight",

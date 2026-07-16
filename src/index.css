@@ -139,6 +139,19 @@
   }
 }
 
+/* ===== 自建标题栏：主窗口顶部预留 --titlebar-h，固定侧栏下移到标题栏之下 =====
+   sidebar-container 为 fixed inset-y-0 h-svh；wrapper 为 min-h-svh，均按标题栏高度收缩。 */
+:root {
+  --titlebar-h: 2rem;
+}
+[data-slot="sidebar-container"] {
+  top: var(--titlebar-h);
+  height: calc(100svh - var(--titlebar-h)) !important;
+}
+[data-slot="sidebar-wrapper"] {
+  min-height: calc(100svh - var(--titlebar-h)) !important;
+}
+
 /* ===== 自定义滚动条：细、圆角、随主题；替换 Windows 默认粗滚动条 =====
    .no-scrollbar（用于命令面板/看板列）specificity 更高，仍可隐藏滚动条，不受影响。 */
 @layer base {
