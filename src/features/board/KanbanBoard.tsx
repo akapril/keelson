@@ -8,6 +8,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useBoardStore } from "@/store/board";
@@ -33,6 +34,7 @@ export function KanbanBoard() {
   const tasks = useBoardStore((s) => s.tasks);
   const tasksByState = useBoardStore((s) => s.tasksByState);
   const moveTask = useBoardStore((s) => s.moveTask);
+  const previewMove = useBoardStore((s) => s.previewMove);
   const openedProjectId = useBoardStore((s) => s.openedProjectId);
 
   // 当前正在拖拽的任务（用于 DragOverlay）
@@ -54,33 +56,24 @@ export function KanbanBoard() {
     setActiveTask(dragged ?? null);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveTask(null);
-    if (!over) return;
+  // 解析拖拽落点：目标状态列 + 插入位置（onDragOver / onDragEnd 共用）。
+  // over 可能是 state droppable（"state:<id>"）或某个 task sortable（task.id）。
+  const resolveDrop = (activeId: string, overId: string) => {
+    const dragged = tasks.find((t) => t.id === activeId);
+    if (!dragged) return null;
 
-    const dragged = tasks.find((t) => t.id === active.id);
-    if (!dragged) return;
-
-    // 解析目标状态 ID（over 可能是 state droppable 或 task sortable）
     let targetStateId: string | undefined;
-    const overId = String(over.id);
-
     if (overId.startsWith("state:")) {
       targetStateId = overId.slice("state:".length);
     } else {
-      const overTask = tasks.find((t) => t.id === overId);
-      targetStateId = overTask?.state;
+      targetStateId = tasks.find((t) => t.id === overId)?.state;
     }
+    if (!targetStateId) return null;
 
-    if (!targetStateId) return;
-
-    // 目标列的任务（排除被拖拽任务，保持排序）
+    // 目标列任务（排除被拖拽任务本身，保持排序）
     const targetTasks = (tasksByState()[targetStateId] ?? []).filter(
       (t) => t.id !== dragged.id,
     );
-
-    // 计算插入位置 index
     let toIndex: number;
     if (overId.startsWith("state:")) {
       toIndex = targetTasks.length;
@@ -89,9 +82,29 @@ export function KanbanBoard() {
       toIndex = overIndex >= 0 ? overIndex : targetTasks.length;
     }
 
-    void moveTask(dragged.id, targetStateId, Math.max(0, toIndex)).catch(
-      () => {},
-    );
+    return { dragged, targetStateId, toIndex: Math.max(0, toIndex) };
+  };
+
+  // 拖动中：跨列悬停时把卡片实时移入目标列（仅本地预览，不落库）。
+  // 列内重排由 sortable 视觉呈现，故此处只处理跨列，避免同列 rank 抖动。
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    const r = resolveDrop(String(active.id), String(over.id));
+    if (!r) return;
+    if (r.dragged.state !== r.targetStateId) {
+      previewMove(r.dragged.id, r.targetStateId, r.toIndex);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveTask(null);
+    if (!over) return;
+    const r = resolveDrop(String(active.id), String(over.id));
+    if (!r) return;
+    // 落手：持久化最终位置（previewMove 已将卡片放到位，此处计算最终 index 落库）
+    void moveTask(r.dragged.id, r.targetStateId, r.toIndex).catch(() => {});
   };
 
   const sortedStates = [...states].sort((a, b) => a.sort_order - b.sort_order);
@@ -105,6 +118,7 @@ export function KanbanBoard() {
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
         onDragCancel={() => setActiveTask(null)}
       >

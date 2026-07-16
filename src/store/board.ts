@@ -123,6 +123,11 @@ interface BoardStoreState {
   /** 按状态 ID 分组当前所有任务，用于看板列渲染 */
   tasksByState: () => Record<string, BoardTask[]>;
   /**
+   * 拖拽过程中的本地预览移动（仅改内存，不落库）。
+   * 跨列悬停时把任务移入目标列的指定位置，使卡片实时跟随；落手由 moveTask 持久化。
+   */
+  previewMove: (taskId: string, toStateId: string, toIndex: number) => void;
+  /**
    * 拖拽移动任务：将任务移到目标状态列的指定位置（乐观更新 + 回滚）。
    * toIndex 为目标列（排除被拖拽任务本身后）的插入位置。
    */
@@ -335,34 +340,45 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
   // ── 按状态分组（计算属性） ──────────────────────────────
   tasksByState: () => groupTasksByState(get().tasks),
 
-  // ── 拖拽移动任务（rank 计算 + 乐观更新 + 回滚） ────────
-  moveTask: async (taskId: string, toStateId: string, toIndex: number) => {
+  // ── 拖拽预览移动（仅改内存，计算 rank，不落库） ──────────
+  previewMove: (taskId: string, toStateId: string, toIndex: number) => {
     const { tasks } = get();
-    // 快照，用于失败时回滚
-    const snapshot = tasks;
-
     // 目标列已排序任务（排除被拖拽任务本身）
     const targetTasks = tasks
       .filter((t) => t.state === toStateId && t.id !== taskId)
       .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
 
-    // 计算插入位置的前后邻居
+    // 计算插入位置的前后邻居 → 新 rank
     const before = targetTasks[toIndex - 1];
     const after = targetTasks[toIndex];
     const rank = rankBetween(before?.rank, after?.rank);
 
-    // 乐观更新：修改 state 和 rank
+    // 若目标位置无变化（同列同 rank）则跳过 set，避免无谓重渲染
+    const current = tasks.find((t) => t.id === taskId);
+    if (current && current.state === toStateId && current.rank === rank) return;
+
     set({
       tasks: tasks.map((t) =>
         t.id === taskId ? { ...t, state: toStateId, rank } : t,
       ),
     });
+  },
+
+  // ── 拖拽移动任务（复用 previewMove 乐观更新 + 落库 + 回滚） ──
+  moveTask: async (taskId: string, toStateId: string, toIndex: number) => {
+    // 快照，用于失败时回滚
+    const snapshot = get().tasks;
+
+    // 乐观更新（含 rank 计算）
+    get().previewMove(taskId, toStateId, toIndex);
+    const moved = get().tasks.find((t) => t.id === taskId);
+    if (!moved) return;
 
     try {
-      // 写回 PB
+      // 写回 PB（使用 previewMove 计算出的最终 state / rank）
       await updateRecord(COL.boardTasks, taskId, {
-        state: toStateId,
-        rank,
+        state: moved.state,
+        rank: moved.rank,
       });
     } catch (e) {
       // 失败则回滚到快照
