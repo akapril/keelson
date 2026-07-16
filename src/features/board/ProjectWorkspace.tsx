@@ -47,6 +47,12 @@ export function ProjectWorkspace() {
     ? sessions.filter((s) => s.project_path === repoPath).length
     : 0;
 
+  // 近期截止任务（有 due_date，按日期升序，取前 6）
+  const upcomingTasks = [...tasks]
+    .filter((t) => t.due_date)
+    .sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""))
+    .slice(0, 6);
+
   return (
     <div className="flex h-full min-h-0 flex-col p-6">
       {/* 头部 */}
@@ -132,6 +138,47 @@ export function ProjectWorkspace() {
                 </span>
               </div>
             </div>
+
+            {/* 近期截止任务（点击跳到看板） */}
+            {upcomingTasks.length > 0 && (
+              <div className="rounded-xl border border-border bg-card p-4">
+                <h3 className="mb-2 text-sm font-semibold text-foreground">
+                  近期截止
+                </h3>
+                <ul className="flex flex-col">
+                  {upcomingTasks.map((t) => {
+                    const st = states.find((s) => s.id === t.state);
+                    return (
+                      <li key={t.id}>
+                        <button
+                          type="button"
+                          onClick={() => setTab("board")}
+                          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm hover:bg-muted"
+                        >
+                          {st && (
+                            <span
+                              className="size-2 shrink-0 rounded-full"
+                              style={{ backgroundColor: st.color }}
+                            />
+                          )}
+                          <span className="min-w-0 flex-1 truncate text-foreground">
+                            {t.title}
+                          </span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {t.due_date
+                              ? new Date(t.due_date).toLocaleDateString(
+                                  "zh-CN",
+                                  { month: "short", day: "numeric" },
+                                )
+                              : ""}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
           </div>
         </TabsContent>
 
