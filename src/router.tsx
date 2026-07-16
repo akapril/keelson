@@ -4,6 +4,7 @@ import Dashboard from "./pages/dashboard";
 import Sessions from "./pages/sessions";
 import Settings from "./pages/settings";
 import Board from "./pages/board";
+import DocsPage from "./pages/docs";
 import ReadingPage from "./features/reading/ReadingPage";
 import CalendarPage from "./features/calendar/CalendarPage";
 
@@ -15,6 +16,7 @@ export function AppRouter() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/sessions" element={<Sessions />} />
           <Route path="/board" element={<Board />} />
+          <Route path="/docs" element={<DocsPage />} />
           <Route path="/reading" element={<ReadingPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/settings" element={<Settings />} />
