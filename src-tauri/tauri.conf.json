@@ -38,6 +38,14 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/OWNER/REPO/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVENzc0ODI2RTRCOTY1QgpSV1JibGt0dWduVFhEczBYMUpWRFZWWG1EL0FGdS9rZzdkMVM5Y25FbTNhWjJNZG9uYWN5c1ZoUgo="
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
