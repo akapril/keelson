@@ -100,8 +100,8 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
                 const isCollapsed = collapsed.has(projectPath);
                 return (
                   <section key={projectPath}>
-                    {/* 分组标题行：折叠切换（名称+计数）+ “提升为看板项目”入口 */}
-                    <div className="mb-2 flex items-center justify-between gap-2">
+                    {/* 分组标题行：滚动时吸顶固定，折叠开关始终可点 */}
+                    <div className="sticky top-0 z-10 mb-1 flex items-center justify-between gap-2 bg-background pb-1.5 pt-0.5">
                       <button
                         type="button"
                         onClick={() => toggleCollapse(projectPath)}
