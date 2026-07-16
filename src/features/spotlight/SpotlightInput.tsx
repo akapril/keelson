@@ -1,6 +1,8 @@
 // SpotlightInput.tsx — 搜索输入框，挂载时及窗口每次获得焦点时自动聚焦
 import { useEffect, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { SearchIcon } from "@hugeicons/core-free-icons";
 import { useSpotlightStore } from "../../store/spotlight";
 
 export function SpotlightInput() {
@@ -43,28 +45,23 @@ export function SpotlightInput() {
 
   return (
     <div
-      style={{
-        padding: "16px 16px 12px",
-        borderBottom: "1px solid var(--glass-border)",
-      }}
+      className="flex items-center gap-3 px-4 py-3.5"
+      style={{ borderBottom: "1px solid var(--glass-border)" }}
     >
+      <HugeiconsIcon
+        icon={SearchIcon}
+        strokeWidth={2}
+        className="size-5 shrink-0 text-muted-foreground"
+      />
       <input
         ref={inputRef}
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜索会话…"
+        placeholder="搜索会话，↵ 恢复 · Tab 切换模式"
         autoComplete="off"
         spellCheck={false}
-        style={{
-          width: "100%",
-          background: "transparent",
-          border: "none",
-          outline: "none",
-          fontSize: "18px",
-          color: "var(--foreground)",
-          caretColor: "var(--primary)",
-        }}
+        className="w-full border-none bg-transparent text-lg text-foreground caret-primary outline-none placeholder:text-muted-foreground/70"
       />
     </div>
   );

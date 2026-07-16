@@ -15,6 +15,8 @@ export function SpotlightApp() {
   const loadSessions = useSessionsStore((s) => s.load);
   const query = useSpotlightStore((s) => s.query);
   const setItems = useSpotlightStore((s) => s.setItems);
+  const itemCount = useSpotlightStore((s) => s.items.length);
+  const asTab = useSpotlightStore((s) => s.asTab);
 
   // 挂载时拉取会话列表
   useEffect(() => {
@@ -55,7 +57,7 @@ export function SpotlightApp() {
           backdropFilter: `blur(var(--glass-blur))`,
           WebkitBackdropFilter: `blur(var(--glass-blur))`,
           border: "1px solid var(--glass-border)",
-          borderRadius: "12px",
+          borderRadius: "16px",
           overflow: "hidden",
           boxShadow: "0 8px 32px color-mix(in oklab, var(--foreground) 12%, transparent)",
         }}
@@ -64,6 +66,19 @@ export function SpotlightApp() {
         <SpotlightInput />
         {/* 候选项列表（键盘导航高亮） */}
         <SpotlightList />
+        {/* 底部状态栏：结果数 + 快捷键提示 + 恢复模式 */}
+        <div
+          className="flex items-center justify-between px-4 py-2 text-[11px] text-muted-foreground"
+          style={{ borderTop: "1px solid var(--glass-border)" }}
+        >
+          <span>{itemCount} 个会话</span>
+          <div className="flex items-center gap-3">
+            <span>↑↓ 选择 · ↵ 恢复 · esc 关闭</span>
+            <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground/80">
+              Tab：{asTab ? "标签页" : "新终端"}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
