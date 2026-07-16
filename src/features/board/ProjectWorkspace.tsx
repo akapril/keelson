@@ -109,8 +109,14 @@ export function ProjectWorkspace() {
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={() => closeProject()}
-          aria-label="返回项目列表"
+          onClick={() => {
+            // 深链进入（URL 带 ?open，来自文档/总览/命令面板/会话跳转）→ 回到来源页；
+            // 项目列表点开的（无 ?open）→ 关闭项目回列表。
+            const deep = !!searchParams.get("open");
+            closeProject();
+            if (deep) navigate(-1);
+          }}
+          aria-label="返回"
         >
           <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
         </Button>
