@@ -1,6 +1,7 @@
 // Calendar 页面 —— 月视图网格：按月浏览、在格子内查看/新建/编辑/删除事件。
 // 组件仅调用 store；数据访问由 store 收口，绝不直接触碰 invoke / pb。
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   startOfMonth,
   endOfMonth,
@@ -11,6 +12,7 @@ import {
   format,
   isSameMonth,
   isToday,
+  isSameDay,
   parseISO,
   startOfDay,
   isWithinInterval,
@@ -21,10 +23,13 @@ import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   Delete02Icon,
+  KanbanIcon,
 } from "@hugeicons/core-free-icons";
 
 import { useCalendarStore } from "@/store/calendar";
 import type { CalendarEvent } from "@/types/calendar";
+import { listDueTasks } from "@/lib/pb/board";
+import type { BoardTask } from "@/types/board";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,6 +85,16 @@ function eventCoversDay(ev: CalendarEvent, day: Date): boolean {
   }
 }
 
+/** 判断带 due_date 的任务是否落在某一天（安全解析）。 */
+function taskOnDay(t: BoardTask, day: Date): boolean {
+  if (!t.due_date) return false;
+  try {
+    return isSameDay(startOfDay(parseISO(t.due_date)), startOfDay(day));
+  } catch {
+    return false;
+  }
+}
+
 /** 将 ISO 字符串安全格式化为 yyyy-MM-dd；空串或解析失败返回空串 */
 function toDateInput(iso: string): string {
   if (!iso) return "";
@@ -122,6 +137,10 @@ export default function CalendarPage() {
   const addEvent = useCalendarStore((s) => s.addEvent);
   const updateEvent = useCalendarStore((s) => s.updateEvent);
   const removeEvent = useCalendarStore((s) => s.removeEvent);
+  const navigate = useNavigate();
+
+  // 跨项目聚合的「带 due_date 的看板任务」（只读叠加到日历）
+  const [dueTasks, setDueTasks] = useState<BoardTask[]>([]);
 
   // 当前浏览的月份（取任意一天即可代表该月）
   const [viewDate, setViewDate] = useState<Date>(() => new Date());
@@ -138,6 +157,13 @@ export default function CalendarPage() {
     return () => {
       useCalendarStore.getState().close();
     };
+  }, []);
+
+  // 聚合看板任务的 due_date（跨项目，只读；失败不阻断日历）
+  useEffect(() => {
+    void listDueTasks()
+      .then(setDueTasks)
+      .catch(() => {});
   }, []);
 
   // 计算网格覆盖的所有日期：从当月首日所在周的周日，到末日所在周的周六
@@ -255,6 +281,7 @@ export default function CalendarPage() {
           const today = isToday(day);
           // 该天覆盖的事件（跳过非法日期）
           const dayEvents = events.filter((ev) => eventCoversDay(ev, day));
+          const dayTasks = dueTasks.filter((t) => taskOnDay(t, day));
 
           return (
             <div
@@ -299,6 +326,29 @@ export default function CalendarPage() {
                       }}
                     />
                     <span className="truncate text-foreground">{ev.title}</span>
+                  </button>
+                ))}
+
+                {/* 看板任务 due_date（只读叠加，点击跳到该任务的项目工作台） */}
+                {dayTasks.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/board?open=${t.project}`);
+                    }}
+                    className="flex items-center gap-1 rounded px-1 py-0.5 text-left text-xs hover:bg-muted"
+                    title={`任务：${t.title}`}
+                  >
+                    <HugeiconsIcon
+                      icon={KanbanIcon}
+                      strokeWidth={2}
+                      className="size-3 shrink-0 text-muted-foreground"
+                    />
+                    <span className="truncate text-muted-foreground">
+                      {t.title}
+                    </span>
                   </button>
                 ))}
               </div>

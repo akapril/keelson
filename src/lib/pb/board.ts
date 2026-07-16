@@ -63,6 +63,17 @@ export function listTasks(projectId: string): Promise<BoardTask[]> {
     });
 }
 
+/**
+ * 获取当前用户所有带 due_date 的任务（跨项目，用于日历聚合）。
+ * owner 范围由访问规则保证；客户端再过滤出确有 due_date 的任务（date 字段空值语义稳妥）。
+ */
+export function listDueTasks(): Promise<BoardTask[]> {
+  return pb
+    .collection(COL.boardTasks)
+    .getFullList<BoardTask>({ requestKey: null, sort: "due_date" })
+    .then((all) => all.filter((t) => !!t.due_date));
+}
+
 // ── 通用 CRUD ─────────────────────────────────────────────
 
 /** 创建记录，返回创建后的完整记录 */
