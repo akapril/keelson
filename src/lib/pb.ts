@@ -34,7 +34,54 @@ export async function initPbAuth(): Promise<void> {
   const a = await waitForBootstrap();
   // v0.27+ 使用 baseURL（非弃用属性），兼容 brief 中的 baseUrl 字段名（来自 Rust）
   pb.baseURL = a.baseUrl;
-  // 单用户免登录：用 Rust 派发的 token 直接落 authStore
+  // 默认免登录：用 Rust 派发的 token 直接落 authStore（多用户可再登出/切换）
   pb.authStore.save(a.token, { id: a.userId, collectionName: "users" } as any);
+  // 刷新以拉取完整用户记录（email / displayName），失败则保留最小记录
+  try {
+    await pb.collection("users").authRefresh();
+  } catch {
+    /* 忽略：token 仍可用，仅缺展示字段 */
+  }
 }
+
 export const currentUserId = () => pb.authStore.record?.id ?? "";
+
+// ── 多用户认证（auth 明面在此文件收口；pb.authStore 属认证管线，非集合数据） ──
+export type PbUser = { id: string; email: string; name: string };
+
+/** 从 authStore 读取当前用户展示信息（未认证返回 null）。 */
+export function pbAuthUser(): PbUser | null {
+  const r = pb.authStore.record;
+  if (!r) return null;
+  const email = (r.email as string | undefined) ?? "";
+  const displayName = (r.displayName as string | undefined) ?? "";
+  return { id: r.id, email, name: displayName || email || r.id };
+}
+
+/** 当前是否已认证。 */
+export const pbIsAuthed = () => pb.authStore.isValid;
+
+/** 账号密码登录（identity 可为 email）。 */
+export async function pbLogin(identity: string, password: string): Promise<void> {
+  await pb.collection("users").authWithPassword(identity.trim(), password);
+}
+
+/** 注册新用户并登录（需 users 集合允许创建；本地场景默认允许）。 */
+export async function pbRegister(
+  email: string,
+  password: string,
+  name: string,
+): Promise<void> {
+  await pb.collection("users").create({
+    email: email.trim(),
+    password,
+    passwordConfirm: password,
+    displayName: name.trim(),
+  });
+  await pb.collection("users").authWithPassword(email.trim(), password);
+}
+
+/** 登出：清空 authStore（回到登录界面）。 */
+export function pbLogout(): void {
+  pb.authStore.clear();
+}

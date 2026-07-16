@@ -6,9 +6,10 @@ import { useAuthStore } from "./store/auth";
 import { AppRouter } from "./router";
 import { thisWindowLabel } from "./lib/tauri/window";
 import { SpotlightApp } from "./features/spotlight/SpotlightApp";
+import { LoginScreen } from "./features/auth/LoginScreen";
 
 export default function App() {
-  const { ready, error, init } = useAuthStore();
+  const { ready, authed, error, init } = useAuthStore();
 
   useEffect(() => {
     init();
@@ -24,7 +25,12 @@ export default function App() {
           // Spotlight 窗口不需要等待认证，直接渲染 SpotlightApp
           <SpotlightApp />
         ) : ready ? (
-          <AppRouter />
+          // 已就绪：认证则进主界面，否则登录界面（多用户登出/切换）
+          authed ? (
+            <AppRouter />
+          ) : (
+            <LoginScreen />
+          )
         ) : (
           <div className="flex h-screen items-center justify-center bg-background text-foreground">
             <div className="space-y-2 text-center">
