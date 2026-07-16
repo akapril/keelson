@@ -1,7 +1,7 @@
 // ProjectWorkspace —— 打开一个项目后的「工作台」：
 // 头部(返回 / 名称 / git 状态 / 项目设置) + 标签页(概览 / 会话 / 看板 / 文档 / AI)。
 // 会话 tab 通过 repo_path == session.project_path 关联本地 CLI 会话（两级项目模型）。
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -12,9 +12,11 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/store/board";
 import { useSessionsStore } from "@/store/sessions";
 import { listEventsByProject } from "@/lib/pb/calendar";
+import { listDocs } from "@/lib/pb/docs";
 import type { CalendarEvent } from "@/types/calendar";
 import { KanbanBoard } from "./KanbanBoard";
 import { ProjectSheet } from "./ProjectSheet";
@@ -40,6 +42,7 @@ export function ProjectWorkspace() {
   const [tab, setTab] = useState(() => paramTab || "board");
   const [showSheet, setShowSheet] = useState(false);
   const [projectEvents, setProjectEvents] = useState<CalendarEvent[]>([]);
+  const [docCount, setDocCount] = useState(0);
   const navigate = useNavigate();
 
   // 再次深链接（?tab 变化）时同步切换标签页
@@ -47,13 +50,18 @@ export function ProjectWorkspace() {
     if (paramTab) setTab(paramTab);
   }, [paramTab]);
 
-  // 加载关联到本项目的日历事件（用于概览「近期事件」）
+  // 加载关联到本项目的日历事件（概览「近期事件」）+ 文档数（概览「项目信息」）
   useEffect(() => {
     if (!openedProjectId) return;
     let cancelled = false;
     void listEventsByProject(openedProjectId)
       .then((evs) => {
         if (!cancelled) setProjectEvents(evs);
+      })
+      .catch(() => {});
+    void listDocs(openedProjectId)
+      .then((ds) => {
+        if (!cancelled) setDocCount(ds.length);
       })
       .catch(() => {});
     return () => {
@@ -157,27 +165,51 @@ export function ProjectWorkspace() {
               />
             </div>
 
-            {/* 元信息 */}
-            <div className="rounded-xl border border-border bg-card p-4 text-sm">
-              {project.description ? (
-                <p className="text-foreground">{project.description}</p>
-              ) : (
-                <p className="text-muted-foreground">暂无项目描述。</p>
-              )}
-              <div className="mt-3 flex flex-col gap-1 text-xs text-muted-foreground">
-                <span>
-                  仓库路径：
-                  {repoPath ? (
-                    <span className="font-mono text-foreground">{repoPath}</span>
-                  ) : (
-                    "未绑定（会话 / git 关联不可用）"
+            {/* 项目信息 */}
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">项目信息</h3>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-xs",
+                    project.archived
+                      ? "bg-muted text-muted-foreground"
+                      : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                   )}
-                </span>
-                <span>
-                  {states.length} 个状态列 · {labels.length} 个标签 ·{" "}
-                  {linkedCount} 个关联会话
+                >
+                  {project.archived ? "已归档" : "活跃"}
                 </span>
               </div>
+
+              {/* 描述 */}
+              {project.description ? (
+                <p className="mb-3 whitespace-pre-wrap text-sm text-foreground">
+                  {project.description}
+                </p>
+              ) : (
+                <p className="mb-3 text-sm text-muted-foreground">暂无项目描述。</p>
+              )}
+
+              {/* 关键信息键值网格 */}
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
+                <InfoItem label="仓库路径" full>
+                  {repoPath ? (
+                    <span className="break-all font-mono text-foreground">{repoPath}</span>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      未绑定（会话 / git 关联不可用）
+                    </span>
+                  )}
+                </InfoItem>
+                <InfoItem label="任务">{tasks.length} 个</InfoItem>
+                <InfoItem label="文档">{docCount} 篇</InfoItem>
+                <InfoItem label="关联会话">{linkedCount} 个</InfoItem>
+                <InfoItem label="状态列 / 标签">
+                  {states.length} / {labels.length}
+                </InfoItem>
+                <InfoItem label="创建于">{fmtDate(project.created)}</InfoItem>
+                <InfoItem label="最近更新">{fmtDate(project.updated)}</InfoItem>
+              </dl>
             </div>
 
             {/* 近期截止任务（点击跳到看板） */}
@@ -305,4 +337,38 @@ function StatCard({ label, value }: { label: string; value: number }) {
       <div className="mt-0.5 text-xs text-muted-foreground">{label}</div>
     </div>
   );
+}
+
+// 「项目信息」键值项（full=true 时跨两列，用于长路径）
+function InfoItem({
+  label,
+  children,
+  full,
+}: {
+  label: string;
+  children: ReactNode;
+  full?: boolean;
+}) {
+  return (
+    <div className={full ? "sm:col-span-2" : undefined}>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-foreground">{children}</dd>
+    </div>
+  );
+}
+
+// 日期格式化：yyyy/MM/dd HH:mm（本地化），解析失败回退原串
+function fmtDate(iso: string): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
 }
