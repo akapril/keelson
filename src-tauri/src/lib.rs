@@ -27,7 +27,7 @@ pub mod sync;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 /// 注册 Spotlight 全局快捷键的可复用辅助函数。
@@ -287,6 +287,8 @@ async fn setup_pocketbase(
 
     // 缓存会话供 Task 16 命令层使用
     *sessions_slot.lock() = sessions;
+    // 通知前端：会话缓存已就绪（前端首帧可能抢在扫描完成前取到空列表 → 需刷新）
+    let _ = handle.emit("sessions-updated", ());
 
     // 步骤 7：启动文件系统 Watcher（增量同步）
     // 克隆依赖项供回调闭包持有
@@ -294,6 +296,7 @@ async fn setup_pocketbase(
     let user_id_for_watcher = user_id.clone();
     let reg_for_watcher = Arc::clone(&reg);
     let sessions_slot_for_watcher = Arc::clone(&sessions_slot);
+    let handle_for_watcher = handle.clone();
 
     // 构造回调：full_rescan=true 时重新 scan_all；false 时仅同步增量变化的会话
     let watcher_cb: updater::SessionChangedCallback = Arc::new(move |changed_sessions: Vec<crate::models::Session>, full_rescan: bool| {
@@ -301,6 +304,7 @@ async fn setup_pocketbase(
         let owner = user_id_for_watcher.clone();
         let reg = Arc::clone(&reg_for_watcher);
         let slot = Arc::clone(&sessions_slot_for_watcher);
+        let h = handle_for_watcher.clone();
 
         // 在 Tauri 的异步运行时执行同步任务（回调本身是同步的，故 spawn）
         tauri::async_runtime::spawn(async move {
@@ -329,6 +333,8 @@ async fn setup_pocketbase(
             if let Err(e) = sync::sync_to_pb(&client, &owner, &to_sync).await {
                 eprintln!("[rework] Watcher 触发的 sync_to_pb 失败（非致命）: {e:#}");
             }
+            // 通知前端会话有更新（文件变化增量同步后）
+            let _ = h.emit("sessions-updated", ());
         });
     });
 

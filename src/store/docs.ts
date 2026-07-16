@@ -95,8 +95,9 @@ export const useDocsStore = create<DocsStoreState>((set, get) => ({
       title,
       content: "", // 内容默认空串
     });
-    // 前插到本地文档列表（最近创建在前）
-    set((s) => ({ docs: [created, ...s.docs] }));
+    // 按 id upsert（去重）：PB 实时 create 事件可能在 await 期间已插入同一条，
+    // 避免本地再前插一次造成重复。
+    set((s) => ({ docs: upsertById(s.docs, created) }));
     return created;
   },
 
