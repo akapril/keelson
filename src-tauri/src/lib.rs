@@ -228,6 +228,7 @@ pub fn run() {
             commands::ai::ai_chat,
             commands::ai::ai_chat_stream,
             commands::ai::ai_cancel_stream,
+            commands::ai::ai_chat_tools,
             // 文件写入（导出「另存为」）
             commands::fs::write_text_file,
             // 网页抓取（阅读「AI 解析」）
