@@ -294,8 +294,9 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
     if (input.source_anchor != null) data.source_anchor = input.source_anchor;
 
     const created = await createRecord<BoardTask>(COL.boardTasks, data);
-    // 追加到本地任务列表末尾
-    set((s) => ({ tasks: [...s.tasks, created] }));
+    // 按 id upsert 去重：PB 实时 create 事件可能在 await 期间已插入同一条，
+    // 避免本地再追加一次造成重复显示。
+    set((s) => ({ tasks: upsertById(s.tasks, created) }));
     return created;
   },
 
@@ -396,7 +397,8 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
     });
     // 追加后按 sort_order 排序，保持与列表约定一致
     set((s) => ({
-      states: [...s.states, created].sort(
+      // upsert 去重（实时 create echo 可能已插入），再按 sort_order 排序
+      states: upsertById(s.states, created).sort(
         (a, b) => a.sort_order - b.sort_order,
       ),
     }));
@@ -436,7 +438,8 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
       name: input.name,
       color: input.color,
     });
-    set((s) => ({ labels: [...s.labels, created] }));
+    // upsert 去重（实时 create echo 可能已插入）
+    set((s) => ({ labels: upsertById(s.labels, created) }));
   },
 
   // ── 更新标签 ─────────────────────────────────────────────

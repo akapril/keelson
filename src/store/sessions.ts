@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { ipc } from "../lib/tauri/ipc";
+import { on } from "../lib/tauri/events";
 import type { Session } from "../types/session";
+
+// 是否已注册后端「会话已更新」事件监听（模块级，仅注册一次）
+let listening = false;
 
 // ── 纯函数辅助：按 project_path 分组 ──────────────────────
 /** 将会话列表按 project_path 分组，返回 Record<string, Session[]> */
@@ -39,6 +43,16 @@ export const useSessionsStore = create<SessionsState>((set) => ({
   error: undefined,
 
   load: async () => {
+    // 首次 load 时注册后端事件监听：修复启动首帧抢在后台扫描完成前取到空列表的问题
+    // （后端完成首次扫描 / 文件变化后 emit "sessions-updated" → 自动重载）。
+    if (!listening) {
+      listening = true;
+      void on("sessions-updated", () => {
+        void useSessionsStore.getState().load();
+      }).catch(() => {
+        // 非 Tauri 环境（如测试）忽略
+      });
+    }
     set({ loading: true, error: undefined });
     try {
       const sessions = await ipc.listSessions();
