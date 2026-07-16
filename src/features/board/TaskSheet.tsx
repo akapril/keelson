@@ -1,19 +1,47 @@
-// 任务创建/编辑面板：受控模态框。
-// 数据访问统一走 useBoardStore（createTask / updateTask），本组件不直接调用 invoke 或 pb.collection。
-import { useEffect, useState, type FormEvent } from "react";
-import { useBoardStore } from "../../store/board";
-import type { BoardTask, TaskPriority } from "../../types/board";
+// 任务创建/编辑面板：右侧滑出 Sheet（受控）。
+// UX 参照 workavera 的 todo-card-sheet，但去除 assignees / 关联文档 / 活动记录；数据一律走 useBoardStore。
+// 本组件不直接调用 invoke 或 pb.collection。
+import { useEffect, useState } from "react";
 
-// ── 优先级下拉选项（顺序 = 展示顺序） ─────────────────────────
-const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
-  { value: "none", label: "无" },
-  { value: "low", label: "低" },
-  { value: "medium", label: "中" },
-  { value: "high", label: "高" },
-  { value: "urgent", label: "紧急" },
-];
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Delete02Icon } from "@hugeicons/core-free-icons";
 
-// ── Props ──────────────────────────────────────────────────────
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { PRIORITY_META, PRIORITY_ORDER } from "@/features/board/board-meta";
+import { useBoardStore } from "@/store/board";
+import type { BoardTask, TaskPriority } from "@/types/board";
+
+// ── Props（KanbanBoard 已依赖，保持不变） ────────────────────
 interface TaskSheetProps {
   /** 是否显示面板 */
   open: boolean;
@@ -28,32 +56,32 @@ interface TaskSheetProps {
 }
 
 /**
- * 任务创建/编辑面板（受控模态框）。
- * 父组件控制显示/隐藏，通过 onClose 关闭；保存后自动关闭。
+ * 任务创建/编辑面板：右侧滑出 Sheet。
+ * 父组件通过 open 控制显隐；关闭（onOpenChange → false）或保存成功后调用 onClose。
  */
 export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps) {
   const states = useBoardStore((s) => s.states);
   const labels = useBoardStore((s) => s.labels);
-  const openedProjectId = useBoardStore((s) => s.openedProjectId);
-  const createTask = useBoardStore((s) => s.createTask);
-  const updateTask = useBoardStore((s) => s.updateTask);
 
-  // ── 表单状态 ──────────────────────────────────────────────
+  // ── 表单状态（受控输入） ──────────────────────────────────
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [state, setState] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("none");
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState("");
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // ── 初始化 / 重置：当 open / task / mode 变化时同步表单 ────
+  // ── 初始化 / 重置：随 open / task / mode 同步表单字段 ──────
   useEffect(() => {
     if (!open) return;
     setError(undefined);
+    setConfirmDelete(false);
     if (mode === "edit" && task) {
-      // 编辑模式：从目标任务初始化受控输入
+      // 编辑模式：从目标任务回填受控输入
       setTitle(task.title);
       setDescription(task.description ?? "");
       setState(task.state);
@@ -78,12 +106,11 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
     );
   }
 
-  // ── 标题非空校验（用于禁用保存按钮） ─────────────────────
+  // ── 标题非空 + 非保存中 → 允许保存 ───────────────────────
   const canSave = title.trim().length > 0 && !saving;
 
-  // ── 提交处理 ──────────────────────────────────────────────
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  // ── 提交（新建 / 编辑），错误内联展示 ───────────────────
+  async function handleSave() {
     if (!title.trim()) {
       setError("任务标题不能为空");
       return;
@@ -92,8 +119,8 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
     setSaving(true);
     try {
       if (mode === "edit" && task) {
-        // 编辑模式：仅提交变更字段的补丁
-        await updateTask(task.id, {
+        // 编辑模式：提交变更字段补丁
+        await useBoardStore.getState().updateTask(task.id, {
           title: title.trim(),
           description: description.trim() || undefined,
           state,
@@ -102,13 +129,14 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
           due_date: dueDate || undefined,
         });
       } else {
-        // 新建模式：project 取自当前打开的项目
+        // 新建模式：project 取自当前打开的项目（守卫非空）
+        const openedProjectId = useBoardStore.getState().openedProjectId;
         if (!openedProjectId) {
           setError("尚未打开任何项目");
           setSaving(false);
           return;
         }
-        await createTask({
+        await useBoardStore.getState().createTask({
           project: openedProjectId,
           state,
           title: title.trim(),
@@ -120,173 +148,130 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
       }
       onClose();
     } catch (err) {
-      // 保存抛错时展示错误信息（store 内部错误也会同步到 store.error）
+      // 保存抛错时内联展示错误信息
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
   }
 
-  // ── 点击遮罩层关闭（仅在非保存中） ──────────────────────
-  function handleBackdropClick() {
-    if (!saving) onClose();
+  // ── 删除（仅编辑模式），确认后执行 ───────────────────────
+  async function handleDelete() {
+    if (!task) return;
+    setError(undefined);
+    setSaving(true);
+    try {
+      await useBoardStore.getState().deleteTask(task.id);
+      setConfirmDelete(false);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
   }
 
-  // 未打开则不渲染
-  if (!open) return null;
+  // ── Sheet 关闭回调：关闭时（非保存中）透传给父组件 ──────
+  function handleOpenChange(next: boolean) {
+    if (!next && !saving) onClose();
+  }
 
-  // ── 渲染 ──────────────────────────────────────────────────
   return (
-    /* 遮罩层 */
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="task-sheet-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
-      onClick={handleBackdropClick}
-    >
-      {/* 对话框面板（阻止冒泡，防止点击内容区关闭） */}
-      <div
-        className={[
-          "w-full max-w-md rounded-xl border border-border",
-          "bg-card p-6 shadow-lg",
-        ].join(" ")}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* 标题行 */}
-        <div className="mb-5 flex items-center justify-between">
-          <h2
-            id="task-sheet-title"
-            className="text-base font-semibold text-foreground"
-          >
-            {mode === "edit" ? "编辑任务" : "新建任务"}
-          </h2>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={onClose}
-            aria-label="关闭"
-            className="rounded-md p-1 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            ✕
-          </button>
-        </div>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent side="right" className="w-full gap-0 sm:max-w-lg">
+        {/* 头部标题 */}
+        <SheetHeader className="border-b border-border">
+          <SheetTitle>{mode === "edit" ? "编辑任务" : "新建任务"}</SheetTitle>
+        </SheetHeader>
 
-        {/* 表单 */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* 表单主体（可滚动） */}
+        <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-6">
           {/* 标题（必填） */}
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="ts-title"
-              className="text-sm font-medium text-foreground"
-            >
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ts-title">
               标题
-              <span className="ml-1 text-destructive">*</span>
-            </label>
-            <input
+              <span className="text-destructive">*</span>
+            </Label>
+            <Input
               id="ts-title"
-              type="text"
-              required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="输入任务标题"
               disabled={saving}
-              className={[
-                "rounded-md border border-input bg-background px-3 py-2",
-                "text-sm text-foreground placeholder:text-muted-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
             />
           </div>
 
           {/* 描述（可选） */}
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="ts-desc"
-              className="text-sm font-medium text-foreground"
-            >
-              描述
-              <span className="ml-1 text-xs text-muted-foreground">（可选）</span>
-            </label>
-            <textarea
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ts-desc">描述</Label>
+            <Textarea
               id="ts-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="补充任务细节"
-              rows={3}
+              rows={4}
               disabled={saving}
-              className={[
-                "resize-none rounded-md border border-input bg-background px-3 py-2",
-                "text-sm text-foreground placeholder:text-muted-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
             />
           </div>
 
-          {/* 状态列选择 */}
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="ts-state"
-              className="text-sm font-medium text-foreground"
-            >
-              状态
-            </label>
-            <select
-              id="ts-state"
-              value={state}
-              onChange={(e) => setState(e.target.value)}
-              disabled={saving}
-              className={[
-                "rounded-md border border-input bg-background px-3 py-2",
-                "text-sm text-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
-            >
-              {states.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* 状态 + 优先级（两列） */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-2">
+              <Label>状态</Label>
+              <Select
+                value={state}
+                onValueChange={setState}
+                disabled={saving}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  {states.map((st) => (
+                    <SelectItem key={st.id} value={st.id}>
+                      {/* 状态色点：用户数据颜色，允许内联 style */}
+                      <span
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: st.color }}
+                      />
+                      {st.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* 优先级选择 */}
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="ts-priority"
-              className="text-sm font-medium text-foreground"
-            >
-              优先级
-            </label>
-            <select
-              id="ts-priority"
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as TaskPriority)}
-              disabled={saving}
-              className={[
-                "rounded-md border border-input bg-background px-3 py-2",
-                "text-sm text-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
-            >
-              {PRIORITY_OPTIONS.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-2">
+              <Label>优先级</Label>
+              <Select
+                value={priority}
+                onValueChange={(v) => setPriority(v as TaskPriority)}
+                disabled={saving}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORITY_ORDER.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {/* 优先级色点：使用语义/调色类 */}
+                      <span
+                        className={cn(
+                          "size-2 rounded-full",
+                          PRIORITY_META[p].dot,
+                        )}
+                      />
+                      {PRIORITY_META[p].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* 标签多选（芯片按标签自身颜色着色） */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-foreground">
-              标签
-              <span className="ml-1 text-xs text-muted-foreground">（可选）</span>
-            </span>
+          <div className="flex flex-col gap-2">
+            <Label>标签</Label>
             {labels.length === 0 ? (
               <p className="text-sm text-muted-foreground">暂无可用标签</p>
             ) : (
@@ -294,101 +279,107 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
                 {labels.map((l) => {
                   const active = selectedLabels.includes(l.id);
                   return (
-                    <button
+                    <Badge
                       key={l.id}
-                      type="button"
+                      variant={active ? "default" : "outline"}
+                      role="button"
                       aria-pressed={active}
-                      disabled={saving}
-                      onClick={() => toggleLabel(l.id)}
-                      className={[
-                        "flex items-center gap-1.5 rounded-full border px-3 py-1",
-                        "text-xs font-medium",
-                        "focus:outline-none focus:ring-2 focus:ring-ring",
-                        "disabled:opacity-50",
+                      onClick={() => !saving && toggleLabel(l.id)}
+                      className="cursor-pointer border-transparent select-none"
+                      // 选中态用标签自身颜色着色（用户数据，允许内联 style）
+                      style={
                         active
-                          ? "border-primary bg-primary/10 text-foreground"
-                          : "border-border text-muted-foreground hover:text-foreground",
-                      ].join(" ")}
+                          ? { backgroundColor: l.color, color: "#fff" }
+                          : undefined
+                      }
                     >
-                      {/* 颜色点：用户数据颜色，允许内联 style */}
                       <span
-                        className="inline-block h-2.5 w-2.5 rounded-full"
-                        style={{ background: l.color }}
+                        className="size-2 rounded-full"
+                        style={{
+                          backgroundColor: active
+                            ? "rgba(255,255,255,0.6)"
+                            : l.color,
+                        }}
                       />
                       {l.name}
-                    </button>
+                    </Badge>
                   );
                 })}
               </div>
             )}
           </div>
 
-          {/* 截止日期（可选） */}
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="ts-due"
-              className="text-sm font-medium text-foreground"
-            >
-              截止日期
-              <span className="ml-1 text-xs text-muted-foreground">（可选）</span>
-            </label>
-            <input
-              id="ts-due"
-              type="date"
+          {/* 截止日期（可选，使用日历选择器） */}
+          <div className="flex flex-col gap-2">
+            <Label>截止日期</Label>
+            <DatePicker
               value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              onChange={setDueDate}
+              placeholder="选择日期"
               disabled={saving}
-              className={[
-                "rounded-md border border-input bg-background px-3 py-2",
-                "text-sm text-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
             />
           </div>
 
-          {/* 错误提示 */}
+          {/* 错误提示（内联） */}
           {error && (
             <p
               role="alert"
-              className="rounded-md border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              className="rounded-xl border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
               {error}
             </p>
           )}
+        </div>
 
-          {/* 操作按钮行 */}
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
+        {/* 底部操作栏 */}
+        <SheetFooter className="flex-row items-center justify-between border-t border-border">
+          {/* 编辑模式：删除入口（destructive） */}
+          {mode === "edit" && task ? (
+            <Button
+              variant="ghost"
+              size="sm"
               disabled={saving}
-              className={[
-                "rounded-md px-4 py-2 text-sm font-medium",
-                "border border-border text-foreground",
-                "hover:bg-accent hover:text-accent-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
+              onClick={() => setConfirmDelete(true)}
+              className="text-destructive hover:text-destructive"
             >
+              <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
+              删除
+            </Button>
+          ) : (
+            <span />
+          )}
+
+          <div className="flex gap-2">
+            <Button variant="outline" disabled={saving} onClick={onClose}>
               取消
-            </button>
-            <button
-              type="submit"
-              disabled={!canSave}
-              className={[
-                "rounded-md bg-primary px-4 py-2 text-sm font-medium",
-                "text-primary-foreground shadow-sm",
-                "hover:bg-primary/90",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
-            >
+            </Button>
+            <Button disabled={!canSave} onClick={() => void handleSave()}>
               {saving ? "保存中…" : mode === "edit" ? "保存" : "创建"}
-            </button>
+            </Button>
           </div>
-        </form>
-      </div>
-    </div>
+        </SheetFooter>
+      </SheetContent>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除任务？</AlertDialogTitle>
+            <AlertDialogDescription>
+              将从看板永久移除「{task?.title}」，此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void handleDelete()}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Sheet>
   );
 }
