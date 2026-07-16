@@ -4,6 +4,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  closestCorners,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -102,6 +103,7 @@ export function KanbanBoard() {
     <div className="flex h-full min-h-0 flex-col">
       <DndContext
         sensors={sensors}
+        collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragCancel={() => setActiveTask(null)}
