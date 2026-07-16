@@ -2,6 +2,7 @@
 // owner-only 访问；不使用 @request.body.X:changed（PB 0.30 会生成坏 SQL 导致 404）。
 migrate((app) => {
   const users = app.findCollectionByNameOrId("users");
+  const projId = app.findCollectionByNameOrId("board_projects").id;
 
   const auto = (name, onUpdate) =>
     new Field({ name, type: "autodate", onCreate: true, onUpdate: !!onUpdate });
@@ -32,6 +33,17 @@ migrate((app) => {
   cal.fields.add(new Field({ name: "end", type: "date" }));
   cal.fields.add(new Field({ name: "all_day", type: "bool" }));
   cal.fields.add(new Field({ name: "color", type: "text", max: 20 }));
+  // 可选：关联到看板项目（项目工作台概览可聚合本项目的事件）
+  cal.fields.add(
+    new Field({
+      name: "project",
+      type: "relation",
+      required: false,
+      collectionId: projId,
+      cascadeDelete: true,
+      maxSelect: 1,
+    }),
+  );
   cal.fields.add(auto("created", false));
   cal.fields.add(auto("updated", true));
   cal.addIndex("idx_cal_owner_start", false, "owner, start", "");

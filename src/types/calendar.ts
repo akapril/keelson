@@ -13,6 +13,8 @@ export interface CalendarEvent {
   end: string;
   all_day: boolean;
   color: string;
+  /** 可选：关联的看板项目 id（空串 = 未关联） */
+  project: string;
   created: string;
   updated: string;
 }

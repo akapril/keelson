@@ -17,6 +17,17 @@ export function listEvents(): Promise<CalendarEvent[]> {
   });
 }
 
+/** 获取关联到指定项目的事件（按 start 升序），用于项目工作台概览聚合。 */
+export function listEventsByProject(
+  projectId: string,
+): Promise<CalendarEvent[]> {
+  return pb.collection(COL.calendarEvents).getFullList<CalendarEvent>({
+    requestKey: null,
+    filter: pb.filter("project = {:p}", { p: projectId }),
+    sort: "start",
+  });
+}
+
 // ── CRUD ─────────────────────────────────────────────────
 
 /** 创建日历事件记录，返回创建后的完整记录 */

@@ -55,6 +55,7 @@ interface CalendarStoreState {
     all_day?: boolean;
     color?: string;
     description?: string;
+    project?: string;
   }) => Promise<CalendarEvent>;
   /** 更新日历事件字段（乐观更新 + 回滚） */
   updateEvent: (
@@ -62,7 +63,13 @@ interface CalendarStoreState {
     patch: Partial<
       Pick<
         CalendarEvent,
-        "title" | "start" | "end" | "all_day" | "color" | "description"
+        | "title"
+        | "start"
+        | "end"
+        | "all_day"
+        | "color"
+        | "description"
+        | "project"
       >
     >,
   ) => Promise<void>;
@@ -113,6 +120,7 @@ export const useCalendarStore = create<CalendarStoreState>((set, get) => ({
       all_day: input.all_day ?? false, // 默认非全天
       color: input.color ?? "", // color 默认空串
       description: input.description ?? "", // description 默认空串
+      project: input.project ?? "", // 关联项目默认空串
     });
     // 按 id upsert（去重）：PB 实时 create 事件可能在 await 期间已插入同一条，
     // 避免本地再追加一次造成重复。

@@ -28,12 +28,19 @@ import {
 
 import { useCalendarStore } from "@/store/calendar";
 import type { CalendarEvent } from "@/types/calendar";
-import { listDueTasks } from "@/lib/pb/board";
-import type { BoardTask } from "@/types/board";
+import { listDueTasks, listProjects } from "@/lib/pb/board";
+import type { BoardTask, BoardProject } from "@/types/board";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -64,6 +71,7 @@ interface FormState {
   all_day: boolean;
   color: string;
   description: string;
+  project: string;
 }
 
 /**
@@ -116,6 +124,7 @@ function initialForm(state: DialogState): FormState {
       all_day: ev.all_day,
       color: ev.color || DEFAULT_COLOR,
       description: ev.description,
+      project: ev.project || "",
     };
   }
   // 新建：起始日预填为点击的日期（或今天）
@@ -127,6 +136,7 @@ function initialForm(state: DialogState): FormState {
     all_day: false,
     color: DEFAULT_COLOR,
     description: "",
+    project: "",
   };
 }
 
@@ -141,6 +151,8 @@ export default function CalendarPage() {
 
   // 跨项目聚合的「带 due_date 的看板任务」（只读叠加到日历）
   const [dueTasks, setDueTasks] = useState<BoardTask[]>([]);
+  // 项目列表（用于事件的「关联项目」下拉）
+  const [projects, setProjects] = useState<BoardProject[]>([]);
 
   // 当前浏览的月份（取任意一天即可代表该月）
   const [viewDate, setViewDate] = useState<Date>(() => new Date());
@@ -163,6 +175,13 @@ export default function CalendarPage() {
   useEffect(() => {
     void listDueTasks()
       .then(setDueTasks)
+      .catch(() => {});
+  }, []);
+
+  // 项目列表（供「关联项目」下拉）
+  useEffect(() => {
+    void listProjects()
+      .then(setProjects)
       .catch(() => {});
   }, []);
 
@@ -201,6 +220,7 @@ export default function CalendarPage() {
       all_day: form.all_day,
       color: form.color,
       description: form.description.trim(),
+      project: form.project, // 空串 = 不关联
     };
     if (dialog.editing) {
       await updateEvent(dialog.editing.id, payload);
@@ -441,6 +461,29 @@ export default function CalendarPage() {
                   className="size-8 cursor-pointer rounded border border-input bg-transparent"
                 />
               </Label>
+            </div>
+
+            {/* 关联项目（可选） */}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="cal-project">关联项目（可选）</Label>
+              <Select
+                value={form.project || "none"}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, project: v === "none" ? "" : v }))
+                }
+              >
+                <SelectTrigger id="cal-project" className="w-full">
+                  <SelectValue placeholder="不关联" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">不关联</SelectItem>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* 描述 */}
