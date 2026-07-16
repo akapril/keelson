@@ -141,6 +141,17 @@
   }
 }
 
+/* ===== 侧边栏栏目：默认纯平融入主界面（透明底、无阴影），仅 hover / 当前页高亮 =====
+   兜底覆盖，确保不受任何持久底色/阴影影响。 */
+[data-slot="sidebar-menu-button"] {
+  background-color: transparent;
+  box-shadow: none;
+}
+[data-slot="sidebar-menu-button"]:hover,
+[data-slot="sidebar-menu-button"][data-active="true"] {
+  background-color: var(--sidebar-accent);
+}
+
 /* ===== 自建标题栏：主窗口顶部预留 --titlebar-h，固定侧栏下移到标题栏之下 =====
    sidebar-container 为 fixed inset-y-0 h-svh；wrapper 为 min-h-svh，均按标题栏高度收缩。 */
 :root {
