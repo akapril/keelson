@@ -6,7 +6,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
   Settings02Icon,
-  DocumentAttachmentIcon,
   AiChat02Icon,
 } from "@hugeicons/core-free-icons";
 
@@ -19,6 +18,7 @@ import { KanbanBoard } from "./KanbanBoard";
 import { ProjectSheet } from "./ProjectSheet";
 import { GitStatusBar } from "./GitStatusBar";
 import { WorkspaceSessions } from "./WorkspaceSessions";
+import { DocsPanel } from "@/features/docs/DocsPanel";
 import { STATE_CATEGORY_META } from "./board-meta";
 
 // 空标签页占位（文档 / AI，Phase③④ 实现）
@@ -163,10 +163,11 @@ export function ProjectWorkspace() {
           <KanbanBoard />
         </TabsContent>
 
-        {/* 文档 / AI 占位 */}
-        <TabsContent value="docs" className="mt-3 min-h-0 flex-1">
-          <ComingSoon icon={DocumentAttachmentIcon} title="项目文档" />
+        {/* 文档 */}
+        <TabsContent value="docs" className="mt-3 flex min-h-0 flex-1 flex-col">
+          <DocsPanel projectId={project.id} />
         </TabsContent>
+        {/* AI 占位 */}
         <TabsContent value="ai" className="mt-3 min-h-0 flex-1">
           <ComingSoon icon={AiChat02Icon} title="项目 AI 助手" />
         </TabsContent>
