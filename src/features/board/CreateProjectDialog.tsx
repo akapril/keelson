@@ -1,8 +1,28 @@
 // 新建项目对话框：收集名称 / 描述 / 仓库路径 + 模板选择，
 // 调用 createProjectFromTemplate，成功后刷新项目列表并关闭。
+// 表现层已改用 shadcn/ui Dialog 及输入类原语，逻辑保持不变。
 import { useState, type FormEvent } from "react";
 import { useBoardStore } from "../../store/board";
 import { createProjectFromTemplate } from "./create-project";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // ── Props ──────────────────────────────────────────────────────
 interface CreateProjectDialogProps {
@@ -63,60 +83,34 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
     }
   }
 
-  // ── 点击遮罩层关闭（仅在非加载时） ──────────────────────
-  function handleBackdropClick() {
-    if (!loading) onClose();
-  }
-
   // ── 渲染 ──────────────────────────────────────────────────
   return (
-    /* 遮罩层 */
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-project-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
-      onClick={handleBackdropClick}
+    <Dialog
+      open
+      // Dialog 的开/关由 Radix 统一管理：关闭时（点击遮罩 / Esc / 关闭按钮）
+      // 且非加载状态才回调 onClose，等价于原来的遮罩点击守卫。
+      onOpenChange={(o) => {
+        if (!o && !loading) onClose();
+      }}
     >
-      {/* 对话框面板（阻止冒泡，防止点击内容区关闭） */}
-      <div
-        className={[
-          "w-full max-w-md rounded-xl border border-border",
-          "bg-card p-6 shadow-lg",
-        ].join(" ")}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* 标题行 */}
-        <div className="mb-5 flex items-center justify-between">
-          <h2
-            id="create-project-title"
-            className="text-base font-semibold text-foreground"
-          >
-            新建项目
-          </h2>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={onClose}
-            aria-label="关闭"
-            className="rounded-md p-1 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            ✕
-          </button>
-        </div>
+      <DialogContent>
+        {/* 标题区 */}
+        <DialogHeader>
+          <DialogTitle>新建项目</DialogTitle>
+          <DialogDescription>
+            填写项目信息并选择一个模板以创建。
+          </DialogDescription>
+        </DialogHeader>
 
         {/* 表单 */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* 项目名称（必填） */}
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="cp-name"
-              className="text-sm font-medium text-foreground"
-            >
+            <Label htmlFor="cp-name">
               项目名称
               <span className="ml-1 text-destructive">*</span>
-            </label>
-            <input
+            </Label>
+            <Input
               id="cp-name"
               type="text"
               required
@@ -124,96 +118,68 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
               onChange={(e) => setName(e.target.value)}
               placeholder="输入项目名称"
               disabled={loading}
-              className={[
-                "rounded-md border border-input bg-background px-3 py-2",
-                "text-sm text-foreground placeholder:text-muted-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
             />
           </div>
 
           {/* 描述（可选） */}
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="cp-desc"
-              className="text-sm font-medium text-foreground"
-            >
+            <Label htmlFor="cp-desc">
               描述
               <span className="ml-1 text-xs text-muted-foreground">（可选）</span>
-            </label>
-            <textarea
+            </Label>
+            <Textarea
               id="cp-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="简短描述项目用途"
               rows={2}
               disabled={loading}
-              className={[
-                "resize-none rounded-md border border-input bg-background px-3 py-2",
-                "text-sm text-foreground placeholder:text-muted-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
             />
           </div>
 
           {/* 仓库路径（可选） */}
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="cp-repo"
-              className="text-sm font-medium text-foreground"
-            >
+            <Label htmlFor="cp-repo">
               仓库路径
               <span className="ml-1 text-xs text-muted-foreground">（可选）</span>
-            </label>
-            <input
+            </Label>
+            <Input
               id="cp-repo"
               type="text"
               value={repoPath}
               onChange={(e) => setRepoPath(e.target.value)}
               placeholder="/path/to/repo 或留空"
               disabled={loading}
-              className={[
-                "rounded-md border border-input bg-background px-3 py-2",
-                "text-sm text-foreground placeholder:text-muted-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
             />
           </div>
 
           {/* 模板选择 */}
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="cp-template"
-              className="text-sm font-medium text-foreground"
-            >
+            <Label htmlFor="cp-template">
               模板
               <span className="ml-1 text-destructive">*</span>
-            </label>
+            </Label>
             {templates.length === 0 ? (
               <p className="text-sm text-muted-foreground">暂无可用模板</p>
             ) : (
-              <select
-                id="cp-template"
+              <Select
                 value={templateId}
-                onChange={(e) => setTemplateId(e.target.value)}
+                onValueChange={setTemplateId}
                 disabled={loading}
-                className={[
-                  "rounded-md border border-input bg-background px-3 py-2",
-                  "text-sm text-foreground",
-                  "focus:outline-none focus:ring-2 focus:ring-ring",
-                  "disabled:opacity-50",
-                ].join(" ")}
               >
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                    {t.description ? ` — ${t.description}` : ""}
-                  </option>
-                ))}
-              </select>
+                {/* 触发器铺满一行，覆盖默认的 w-fit */}
+                <SelectTrigger id="cp-template" className="w-full">
+                  <SelectValue placeholder="选择一个模板" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                      {t.description ? ` — ${t.description}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </div>
 
@@ -228,37 +194,21 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
           )}
 
           {/* 操作按钮行 */}
-          <div className="flex justify-end gap-2 pt-1">
-            <button
+          <DialogFooter className="pt-1">
+            <Button
               type="button"
+              variant="outline"
               onClick={onClose}
               disabled={loading}
-              className={[
-                "rounded-md px-4 py-2 text-sm font-medium",
-                "border border-border text-foreground",
-                "hover:bg-accent hover:text-accent-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
             >
               取消
-            </button>
-            <button
-              type="submit"
-              disabled={loading || templates.length === 0}
-              className={[
-                "rounded-md bg-primary px-4 py-2 text-sm font-medium",
-                "text-primary-foreground shadow-sm",
-                "hover:bg-primary/90",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
-            >
+            </Button>
+            <Button type="submit" disabled={loading || templates.length === 0}>
               {loading ? "创建中…" : "创建"}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -2,8 +2,25 @@
 // 选择目标看板项目（默认匹配 repo_path === session.project_path），
 // 提交时解析该项目首个状态列，调用 createTask 并写入来源溯源字段。
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useBoardStore } from "../../store/board";
-import type { Session } from "../../types/session";
+import { useBoardStore } from "@/store/board";
+import type { Session } from "@/types/session";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // ── 工具函数：截断提示词文本 ──────────────────────────────────
 /** 将字符串截断至 maxLen 字符，超出部分用省略号代替 */
@@ -103,60 +120,30 @@ export function CreateTaskFromSessionDialog({
     }
   }
 
-  // ── 点击遮罩层关闭（仅在非加载时） ──────────────────────
-  function handleBackdropClick() {
-    if (!loading) onClose();
-  }
-
   // ── 渲染 ──────────────────────────────────────────────────
   return (
-    /* 遮罩层 */
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-task-from-session-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
-      onClick={handleBackdropClick}
+    // 受控 Dialog：仅在非加载状态下允许关闭
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o && !loading) onClose();
+      }}
     >
-      {/* 对话框面板（阻止冒泡，防止点击内容区关闭） */}
-      <div
-        className={[
-          "w-full max-w-md rounded-xl border border-border",
-          "bg-card p-6 shadow-lg",
-        ].join(" ")}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* 标题行 */}
-        <div className="mb-5 flex items-center justify-between">
-          <h2
-            id="create-task-from-session-title"
-            className="text-base font-semibold text-foreground"
-          >
-            从会话建任务
-          </h2>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={onClose}
-            aria-label="关闭"
-            className="rounded-md p-1 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            ✕
-          </button>
-        </div>
+      <DialogContent>
+        {/* 标题区 */}
+        <DialogHeader>
+          <DialogTitle>从会话建任务</DialogTitle>
+        </DialogHeader>
 
         {/* 表单 */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* 任务标题（必填，预填自会话提示词） */}
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="cts-title"
-              className="text-sm font-medium text-foreground"
-            >
+            <Label htmlFor="cts-title">
               任务标题
               <span className="ml-1 text-destructive">*</span>
-            </label>
-            <input
+            </Label>
+            <Input
               id="cts-title"
               type="text"
               required
@@ -164,48 +151,40 @@ export function CreateTaskFromSessionDialog({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="输入任务标题"
               disabled={loading}
-              className={[
-                "rounded-md border border-input bg-background px-3 py-2",
-                "text-sm text-foreground placeholder:text-muted-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
             />
           </div>
 
           {/* 目标项目选择 */}
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="cts-project"
-              className="text-sm font-medium text-foreground"
-            >
+            <Label htmlFor="cts-project">
               目标项目
               <span className="ml-1 text-destructive">*</span>
-            </label>
+            </Label>
             {projects.length === 0 ? (
+              // 无看板项目时保留“先提升为看板项目”提示
               <p className="text-sm text-muted-foreground">
                 暂无看板项目，请先在会话中枢将其提升为看板项目。
               </p>
             ) : (
-              <select
-                id="cts-project"
+              <Select
                 value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
+                onValueChange={setProjectId}
                 disabled={loading}
-                className={[
-                  "rounded-md border border-input bg-background px-3 py-2",
-                  "text-sm text-foreground",
-                  "focus:outline-none focus:ring-2 focus:ring-ring",
-                  "disabled:opacity-50",
-                ].join(" ")}
               >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.repo_path === session.project_path ? "（匹配仓库）" : ""}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="cts-project" className="w-full">
+                  <SelectValue placeholder="选择目标项目" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                      {p.repo_path === session.project_path
+                        ? "（匹配仓库）"
+                        : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </div>
 
@@ -229,37 +208,21 @@ export function CreateTaskFromSessionDialog({
           )}
 
           {/* 操作按钮行 */}
-          <div className="flex justify-end gap-2 pt-1">
-            <button
+          <DialogFooter className="pt-1">
+            <Button
               type="button"
+              variant="outline"
               onClick={onClose}
               disabled={loading}
-              className={[
-                "rounded-md px-4 py-2 text-sm font-medium",
-                "border border-border text-foreground",
-                "hover:bg-accent hover:text-accent-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
             >
               取消
-            </button>
-            <button
-              type="submit"
-              disabled={loading || projects.length === 0}
-              className={[
-                "rounded-md bg-primary px-4 py-2 text-sm font-medium",
-                "text-primary-foreground shadow-sm",
-                "hover:bg-primary/90",
-                "focus:outline-none focus:ring-2 focus:ring-ring",
-                "disabled:opacity-50",
-              ].join(" ")}
-            >
+            </Button>
+            <Button type="submit" disabled={loading || projects.length === 0}>
               {loading ? "创建中…" : "创建任务"}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
