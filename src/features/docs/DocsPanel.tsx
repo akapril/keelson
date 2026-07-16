@@ -2,7 +2,12 @@
 // 文档按 project 归属（board_projects），自动保存（防抖 800ms）。
 import { useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, Delete02Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  Delete02Icon,
+  TaskAdd01Icon,
+} from "@hugeicons/core-free-icons";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useDocsStore } from "@/store/docs";
+import { useBoardStore } from "@/store/board";
 import {
   MilkdownDocumentEditor,
   type DocumentEditorMode,
@@ -76,6 +82,27 @@ export function DocsPanel({ projectId }: { projectId: string }) {
   function handleTitleBlur(title: string) {
     if (selected && title.trim() && title.trim() !== selected.title) {
       void useDocsStore.getState().updateDoc(selected.id, { title: title.trim() });
+    }
+  }
+
+  // 从当前文档创建看板任务（同项目；工作台已打开该项目，状态列已加载）
+  async function handleCreateTask() {
+    if (!selected) return;
+    const first = useBoardStore.getState().states[0];
+    if (!first) {
+      toast.error("该项目暂无状态列，无法创建任务");
+      return;
+    }
+    try {
+      await useBoardStore.getState().createTask({
+        project: projectId,
+        state: first.id,
+        title: selected.title || "未命名文档",
+        description: content.slice(0, 500) || undefined,
+      });
+      toast.success("已从文档创建任务");
+    } catch (e) {
+      toast.error(`创建任务失败：${String(e)}`);
     }
   }
 
@@ -137,6 +164,16 @@ export function DocsPanel({ projectId }: { projectId: string }) {
                 placeholder="文档标题"
                 className="h-8 flex-1 border-0 bg-transparent px-1 text-base font-semibold shadow-none focus-visible:ring-0"
               />
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="从文档建任务"
+                title="从此文档创建看板任务"
+                onClick={() => void handleCreateTask()}
+                className="text-muted-foreground hover:text-primary"
+              >
+                <HugeiconsIcon icon={TaskAdd01Icon} strokeWidth={2} />
+              </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
