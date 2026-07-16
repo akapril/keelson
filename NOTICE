@@ -13,6 +13,8 @@ Portions adapted from workavera (Apache-2.0):
 - src/components/theme-provider.tsx, src/lib/utils.ts, src/hooks/use-mobile.ts
 - src/index.css design tokens (oklch neutral palette + radius ladder)
 - app shell, board components, and workspace deep-linking (as ported)
+- src/features/docs/MilkdownDocumentEditor.tsx (Milkdown/Crepe markdown editor)
+  + the Milkdown editor theming block in src/index.css
 
 Modifications: data layer rewired to a PocketBase Tauri sidecar with strict
 frontend isolation; multi-project/board features adapted to a "project workspace"

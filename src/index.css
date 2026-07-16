@@ -138,3 +138,173 @@
     @apply font-sans;
   }
 }
+
+/* ===== Milkdown 文档编辑器主题（自 workavera 移植，crepe 主题变量映射到本项目 token） ===== */
+.rework-milkdown-editor {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--background);
+  font-family: var(--font-sans);
+}
+
+.rework-milkdown-editor:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  background: var(--background);
+}
+
+.milkdown-system-toolbar {
+  z-index: 10;
+  min-height: 2.75rem;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.125rem;
+  overflow: visible;
+  width: 100%;
+  padding: 0.4rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+}
+
+.milkdown-rich-area {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.rework-milkdown-editor .milkdown {
+  --crepe-color-background: var(--background);
+  --crepe-color-on-background: var(--foreground);
+  --crepe-color-surface: var(--popover);
+  --crepe-color-surface-low: var(--muted);
+  --crepe-color-on-surface: var(--popover-foreground);
+  --crepe-color-on-surface-variant: var(--muted-foreground);
+  --crepe-color-outline: var(--border);
+  --crepe-color-primary: var(--primary);
+  --crepe-color-secondary: var(--secondary);
+  --crepe-color-on-secondary: var(--secondary-foreground);
+  --crepe-color-inverse: var(--foreground);
+  --crepe-color-on-inverse: var(--background);
+  --crepe-color-inline-code: var(--destructive);
+  --crepe-color-error: var(--destructive);
+  --crepe-color-hover: var(--accent);
+  --crepe-color-selected: var(--accent);
+  --crepe-color-inline-area: var(--muted);
+  --crepe-font-title: var(--font-sans);
+  --crepe-font-default: var(--font-sans);
+  --crepe-font-code:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  --crepe-shadow-1: 0 1px 3px rgb(0 0 0 / 8%);
+  --crepe-shadow-2: 0 4px 12px rgb(0 0 0 / 12%);
+  min-height: 100%;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-sans);
+}
+
+.rework-milkdown-editor .milkdown .milkdown-table-block {
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+}
+
+.rework-milkdown-editor .milkdown .milkdown-table-block table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.rework-milkdown-editor .milkdown .milkdown-table-block th,
+.rework-milkdown-editor .milkdown .milkdown-table-block td {
+  min-width: 6rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.rework-milkdown-editor .milkdown .milkdown-table-block th {
+  background: var(--muted);
+  font-weight: 600;
+}
+
+.rework-milkdown-editor .milkdown .milkdown-table-block tbody tr:hover td {
+  background: color-mix(in oklab, var(--muted) 45%, transparent);
+}
+
+.rework-milkdown-editor .milkdown .milkdown-table-block th p,
+.rework-milkdown-editor .milkdown .milkdown-table-block td p {
+  margin: 0;
+}
+
+.rework-milkdown-editor
+  .milkdown
+  .milkdown-table-block
+  .selectedCell::after {
+  background: var(--accent);
+  opacity: 0.65;
+}
+
+.rework-milkdown-editor .milkdown .milkdown-table-block .cell-handle,
+.rework-milkdown-editor
+  .milkdown
+  .milkdown-table-block
+  .line-handle
+  .add-button {
+  border: 1px solid var(--border);
+  background: var(--popover);
+  color: var(--popover-foreground);
+}
+
+.milkdown-source-area,
+.milkdown-diff-area {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  width: 100%;
+  margin: 0;
+  padding: 2.5rem 3rem 5rem;
+  border: 0;
+  border-radius: 0;
+  background: var(--background);
+  box-shadow: none;
+  color: var(--foreground);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.925rem;
+  line-height: 1.75;
+  resize: none;
+}
+
+.milkdown-source-area:focus-visible {
+  box-shadow: none;
+  outline: none;
+}
+
+.milkdown-diff-area {
+  white-space: pre-wrap;
+}
+
+@media (max-width: 768px) {
+  .milkdown-system-toolbar {
+    overflow-x: auto;
+    padding-inline: 0.75rem;
+  }
+
+  .milkdown-source-area,
+  .milkdown-diff-area {
+    padding: 2rem 1.5rem 4rem;
+  }
+}
