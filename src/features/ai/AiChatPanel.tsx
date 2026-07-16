@@ -10,8 +10,34 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSettingsStore } from "@/store/settings";
 import { ipc } from "@/lib/tauri/ipc";
-import type { AiChatMessage } from "@/types/ai";
+import type { AiChatMessage, AiConfig, ToolChatMessage } from "@/types/ai";
 import { buildProjectContext } from "./project-context";
+import { runAgent } from "./agent-tools";
+
+// 工具调用参数的简短提示（气泡上展示，如 · 标题 / #id）
+function shortArgs(json: string): string {
+  try {
+    const o = JSON.parse(json) as Record<string, unknown>;
+    const bits: string[] = [];
+    if (o.title) bits.push(String(o.title));
+    if (o.task_id) bits.push(`#${String(o.task_id).slice(0, 6)}`);
+    if (o.doc_id) bits.push(`#${String(o.doc_id).slice(0, 6)}`);
+    const s = bits.join(" ");
+    return s ? `· ${s}` : "";
+  } catch {
+    return "";
+  }
+}
+
+// 从工具结果 JSON 提取简短错误信息
+function briefErr(result: string): string {
+  try {
+    const o = JSON.parse(result) as { error?: string };
+    return String(o.error ?? "失败");
+  } catch {
+    return "失败";
+  }
+}
 
 interface AiChatPanelProps {
   projectId: string;
@@ -27,6 +53,8 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
   const [needConfig, setNeedConfig] = useState(false);
   // 是否把项目文档+会话注入为上下文（RAG）
   const [includeContext, setIncludeContext] = useState(false);
+  // 工具模式：允许 AI 调用工具建/改看板任务与文档
+  const [useTools, setUseTools] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   // 当前进行中的流 id（用于「停止生成」）
   const activeStreamId = useRef<string | null>(null);
@@ -104,6 +132,12 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
     }
     setNeedConfig(false);
 
+    // 工具模式走 agent loop（非流式）
+    if (useTools) {
+      await sendWithTools(text, aiConfig);
+      return;
+    }
+
     const system: AiChatMessage = {
       role: "system",
       content: `你是「${projectName}」项目的 AI 助手，用简洁中文回答。`,
@@ -132,7 +166,8 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
         /* 上下文构造失败不阻断对话 */
       }
     }
-    reqMsgs.push(...history, userMsg);
+    // 过滤掉「系统」显示行（工具活动提示），只把 user/assistant 送给模型
+    reqMsgs.push(...history.filter((m) => m.role !== "system"), userMsg);
 
     // 本次流的 id，用于「停止生成」
     const streamId = crypto.randomUUID();
@@ -157,6 +192,73 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
     }
   };
 
+  // 工具模式：driven by agent loop（可调用工具建/改看板任务与文档）
+  const sendWithTools = async (text: string, aiConfig: AiConfig) => {
+    const userMsg: AiChatMessage = { role: "user", content: text };
+    const history = messages;
+    setMessages([...history, userMsg]);
+    setInput("");
+    setLoading(true);
+    scrollToBottom();
+
+    const sys: ToolChatMessage = {
+      role: "system",
+      content: `你是「${projectName}」项目的 AI 助手。你可以调用工具读取/修改本项目的看板任务与文档；执行修改前先用 list_* 了解现状，操作后用简洁中文说明你做了什么。`,
+    };
+    // 只把 user/assistant 历史送入模型（排除工具活动的「系统」显示行）
+    const convo: ToolChatMessage[] = [
+      sys,
+      ...history
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role, content: m.content })),
+      { role: "user", content: text },
+    ];
+
+    try {
+      const final = await runAgent(
+        aiConfig,
+        convo,
+        { projectId },
+        {
+          onToolCall: (call) => {
+            setMessages((prev) => [
+              ...prev,
+              { role: "system", content: `🔧 ${call.name} ${shortArgs(call.arguments)}` },
+            ]);
+            scrollToBottom();
+          },
+          onToolResult: (call, result) => {
+            const ok = !/"ok"\s*:\s*false/.test(result);
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "system",
+                content: ok ? `✓ ${call.name} 完成` : `✗ ${call.name}：${briefErr(result)}`,
+              },
+            ]);
+            scrollToBottom();
+          },
+          onAssistantText: (t) => {
+            setMessages((prev) => [...prev, { role: "assistant", content: t }]);
+            scrollToBottom();
+          },
+        },
+      );
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: final || "（已完成）" },
+      ]);
+    } catch (e) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `请求失败：${String(e)}` },
+      ]);
+    } finally {
+      setLoading(false);
+      scrollToBottom();
+    }
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -176,6 +278,16 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
         )}
 
         {messages.map((m, i) => {
+          // 工具活动行（role=system）：居中的小胶囊
+          if (m.role === "system") {
+            return (
+              <div key={i} className="flex justify-center">
+                <span className="rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
+                  {m.content}
+                </span>
+              </div>
+            );
+          }
           const isUser = m.role === "user";
           const isError =
             m.role === "assistant" && m.content.startsWith("请求失败：");
@@ -214,17 +326,28 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
         </div>
       )}
 
-      {/* 工具行：上下文开关 + 清空对话 */}
-      <div className="flex shrink-0 items-center justify-between gap-2 px-1 pt-2">
-        <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={includeContext}
-            onChange={(e) => setIncludeContext(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-input accent-primary"
-          />
-          包含项目上下文（文档 + 关联会话）
-        </label>
+      {/* 工具行：上下文开关 + 工具模式 + 清空对话 */}
+      <div className="flex shrink-0 items-start justify-between gap-2 px-1 pt-2">
+        <div className="flex flex-col gap-1">
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={includeContext}
+              onChange={(e) => setIncludeContext(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-input accent-primary"
+            />
+            包含项目上下文（文档 + 关联会话）
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={useTools}
+              onChange={(e) => setUseTools(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-input accent-primary"
+            />
+            工具模式（允许 AI 建/改看板任务与文档）
+          </label>
+        </div>
         {messages.length > 0 && (
           <Button
             variant="ghost"
@@ -250,9 +373,16 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
           disabled={loading}
         />
         {loading ? (
-          <Button variant="outline" onClick={handleStop}>
-            停止
-          </Button>
+          useTools ? (
+            // 工具模式为非流式 agent loop，不可中途取消
+            <Button variant="outline" disabled>
+              执行中…
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={handleStop}>
+              停止
+            </Button>
+          )
         ) : (
           <Button onClick={() => void send()} disabled={!input.trim()}>
             <HugeiconsIcon icon={SentIcon} strokeWidth={2} />

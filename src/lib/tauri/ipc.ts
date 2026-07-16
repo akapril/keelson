@@ -1,6 +1,13 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import type { Session, SessionHit, TimelineMessage } from "../../types/session";
-import type { AiConfig, AiChatMessage, AiStreamEvent } from "../../types/ai";
+import type {
+  AiConfig,
+  AiChatMessage,
+  AiStreamEvent,
+  ToolChatMessage,
+  AiToolDef,
+  AiToolTurn,
+} from "../../types/ai";
 // 唯一允许出现 invoke 字符串命令名的地方。新增本地能力只加一个方法。
 export const ipc = {
   ping: () => invoke<string>("ping"),
@@ -53,6 +60,13 @@ export const ipc = {
   /** 非流式对话：返回助手回复文本 */
   aiChat: (config: AiConfig, messages: AiChatMessage[]) =>
     invoke<string>("ai_chat", { config, messages }),
+
+  /** 一轮工具对话：返回「最终文本」或「待执行工具调用」（agent loop 由前端驱动） */
+  aiChatTools: (
+    config: AiConfig,
+    messages: ToolChatMessage[],
+    tools: AiToolDef[],
+  ) => invoke<AiToolTurn>("ai_chat_tools", { config, messages, tools }),
 
   /** 流式对话：经 Tauri Channel 实时回调增量事件；Promise 在结束时 resolve。
    *  streamId 用于「停止生成」（调 aiCancelStream 同一 id）。 */
