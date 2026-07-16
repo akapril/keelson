@@ -24,6 +24,8 @@ pub mod search;
 pub mod terminal;
 // 会话元数据同步到 PocketBase（Task 15）
 pub mod sync;
+// 扫描缓存 + 增量更新（⑥ 启动秒加载）
+pub mod scan_cache;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
@@ -368,10 +370,34 @@ async fn setup_pocketbase(
     let pb_client = pb::client::PbClient::new(&auth.base_url, &auth.token);
     *auth_slot.lock() = Some(auth);
 
-    // 步骤 6：全量扫描会话 + 重建 Tantivy 索引（存入 AppState）+ 同步到 PB
+    // 步骤 6：扫描会话（缓存秒加载 + 增量）+ 重建 Tantivy 索引 + 同步到 PB
     let reg = Arc::new(providers::ProviderRegistry::new());
-    let sessions = scanner::scan_all(&reg);
-    eprintln!("[rework] 首次扫描完成：{} 条会话", sessions.len());
+    let cache_path = data_dir.join("scan_cache.json");
+    // 有缓存则增量（只重解析 mtime 变化的文件）；无缓存 / 遇结构性变化则全量
+    let sessions = match scan_cache::load(&cache_path) {
+        Some(cached) => {
+            let cached_count = cached.sessions.len();
+            match scan_cache::incremental(&reg, cached) {
+                Some(s) => {
+                    eprintln!("[rework] 缓存加载 {cached_count} 条 → 增量后 {} 条", s.len());
+                    s
+                }
+                None => {
+                    eprintln!("[rework] 结构性变化，退回全量扫描");
+                    scanner::scan_all(&reg)
+                }
+            }
+        }
+        None => {
+            let s = scanner::scan_all(&reg);
+            eprintln!("[rework] 无缓存，全量扫描完成：{} 条会话", s.len());
+            s
+        }
+    };
+    // 写回缓存供下次启动秒加载
+    if let Err(e) = scan_cache::save(&cache_path, &sessions) {
+        eprintln!("[rework] 扫描缓存写入失败（非致命）: {e:#}");
+    }
 
     // 重建 Tantivy 全文索引，并将 SessionIndex 存入 AppState.index 供搜索命令使用
     let index_dir = data_dir.join("tantivy_index");
