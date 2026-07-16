@@ -257,7 +257,21 @@ async fn setup_pocketbase(
     pb::process::wait_healthy(&base, 15_000).await?;
 
     // 步骤 5：bootstrap — 确保 local-user，缓存 token（传入已获取的密码，避免再次访问 keychain）
-    let auth = pb::bootstrap::bootstrap(&base, &super_pw, &user_pw).await?;
+    // bootstrap 幂等，对瞬时连接中断（如 os error 10053）做有限重试，避免单次抖动导致整个初始化失败。
+    let auth = {
+        let mut attempt = 0u32;
+        loop {
+            match pb::bootstrap::bootstrap(&base, &super_pw, &user_pw).await {
+                Ok(a) => break a,
+                Err(e) if attempt < 4 => {
+                    attempt += 1;
+                    eprintln!("[rework] bootstrap 第 {attempt} 次失败，{}ms 后重试: {e:#}", 500 * attempt);
+                    tokio::time::sleep(std::time::Duration::from_millis(500 * attempt as u64)).await;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    };
     let user_id = auth.user_id.clone();
     let pb_client = pb::client::PbClient::new(&auth.base_url, &auth.token);
     *auth_slot.lock() = Some(auth);
