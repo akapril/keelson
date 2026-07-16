@@ -160,6 +160,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .setup(|app| {
             let handle = app.handle().clone();
@@ -227,6 +228,8 @@ pub fn run() {
             commands::ai::ai_chat,
             commands::ai::ai_chat_stream,
             commands::ai::ai_cancel_stream,
+            // 文件写入（导出「另存为」）
+            commands::fs::write_text_file,
         ])
         .build(tauri::generate_context!())
         .expect("构建 rework 失败")

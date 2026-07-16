@@ -14,8 +14,10 @@
       {
         "label": "main",
         "title": "rework",
-        "width": 800,
-        "height": 600
+        "width": 1200,
+        "height": 800,
+        "minWidth": 920,
+        "minHeight": 640
       },
       {
         "label": "spotlight",

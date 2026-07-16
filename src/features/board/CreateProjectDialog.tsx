@@ -2,6 +2,9 @@
 // 调用 createProjectFromTemplate，成功后刷新项目列表并关闭。
 // 表现层已改用 shadcn/ui Dialog 及输入类原语，逻辑保持不变。
 import { useState, type FormEvent } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { FolderOpenIcon } from "@hugeicons/core-free-icons";
 import { useBoardStore } from "../../store/board";
 import { createProjectFromTemplate } from "./create-project";
 import {
@@ -48,6 +51,20 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+
+  // 打开原生目录选择器，选中后填入仓库路径
+  async function pickRepoDir() {
+    try {
+      const dir = await open({
+        directory: true,
+        multiple: false,
+        title: "选择项目仓库目录",
+      });
+      if (typeof dir === "string") setRepoPath(dir);
+    } catch {
+      // 用户取消或非 Tauri 环境：忽略
+    }
+  }
 
   // ── 提交处理 ──────────────────────────────────────────────
   async function handleSubmit(e: FormEvent) {
@@ -143,14 +160,27 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
               仓库路径
               <span className="ml-1 text-xs text-muted-foreground">（可选）</span>
             </Label>
-            <Input
-              id="cp-repo"
-              type="text"
-              value={repoPath}
-              onChange={(e) => setRepoPath(e.target.value)}
-              placeholder="/path/to/repo 或留空"
-              disabled={loading}
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                id="cp-repo"
+                type="text"
+                value={repoPath}
+                onChange={(e) => setRepoPath(e.target.value)}
+                placeholder="/path/to/repo 或留空"
+                disabled={loading}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void pickRepoDir()}
+                disabled={loading}
+                title="选择本地目录"
+              >
+                <HugeiconsIcon icon={FolderOpenIcon} strokeWidth={2} />
+                浏览
+              </Button>
+            </div>
           </div>
 
           {/* 模板选择 */}
