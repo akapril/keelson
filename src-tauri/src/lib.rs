@@ -156,6 +156,52 @@ fn resolve_migrations_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
 
 /// 应用入口：注册插件与命令处理器，启动 PocketBase 并执行 bootstrap。
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// 显示并聚焦主窗口（从托盘唤起用）。
+fn show_main(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+/// 创建系统托盘：图标 + 菜单（显示 / 退出）+ 左键点击唤起主窗口。
+fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+    let show = MenuItem::with_id(app, "tray_show", "显示 rework", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "tray_quit", "退出", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+
+    let mut builder = TrayIconBuilder::new()
+        .tooltip("rework")
+        .menu(&menu)
+        // 左键点击唤起窗口，不弹菜单；菜单走右键
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "tray_show" => show_main(app),
+            "tray_quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main(tray.app_handle());
+            }
+        });
+    // 复用打包的窗口图标作为托盘图标
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+    builder.build(app)?;
+    Ok(())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -183,6 +229,11 @@ pub fn run() {
                 eprintln!("[rework] 全局快捷键注册失败（非致命）: {e:#}");
             }
 
+            // ── 系统托盘（常驻）───────────────────────────────────────
+            if let Err(e) = setup_tray(app.handle()) {
+                eprintln!("[rework] 托盘初始化失败（非致命）: {e:#}");
+            }
+
             // 确定 PB 数据目录和迁移文件目录
             let data_dir = app.path().app_data_dir()?.join("pb_data");
             let mig_dir = resolve_migrations_dir(&handle);
@@ -203,6 +254,12 @@ pub fn run() {
             if window.label() == "spotlight" {
                 if let tauri::WindowEvent::Focused(false) = event {
                     // 失去焦点 → 隐藏 spotlight 窗口
+                    let _ = window.hide();
+                }
+            } else if window.label() == "main" {
+                // 关闭主窗口 → 隐藏到托盘而非退出（常驻）；真正退出走托盘「退出」菜单
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
                     let _ = window.hide();
                 }
             }
