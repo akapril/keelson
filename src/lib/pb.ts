@@ -2,6 +2,9 @@ import PocketBase from "pocketbase";
 import { invoke } from "@tauri-apps/api/core";
 // 组件禁止直接 import 本文件的 pb 之外的东西；数据访问走 lib/pb/collections.ts
 export const pb = new PocketBase("http://127.0.0.1:0"); // 占位，init 时覆盖 baseURL
+// 桌面应用无需浏览器式的请求自动取消；关闭它，避免 StrictMode 双跑 effect /
+// 并发加载时同 key 请求被取消而抛出 "The request was aborted (autocancelled)"。
+pb.autoCancellation(false);
 
 type BootstrapAuth = { baseUrl: string; token: string; userId: string };
 
