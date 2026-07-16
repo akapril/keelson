@@ -6,6 +6,7 @@
     "core:default",
     "shell:allow-execute",
     { "identifier": "shell:allow-spawn", "allow": [{ "name": "binaries/pocketbase", "sidecar": true }] },
+    "shell:allow-open",
     "global-shortcut:default"
   ]
 }
