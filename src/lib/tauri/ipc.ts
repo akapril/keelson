@@ -47,14 +47,25 @@ export const ipc = {
   aiChat: (config: AiConfig, messages: AiChatMessage[]) =>
     invoke<string>("ai_chat", { config, messages }),
 
-  /** 流式对话：经 Tauri Channel 实时回调增量事件；Promise 在结束时 resolve。 */
+  /** 流式对话：经 Tauri Channel 实时回调增量事件；Promise 在结束时 resolve。
+   *  streamId 用于「停止生成」（调 aiCancelStream 同一 id）。 */
   aiChatStream: (
     config: AiConfig,
     messages: AiChatMessage[],
+    streamId: string,
     onEvent: (ev: AiStreamEvent) => void,
   ) => {
     const channel = new Channel<AiStreamEvent>();
     channel.onmessage = onEvent;
-    return invoke<void>("ai_chat_stream", { config, messages, onEvent: channel });
+    return invoke<void>("ai_chat_stream", {
+      config,
+      messages,
+      streamId,
+      onEvent: channel,
+    });
   },
+
+  /** 取消进行中的流式对话（停止生成）。 */
+  aiCancelStream: (streamId: string) =>
+    invoke<void>("ai_cancel_stream", { streamId }),
 };

@@ -1,8 +1,12 @@
 //! AI 对话命令：统一封装 OpenAI 兼容接口与 Anthropic 原生接口（provider 可切）。
 //! 纯粹的请求体构造 / 响应解析拆成可单测的函数；HTTP 收发为薄层。
+use crate::AppState;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tauri::State;
 
 /// 前端下发的 AI 配置（字段为 snake_case，与 TS 侧一致）。
 #[derive(Deserialize, Clone, Debug)]
@@ -150,12 +154,41 @@ pub fn parse_anthropic_sse(line: &str) -> Option<String> {
     v.get("delta")?.get("text")?.as_str().map(|s| s.to_string())
 }
 
-/// 流式对话：SSE 逐块解析增量文本，经 Channel 实时推送给前端。
+/// 流式对话（命令入口）：注册取消标志 → 执行流式 → 清理标志。
 #[tauri::command]
 pub async fn ai_chat_stream(
     config: AiConfig,
     messages: Vec<ChatMessage>,
+    stream_id: String,
     on_event: tauri::ipc::Channel<AiStreamEvent>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    // 注册本次流的取消标志
+    let cancel = Arc::new(AtomicBool::new(false));
+    state
+        .ai_cancels
+        .lock()
+        .insert(stream_id.clone(), cancel.clone());
+    // 执行流式（无论成功/失败都清理标志）
+    let result = ai_stream_run(config, messages, &cancel, &on_event).await;
+    state.ai_cancels.lock().remove(&stream_id);
+    result
+}
+
+/// 取消一个进行中的流式对话（设置其取消标志，流循环下一轮会跳出）。
+#[tauri::command]
+pub fn ai_cancel_stream(stream_id: String, state: State<'_, AppState>) {
+    if let Some(flag) = state.ai_cancels.lock().get(&stream_id) {
+        flag.store(true, Ordering::Relaxed);
+    }
+}
+
+/// 流式核心：SSE 逐块解析增量文本，经 Channel 实时推送；每轮检查取消标志。
+async fn ai_stream_run(
+    config: AiConfig,
+    messages: Vec<ChatMessage>,
+    cancel: &AtomicBool,
+    on_event: &tauri::ipc::Channel<AiStreamEvent>,
 ) -> Result<(), String> {
     let is_anthropic = config.provider == "anthropic";
     let base = config.base_url.trim_end_matches('/');
@@ -192,6 +225,10 @@ pub async fn ai_chat_stream(
     let mut stream = resp.bytes_stream();
     let mut buf = String::new();
     while let Some(chunk) = stream.next().await {
+        // 用户请求停止：跳出（保留已生成内容）
+        if cancel.load(Ordering::Relaxed) {
+            break;
+        }
         let bytes = chunk.map_err(|e| format!("读取流失败: {e}"))?;
         buf.push_str(&String::from_utf8_lossy(&bytes));
         // 逐行处理已完整到达的 SSE 行

@@ -28,6 +28,14 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
   // 是否把项目文档+会话注入为上下文（RAG）
   const [includeContext, setIncludeContext] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  // 当前进行中的流 id（用于「停止生成」）
+  const activeStreamId = useRef<string | null>(null);
+
+  // 停止当前生成
+  const handleStop = () => {
+    const id = activeStreamId.current;
+    if (id) void ipc.aiCancelStream(id);
+  };
 
   // 本地持久化 key（按项目隔离）
   const storeKey = `rework-ai-chat-${projectId}`;
@@ -125,8 +133,12 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
     }
     reqMsgs.push(...history, userMsg);
 
+    // 本次流的 id，用于「停止生成」
+    const streamId = crypto.randomUUID();
+    activeStreamId.current = streamId;
+
     try {
-      await ipc.aiChatStream(aiConfig, reqMsgs, (ev) => {
+      await ipc.aiChatStream(aiConfig, reqMsgs, streamId, (ev) => {
         if (ev.kind === "delta" && ev.text) {
           updateAssistant((c) => c + ev.text);
         } else if (ev.kind === "error") {
@@ -138,6 +150,7 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
     } catch (e) {
       updateAssistant(() => `请求失败：${String(e)}`);
     } finally {
+      activeStreamId.current = null;
       setLoading(false);
       scrollToBottom();
     }
@@ -235,10 +248,16 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
           className="min-h-16 flex-1"
           disabled={loading}
         />
-        <Button onClick={() => void send()} disabled={loading || !input.trim()}>
-          <HugeiconsIcon icon={SentIcon} strokeWidth={2} />
-          发送
-        </Button>
+        {loading ? (
+          <Button variant="outline" onClick={handleStop}>
+            停止
+          </Button>
+        ) : (
+          <Button onClick={() => void send()} disabled={!input.trim()}>
+            <HugeiconsIcon icon={SentIcon} strokeWidth={2} />
+            发送
+          </Button>
+        )}
       </div>
     </div>
   );
