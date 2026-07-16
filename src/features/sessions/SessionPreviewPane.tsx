@@ -1,10 +1,43 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Session } from "../../types/session";
+import { useSessionMetaStore } from "../../store/session-meta";
+import { Textarea } from "@/components/ui/textarea";
 import { RestoreDialog } from "./RestoreDialog";
 import { SessionLinkedTasks } from "./SessionLinkedTasks";
 import { SessionChat } from "./SessionChat";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 import { DistillDialog } from "../chemistry/DistillDialog";
+
+/** 会话备注编辑器（存 session_notes，跟随配置后端；自动保存）。 */
+function SessionNoteEditor({ sessionId }: { sessionId: string }) {
+  const notes = useSessionMetaStore((s) => s.notes);
+  const setNote = useSessionMetaStore((s) => s.setNote);
+  const [text, setText] = useState("");
+
+  // 切换会话时载入已存备注
+  useEffect(() => {
+    setText(notes.get(sessionId) ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  // 防抖自动保存（与已存值不同才写）
+  useEffect(() => {
+    const original = notes.get(sessionId) ?? "";
+    if (text === original) return;
+    const t = setTimeout(() => void setNote(sessionId, text), 800);
+    return () => clearTimeout(t);
+  }, [text, sessionId, notes, setNote]);
+
+  return (
+    <Textarea
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      placeholder="会话备注（自动保存）"
+      rows={1}
+      className="min-h-9 shrink-0 resize-none text-sm"
+    />
+  );
+}
 
 interface SessionPreviewPaneProps {
   /** 当前选中的会话；为 null 时展示空状态 */
@@ -71,6 +104,9 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
             <span className="ml-auto font-mono">{session.session_id.slice(0, 8)}…</span>
           </div>
         </div>
+
+        {/* 会话备注（自动保存） */}
+        <SessionNoteEditor key={session.session_id} sessionId={session.session_id} />
 
         {/* 关联任务（本会话已衍生的看板任务，点击跳看板） */}
         <SessionLinkedTasks sessionId={session.session_id} refreshKey={linkedRefresh} />
