@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ExportSection } from "@/features/export/ExportSection";
+import { UpdateSection } from "@/features/updater/UpdateSection";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
 /**
@@ -324,6 +325,11 @@ export default function Settings() {
 
       {/* ── 数据导出 ── */}
       <ExportSection />
+
+      <div className="border-t border-border" />
+
+      {/* ── 软件更新 ── */}
+      <UpdateSection />
     </div>
   );
 }

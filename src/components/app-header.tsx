@@ -1,8 +1,9 @@
 // 应用头部 —— 移植自 workavera（Apache-2.0）的头部外壳，剥离通知/聊天/用户菜单耦合。
 // 保留：折叠触发器 + 面包屑 + 主题切换。用户菜单待 Phase⑤ 多用户再补。
 import { useLocation } from "react-router-dom";
+import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Logout02Icon, SearchIcon } from "@hugeicons/core-free-icons";
+import { Logout02Icon, SearchIcon, Download04Icon } from "@hugeicons/core-free-icons";
 
 import {
   Breadcrumb,
@@ -26,11 +27,26 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { flatNavItems } from "@/lib/navigation";
 import { useAuthStore } from "@/store/auth";
+import { useUpdaterStore } from "@/store/updater";
 
 export function AppHeader() {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  // 更新可用状态（红标提示）
+  const updateAvailable = useUpdaterStore((s) => s.available);
+  const updateVersion = useUpdaterStore((s) => s.version);
+  const installing = useUpdaterStore((s) => s.installing);
+
+  // 一键下载安装并重启（成功后应用会重启，故失败才会走到 toast.error）
+  const handleUpdate = async () => {
+    toast.loading("正在下载并安装更新…", { id: "app-update" });
+    await useUpdaterStore.getState().installAndRestart();
+    toast.error(
+      `更新失败：${useUpdaterStore.getState().error ?? "未知错误"}`,
+      { id: "app-update" },
+    );
+  };
   // 当前路由对应的导航标题（用于面包屑）
   const currentNav = flatNavItems.find(
     (item) => location.pathname === item.url,
@@ -62,6 +78,24 @@ export function AppHeader() {
       </Breadcrumb>
 
       <div className="ml-auto flex items-center gap-1">
+        {/* 更新可用：红标提示 + 一键更新（未发现更新时不渲染） */}
+        {updateAvailable && (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={installing}
+            onClick={() => void handleUpdate()}
+            title={`发现新版本 v${updateVersion}，点击下载安装并重启`}
+            className="relative gap-1.5 text-primary"
+          >
+            <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-red-500" />
+            <HugeiconsIcon icon={Download04Icon} strokeWidth={2} />
+            <span className="hidden sm:inline">
+              {installing ? "更新中…" : "更新"}
+            </span>
+          </Button>
+        )}
+
         {/* 全局搜索（打开命令面板 ⌘K） */}
         <Button
           variant="outline"

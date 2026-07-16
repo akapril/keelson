@@ -3,6 +3,7 @@ import { ThemeProvider } from "./components/theme-provider";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/sonner";
 import { useAuthStore } from "./store/auth";
+import { useUpdaterStore } from "./store/updater";
 import { AppRouter } from "./router";
 import { thisWindowLabel } from "./lib/tauri/window";
 import { SpotlightApp } from "./features/spotlight/SpotlightApp";
@@ -18,6 +19,12 @@ export default function App() {
 
   // 根据窗口 label 分派渲染：spotlight 窗口渲染独立的聚光灯 UI
   const isSpotlight = thisWindowLabel() === "spotlight";
+
+  // 主窗口启动后静默检查更新（未配置更新源时静默失败，不显红标）
+  useEffect(() => {
+    if (isSpotlight) return;
+    void useUpdaterStore.getState().checkForUpdate({ silent: true });
+  }, [isSpotlight]);
 
   return (
     <ThemeProvider>
