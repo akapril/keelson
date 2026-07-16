@@ -4,7 +4,8 @@
 import { useEffect, useState } from "react";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Delete02Icon } from "@hugeicons/core-free-icons";
+import { Delete02Icon, AiChat02Icon } from "@hugeicons/core-free-icons";
+import { TaskBreakdownDialog } from "./TaskBreakdownDialog";
 
 import {
   AlertDialog,
@@ -74,6 +75,8 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // 控制「AI 拆解」对话框
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   // ── 初始化 / 重置：随 open / task / mode 同步表单字段 ──────
   useEffect(() => {
@@ -212,6 +215,20 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
               rows={4}
               disabled={saving}
             />
+            {/* 编辑模式：AI 拆解为子任务 */}
+            {mode === "edit" && task && (
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={saving}
+                onClick={() => setBreakdownOpen(true)}
+                className="self-start"
+              >
+                <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} />
+                AI 拆解为子任务
+              </Button>
+            )}
           </div>
 
           {/* 状态 + 优先级（两列） */}
@@ -380,6 +397,12 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI 拆解为子任务 */}
+      <TaskBreakdownDialog
+        task={breakdownOpen ? (task ?? null) : null}
+        onClose={() => setBreakdownOpen(false)}
+      />
     </Sheet>
   );
 }
