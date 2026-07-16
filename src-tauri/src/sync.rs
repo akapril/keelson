@@ -36,6 +36,20 @@ pub fn content_hash(s: &Session) -> String {
 /// sessions_meta 集合名（与 Task 5 迁移脚本保持一致）
 const COLL: &str = "sessions_meta";
 
+/// PB 的 sessions_meta.last_prompt(text 字段)有 5000 字符上限。
+/// last_prompt 仅作预览/客户端搜索兜底之用（全文检索走 Rust 侧 Tantivy），
+/// 故发往 PB 前按「字符」截断到安全长度，避免超长最后提示词导致 CREATE/PATCH 400。
+const LAST_PROMPT_MAX_CHARS: usize = 4000;
+
+/// 按 Unicode 字符（非字节）截断，保证 UTF-8 边界安全；超长时保留前 max 个字符。
+fn truncate_chars(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        s.to_string()
+    } else {
+        s.chars().take(max).collect()
+    }
+}
+
 /// 将扫描到的 sessions 增量同步到 PocketBase sessions_meta 集合。
 ///
 /// 策略：
@@ -132,7 +146,8 @@ fn build_scan_fields(session: &Session, hash: &str, owner_id: &str) -> serde_jso
         "provider":      session.provider,
         "project_path":  session.project_path,
         "project_name":  session.project_name,
-        "last_prompt":   session.last_prompt,
+        // 截断到 PB 字段上限内，防止超长最后提示词触发 400
+        "last_prompt":   truncate_chars(&session.last_prompt, LAST_PROMPT_MAX_CHARS),
         "message_count": session.message_count,
         "total_tokens":  session.total_tokens,
         "content_hash":  hash,
@@ -231,6 +246,35 @@ mod tests {
         assert_eq!(h1.len(), 32, "哈希应为 32 位 hex 字符串，实际：{}", h1.len());
         assert!(h1.chars().all(|c| c.is_ascii_hexdigit()), "哈希应只含 hex 字符：{h1}");
         eprintln!("[TDD GREEN] content_hash_is_stable_across_runs: hash={h1}");
+    }
+
+    /// 验证 truncate_chars：短串原样返回，超长按字符截断，且 UTF-8 边界安全（含多字节字符）
+    #[test]
+    fn truncate_chars_respects_char_boundary() {
+        // 短串不变
+        assert_eq!(truncate_chars("hello", 10), "hello");
+        // 等长不变
+        assert_eq!(truncate_chars("hello", 5), "hello");
+        // 超长按字符截断（ASCII）
+        assert_eq!(truncate_chars("hello", 3), "hel");
+        // 多字节字符（中文）：按字符而非字节截断，不 panic 且长度正确
+        let cn = "你好世界啊";
+        let out = truncate_chars(cn, 3);
+        assert_eq!(out.chars().count(), 3);
+        assert_eq!(out, "你好世");
+        // emoji（4 字节）同样安全
+        assert_eq!(truncate_chars("🦀🦀🦀", 2).chars().count(), 2);
+    }
+
+    /// 验证 build_scan_fields 会把超长 last_prompt 截断到上限内
+    #[test]
+    fn build_scan_fields_truncates_long_last_prompt() {
+        let long = "x".repeat(6000); // 超过 5000 上限
+        let s = make_session("sess-long", 5, &long);
+        let hash = content_hash(&s);
+        let data = build_scan_fields(&s, &hash, "owner123");
+        let lp = data.get("last_prompt").and_then(|v| v.as_str()).unwrap_or("");
+        assert!(lp.chars().count() <= LAST_PROMPT_MAX_CHARS, "last_prompt 应被截断到上限内");
     }
 
     /// 验证 build_scan_fields 不包含用户专属字段
