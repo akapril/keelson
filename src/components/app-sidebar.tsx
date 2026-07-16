@@ -1,7 +1,6 @@
 // 应用侧栏 —— 移植自 workavera（Apache-2.0），改用 rework 品牌与路由，react-router-dom。
 import { NavLink, useLocation } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { FolderLibraryIcon } from "@hugeicons/core-free-icons";
 
 import {
   Sidebar,
@@ -16,6 +15,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { Logo } from "@/components/logo";
 import { navGroups } from "@/lib/navigation";
 
 export function AppSidebar() {
@@ -31,14 +31,8 @@ export function AppSidebar() {
               className="data-[slot=sidebar-menu-button]:!p-2"
             >
               <NavLink to="/sessions">
-                {/* 品牌图标块 */}
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <HugeiconsIcon
-                    icon={FolderLibraryIcon}
-                    strokeWidth={2}
-                    className="size-4"
-                  />
-                </div>
+                {/* 品牌标记（裸 SVG，对齐 workavera 样式） */}
+                <Logo className="!size-[30px] shrink-0 group-data-[collapsible=icon]:!size-4" />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">rework</span>
                   <span className="truncate text-xs text-muted-foreground">
