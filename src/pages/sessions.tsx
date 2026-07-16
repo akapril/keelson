@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useSessionsStore } from "../store/sessions";
 import { useSessionMetaStore } from "../store/session-meta";
 import { SessionListView } from "../features/sessions/SessionListView";
@@ -14,12 +15,26 @@ import type { Session } from "../types/session";
 export default function Sessions() {
   // 当前预览的会话
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const sessions = useSessionsStore((s) => s.sessions);
+  const [searchParams] = useSearchParams();
+  // 深链接：?session=<id>（来自看板任务「来源会话」徽章回跳）
+  const wantSessionId = searchParams.get("session");
 
   // 挂载时加载数据（并行，互不依赖）
   useEffect(() => {
     useSessionsStore.getState().load();
     useSessionMetaStore.getState().load();
   }, []);
+
+  // 会话加载完成后，若 URL 指定了 ?session= 则自动选中定位
+  useEffect(() => {
+    if (!wantSessionId || sessions.length === 0) return;
+    if (selectedSession?.session_id === wantSessionId) return;
+    const target = sessions.find((s) => s.session_id === wantSessionId);
+    if (target) setSelectedSession(target);
+    // 仅在 id 或会话列表变化时尝试定位
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantSessionId, sessions]);
 
   return (
     <div className="flex h-full min-h-0 gap-0 overflow-hidden">
