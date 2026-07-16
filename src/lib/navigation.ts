@@ -4,6 +4,7 @@ import {
   Chat01Icon,
   DashboardSquare02Icon,
   BookOpen01Icon,
+  Calendar03Icon,
   Settings02Icon,
 } from "@hugeicons/core-free-icons";
 
@@ -40,6 +41,12 @@ export const navGroups: NavGroup[] = [
         url: "/reading",
         icon: BookOpen01Icon,
         description: "个人书签 / 稍后读",
+      },
+      {
+        title: "日历",
+        url: "/calendar",
+        icon: Calendar03Icon,
+        description: "个人日程 / 事件",
       },
     ],
   },
