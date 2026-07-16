@@ -1,6 +1,7 @@
 // 侧栏导航数据（数据驱动，结构移植自 workavera，内容改为 rework 路由）。
 import type { IconSvgElement } from "@hugeicons/react";
 import {
+  Home01Icon,
   Chat01Icon,
   DashboardSquare02Icon,
   BookOpen01Icon,
@@ -24,6 +25,12 @@ export const navGroups: NavGroup[] = [
   {
     label: "工作区",
     items: [
+      {
+        title: "总览",
+        url: "/dashboard",
+        icon: Home01Icon,
+        description: "会话 · 看板 · 阅读 · 日程一览",
+      },
       {
         title: "会话中枢",
         url: "/sessions",
