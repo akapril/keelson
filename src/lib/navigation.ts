@@ -4,6 +4,7 @@ import {
   Home01Icon,
   Chat01Icon,
   DashboardSquare02Icon,
+  File01Icon,
   BookOpen01Icon,
   Calendar03Icon,
   Settings02Icon,
@@ -42,6 +43,12 @@ export const navGroups: NavGroup[] = [
         url: "/board",
         icon: DashboardSquare02Icon,
         description: "项目工作台：会话 · 看板 · 文档 · git",
+      },
+      {
+        title: "文档",
+        url: "/docs",
+        icon: File01Icon,
+        description: "跨项目文档汇总与搜索",
       },
       {
         title: "阅读",
