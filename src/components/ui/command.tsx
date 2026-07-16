@@ -55,7 +55,10 @@ function CommandDialog({
         )}
         showCloseButton={showCloseButton}
       >
-        {children}
+        {/* 必须用 Command 包裹：cmdk 的 Input/List/Item 依赖它提供的 store context，
+            缺失会导致 useStore() 为 undefined → 运行时 “Cannot read properties of
+            undefined (reading 'subscribe')” 崩溃。 */}
+        <Command>{children}</Command>
       </DialogContent>
     </Dialog>
   )

@@ -18,6 +18,21 @@ export function groupByProject(sessions: Session[]): Record<string, Session[]> {
   return result;
 }
 
+/**
+ * 按 session_id 去重（同一 id 保留 updated_at 最新的一条）。
+ * codex 会把同一线程的多个 rollout 记为相同 session_id，扫描后会产生重复条目，
+ * 导致 React key 冲突；此处统一去重，保证列表内 id 唯一。
+ */
+export function dedupeById(sessions: Session[]): Session[] {
+  const byId = new Map<string, Session>();
+  for (const s of sessions) {
+    const prev = byId.get(s.session_id);
+    // updated_at 为 RFC3339 字符串，同格式下字典序即时间序
+    if (!prev || s.updated_at > prev.updated_at) byId.set(s.session_id, s);
+  }
+  return Array.from(byId.values());
+}
+
 // ── 视图模式 ──────────────────────────────────────────────
 export type ViewMode = "list" | "grouped";
 
@@ -28,6 +43,11 @@ interface SessionsState {
   groups: Record<string, Session[]>;
   viewMode: ViewMode;
   loading: boolean;
+  /**
+   * 后端首次全量扫描是否已完成。
+   * 用于区分「正在扫描（暂时为空）」与「确实无会话」，避免启动时误显示「暂无会话」。
+   */
+  scanned: boolean;
   error?: string;
   /** 从 Tauri 后端加载全部会话 */
   load: () => Promise<void>;
@@ -35,11 +55,12 @@ interface SessionsState {
   setViewMode: (mode: ViewMode) => void;
 }
 
-export const useSessionsStore = create<SessionsState>((set) => ({
+export const useSessionsStore = create<SessionsState>((set, get) => ({
   sessions: [],
   groups: {},
   viewMode: "list",
   loading: false,
+  scanned: false,
   error: undefined,
 
   load: async () => {
@@ -48,6 +69,8 @@ export const useSessionsStore = create<SessionsState>((set) => ({
     if (!listening) {
       listening = true;
       void on("sessions-updated", () => {
+        // 收到事件 = 后端扫描已完成一轮：标记 scanned 后重载
+        useSessionsStore.setState({ scanned: true });
         void useSessionsStore.getState().load();
       }).catch(() => {
         // 非 Tauri 环境（如测试）忽略
@@ -55,8 +78,14 @@ export const useSessionsStore = create<SessionsState>((set) => ({
     }
     set({ loading: true, error: undefined });
     try {
-      const sessions = await ipc.listSessions();
-      set({ sessions, groups: groupByProject(sessions), loading: false });
+      const sessions = dedupeById(await ipc.listSessions());
+      set({
+        sessions,
+        groups: groupByProject(sessions),
+        loading: false,
+        // 取到非空数据也视为已扫描（覆盖事件早于/晚于首帧的各种时序）
+        scanned: get().scanned || sessions.length > 0,
+      });
     } catch (e) {
       set({ error: String(e), loading: false });
     }

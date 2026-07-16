@@ -22,6 +22,7 @@ interface SessionListViewProps {
 export function SessionListView({ selectedId, onSelect }: SessionListViewProps) {
   const loading = useSessionsStore((s) => s.loading);
   const groups = useSessionsStore((s) => s.groups);
+  const scanned = useSessionsStore((s) => s.scanned);
 
   const query = useSessionSearchStore((s) => s.query);
   const results = useSessionSearchStore((s) => s.results);
@@ -78,7 +79,7 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
           <div className="flex flex-col gap-4">
             {Object.keys(groups).length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                暂无会话记录
+                {scanned ? "暂无会话记录" : "正在扫描本地会话…"}
               </p>
             ) : (
               Object.entries(groups).map(([projectPath, sessions]) => {
