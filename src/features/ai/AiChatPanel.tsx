@@ -1,10 +1,10 @@
 // AiChatPanel —— 项目级 AI 对话面板（流式 + 可选项目上下文/RAG）。
 // 消息仅本地内存（不持久化，YAGNI）；流式经 ipc.aiChatStream 逐块渲染。
 // 「包含项目上下文」开启后，注入本项目的文档 + 关联会话作为参考资料。
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { SentIcon, AiChat02Icon } from "@hugeicons/core-free-icons";
+import { SentIcon, AiChat02Icon, Delete02Icon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +28,45 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
   // 是否把项目文档+会话注入为上下文（RAG）
   const [includeContext, setIncludeContext] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // 本地持久化 key（按项目隔离）
+  const storeKey = `rework-ai-chat-${projectId}`;
+
+  // 切换项目时载入该项目已保存的对话历史
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storeKey);
+      setMessages(raw ? (JSON.parse(raw) as AiChatMessage[]) : []);
+    } catch {
+      setMessages([]);
+    }
+    // 仅在项目切换时载入
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // 每轮对话结束后（非流式中）持久化历史；空则清除
+  useEffect(() => {
+    if (loading) return;
+    try {
+      if (messages.length > 0) {
+        localStorage.setItem(storeKey, JSON.stringify(messages));
+      } else {
+        localStorage.removeItem(storeKey);
+      }
+    } catch {
+      /* localStorage 不可用时忽略 */
+    }
+  }, [loading, messages, storeKey]);
+
+  // 清空当前项目对话
+  const clearConversation = () => {
+    setMessages([]);
+    try {
+      localStorage.removeItem(storeKey);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
@@ -161,16 +200,30 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
         </div>
       )}
 
-      {/* 上下文开关 */}
-      <label className="flex shrink-0 cursor-pointer items-center gap-2 px-1 pt-2 text-xs text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={includeContext}
-          onChange={(e) => setIncludeContext(e.target.checked)}
-          className="h-3.5 w-3.5 rounded border-input accent-primary"
-        />
-        包含项目上下文（文档 + 关联会话）
-      </label>
+      {/* 工具行：上下文开关 + 清空对话 */}
+      <div className="flex shrink-0 items-center justify-between gap-2 px-1 pt-2">
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={includeContext}
+            onChange={(e) => setIncludeContext(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-input accent-primary"
+          />
+          包含项目上下文（文档 + 关联会话）
+        </label>
+        {messages.length > 0 && (
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={clearConversation}
+            disabled={loading}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
+            清空
+          </Button>
+        )}
+      </div>
 
       {/* 输入区 */}
       <div className="flex shrink-0 items-end gap-2 border-t border-border pt-3">
