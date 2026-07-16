@@ -3,6 +3,7 @@ import { ipc } from "../../lib/tauri/ipc";
 import type { Session } from "../../types/session";
 import type { TimelineMessage } from "../../types/session";
 import { RestoreDialog } from "./RestoreDialog";
+import { SessionLinkedTasks } from "./SessionLinkedTasks";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 
 // ── 预览消息的显示数量上限 ────────────────────────────────
@@ -34,6 +35,8 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   const [restoreTarget, setRestoreTarget] = useState<Session | null>(null);
   // 控制"从会话建任务"对话框的显示状态
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  // 建任务对话框关闭后自增，触发「关联任务」列表刷新
+  const [linkedRefresh, setLinkedRefresh] = useState(0);
 
   // 面板容器 ref，用于注册键盘监听
   const paneRef = useRef<HTMLDivElement>(null);
@@ -176,6 +179,9 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
           仅展示最近 {messages.length} 条消息
         </p>
       )}
+
+      {/* 关联任务（本会话已衍生的看板任务，点击跳看板） */}
+      <SessionLinkedTasks sessionId={session.session_id} refreshKey={linkedRefresh} />
     </div>
 
     {/* 恢复对话框：由"恢复"按钮或 Enter 键触发 */}
@@ -188,7 +194,11 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
     {taskDialogOpen && (
       <CreateTaskFromSessionDialog
         session={session}
-        onClose={() => setTaskDialogOpen(false)}
+        onClose={() => {
+          setTaskDialogOpen(false);
+          // 可能刚建了新任务 → 刷新「关联任务」列表
+          setLinkedRefresh((n) => n + 1);
+        }}
       />
     )}
     </>
