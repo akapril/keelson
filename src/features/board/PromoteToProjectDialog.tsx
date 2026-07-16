@@ -4,6 +4,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBoardStore } from "../../store/board";
+import { workspaceRecordUrl } from "../../lib/workspace-navigation";
 
 // ── Props ──────────────────────────────────────────────────────
 interface PromoteToProjectDialogProps {
@@ -79,9 +80,9 @@ export function PromoteToProjectDialog({
         repo_path: projectPath,
         template,
       });
-      // 打开新建的项目并跳转到看板页
+      // 打开新建的项目并跳转到项目工作台（?open= 深链接）
       await useBoardStore.getState().openProject(project.id);
-      navigate(`/board?project=${project.id}`);
+      navigate(workspaceRecordUrl("board", project.id));
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
