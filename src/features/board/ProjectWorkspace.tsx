@@ -157,7 +157,11 @@ export function ProjectWorkspace() {
         </TabsContent>
         {/* AI 助手 */}
         <TabsContent value="ai" className="mt-3 flex min-h-0 flex-1 flex-col">
-          <AiChatPanel projectName={project.name} />
+          <AiChatPanel
+            projectId={project.id}
+            projectName={project.name}
+            repoPath={project.repo_path}
+          />
         </TabsContent>
       </Tabs>
 

@@ -14,6 +14,12 @@ export interface AiChatMessage {
   content: string;
 }
 
+/** 流式对话事件（后端经 Tauri Channel 推送）。 */
+export interface AiStreamEvent {
+  kind: "delta" | "done" | "error";
+  text: string | null;
+}
+
 export const DEFAULT_AI_CONFIG: AiConfig = {
   provider: "openai",
   base_url: "",

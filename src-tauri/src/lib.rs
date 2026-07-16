@@ -212,6 +212,7 @@ pub fn run() {
             commands::git::git_info,
             // AI 对话（ai.rs，provider 可切）
             commands::ai::ai_chat,
+            commands::ai::ai_chat_stream,
         ])
         .run(tauri::generate_context!())
         .expect("运行 rework 失败");
