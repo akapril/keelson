@@ -76,7 +76,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         // 非 Tauri 环境（如测试）忽略
       });
     }
-    set({ loading: true, error: undefined });
+    // 仅首次（尚无数据）显示加载态；后台同步/事件触发的重载静默进行，
+    // 避免每次同步都把列表闪成「加载中」。
+    set({ loading: get().sessions.length === 0, error: undefined });
     try {
       const sessions = dedupeById(await ipc.listSessions());
       set({
