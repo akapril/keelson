@@ -1,6 +1,6 @@
-// AiChatPanel —— 项目级 AI 对话面板。
-// 非流式对话：本地维护消息列表（不持久化，YAGNI），通过 ipc.aiChat 调用后端。
-// 未配置密钥时展示引导卡片，指引用户前往设置页配置 AI 服务。
+// AiChatPanel —— 项目级 AI 对话面板（流式 + 可选项目上下文/RAG）。
+// 消息仅本地内存（不持久化，YAGNI）；流式经 ipc.aiChatStream 逐块渲染。
+// 「包含项目上下文」开启后，注入本项目的文档 + 关联会话作为参考资料。
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -11,18 +11,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSettingsStore } from "@/store/settings";
 import { ipc } from "@/lib/tauri/ipc";
 import type { AiChatMessage } from "@/types/ai";
+import { buildProjectContext } from "./project-context";
 
-export function AiChatPanel({ projectName }: { projectName: string }) {
+interface AiChatPanelProps {
+  projectId: string;
+  projectName: string;
+  repoPath?: string;
+}
+
+export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelProps) {
   const navigate = useNavigate();
-  // 会话消息（仅本地内存，切换项目/刷新即丢弃）
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  // 未配置密钥的引导提示（本地控制，避免误发请求）
   const [needConfig, setNeedConfig] = useState(false);
+  // 是否把项目文档+会话注入为上下文（RAG）
+  const [includeContext, setIncludeContext] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // 发送后滚动到底部
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
       const el = listRef.current;
@@ -30,49 +36,74 @@ export function AiChatPanel({ projectName }: { projectName: string }) {
     });
   };
 
+  // 更新（追加/替换）最后一条助手消息的正文
+  const updateAssistant = (fn: (prevContent: string) => string) => {
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (!last || last.role !== "assistant") return prev;
+      return [...prev.slice(0, -1), { ...last, content: fn(last.content) }];
+    });
+    scrollToBottom();
+  };
+
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
 
-    // 每次发送时读取最新 AI 配置（另一个 store 字段可能被并发更新）
     const aiConfig = useSettingsStore.getState().aiConfig;
     if (!aiConfig.api_key) {
-      // 未配置密钥：展示引导卡片，不调用接口
       setNeedConfig(true);
       return;
     }
     setNeedConfig(false);
 
-    // 系统提示：绑定当前项目上下文，要求简洁中文回答
     const system: AiChatMessage = {
       role: "system",
       content: `你是「${projectName}」项目的 AI 助手，用简洁中文回答。`,
     };
     const userMsg: AiChatMessage = { role: "user", content: text };
-    // 先在本地追加用户消息并清空输入框
     const history = messages;
-    setMessages([...history, userMsg]);
+    // 追加用户消息 + 一个空助手占位（流式往里填）
+    setMessages([...history, userMsg, { role: "assistant", content: "" }]);
     setInput("");
     setLoading(true);
     scrollToBottom();
 
+    // 组装请求消息：system(+可选上下文) + 历史 + 用户
+    const reqMsgs: AiChatMessage[] = [system];
+    if (includeContext) {
+      try {
+        const ctx = await buildProjectContext(projectId, repoPath);
+        if (ctx) {
+          reqMsgs.push({
+            role: "system",
+            content: `以下是本项目的相关资料，回答时可参考：\n\n${ctx}`,
+          });
+        }
+      } catch {
+        /* 上下文构造失败不阻断对话 */
+      }
+    }
+    reqMsgs.push(...history, userMsg);
+
     try {
-      // system 不进入展示列表，仅作为请求上下文的首条消息
-      const reply = await ipc.aiChat(aiConfig, [system, ...history, userMsg]);
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      await ipc.aiChatStream(aiConfig, reqMsgs, (ev) => {
+        if (ev.kind === "delta" && ev.text) {
+          updateAssistant((c) => c + ev.text);
+        } else if (ev.kind === "error") {
+          updateAssistant(() => `请求失败：${ev.text ?? ""}`);
+        }
+      });
+      // 结束时助手仍为空 → 给个占位
+      updateAssistant((c) => (c === "" ? "（无回复）" : c));
     } catch (e) {
-      // 出错时保留用户消息，并以助手消息形式内联展示错误（destructive 样式）
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `请求失败：${String(e)}` },
-      ]);
+      updateAssistant(() => `请求失败：${String(e)}`);
     } finally {
       setLoading(false);
       scrollToBottom();
     }
   };
 
-  // Enter 发送，Shift+Enter 换行
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -82,27 +113,27 @@ export function AiChatPanel({ projectName }: { projectName: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* 消息列表（可滚动） */}
+      {/* 消息列表 */}
       <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-1 py-2">
         {messages.length === 0 && !needConfig && (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
             <HugeiconsIcon icon={AiChat02Icon} strokeWidth={1.5} className="size-10 opacity-60" />
-            <p className="text-sm">
-              向「{projectName}」项目的 AI 助手提问吧
-            </p>
+            <p className="text-sm">向「{projectName}」项目的 AI 助手提问吧</p>
           </div>
         )}
 
         {messages.map((m, i) => {
           const isUser = m.role === "user";
-          const isError = m.role === "assistant" && m.content.startsWith("请求失败：");
+          const isError =
+            m.role === "assistant" && m.content.startsWith("请求失败：");
+          const isLast = i === messages.length - 1;
+          // 流式中最后一条空助手气泡显示光标
+          const display =
+            m.content || (m.role === "assistant" && isLast && loading ? "▍" : "");
           return (
-            <div
-              key={i}
-              className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-            >
+            <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
+                className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm ${
                   isUser
                     ? "bg-primary/10 text-foreground"
                     : isError
@@ -110,40 +141,38 @@ export function AiChatPanel({ projectName }: { projectName: string }) {
                       : "bg-muted text-foreground"
                 }`}
               >
-                {m.content}
+                {display}
               </div>
             </div>
           );
         })}
-
-        {loading && (
-          <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
-              思考中…
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* 未配置密钥的引导卡片 */}
+      {/* 未配置密钥引导卡片 */}
       {needConfig && (
         <div className="mx-1 mb-2 rounded-xl border border-border bg-card p-4 text-sm">
           <p className="text-foreground">尚未配置 AI 服务</p>
           <p className="mt-1 text-xs text-muted-foreground">
             前往设置页填写 API Key 后即可与项目 AI 助手对话。
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={() => navigate("/settings")}
-          >
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/settings")}>
             去设置
           </Button>
         </div>
       )}
 
-      {/* 底部输入区 */}
+      {/* 上下文开关 */}
+      <label className="flex shrink-0 cursor-pointer items-center gap-2 px-1 pt-2 text-xs text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={includeContext}
+          onChange={(e) => setIncludeContext(e.target.checked)}
+          className="h-3.5 w-3.5 rounded border-input accent-primary"
+        />
+        包含项目上下文（文档 + 关联会话）
+      </label>
+
+      {/* 输入区 */}
       <div className="flex shrink-0 items-end gap-2 border-t border-border pt-3">
         <Textarea
           value={input}

@@ -1,6 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
 import type { Session, SessionHit, TimelineMessage } from "../../types/session";
-import type { AiConfig, AiChatMessage } from "../../types/ai";
+import type { AiConfig, AiChatMessage, AiStreamEvent } from "../../types/ai";
 // 唯一允许出现 invoke 字符串命令名的地方。新增本地能力只加一个方法。
 export const ipc = {
   ping: () => invoke<string>("ping"),
@@ -46,4 +46,15 @@ export const ipc = {
   /** 非流式对话：返回助手回复文本 */
   aiChat: (config: AiConfig, messages: AiChatMessage[]) =>
     invoke<string>("ai_chat", { config, messages }),
+
+  /** 流式对话：经 Tauri Channel 实时回调增量事件；Promise 在结束时 resolve。 */
+  aiChatStream: (
+    config: AiConfig,
+    messages: AiChatMessage[],
+    onEvent: (ev: AiStreamEvent) => void,
+  ) => {
+    const channel = new Channel<AiStreamEvent>();
+    channel.onmessage = onEvent;
+    return invoke<void>("ai_chat_stream", { config, messages, onEvent: channel });
+  },
 };
