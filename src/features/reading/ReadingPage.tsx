@@ -17,6 +17,7 @@ import { ipc } from "@/lib/tauri/ipc";
 import type { ReadingItem, ReadingStatus } from "@/types/reading";
 import type { AiChatMessage } from "@/types/ai";
 import { CreateTaskFromReadingDialog } from "./CreateTaskFromReadingDialog";
+import { ReadingDetailDialog } from "./ReadingDetailDialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -71,6 +72,8 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
   const removeItem = useReadingStore((s) => s.removeItem);
   // AI 解析进行中标记
   const [parsing, setParsing] = useState(false);
+  // 详情对话框（完整查看备注/AI 摘要）
+  const [detailOpen, setDetailOpen] = useState(false);
 
   // 抓取网页正文 → AI 摘要 → 保存到备注
   async function handleAiParse() {
@@ -107,6 +110,8 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
       const note = merged.length > 4800 ? merged.slice(0, 4800) : merged;
       await updateItem(item.id, { note });
       toast.success("已生成 AI 摘要并保存到备注");
+      // 解析完成后自动打开详情，便于立即查看完整摘要
+      setDetailOpen(true);
     } catch (e) {
       toast.error(`解析失败：${String(e)}`);
     } finally {
@@ -150,11 +155,19 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
             </p>
           )}
 
-          {/* 备注（仅在有值时展示） */}
+          {/* 备注 / AI 摘要（截断显示；点击查看全文） */}
           {item.note && (
-            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-              {item.note}
-            </p>
+            <button
+              type="button"
+              onClick={() => setDetailOpen(true)}
+              className="mt-1 block w-full text-left"
+              title="查看全文"
+            >
+              <span className="line-clamp-2 text-sm text-muted-foreground">
+                {item.note}
+              </span>
+              <span className="text-xs text-primary hover:underline">查看全文</span>
+            </button>
           )}
         </div>
 
@@ -217,6 +230,12 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
           </Button>
         </div>
       </div>
+
+      {/* 详情：完整查看备注 / AI 摘要 */}
+      <ReadingDetailDialog
+        item={detailOpen ? item : null}
+        onClose={() => setDetailOpen(false)}
+      />
     </Card>
   );
 }
