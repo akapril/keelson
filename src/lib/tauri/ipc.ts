@@ -5,6 +5,10 @@ import type { AiConfig, AiChatMessage, AiStreamEvent } from "../../types/ai";
 export const ipc = {
   ping: () => invoke<string>("ping"),
 
+  /** 将文本写入指定绝对路径（导出「另存为」用；配合 dialog.save 取路径） */
+  writeTextFile: (path: string, content: string) =>
+    invoke<void>("write_text_file", { path, content }),
+
   // ── 会话列表 ──────────────────────────────────────────────
   /** 获取所有本地会话（Task 17） */
   listSessions: () => invoke<Session[]>("sessions_list"),

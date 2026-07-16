@@ -1,16 +1,44 @@
 // 设置页「数据导出」区：一键把看板 + 文档导出为 JSON（备份）或 Markdown（可读）。
 import { useState } from "react";
 import { toast } from "sonner";
+import { save } from "@tauri-apps/plugin-dialog";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Download04Icon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
+import { ipc } from "@/lib/tauri/ipc";
 import {
   gatherExport,
   toJson,
   toMarkdown,
   downloadTextFile,
 } from "./export-data";
+
+/**
+ * 落盘：优先弹原生「另存为」让用户选目录/文件名，再经 Rust 写入；
+ * 非 Tauri 环境（save 抛错）回退到浏览器下载。
+ * @returns 是否已保存（用户取消返回 false）
+ */
+async function saveExport(
+  filename: string,
+  content: string,
+  mime: string,
+  ext: string,
+): Promise<boolean> {
+  try {
+    const path = await save({
+      defaultPath: filename,
+      filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+    });
+    if (!path) return false; // 用户取消
+    await ipc.writeTextFile(path, content);
+    return true;
+  } catch {
+    // 非 Tauri 或对话框不可用：回退浏览器下载
+    downloadTextFile(filename, content, mime);
+    return true;
+  }
+}
 
 /** 用当前日期拼文件名，如 rework-export-20260716。 */
 function stamp(now: Date): string {
@@ -32,20 +60,23 @@ export function ExportSection() {
         toast.info("暂无项目可导出");
         return;
       }
-      if (format === "json") {
-        downloadTextFile(
-          `rework-export-${stamp(now)}.json`,
-          toJson(bundle),
-          "application/json",
-        );
-      } else {
-        downloadTextFile(
-          `rework-export-${stamp(now)}.md`,
-          toMarkdown(bundle),
-          "text/markdown",
-        );
+      const saved =
+        format === "json"
+          ? await saveExport(
+              `rework-export-${stamp(now)}.json`,
+              toJson(bundle),
+              "application/json",
+              "json",
+            )
+          : await saveExport(
+              `rework-export-${stamp(now)}.md`,
+              toMarkdown(bundle),
+              "text/markdown",
+              "md",
+            );
+      if (saved) {
+        toast.success(`已导出 ${projectCount} 个项目的看板与文档`);
       }
-      toast.success(`已导出 ${projectCount} 个项目的看板与文档`);
     } catch (e) {
       toast.error(`导出失败：${String(e)}`);
     } finally {

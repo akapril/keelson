@@ -20,6 +20,8 @@ pub mod workbench;
 pub mod git;
 // AI 对话命令（ai_chat；项目工作台 AI 标签用，provider 可切）
 pub mod ai;
+// 文件写入命令（write_text_file；导出「另存为」用）
+pub mod fs;
 
 // 注意：generate_handler! 宏需要使用函数定义所在的原始路径（含辅助符号），
 // 故不做 re-export；lib.rs 中直接使用 commands::sessions::sessions_list 等完整路径。
