@@ -1,24 +1,26 @@
-// StatusColumn —— 看板列：可拖放目标 + 有序任务卡片列表。
+// StatusColumn —— 看板列（视觉移植自 workavera status-column，绑定我们的类型）。
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import type { BoardState, BoardTask } from "../../types/board";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Add01Icon } from "@hugeicons/core-free-icons";
+
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import type { BoardState, BoardTask } from "@/types/board";
 import { TaskCard } from "./TaskCard";
 
 interface StatusColumnProps {
   state: BoardState;
   tasks: BoardTask[];
-  /** 点击"+ 任务"在本列新建任务（预填 state）。 */
+  /** 点击"+"在本列新建任务（预填 state）。 */
   onAddTask: (stateId: string) => void;
   /** 点击任务卡片进入编辑。 */
   onEditTask: (task: BoardTask) => void;
 }
 
 /**
- * 单状态列：
- * - useDroppable id 为 "state:<stateId>"（同 workavera 惯例）
- * - SortableContext（vertical）包裹 TaskCard 列表
- * - 列头颜色点使用 inline style（用户数据颜色）
- * - "+ 任务"按钮由 Task 9（TaskSheet）实现，此处占位
+ * 单状态列：useDroppable(id="state:<id>") + SortableContext。
+ * 列头：颜色点 + 名称 + 计数 + 加号按钮；空列显示"添加任务"占位按钮。
  */
 export function StatusColumn({
   state,
@@ -33,30 +35,37 @@ export function StatusColumn({
 
   return (
     <div className="flex w-72 shrink-0 flex-col">
-      {/* 列头：颜色点 + 名称 + 任务计数 */}
-      <div className="mb-2 flex items-center gap-2">
-        <span
-          className="size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: state.color }}
-        />
-        <span className="flex-1 truncate text-sm font-semibold text-foreground">
-          {state.name}
-        </span>
-        <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
-          {tasks.length}
-        </span>
+      {/* 列头 */}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className="size-2 shrink-0 rounded-full"
+            style={{ backgroundColor: state.color }}
+          />
+          <span className="truncate text-sm font-semibold text-foreground">
+            {state.name}
+          </span>
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
+            {tasks.length}
+          </span>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => onAddTask(state.id)}
+          aria-label={`向「${state.name}」添加任务`}
+        >
+          <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
+        </Button>
       </div>
 
       {/* 任务列表（可接收拖入） */}
       <div
         ref={setNodeRef}
-        className={[
-          "flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto rounded-xl p-2 transition-colors",
-          "max-h-[calc(100vh-16rem)] bg-muted/30",
-          isOver ? "bg-primary/5 ring-1 ring-primary/20" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        className={cn(
+          "no-scrollbar flex max-h-[calc(100vh-16rem)] min-h-24 flex-1 flex-col gap-2 overflow-y-auto rounded-xl bg-muted/30 p-2 transition-colors",
+          isOver && "bg-primary/5 ring-1 ring-primary/20",
+        )}
       >
         <SortableContext
           items={tasks.map((t) => t.id)}
@@ -67,27 +76,17 @@ export function StatusColumn({
           ))}
         </SortableContext>
 
-        {/* 空列占位 */}
+        {/* 空列占位（点击即新建） */}
         {tasks.length === 0 && (
-          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed py-4">
-            <span className="text-xs text-muted-foreground">暂无任务</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => onAddTask(state.id)}
+            className="flex flex-1 items-center justify-center rounded-lg border border-dashed py-4 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            + 添加任务
+          </button>
         )}
       </div>
-
-      {/* "+ 任务"按钮：在本列新建任务（预填当前 state） */}
-      <button
-        type="button"
-        onClick={() => onAddTask(state.id)}
-        className={[
-          "mt-2 w-full rounded-lg border border-dashed py-1.5 text-xs",
-          "text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground",
-          "focus:outline-none focus:ring-2 focus:ring-ring",
-        ].join(" ")}
-        title="新建任务"
-      >
-        + 任务
-      </button>
     </div>
   );
 }

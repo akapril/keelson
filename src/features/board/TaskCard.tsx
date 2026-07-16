@@ -1,18 +1,19 @@
-// TaskCard —— 看板单任务卡片，支持 dnd-kit 拖拽排序。
+// TaskCard —— 看板单任务卡片（视觉移植自 workavera todo-card，绑定我们的 store/类型）。
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "react-router-dom";
-import { useBoardStore } from "../../store/board";
-import type { BoardTask } from "../../types/board";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Calendar03Icon,
+  TextAlignLeftIcon,
+  Message01Icon,
+} from "@hugeicons/core-free-icons";
 
-// ── 优先级元数据（语义颜色类） ──────────────────────────────────
-const PRIORITY_DOT: Record<string, string> = {
-  none: "bg-muted-foreground",
-  low: "bg-sky-400",
-  medium: "bg-yellow-400",
-  high: "bg-orange-400",
-  urgent: "bg-destructive",
-};
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { useBoardStore } from "@/store/board";
+import type { BoardTask } from "@/types/board";
+import { PRIORITY_META } from "./board-meta";
 
 // ── 日期格式化 ────────────────────────────────────────────────
 function formatDate(dateStr: string): string {
@@ -28,7 +29,6 @@ function isOverdue(dateStr: string): boolean {
   return new Date(dateStr) < today;
 }
 
-// ── 组件属性 ───────────────────────────────────────────────────
 interface TaskCardProps {
   task: BoardTask;
   /** 点击卡片进入编辑（拖拽激活距离 6px，纯点击不会触发拖拽）。 */
@@ -36,23 +36,12 @@ interface TaskCardProps {
 }
 
 /**
- * 可拖拽任务卡片：title / 优先级点 / 标签 chip / 截止日期 / 来源会话徽章。
- * inline style 仅用于用户数据颜色（label.color）和 dnd transform。
+ * 可拖拽任务卡片：标签 chip / 标题 / 描述指示 / 优先级徽章 / 截止日期 / 来源会话徽章。
+ * inline style 仅用于用户数据颜色（label.color）与 dnd transform。
  */
 export function TaskCard({ task, onEdit }: TaskCardProps) {
   const labels = useBoardStore((s) => s.labels);
   const navigate = useNavigate();
-
-  // 点击"来源会话"徽章：跳转到会话中枢，并通过 query 携带会话 id 作为
-  // 最佳努力的定位信号（会话页选中状态目前为组件局部 state，无 store 选中位）。
-  function handleSourceClick(e: React.MouseEvent) {
-    // 阻止冒泡，避免触发卡片编辑（onEdit）与拖拽
-    e.stopPropagation();
-    if (!task.source_session_id) return;
-    const params = new URLSearchParams({ session: task.source_session_id });
-    if (task.source_provider) params.set("provider", task.source_provider);
-    navigate(`/sessions?${params.toString()}`);
-  }
 
   const {
     attributes,
@@ -63,10 +52,7 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
     isDragging,
   } = useSortable({
     id: task.id,
-    data: {
-      type: "task",
-      stateId: task.state,
-    },
+    data: { type: "task", stateId: task.state },
   });
 
   const style = {
@@ -74,9 +60,18 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
     transition,
   };
 
-  // 解析当前任务的标签对象
+  // 点击"来源会话"徽章：跳转到会话中枢，携带会话 id 作为定位信号。
+  function handleSourceClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!task.source_session_id) return;
+    const params = new URLSearchParams({ session: task.source_session_id });
+    if (task.source_provider) params.set("provider", task.source_provider);
+    navigate(`/sessions?${params.toString()}`);
+  }
+
   const taskLabels = labels.filter((l) => task.labels?.includes(l.id));
-  const dotClass = PRIORITY_DOT[task.priority] ?? PRIORITY_DOT.none;
+  const priority = PRIORITY_META[task.priority];
+  const overdue = task.due_date ? isOverdue(task.due_date) : false;
 
   return (
     <div
@@ -85,33 +80,19 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
       {...attributes}
       {...listeners}
       onClick={() => onEdit?.(task)}
-      className={[
-        "cursor-grab rounded-lg border border-border/60 bg-card p-3 shadow-sm",
-        "select-none transition-all hover:border-border hover:shadow-md",
-        isDragging ? "opacity-50 ring-2 ring-primary/20" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      className={cn(
+        "group/card cursor-pointer rounded-xl border border-border/60 bg-card p-3 shadow-sm transition-all hover:border-border hover:shadow-md",
+        isDragging && "opacity-50 shadow-lg ring-2 ring-primary/20",
+      )}
     >
-      {/* 优先级点 + 标题 */}
-      <div className="flex items-start gap-2">
-        <span
-          className={`mt-1.5 size-2 shrink-0 rounded-full ${dotClass}`}
-          title={task.priority}
-        />
-        <p className="flex-1 text-sm font-medium leading-snug text-foreground">
-          {task.title}
-        </p>
-      </div>
-
-      {/* 标签 chips（颜色来自用户数据，使用 inline style） */}
+      {/* 标签 chips（颜色来自用户数据，inline style） */}
       {taskLabels.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className="mb-2 flex flex-wrap gap-1">
           {taskLabels.map((label) => (
             <span
               key={label.id}
-              className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white"
-              style={{ background: label.color }}
+              className="inline-flex h-4.5 items-center rounded-md px-1.5 text-[10px] font-medium text-white"
+              style={{ backgroundColor: label.color }}
             >
               {label.name}
             </span>
@@ -119,32 +100,64 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
         </div>
       )}
 
-      {/* 页脚：截止日期 + 来源会话徽章 */}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      {/* 标题 */}
+      <p className="text-sm font-medium leading-snug text-foreground">
+        {task.title}
+      </p>
+
+      {/* 描述指示 */}
+      {task.description && (
+        <div className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
+          <HugeiconsIcon
+            icon={TextAlignLeftIcon}
+            strokeWidth={2}
+            className="size-3 shrink-0"
+          />
+          <span className="truncate">{task.description}</span>
+        </div>
+      )}
+
+      {/* 页脚：优先级 + 截止日期 + 来源会话 */}
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        {/* 优先级徽章（none 不显示） */}
+        {task.priority !== "none" && (
+          <Badge
+            variant="secondary"
+            className={cn("h-4.5 gap-1 px-1.5 text-[10px]", priority.badge)}
+          >
+            <span className={cn("size-1.5 rounded-full", priority.dot)} />
+            {priority.label}
+          </Badge>
+        )}
+
         {/* 截止日期 */}
         {task.due_date && (
           <span
-            className={[
-              "text-[10px]",
-              isOverdue(task.due_date)
-                ? "font-medium text-destructive"
-                : "text-muted-foreground",
-            ].join(" ")}
+            className={cn(
+              "flex items-center gap-0.5 text-[10px]",
+              overdue ? "font-medium text-destructive" : "text-muted-foreground",
+            )}
           >
+            <HugeiconsIcon
+              icon={Calendar03Icon}
+              strokeWidth={2}
+              className="size-3"
+            />
             {formatDate(task.due_date)}
           </span>
         )}
 
-        {/* 来源会话徽章：点击跳转到会话中枢并定位来源会话 */}
+        {/* 来源会话徽章（点击跳转会话中枢） */}
         {task.source_session_id && (
           <button
             type="button"
             onClick={handleSourceClick}
             aria-label="跳转到来源会话"
             title={`来源会话：${task.source_session_id}`}
-            className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+            className="ml-auto flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
           >
-            来源会话
+            <HugeiconsIcon icon={Message01Icon} strokeWidth={2} className="size-3" />
+            来源
           </button>
         )}
       </div>
