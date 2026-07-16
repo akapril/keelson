@@ -3,6 +3,19 @@
 #![allow(dead_code)]
 use serde_json::Value;
 
+/// 将响应按状态码转为 Result：失败时把 PocketBase 的错误响应体一并带出，
+/// 便于定位字段级校验错误（如 validation_not_unique / 必填缺失）。
+/// 替代 reqwest 的 error_for_status()（后者会丢弃响应体）。
+async fn json_or_err(resp: reqwest::Response) -> anyhow::Result<Value> {
+    let status = resp.status();
+    if status.is_success() {
+        return Ok(resp.json().await?);
+    }
+    // 读取错误体（PB 返回 JSON：{"message":..,"data":{字段->错误}}）
+    let body = resp.text().await.unwrap_or_default();
+    anyhow::bail!("PB {status}: {body}");
+}
+
 /// PocketBase REST 客户端，持有基础 URL 和用户 token。
 #[derive(Clone)]
 pub struct PbClient {
@@ -27,60 +40,54 @@ impl PbClient {
     /// 按 filter 取一条记录（用于 upsert 前查存在）。
     pub async fn find_one(&self, coll: &str, filter: &str) -> anyhow::Result<Option<Value>> {
         let url = format!("{}/api/collections/{}/records", self.base_url, coll);
-        let r = self
+        let resp = self
             .http()
             .get(&url)
             .bearer_auth(&self.token)
             .query(&[("filter", filter), ("perPage", "1")])
             .send()
-            .await?
-            .error_for_status()?;
-        let body: Value = r.json().await?;
+            .await?;
+        let body = json_or_err(resp).await?;
         Ok(body["items"].as_array().and_then(|a| a.first()).cloned())
     }
 
     /// 创建一条记录，返回完整记录 JSON。
     pub async fn create(&self, coll: &str, data: &Value) -> anyhow::Result<Value> {
         let url = format!("{}/api/collections/{}/records", self.base_url, coll);
-        Ok(self
+        let resp = self
             .http()
             .post(&url)
             .bearer_auth(&self.token)
             .json(data)
             .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?)
+            .await?;
+        json_or_err(resp).await
     }
 
     /// 更新（PATCH）指定 id 的记录，返回更新后的完整记录。
     pub async fn patch(&self, coll: &str, id: &str, data: &Value) -> anyhow::Result<Value> {
         let url = format!("{}/api/collections/{}/records/{}", self.base_url, coll, id);
-        Ok(self
+        let resp = self
             .http()
             .patch(&url)
             .bearer_auth(&self.token)
             .json(data)
             .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?)
+            .await?;
+        json_or_err(resp).await
     }
 
     /// 拉取集合全部记录（最多 500 条），仅返回指定字段。
     pub async fn list_all(&self, coll: &str, fields: &str) -> anyhow::Result<Vec<Value>> {
         let url = format!("{}/api/collections/{}/records", self.base_url, coll);
-        let r = self
+        let resp = self
             .http()
             .get(&url)
             .bearer_auth(&self.token)
             .query(&[("perPage", "500"), ("fields", fields)])
             .send()
-            .await?
-            .error_for_status()?;
-        let body: Value = r.json().await?;
+            .await?;
+        let body = json_or_err(resp).await?;
         Ok(body["items"].as_array().cloned().unwrap_or_default())
     }
 }
