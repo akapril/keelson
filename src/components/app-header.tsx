@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notification-bell";
 import { flatNavItems } from "@/lib/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useUpdaterStore } from "@/store/updater";
@@ -111,6 +112,7 @@ export function AppHeader() {
             ⌘K
           </kbd>
         </Button>
+        <NotificationBell />
         <ThemeToggle />
         <Separator
           orientation="vertical"
