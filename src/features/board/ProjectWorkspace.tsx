@@ -1,7 +1,8 @@
 // ProjectWorkspace —— 打开一个项目后的「工作台」：
 // 头部(返回 / 名称 / git 状态 / 项目设置) + 标签页(概览 / 会话 / 看板 / 文档 / AI)。
 // 会话 tab 通过 repo_path == session.project_path 关联本地 CLI 会话（两级项目模型）。
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
@@ -13,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useBoardStore } from "@/store/board";
 import { useSessionsStore } from "@/store/sessions";
+import { listEventsByProject } from "@/lib/pb/calendar";
+import type { CalendarEvent } from "@/types/calendar";
 import { KanbanBoard } from "./KanbanBoard";
 import { ProjectSheet } from "./ProjectSheet";
 import { GitStatusBar } from "./GitStatusBar";
@@ -32,6 +35,22 @@ export function ProjectWorkspace() {
 
   const [tab, setTab] = useState("board");
   const [showSheet, setShowSheet] = useState(false);
+  const [projectEvents, setProjectEvents] = useState<CalendarEvent[]>([]);
+  const navigate = useNavigate();
+
+  // 加载关联到本项目的日历事件（用于概览「近期事件」）
+  useEffect(() => {
+    if (!openedProjectId) return;
+    let cancelled = false;
+    void listEventsByProject(openedProjectId)
+      .then((evs) => {
+        if (!cancelled) setProjectEvents(evs);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [openedProjectId]);
 
   const project = projects.find((p) => p.id === openedProjectId);
   if (!project) return null;
@@ -51,6 +70,19 @@ export function ProjectWorkspace() {
   const upcomingTasks = [...tasks]
     .filter((t) => t.due_date)
     .sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""))
+    .slice(0, 6);
+
+  // 近期事件（本项目关联，结束日 >= 今天，取前 6）
+  const eventNow = new Date();
+  eventNow.setHours(0, 0, 0, 0);
+  const upcomingEvents = projectEvents
+    .filter((e) => {
+      try {
+        return new Date(e.end || e.start) >= eventNow;
+      } catch {
+        return false;
+      }
+    })
     .slice(0, 6);
 
   return (
@@ -176,6 +208,44 @@ export function ProjectWorkspace() {
                       </li>
                     );
                   })}
+                </ul>
+              </div>
+            )}
+
+            {/* 近期事件（本项目关联的日历事件，点击去日历） */}
+            {upcomingEvents.length > 0 && (
+              <div className="rounded-xl border border-border bg-card p-4">
+                <h3 className="mb-2 text-sm font-semibold text-foreground">
+                  近期事件
+                </h3>
+                <ul className="flex flex-col">
+                  {upcomingEvents.map((ev) => (
+                    <li key={ev.id}>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/calendar")}
+                        className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm hover:bg-muted"
+                      >
+                        <span
+                          className="size-2 shrink-0 rounded-full"
+                          style={{
+                            background: ev.color || "var(--color-primary)",
+                          }}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-foreground">
+                          {ev.title}
+                        </span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {ev.start
+                            ? new Date(ev.start).toLocaleDateString("zh-CN", {
+                                month: "short",
+                                day: "numeric",
+                              })
+                            : ""}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
