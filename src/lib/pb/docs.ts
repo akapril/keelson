@@ -22,6 +22,16 @@ export function listDocs(projectId: string): Promise<BoardDoc[]> {
     });
 }
 
+/**
+ * 获取当前用户全部文档（跨项目，按 updated 降序），用于全局文档搜索。
+ * owner 范围由访问规则保证。
+ */
+export function listAllDocs(): Promise<BoardDoc[]> {
+  return pb
+    .collection(COL.docs)
+    .getFullList<BoardDoc>({ requestKey: null, sort: "-updated" });
+}
+
 // ── CRUD ─────────────────────────────────────────────────
 
 /** 创建文档记录，返回创建后的完整记录 */

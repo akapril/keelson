@@ -2,7 +2,7 @@
 // 头部(返回 / 名称 / git 状态 / 项目设置) + 标签页(概览 / 会话 / 看板 / 文档 / AI)。
 // 会话 tab 通过 repo_path == session.project_path 关联本地 CLI 会话（两级项目模型）。
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
@@ -33,10 +33,19 @@ export function ProjectWorkspace() {
   const labels = useBoardStore((s) => s.labels);
   const sessions = useSessionsStore((s) => s.sessions);
 
-  const [tab, setTab] = useState("board");
+  const [searchParams] = useSearchParams();
+  // 深链接：?tab=<页> 决定初始标签页；?doc=<id> 定位文档标签内的具体文档
+  const paramTab = searchParams.get("tab");
+  const focusDocId = searchParams.get("doc") || undefined;
+  const [tab, setTab] = useState(() => paramTab || "board");
   const [showSheet, setShowSheet] = useState(false);
   const [projectEvents, setProjectEvents] = useState<CalendarEvent[]>([]);
   const navigate = useNavigate();
+
+  // 再次深链接（?tab 变化）时同步切换标签页
+  useEffect(() => {
+    if (paramTab) setTab(paramTab);
+  }, [paramTab]);
 
   // 加载关联到本项目的日历事件（用于概览「近期事件」）
   useEffect(() => {
@@ -270,7 +279,7 @@ export function ProjectWorkspace() {
 
         {/* 文档 */}
         <TabsContent value="docs" className="mt-3 flex min-h-0 flex-1 flex-col">
-          <DocsPanel projectId={project.id} />
+          <DocsPanel projectId={project.id} initialDocId={focusDocId} />
         </TabsContent>
         {/* AI 助手 */}
         <TabsContent value="ai" className="mt-3 flex min-h-0 flex-1 flex-col">

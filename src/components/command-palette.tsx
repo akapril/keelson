@@ -15,15 +15,30 @@ import {
 import { flatNavItems } from "@/lib/navigation";
 import { workspaceRecordUrl } from "@/lib/workspace-navigation";
 import { listProjects } from "@/lib/pb/board";
+import { listAllDocs } from "@/lib/pb/docs";
 import { listReadingItems } from "@/lib/pb/reading";
 import { useSessionsStore } from "@/store/sessions";
 import type { BoardProject } from "@/types/board";
+import type { BoardDoc } from "@/types/docs";
 import type { ReadingItem } from "@/types/reading";
+
+/** 取文档正文中命中词附近的一小段作为预览（无命中则取开头）。 */
+function docSnippet(content: string, q: string): string {
+  if (!content) return "";
+  const flat = content.replace(/\s+/g, " ").trim();
+  const i = q ? flat.toLowerCase().indexOf(q) : -1;
+  if (i < 0) return flat.slice(0, 50);
+  const start = Math.max(0, i - 20);
+  return (start > 0 ? "…" : "") + flat.slice(start, start + 60) + "…";
+}
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState<BoardProject[]>([]);
+  const [docs, setDocs] = useState<BoardDoc[]>([]);
   const [reading, setReading] = useState<ReadingItem[]>([]);
+  // 输入词（用于文档正文子串搜索；cmdk 对长文本的模糊匹配会误命中，故自行子串过滤）
+  const [query, setQuery] = useState("");
   const sessions = useSessionsStore((s) => s.sessions);
   const navigate = useNavigate();
 
@@ -50,10 +65,14 @@ export function CommandPalette() {
     void listProjects()
       .then(setProjects)
       .catch(() => {});
+    void listAllDocs()
+      .then(setDocs)
+      .catch(() => {});
     void listReadingItems()
       .then(setReading)
       .catch(() => {});
     if (sessions.length === 0) void useSessionsStore.getState().load();
+    setQuery(""); // 每次打开清空上次的搜索词
     // 仅在打开时刷新
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -63,9 +82,25 @@ export function CommandPalette() {
     navigate(url);
   };
 
+  // 文档按标题/正文子串匹配（有输入才搜；cmdk 模糊匹配长正文会误命中，故自行过滤）
+  const q = query.trim().toLowerCase();
+  const docMatches = q
+    ? docs
+        .filter(
+          (d) =>
+            (d.title || "").toLowerCase().includes(q) ||
+            (d.content || "").toLowerCase().includes(q),
+        )
+        .slice(0, 20)
+    : [];
+  const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="搜索页面 / 项目 / 会话 / 阅读…" />
+      <CommandInput
+        placeholder="搜索页面 / 项目 / 文档 / 会话 / 阅读…"
+        onValueChange={setQuery}
+      />
       <CommandList>
         <CommandEmpty>无结果</CommandEmpty>
 
@@ -91,6 +126,28 @@ export function CommandPalette() {
                 onSelect={() => go(workspaceRecordUrl("board", p.id))}
               >
                 {p.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {docMatches.length > 0 && (
+          <CommandGroup heading="文档">
+            {docMatches.map((d) => (
+              <CommandItem
+                key={d.id}
+                // value 含 query，确保 cmdk 不会按其模糊算法把已匹配项过滤掉
+                value={`文档 ${query} ${d.title} ${d.id}`}
+                onSelect={() =>
+                  go(workspaceRecordUrl("board", d.project, { tab: "docs", doc: d.id }))
+                }
+              >
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate">{d.title || "未命名文档"}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {projectNameById.get(d.project) ?? "文档"} · {docSnippet(d.content, q)}
+                  </span>
+                </span>
               </CommandItem>
             ))}
           </CommandGroup>
