@@ -1,23 +1,28 @@
 import { useEffect, useState } from "react";
-import { useBoardStore } from "../store/board";
-import { ProjectList } from "../features/board/ProjectList";
-import { CreateProjectDialog } from "../features/board/CreateProjectDialog";
-import { KanbanBoard } from "../features/board/KanbanBoard";
-import { ProjectSheet } from "../features/board/ProjectSheet";
+import { useSearchParams } from "react-router-dom";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Add01Icon } from "@hugeicons/core-free-icons";
+
+import { Button } from "@/components/ui/button";
+import { useBoardStore } from "@/store/board";
+import { requestedRecordId } from "@/lib/workspace-navigation";
+import { ProjectList } from "@/features/board/ProjectList";
+import { CreateProjectDialog } from "@/features/board/CreateProjectDialog";
+import { ProjectWorkspace } from "@/features/board/ProjectWorkspace";
 
 /**
- * 看板首页。
- * 挂载时并行加载模板和项目列表（互不依赖）。
- * - openedProjectId 为 null：显示项目卡片列表
- * - openedProjectId 非 null：显示已打开项目的 KanbanBoard
+ * 项目页 = 项目工作台入口。
+ * - 未打开项目：项目列表（“项目主页”）+ 新建项目。
+ * - 已打开项目：ProjectWorkspace（概览/会话/看板/文档/AI 标签页）。
+ * 支持 ?open=<projectId> 深链接（来自会话中枢「提升为看板项目」/ 卡片跳转）。
  */
 export default function Board() {
-  // 控制"新建项目"对话框是否显示
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  // 控制"项目设置"抽屉是否显示
-  const [showProjectSheet, setShowProjectSheet] = useState(false);
   const openedProjectId = useBoardStore((s) => s.openedProjectId);
   const projects = useBoardStore((s) => s.projects);
+
+  const [searchParams] = useSearchParams();
+  const requestedId = requestedRecordId(searchParams);
 
   // 挂载时并行加载模板和项目列表
   useEffect(() => {
@@ -25,85 +30,43 @@ export default function Board() {
     useBoardStore.getState().loadProjects();
   }, []);
 
-  // 当前已打开项目的名称（用于面包屑）
-  const openedProject = projects.find((p) => p.id === openedProjectId);
+  // 深链接：?open=<projectId> 且该项目已在列表中 → 自动打开工作台
+  useEffect(() => {
+    if (!requestedId) return;
+    if (openedProjectId === requestedId) return;
+    if (projects.some((p) => p.id === requestedId)) {
+      void useBoardStore.getState().openProject(requestedId);
+    }
+  }, [requestedId, projects, openedProjectId]);
 
+  // 已打开项目 → 工作台
+  if (openedProjectId) {
+    return <ProjectWorkspace />;
+  }
+
+  // 未打开 → 项目列表主页
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
-      {/* 页头：标题（看板 / 项目名）+ 操作按钮 */}
       <div className="mb-6 flex shrink-0 items-center justify-between">
-        <div className="flex items-center gap-2">
-          {/* 有已打开项目时显示返回链接 */}
-          {openedProjectId && (
-            <button
-              type="button"
-              onClick={() => useBoardStore.getState().closeProject()}
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              看板
-            </button>
-          )}
-          {openedProjectId && (
-            <span className="text-sm text-muted-foreground">/</span>
-          )}
-          <h1 className="text-base font-semibold">
-            {openedProject ? openedProject.name : "看板"}
-          </h1>
+        <div>
+          <h1 className="text-lg font-semibold">项目</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            每个项目 = 它的会话、看板、文档与 git，集中在一处工作台。
+          </p>
         </div>
-
-        {/* 新建项目按钮（只在列表视图显示） */}
-        {!openedProjectId && (
-          <button
-            type="button"
-            onClick={() => setShowCreateDialog(true)}
-            className={[
-              "rounded-md bg-primary px-4 py-1.5 text-sm font-medium",
-              "text-primary-foreground shadow-sm transition-colors",
-              "hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring",
-            ].join(" ")}
-          >
-            新建项目
-          </button>
-        )}
-
-        {/* 项目设置按钮（只在已打开项目时显示） */}
-        {openedProjectId && (
-          <button
-            type="button"
-            onClick={() => setShowProjectSheet(true)}
-            className={[
-              "rounded-md border border-border px-4 py-1.5 text-sm font-medium",
-              "text-foreground transition-colors",
-              "hover:bg-accent hover:text-accent-foreground",
-              "focus:outline-none focus:ring-2 focus:ring-ring",
-            ].join(" ")}
-          >
-            项目设置
-          </button>
-        )}
+        <Button onClick={() => setShowCreateDialog(true)}>
+          <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
+          新建项目
+        </Button>
       </div>
 
-      {/* 主内容区：项目列表 或 看板 */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {openedProjectId ? (
-          // Task 8: 已打开项目 → 显示看板视图
-          <KanbanBoard />
-        ) : (
-          // 默认：显示项目卡片列表
-          <ProjectList />
-        )}
+        <ProjectList />
       </div>
 
-      {/* 新建项目对话框（按需挂载） */}
       {showCreateDialog && (
         <CreateProjectDialog onClose={() => setShowCreateDialog(false)} />
       )}
-
-      {/* 项目设置抽屉（受控，作用于当前打开的项目） */}
-      <ProjectSheet
-        open={showProjectSheet}
-        onClose={() => setShowProjectSheet(false)}
-      />
     </div>
   );
 }

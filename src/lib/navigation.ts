@@ -2,7 +2,7 @@
 import type { IconSvgElement } from "@hugeicons/react";
 import {
   Chat01Icon,
-  KanbanIcon,
+  DashboardSquare02Icon,
   Settings02Icon,
 } from "@hugeicons/core-free-icons";
 
@@ -29,10 +29,10 @@ export const navGroups: NavGroup[] = [
         description: "本地 AI CLI 会话的浏览、检索与恢复",
       },
       {
-        title: "看板",
+        title: "项目",
         url: "/board",
-        icon: KanbanIcon,
-        description: "项目与任务的看板管理",
+        icon: DashboardSquare02Icon,
+        description: "项目工作台：会话 · 看板 · 文档 · git",
       },
     ],
   },
