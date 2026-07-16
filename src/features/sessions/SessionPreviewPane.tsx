@@ -4,6 +4,7 @@ import type { Session } from "../../types/session";
 import type { TimelineMessage } from "../../types/session";
 import { RestoreDialog } from "./RestoreDialog";
 import { SessionLinkedTasks } from "./SessionLinkedTasks";
+import { SessionContinueDialog } from "./SessionContinueDialog";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 
 // ── 预览消息的显示数量上限 ────────────────────────────────
@@ -37,6 +38,8 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   // 建任务对话框关闭后自增，触发「关联任务」列表刷新
   const [linkedRefresh, setLinkedRefresh] = useState(0);
+  // 控制"在 AI 中继续"对话框
+  const [continueOpen, setContinueOpen] = useState(false);
 
   // 面板容器 ref，用于注册键盘监听
   const paneRef = useRef<HTMLDivElement>(null);
@@ -108,6 +111,14 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
           </h2>
           {/* 操作按钮组：建任务 + 恢复 */}
           <div className="flex shrink-0 items-center gap-2">
+            {/* 在 AI 中继续：预载会话历史，在应用内续聊 */}
+            <button
+              onClick={() => setContinueOpen(true)}
+              className="rounded-lg border border-border bg-card px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              title="载入会话历史，在 AI 中继续对话"
+            >
+              AI 续聊
+            </button>
             {/* 建任务按钮：打开"从会话建任务"对话框 */}
             <button
               onClick={() => setTaskDialogOpen(true)}
@@ -188,6 +199,12 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
     <RestoreDialog
       session={restoreTarget}
       onClose={() => setRestoreTarget(null)}
+    />
+
+    {/* 在 AI 中继续对话框 */}
+    <SessionContinueDialog
+      session={continueOpen ? session : null}
+      onClose={() => setContinueOpen(false)}
     />
 
     {/* 从会话建任务对话框 */}
