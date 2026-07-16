@@ -18,7 +18,7 @@ import { useSessionsStore } from "@/store/sessions";
 import { KanbanBoard } from "./KanbanBoard";
 import { ProjectSheet } from "./ProjectSheet";
 import { GitStatusBar } from "./GitStatusBar";
-import { LinkedSessionsPanel } from "./LinkedSessionsPanel";
+import { WorkspaceSessions } from "./WorkspaceSessions";
 import { STATE_CATEGORY_META } from "./board-meta";
 
 // 空标签页占位（文档 / AI，Phase③④ 实现）
@@ -148,9 +148,9 @@ export function ProjectWorkspace() {
         </TabsContent>
 
         {/* 会话 */}
-        <TabsContent value="sessions" className="mt-3 min-h-0 flex-1 overflow-y-auto">
+        <TabsContent value="sessions" className="mt-3 flex min-h-0 flex-1 flex-col">
           {repoPath ? (
-            <LinkedSessionsPanel repoPath={repoPath} />
+            <WorkspaceSessions repoPath={repoPath} />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               该项目未绑定仓库路径 —— 在「项目设置」填写 repo_path 后即可关联本地会话。
