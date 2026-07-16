@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Session, SessionHit, TimelineMessage } from "../../types/session";
+import type { AiConfig, AiChatMessage } from "../../types/ai";
 // 唯一允许出现 invoke 字符串命令名的地方。新增本地能力只加一个方法。
 export const ipc = {
   ping: () => invoke<string>("ping"),
@@ -38,4 +39,9 @@ export const ipc = {
   /** 读取本地仓库的当前分支与未提交变更数（Task 13，包装 git_info 命令） */
   gitInfo: (path: string) =>
     invoke<{ branch: string | null; dirty_count: number; is_repo: boolean }>("git_info", { path }),
+
+  // ── AI 对话（provider 可切；包装 ai_chat 命令） ────────────
+  /** 非流式对话：返回助手回复文本 */
+  aiChat: (config: AiConfig, messages: AiChatMessage[]) =>
+    invoke<string>("ai_chat", { config, messages }),
 };

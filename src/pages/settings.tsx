@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useSettingsStore } from "../store/settings";
+import type { AiProvider } from "../types/ai";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
 /**
@@ -148,6 +158,10 @@ export default function Settings() {
   const { hotkey, workspacePath, loading, error, load, saveHotkey } =
     useSettingsStore();
 
+  // AI 助手配置（受控，来源于 store，写入即持久化 localStorage）
+  const aiConfig = useSettingsStore((s) => s.aiConfig);
+  const setAiConfig = useSettingsStore((s) => s.setAiConfig);
+
   // 本地工作区路径编辑状态（不直接写 store 的 workspacePath 避免频繁触发渲染）
   const [localPath, setLocalPath] = useState(workspacePath);
 
@@ -233,6 +247,76 @@ export default function Settings() {
         <p className="text-xs text-muted-foreground">
           留空则使用默认路径（~/.claude / ~/.codex）。
         </p>
+      </section>
+
+      <div className="border-t border-border" />
+
+      {/* ── AI 助手 ── */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium">AI 助手</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            配置项目工作台「AI」标签使用的模型服务；密钥仅保存在本机。
+          </p>
+        </div>
+
+        {/* 服务商选择 */}
+        <div className="space-y-1.5">
+          <Label htmlFor="ai-provider">服务商</Label>
+          <Select
+            value={aiConfig.provider}
+            onValueChange={(v) => setAiConfig({ provider: v as AiProvider })}
+          >
+            <SelectTrigger id="ai-provider" className="w-full">
+              <SelectValue placeholder="选择服务商" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="openai">OpenAI 兼容</SelectItem>
+              <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 接口 Base URL */}
+        <div className="space-y-1.5">
+          <Label htmlFor="ai-base-url">Base URL</Label>
+          <Input
+            id="ai-base-url"
+            type="text"
+            value={aiConfig.base_url}
+            placeholder={
+              aiConfig.provider === "anthropic"
+                ? "https://api.anthropic.com（留空用默认）"
+                : "https://api.openai.com/v1（留空用默认）"
+            }
+            onChange={(e) => setAiConfig({ base_url: e.target.value })}
+          />
+        </div>
+
+        {/* 模型名称 */}
+        <div className="space-y-1.5">
+          <Label htmlFor="ai-model">模型</Label>
+          <Input
+            id="ai-model"
+            type="text"
+            value={aiConfig.model}
+            placeholder="gpt-4o-mini / claude-3-5-sonnet-..."
+            onChange={(e) => setAiConfig({ model: e.target.value })}
+          />
+        </div>
+
+        {/* API 密钥（明文不回显，仅本机保存） */}
+        <div className="space-y-1.5">
+          <Label htmlFor="ai-api-key">API 密钥</Label>
+          <Input
+            id="ai-api-key"
+            type="password"
+            autoComplete="off"
+            value={aiConfig.api_key}
+            placeholder="sk-..."
+            onChange={(e) => setAiConfig({ api_key: e.target.value })}
+          />
+        </div>
       </section>
     </div>
   );

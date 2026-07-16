@@ -6,7 +6,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
   Settings02Icon,
-  AiChat02Icon,
 } from "@hugeicons/core-free-icons";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -19,19 +18,8 @@ import { ProjectSheet } from "./ProjectSheet";
 import { GitStatusBar } from "./GitStatusBar";
 import { WorkspaceSessions } from "./WorkspaceSessions";
 import { DocsPanel } from "@/features/docs/DocsPanel";
+import { AiChatPanel } from "@/features/ai/AiChatPanel";
 import { STATE_CATEGORY_META } from "./board-meta";
-
-// 空标签页占位（文档 / AI，Phase③④ 实现）
-function ComingSoon({ icon, title }: { icon: typeof AiChat02Icon; title: string }) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-      <HugeiconsIcon icon={icon} strokeWidth={1.5} className="size-10 opacity-60" />
-      <p className="text-sm">
-        {title} · <span className="opacity-70">即将推出</span>
-      </p>
-    </div>
-  );
-}
 
 export function ProjectWorkspace() {
   const openedProjectId = useBoardStore((s) => s.openedProjectId);
@@ -167,9 +155,9 @@ export function ProjectWorkspace() {
         <TabsContent value="docs" className="mt-3 flex min-h-0 flex-1 flex-col">
           <DocsPanel projectId={project.id} />
         </TabsContent>
-        {/* AI 占位 */}
-        <TabsContent value="ai" className="mt-3 min-h-0 flex-1">
-          <ComingSoon icon={AiChat02Icon} title="项目 AI 助手" />
+        {/* AI 助手 */}
+        <TabsContent value="ai" className="mt-3 flex min-h-0 flex-1 flex-col">
+          <AiChatPanel projectName={project.name} />
         </TabsContent>
       </Tabs>
 
