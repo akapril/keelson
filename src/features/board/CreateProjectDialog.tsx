@@ -40,6 +40,7 @@ interface CreateProjectDialogProps {
 export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
   const templates = useBoardStore((s) => s.templates);
   const loadProjects = useBoardStore((s) => s.loadProjects);
+  const projects = useBoardStore((s) => s.projects);
 
   // ── 表单状态 ──────────────────────────────────────────────
   const [name, setName] = useState("");
@@ -136,6 +137,15 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
               placeholder="输入项目名称"
               disabled={loading}
             />
+            {/* 同名提示（不阻止创建，仅提醒用仓库路径区分） */}
+            {name.trim() &&
+              projects.some(
+                (p) => p.name.trim().toLowerCase() === name.trim().toLowerCase(),
+              ) && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  已存在同名项目，建议绑定仓库路径以便区分。
+                </p>
+              )}
           </div>
 
           {/* 描述（可选） */}

@@ -63,6 +63,16 @@ export function listTasks(projectId: string): Promise<BoardTask[]> {
     });
 }
 
+/** 获取当前用户全部任务（跨项目，用于项目卡片统计）。owner 由访问规则保证。 */
+export function listAllTasks(): Promise<BoardTask[]> {
+  return pb.collection(COL.boardTasks).getFullList<BoardTask>({ requestKey: null });
+}
+
+/** 获取当前用户全部状态列（跨项目，用于判定任务是否「完成」类别）。 */
+export function listAllStates(): Promise<BoardState[]> {
+  return pb.collection(COL.boardStates).getFullList<BoardState>({ requestKey: null });
+}
+
 /**
  * 获取当前用户所有带 due_date 的任务（跨项目，用于日历聚合）。
  * owner 范围由访问规则保证；客户端再过滤出确有 due_date 的任务（date 字段空值语义稳妥）。
