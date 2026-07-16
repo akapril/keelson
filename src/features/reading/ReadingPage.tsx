@@ -2,10 +2,16 @@
 // 组件仅调用 store；数据访问由 store → src/lib/pb/reading.ts 收口。
 import { useEffect, useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, Delete02Icon, LinkSquare02Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  Delete02Icon,
+  LinkSquare02Icon,
+  TaskAdd01Icon,
+} from "@hugeicons/core-free-icons";
 
 import { useReadingStore } from "@/store/reading";
 import type { ReadingItem, ReadingStatus } from "@/types/reading";
+import { CreateTaskFromReadingDialog } from "./CreateTaskFromReadingDialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -51,9 +57,11 @@ function urlHost(url: string): string {
 // ── 单条阅读条目行 ─────────────────────────────────────────
 interface ReadingRowProps {
   item: ReadingItem;
+  /** 点击「建任务」：由页面打开建任务对话框 */
+  onCreateTask: (item: ReadingItem) => void;
 }
 
-function ReadingRow({ item }: ReadingRowProps) {
+function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
   const updateItem = useReadingStore((s) => s.updateItem);
   const removeItem = useReadingStore((s) => s.removeItem);
 
@@ -101,8 +109,20 @@ function ReadingRow({ item }: ReadingRowProps) {
           )}
         </div>
 
-        {/* 状态切换 + 删除 */}
+        {/* 建任务 + 状态切换 + 删除 */}
         <div className="flex shrink-0 items-center gap-1.5">
+          {/* 从当前阅读条目创建看板任务 */}
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="建任务"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => onCreateTask(item)}
+          >
+            <HugeiconsIcon icon={TaskAdd01Icon} strokeWidth={2} />
+            建任务
+          </Button>
+
           <Select
             value={item.status}
             onValueChange={(v) =>
@@ -148,6 +168,8 @@ export default function ReadingPage() {
   const [url, setUrl] = useState("");
   // 状态筛选
   const [filter, setFilter] = useState<FilterValue>("all");
+  // 建任务对话框：当前选中的来源阅读条目（null = 关闭）
+  const [taskFromItem, setTaskFromItem] = useState<ReadingItem | null>(null);
 
   // 挂载时加载数据并订阅；卸载时清理
   useEffect(() => {
@@ -254,11 +276,23 @@ export default function ReadingPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {visible.map((item) => (
-              <ReadingRow key={item.id} item={item} />
+              <ReadingRow
+                key={item.id}
+                item={item}
+                onCreateTask={setTaskFromItem}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {/* 从阅读条目建任务对话框（选中条目时渲染） */}
+      {taskFromItem && (
+        <CreateTaskFromReadingDialog
+          item={taskFromItem}
+          onClose={() => setTaskFromItem(null)}
+        />
+      )}
     </div>
   );
 }
