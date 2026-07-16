@@ -8,6 +8,29 @@ pb.autoCancellation(false);
 
 type BootstrapAuth = { baseUrl: string; token: string; userId: string };
 
+// ── 远程 PB（多设备）：设置里配置远程 URL 后，前端指向远程并走真实登录 ──
+const REMOTE_URL_KEY = "rework-remote-pb-url";
+
+/** 读取配置的远程 PB URL（空串=用本地内置 sidecar）。 */
+export function getRemotePbUrl(): string {
+  try {
+    return (localStorage.getItem(REMOTE_URL_KEY) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+/** 设置/清空远程 PB URL（清空=回到本地）。修改后需重载应用生效。 */
+export function setRemotePbUrl(url: string): void {
+  try {
+    const v = url.trim();
+    if (v) localStorage.setItem(REMOTE_URL_KEY, v);
+    else localStorage.removeItem(REMOTE_URL_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * 轮询等待后端 bootstrap 完成。
  *
@@ -34,6 +57,23 @@ async function waitForBootstrap(timeoutMs = 30_000, intervalMs = 400): Promise<B
 }
 
 export async function initPbAuth(): Promise<void> {
+  const remote = getRemotePbUrl();
+
+  // 远程模式：指向远程 PB，不自动登录；有已保存会话则刷新，否则由 LoginScreen 处理。
+  if (remote) {
+    pb.baseURL = remote;
+    if (pb.authStore.isValid) {
+      try {
+        await pb.collection("users").authRefresh();
+      } catch {
+        // 保存的 token 对远程无效（如来自本地）：清空 → 登录界面
+        pb.authStore.clear();
+      }
+    }
+    return;
+  }
+
+  // 本地模式：等待内置 sidecar bootstrap，免登录直接落 token。
   const a = await waitForBootstrap();
   // v0.27+ 使用 baseURL（非弃用属性），兼容 brief 中的 baseUrl 字段名（来自 Rust）
   pb.baseURL = a.baseUrl;

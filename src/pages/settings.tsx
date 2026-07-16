@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { ExportSection } from "@/features/export/ExportSection";
 import { UpdateSection } from "@/features/updater/UpdateSection";
+import { BackendSection } from "@/features/backend/BackendSection";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
 /**
@@ -330,6 +331,11 @@ export default function Settings() {
 
       {/* ── 软件更新 ── */}
       <UpdateSection />
+
+      <div className="border-t border-border" />
+
+      {/* ── 后端 / 远程 PB ── */}
+      <BackendSection />
     </div>
   );
 }
