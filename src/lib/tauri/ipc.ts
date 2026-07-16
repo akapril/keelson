@@ -9,7 +9,7 @@ export const ipc = {
   /** 获取所有本地会话（Task 17） */
   listSessions: () => invoke<Session[]>("sessions_list"),
 
-  /** 全文搜索会话（Task 17，MVP 暂未使用，留待后续调用） */
+  /** 全文搜索会话（Tantivy 后端，覆盖全部用户消息，按相关度排序） */
   searchSessions: (q: string) => invoke<SessionHit[]>("sessions_search", { query: q }),
 
   /** 获取指定会话的时间线消息（Task 17）

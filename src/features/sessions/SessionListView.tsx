@@ -26,6 +26,7 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
   const query = useSessionSearchStore((s) => s.query);
   const results = useSessionSearchStore((s) => s.results);
   const run = useSessionSearchStore((s) => s.run);
+  const searchLoading = useSessionSearchStore((s) => s.loading);
 
   // 搜索词非空时进入搜索模式
   const isSearching = query.trim().length > 0;
@@ -53,9 +54,11 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
           // 加载状态
           <p className="py-8 text-center text-sm text-muted-foreground">加载中…</p>
         ) : isSearching ? (
-          // ── 搜索结果视图 ──────────────────────────────────
+          // ── 搜索结果视图（Tantivy 全文检索，覆盖全部消息）──────
           <div className="flex flex-col gap-2">
-            {results.length === 0 ? (
+            {searchLoading && results.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">检索中…</p>
+            ) : results.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 未找到匹配的会话
               </p>
