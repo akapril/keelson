@@ -96,6 +96,9 @@ pub struct AppState {
     pub config: Arc<Mutex<config::AppConfig>>,
     /// PocketBase sidecar 子进程句柄；应用退出时回收，避免遗留孤儿进程锁 .exe / 抢数据目录
     pub pb_child: Arc<Mutex<Option<CommandChild>>>,
+    /// AI 流式对话的取消标志表（stream_id → 取消位），供「停止生成」使用
+    pub ai_cancels:
+        Arc<Mutex<std::collections::HashMap<String, Arc<std::sync::atomic::AtomicBool>>>>,
 }
 
 impl Default for AppState {
@@ -111,6 +114,7 @@ impl Default for AppState {
             paths,
             config: Arc::new(Mutex::new(cfg)),
             pb_child: Arc::new(Mutex::new(None)),
+            ai_cancels: Arc::new(Mutex::new(std::collections::HashMap::new())),
         }
     }
 }
@@ -222,6 +226,7 @@ pub fn run() {
             // AI 对话（ai.rs，provider 可切）
             commands::ai::ai_chat,
             commands::ai::ai_chat_stream,
+            commands::ai::ai_cancel_stream,
         ])
         .build(tauri::generate_context!())
         .expect("构建 rework 失败")
