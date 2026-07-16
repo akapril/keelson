@@ -2,7 +2,7 @@
 // 保留：折叠触发器 + 面包屑 + 主题切换。用户菜单待 Phase⑤ 多用户再补。
 import { useLocation } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Logout02Icon } from "@hugeicons/core-free-icons";
+import { Logout02Icon, SearchIcon } from "@hugeicons/core-free-icons";
 
 import {
   Breadcrumb,
@@ -62,6 +62,21 @@ export function AppHeader() {
       </Breadcrumb>
 
       <div className="ml-auto flex items-center gap-1">
+        {/* 全局搜索（打开命令面板 ⌘K） */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 text-muted-foreground"
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent("open-command-palette"))
+          }
+        >
+          <HugeiconsIcon icon={SearchIcon} strokeWidth={2} />
+          <span className="hidden sm:inline">搜索</span>
+          <kbd className="hidden rounded border border-border bg-muted px-1 text-[10px] sm:inline">
+            ⌘K
+          </kbd>
+        </Button>
         <ThemeToggle />
         <Separator
           orientation="vertical"

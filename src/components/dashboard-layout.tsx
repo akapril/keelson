@@ -4,6 +4,7 @@ import { Outlet } from "react-router-dom";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
+import { CommandPalette } from "@/components/command-palette";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 export function DashboardLayout() {
@@ -18,6 +19,8 @@ export function DashboardLayout() {
           <Outlet />
         </main>
       </SidebarInset>
+      {/* 全局命令面板（⌘K / Ctrl+K） */}
+      <CommandPalette />
     </SidebarProvider>
   );
 }
