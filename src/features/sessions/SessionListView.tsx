@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { useSessionsStore } from "../../store/sessions";
 import { useSessionSearchStore } from "../../store/session-search";
 import { SessionCard } from "./SessionCard";
@@ -34,6 +36,15 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
 
   // 本地状态：当前正在“提升为看板项目”的分组路径（null = 未打开对话框）
   const [promotingPath, setPromotingPath] = useState<string | null>(null);
+  // 已折叠的分组路径集合（项目多时可折叠收纳）
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggleCollapse = (path: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -86,16 +97,35 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
                 // 从完整路径提取可读的项目名
                 const projectName =
                   projectPath.split(/[\\/]/).filter(Boolean).at(-1) ?? projectPath;
+                const isCollapsed = collapsed.has(projectPath);
                 return (
                   <section key={projectPath}>
-                    {/* 分组标题行：项目名 + “提升为看板项目”入口 */}
+                    {/* 分组标题行：折叠切换（名称+计数）+ “提升为看板项目”入口 */}
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <h2
-                        className="min-w-0 truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                        title={projectPath}
+                      <button
+                        type="button"
+                        onClick={() => toggleCollapse(projectPath)}
+                        title={isCollapsed ? "展开" : "折叠"}
+                        aria-expanded={!isCollapsed}
+                        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-0.5 py-0.5 text-left hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring"
                       >
-                        {projectName}
-                      </h2>
+                        <HugeiconsIcon
+                          icon={ArrowRight01Icon}
+                          strokeWidth={2}
+                          className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${
+                            isCollapsed ? "" : "rotate-90"
+                          }`}
+                        />
+                        <span
+                          className="min-w-0 truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                          title={projectPath}
+                        >
+                          {projectName}
+                        </span>
+                        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                          {sessions.length}
+                        </span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => setPromotingPath(projectPath)}
@@ -105,16 +135,18 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
                         提升为看板项目
                       </button>
                     </div>
-                    <div className="flex flex-col gap-1.5">
-                      {sessions.map((session) => (
-                        <SessionCard
-                          key={session.session_id}
-                          session={session}
-                          selected={session.session_id === selectedId}
-                          onSelect={onSelect}
-                        />
-                      ))}
-                    </div>
+                    {!isCollapsed && (
+                      <div className="flex flex-col gap-1.5">
+                        {sessions.map((session) => (
+                          <SessionCard
+                            key={session.session_id}
+                            session={session}
+                            selected={session.session_id === selectedId}
+                            onSelect={onSelect}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </section>
                 );
               })
