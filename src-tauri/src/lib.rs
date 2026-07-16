@@ -210,6 +210,8 @@ pub fn run() {
             commands::config::config_set_hotkey,
             // git 状态（Board - git.rs）
             commands::git::git_info,
+            // AI 对话（ai.rs，provider 可切）
+            commands::ai::ai_chat,
         ])
         .run(tauri::generate_context!())
         .expect("运行 rework 失败");

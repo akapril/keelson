@@ -18,6 +18,8 @@ pub mod config;
 pub mod workbench;
 // git 状态命令（git_info；Board 项目详情的 git 状态条用）
 pub mod git;
+// AI 对话命令（ai_chat；项目工作台 AI 标签用，provider 可切）
+pub mod ai;
 
 // 注意：generate_handler! 宏需要使用函数定义所在的原始路径（含辅助符号），
 // 故不做 re-export；lib.rs 中直接使用 commands::sessions::sessions_list 等完整路径。
