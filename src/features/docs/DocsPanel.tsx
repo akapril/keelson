@@ -30,7 +30,14 @@ import {
   type DocumentEditorMode,
 } from "./MilkdownDocumentEditor";
 
-export function DocsPanel({ projectId }: { projectId: string }) {
+export function DocsPanel({
+  projectId,
+  initialDocId,
+}: {
+  projectId: string;
+  /** 深链接定位的文档 id（来自 ⌘K 文档搜索）；加载后自动选中。 */
+  initialDocId?: string;
+}) {
   const docs = useDocsStore((s) => s.docs);
   const loading = useDocsStore((s) => s.loading);
 
@@ -50,6 +57,13 @@ export function DocsPanel({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (!selectedId && docs.length > 0) setSelectedId(docs[0].id);
   }, [docs, selectedId]);
+
+  // 深链接：⌘K 文档搜索定位的文档，加载后自动选中（存在才切换，覆盖默认选中）。
+  useEffect(() => {
+    if (initialDocId && docs.some((d) => d.id === initialDocId)) {
+      setSelectedId(initialDocId);
+    }
+  }, [initialDocId, docs]);
 
   // 切换选中文档时，把其正文载入编辑器本地状态。
   useEffect(() => {
