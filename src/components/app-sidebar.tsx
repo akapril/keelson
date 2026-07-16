@@ -30,7 +30,7 @@ export function AppSidebar() {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-2"
             >
-              <NavLink to="/sessions">
+              <NavLink to="/dashboard">
                 {/* 品牌标记（裸 SVG，对齐 workavera 样式） */}
                 <Logo className="!size-[30px] shrink-0 group-data-[collapsible=icon]:!size-4" />
                 <div className="grid flex-1 text-left text-sm leading-tight">
