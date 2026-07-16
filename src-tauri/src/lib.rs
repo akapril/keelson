@@ -132,7 +132,13 @@ fn get_bootstrap_auth(state: tauri::State<AppState>) -> Result<serde_json::Value
 /// - 生产环境：从 Tauri Resource 目录解析
 /// - 开发环境：回退到 Cargo manifest 所在目录下的 pb_migrations
 fn resolve_migrations_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
-    // 先尝试 Resource 路径（打包后）
+    let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("pb_migrations");
+    // 开发环境：始终用源码目录。Resource 副本（target/debug/pb_migrations）是上次构建时
+    // 复制的，纯前端 / 迁移文件改动不触发重建 → 副本会漏掉新迁移，导致新集合缺失（404）。
+    if cfg!(debug_assertions) {
+        return source;
+    }
+    // 生产环境：从打包的 Resource 目录解析
     if let Ok(p) = app
         .path()
         .resolve("pb_migrations", tauri::path::BaseDirectory::Resource)
@@ -141,9 +147,7 @@ fn resolve_migrations_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
             return p;
         }
     }
-    // 开发环境回退：CARGO_MANIFEST_DIR/pb_migrations
-    let fallback = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("pb_migrations");
-    fallback
+    source
 }
 
 /// 应用入口：注册插件与命令处理器，启动 PocketBase 并执行 bootstrap。
