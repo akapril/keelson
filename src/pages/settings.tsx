@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ExportSection } from "@/features/export/ExportSection";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
 /**
@@ -318,6 +319,11 @@ export default function Settings() {
           />
         </div>
       </section>
+
+      <div className="border-t border-border" />
+
+      {/* ── 数据导出 ── */}
+      <ExportSection />
     </div>
   );
 }
