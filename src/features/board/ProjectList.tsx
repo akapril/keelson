@@ -1,9 +1,25 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useBoardStore } from "../../store/board";
 import { useSessionsStore } from "../../store/sessions";
 import { listAllTasks, listAllStates } from "../../lib/pb/board";
 import { listAllDocs } from "../../lib/pb/docs";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 import type { BoardProject } from "../../types/board";
+
+/** 复制文本到剪贴板 + 反馈 */
+export function copyText(text: string, label: string) {
+  void navigator.clipboard.writeText(text).then(
+    () => toast.success(`已复制${label}`),
+    () => toast.error("复制失败"),
+  );
+}
 
 // 单项目统计（用于卡片展示）
 interface ProjectStat {
@@ -38,13 +54,14 @@ function ProjectCard({
   duplicate: boolean;
 }) {
   const openProject = useBoardStore((s) => s.openProject);
+  const updateProject = useBoardStore((s) => s.updateProject);
   const handleOpen = () => void openProject(project.id);
 
   const total = stat?.total ?? 0;
   const done = stat?.done ?? 0;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  return (
+  const card = (
     <div
       role="button"
       tabIndex={0}
@@ -97,6 +114,28 @@ function ProjectCard({
         <span>会话 {stat?.sessions ?? 0}</span>
       </div>
     </div>
+  );
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={handleOpen}>打开项目</ContextMenuItem>
+        {project.repo_path && (
+          <ContextMenuItem onSelect={() => copyText(project.repo_path!, "仓库路径")}>
+            复制仓库路径
+          </ContextMenuItem>
+        )}
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onSelect={() =>
+            void updateProject(project.id, { archived: !project.archived })
+          }
+        >
+          {project.archived ? "取消归档" : "归档"}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 

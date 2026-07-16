@@ -18,6 +18,13 @@ import type { ReadingItem, ReadingStatus } from "@/types/reading";
 import type { AiChatMessage } from "@/types/ai";
 import { CreateTaskFromReadingDialog } from "./CreateTaskFromReadingDialog";
 import { ReadingDetailDialog } from "./ReadingDetailDialog";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -120,6 +127,8 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
   }
 
   return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
     <Card size="sm" className="gap-2">
       <div className="flex items-start gap-3 px-4">
         {/* 标题 + 链接 + 备注 */}
@@ -237,6 +246,48 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
         onClose={() => setDetailOpen(false)}
       />
     </Card>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        {item.url && (
+          <ContextMenuItem onSelect={() => window.open(item.url, "_blank")}>
+            打开链接
+          </ContextMenuItem>
+        )}
+        {item.url && (
+          <ContextMenuItem onSelect={() => void handleAiParse()} disabled={parsing}>
+            {parsing ? "解析中…" : "AI 解析"}
+          </ContextMenuItem>
+        )}
+        <ContextMenuItem onSelect={() => onCreateTask(item)}>建任务</ContextMenuItem>
+        {item.note && (
+          <ContextMenuItem onSelect={() => setDetailOpen(true)}>查看全文</ContextMenuItem>
+        )}
+        <ContextMenuSeparator />
+        {STATUS_OPTIONS.filter((o) => o.value !== item.status).map((o) => (
+          <ContextMenuItem
+            key={o.value}
+            onSelect={() => void updateItem(item.id, { status: o.value })}
+          >
+            标记为{o.label}
+          </ContextMenuItem>
+        ))}
+        <ContextMenuSeparator />
+        {item.url && (
+          <ContextMenuItem
+            onSelect={() =>
+              void navigator.clipboard
+                .writeText(item.url)
+                .then(() => toast.success("已复制链接"))
+            }
+          >
+            复制链接
+          </ContextMenuItem>
+        )}
+        <ContextMenuItem variant="destructive" onSelect={() => void removeItem(item.id)}>
+          删除
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 

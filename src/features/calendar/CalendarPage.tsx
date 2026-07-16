@@ -26,6 +26,12 @@ import {
   KanbanIcon,
 } from "@hugeicons/core-free-icons";
 
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
 import { useCalendarStore } from "@/store/calendar";
 import type { CalendarEvent } from "@/types/calendar";
 import { listDueTasks, listProjects } from "@/lib/pb/board";
@@ -328,25 +334,37 @@ export default function CalendarPage() {
               {/* 事件小片列表 */}
               <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
                 {dayEvents.map((ev) => (
-                  <button
-                    key={ev.id}
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation(); // 阻止冒泡到格子的新建
-                      openEdit(ev);
-                    }}
-                    className="flex items-center gap-1 rounded px-1 py-0.5 text-left text-xs hover:bg-muted"
-                    title={ev.title}
-                  >
-                    {/* 颜色圆点：事件自定义颜色（用户数据）走内联样式 */}
-                    <span
-                      className="size-2 shrink-0 rounded-full"
-                      style={{
-                        background: ev.color || "var(--color-primary)",
-                      }}
-                    />
-                    <span className="truncate text-foreground">{ev.title}</span>
-                  </button>
+                  <ContextMenu key={ev.id}>
+                    <ContextMenuTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation(); // 阻止冒泡到格子的新建
+                          openEdit(ev);
+                        }}
+                        className="flex items-center gap-1 rounded px-1 py-0.5 text-left text-xs hover:bg-muted"
+                        title={ev.title}
+                      >
+                        {/* 颜色圆点：事件自定义颜色（用户数据）走内联样式 */}
+                        <span
+                          className="size-2 shrink-0 rounded-full"
+                          style={{
+                            background: ev.color || "var(--color-primary)",
+                          }}
+                        />
+                        <span className="truncate text-foreground">{ev.title}</span>
+                      </button>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem onSelect={() => openEdit(ev)}>编辑</ContextMenuItem>
+                      <ContextMenuItem
+                        variant="destructive"
+                        onSelect={() => void removeEvent(ev.id)}
+                      >
+                        删除
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
                 ))}
 
                 {/* 看板任务 due_date（只读叠加，点击跳到该任务的项目工作台） */}

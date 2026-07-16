@@ -1,8 +1,16 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
 import { RestoreDialog } from "./RestoreDialog";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 
 // ── 工具函数：截断 last_prompt 文本 ────────────────────────
 /** 将字符串截断至 maxLen 字符，超出部分用省略号代替 */
@@ -57,6 +65,8 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
 
   return (
     <>
+      <ContextMenu>
+      <ContextMenuTrigger asChild>
       <div
         role="button"
         tabIndex={0}
@@ -119,6 +129,36 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
           </p>
         )}
       </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => setRestoreTarget(session)}>
+          恢复会话
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => setTaskDialogOpen(true)}>建任务</ContextMenuItem>
+        <ContextMenuItem onSelect={() => toggleFavorite(session.session_id)}>
+          {isFav ? "取消收藏" : "收藏"}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onSelect={() =>
+            void navigator.clipboard
+              .writeText(session.project_path)
+              .then(() => toast.success("已复制项目路径"))
+          }
+        >
+          复制项目路径
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={() =>
+            void navigator.clipboard
+              .writeText(session.session_id)
+              .then(() => toast.success("已复制会话 ID"))
+          }
+        >
+          复制会话 ID
+        </ContextMenuItem>
+      </ContextMenuContent>
+      </ContextMenu>
 
       {/* 恢复对话框（挂载于 SessionCard 外层，避免被卡片样式裁剪） */}
       <RestoreDialog
