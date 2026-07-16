@@ -120,7 +120,8 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
     const reqMsgs: AiChatMessage[] = [system];
     if (includeContext) {
       try {
-        const ctx = await buildProjectContext(projectId, repoPath);
+        // 传入当前提问，按相关性挑选最相关的文档/会话片段
+        const ctx = await buildProjectContext(projectId, repoPath, text);
         if (ctx) {
           reqMsgs.push({
             role: "system",
