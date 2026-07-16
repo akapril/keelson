@@ -12,20 +12,22 @@ export const ipc = {
   /** 全文搜索会话（Task 17，MVP 暂未使用，留待后续调用） */
   searchSessions: (q: string) => invoke<SessionHit[]>("sessions_search", { query: q }),
 
-  /** 获取指定会话的时间线消息（Task 17） */
+  /** 获取指定会话的时间线消息（Task 17）
+   *  注意：Tauri v2 默认前端传 camelCase，自动映射到 Rust 的 snake_case 形参。 */
   sessionTimeline: (provider: string, id: string) =>
-    invoke<TimelineMessage[]>("sessions_timeline", { provider, session_id: id }),
+    invoke<TimelineMessage[]>("sessions_timeline", { provider, sessionId: id }),
 
   /** 获取所有项目路径（Task 17） */
   projectPaths: () => invoke<string[]>("sessions_project_paths"),
 
-  /** 恢复/打开一个会话终端（Task 17） */
+  /** 恢复/打开一个会话终端（Task 17）
+   *  注意：Tauri v2 默认前端传 camelCase（projectPath/sessionId/asTab），自动映射到 snake_case 形参。 */
   restore: (provider: string, projectPath: string, id: string, asTab: boolean) =>
     invoke<void>("terminal_resume", {
       provider,
-      project_path: projectPath,
-      session_id: id,
-      as_tab: asTab,
+      projectPath,
+      sessionId: id,
+      asTab,
     }),
 
   // ── 配置 ──────────────────────────────────────────────────
