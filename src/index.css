@@ -148,8 +148,11 @@
   top: var(--titlebar-h);
   height: calc(100svh - var(--titlebar-h)) !important;
 }
+/* 给 wrapper 确定高度（非 min-height），让内部 flex-1 / h-full 页面高度链确定，
+   从而会话中枢的左侧列表、右侧预览各自内部滚动，固定区不动。 */
 [data-slot="sidebar-wrapper"] {
-  min-height: calc(100svh - var(--titlebar-h)) !important;
+  height: calc(100svh - var(--titlebar-h)) !important;
+  min-height: 0 !important;
 }
 
 /* ===== 自定义滚动条：细、圆角、随主题；替换 Windows 默认粗滚动条 =====
