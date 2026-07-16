@@ -1,16 +1,21 @@
 // Reading 页面 —— 阅读列表：添加、按状态筛选、状态流转、删除。
 // 组件仅调用 store；数据访问由 store → src/lib/pb/reading.ts 收口。
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Add01Icon,
   Delete02Icon,
   LinkSquare02Icon,
   TaskAdd01Icon,
+  AiChat02Icon,
 } from "@hugeicons/core-free-icons";
 
 import { useReadingStore } from "@/store/reading";
+import { useSettingsStore } from "@/store/settings";
+import { ipc } from "@/lib/tauri/ipc";
 import type { ReadingItem, ReadingStatus } from "@/types/reading";
+import type { AiChatMessage } from "@/types/ai";
 import { CreateTaskFromReadingDialog } from "./CreateTaskFromReadingDialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -64,6 +69,50 @@ interface ReadingRowProps {
 function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
   const updateItem = useReadingStore((s) => s.updateItem);
   const removeItem = useReadingStore((s) => s.removeItem);
+  // AI 解析进行中标记
+  const [parsing, setParsing] = useState(false);
+
+  // 抓取网页正文 → AI 摘要 → 保存到备注
+  async function handleAiParse() {
+    if (!item.url || parsing) return;
+    const cfg = useSettingsStore.getState().aiConfig;
+    if (!cfg.api_key) {
+      toast.error("请先在设置中配置 AI 服务");
+      return;
+    }
+    setParsing(true);
+    try {
+      const text = await ipc.fetchUrlText(item.url);
+      if (!text.trim()) {
+        toast.error("未能抓取到网页正文");
+        return;
+      }
+      const msgs: AiChatMessage[] = [
+        {
+          role: "system",
+          content:
+            "你是阅读助手。请对给定网页正文用简洁中文输出：第一行一句话摘要；随后 3-6 个关键点，每行以「- 」开头。不要客套或复述原文。",
+        },
+        { role: "user", content: text },
+      ];
+      const reply = (await ipc.aiChat(cfg, msgs)).trim();
+      if (!reply) {
+        toast.error("AI 未返回内容");
+        return;
+      }
+      // 合并到备注（保留已有内容），并限长以规避 PB text 字段上限
+      const merged = item.note?.trim()
+        ? `${item.note.trim()}\n\n— AI 摘要 —\n${reply}`
+        : reply;
+      const note = merged.length > 4800 ? merged.slice(0, 4800) : merged;
+      await updateItem(item.id, { note });
+      toast.success("已生成 AI 摘要并保存到备注");
+    } catch (e) {
+      toast.error(`解析失败：${String(e)}`);
+    } finally {
+      setParsing(false);
+    }
+  }
 
   return (
     <Card size="sm" className="gap-2">
@@ -109,8 +158,24 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
           )}
         </div>
 
-        {/* 建任务 + 状态切换 + 删除 */}
+        {/* AI 解析 + 建任务 + 状态切换 + 删除 */}
         <div className="flex shrink-0 items-center gap-1.5">
+          {/* AI 解析：抓取网页正文并生成摘要，保存到备注（仅有链接时可用） */}
+          {item.url && (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="AI 解析"
+              disabled={parsing}
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => void handleAiParse()}
+              title="抓取网页并用 AI 生成摘要，保存到备注"
+            >
+              <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} />
+              {parsing ? "解析中…" : "AI 解析"}
+            </Button>
+          )}
+
           {/* 从当前阅读条目创建看板任务 */}
           <Button
             variant="ghost"

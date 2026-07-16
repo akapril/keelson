@@ -9,6 +9,9 @@ export const ipc = {
   writeTextFile: (path: string, content: string) =>
     invoke<void>("write_text_file", { path, content }),
 
+  /** 抓取 URL 并返回粗提取的可读正文（阅读「AI 解析」用） */
+  fetchUrlText: (url: string) => invoke<string>("fetch_url_text", { url }),
+
   // ── 会话列表 ──────────────────────────────────────────────
   /** 获取所有本地会话（Task 17） */
   listSessions: () => invoke<Session[]>("sessions_list"),

@@ -230,6 +230,8 @@ pub fn run() {
             commands::ai::ai_cancel_stream,
             // 文件写入（导出「另存为」）
             commands::fs::write_text_file,
+            // 网页抓取（阅读「AI 解析」）
+            commands::web::fetch_url_text,
         ])
         .build(tauri::generate_context!())
         .expect("构建 rework 失败")
