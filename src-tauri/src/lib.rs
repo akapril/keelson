@@ -28,6 +28,7 @@ pub mod sync;
 use std::sync::Arc;
 use parking_lot::Mutex;
 use tauri::{Emitter, Manager};
+use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 /// 注册 Spotlight 全局快捷键的可复用辅助函数。
@@ -93,6 +94,8 @@ pub struct AppState {
     pub paths: paths::AppPaths,
     /// 应用配置（hotkey + terminal_pref，可被命令写入）
     pub config: Arc<Mutex<config::AppConfig>>,
+    /// PocketBase sidecar 子进程句柄；应用退出时回收，避免遗留孤儿进程锁 .exe / 抢数据目录
+    pub pb_child: Arc<Mutex<Option<CommandChild>>>,
 }
 
 impl Default for AppState {
@@ -107,6 +110,7 @@ impl Default for AppState {
             index: Arc::new(Mutex::new(None)),
             paths,
             config: Arc::new(Mutex::new(cfg)),
+            pb_child: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -155,6 +159,7 @@ pub fn run() {
             let auth_slot = state.auth.clone();
             let sessions_slot = state.sessions.clone();
             let index_slot = state.index.clone();
+            let pb_child_slot = state.pb_child.clone();
 
             // ── Spotlight 全局快捷键注册 ───────────────────────────────
             // 从配置中读取 hotkey 字符串，通过可复用的辅助函数注册全局快捷键
@@ -174,7 +179,7 @@ pub fn run() {
 
             // 在后台 tokio 任务中完成 PB 启动 + bootstrap + 会话同步
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = setup_pocketbase(handle, data_dir, mig_dir, auth_slot, sessions_slot, index_slot).await {
+                if let Err(e) = setup_pocketbase(handle, data_dir, mig_dir, auth_slot, sessions_slot, index_slot, pb_child_slot).await {
                     // 仅记录错误，不 panic（UI 层通过 get_bootstrap_auth 的 Err 感知）
                     eprintln!("[rework] PocketBase 初始化失败: {e:#}");
                 }
@@ -214,8 +219,19 @@ pub fn run() {
             commands::ai::ai_chat,
             commands::ai::ai_chat_stream,
         ])
-        .run(tauri::generate_context!())
-        .expect("运行 rework 失败");
+        .build(tauri::generate_context!())
+        .expect("构建 rework 失败")
+        .run(|app_handle, event| {
+            // 应用退出：回收 PocketBase sidecar，避免遗留进程锁住 .exe / 抢占数据目录
+            if let tauri::RunEvent::Exit = event {
+                let state: tauri::State<AppState> = app_handle.state();
+                // 先取出句柄再释放锁：避免 MutexGuard 临时借用跨越 state 生命周期
+                let child = state.pb_child.lock().take();
+                if let Some(child) = child {
+                    let _ = child.kill();
+                }
+            }
+        });
 }
 
 /// 完整的 PocketBase 初始化流程：
@@ -233,6 +249,7 @@ async fn setup_pocketbase(
     auth_slot: Arc<Mutex<Option<pb::bootstrap::BootstrapAuth>>>,
     sessions_slot: Arc<Mutex<Vec<crate::models::Session>>>,
     index_slot: Arc<Mutex<Option<indexer::SessionIndex>>>,
+    pb_child_slot: Arc<Mutex<Option<CommandChild>>>,
 ) -> anyhow::Result<()> {
     let port = pb::process::pick_free_port();
     let base = format!("http://127.0.0.1:{port}");
@@ -251,7 +268,8 @@ async fn setup_pocketbase(
     .await?;
 
     // 步骤 3：启动 serve
-    let _child = pb::process::spawn_pocketbase(&handle, &data_dir, &mig_dir, port)?;
+    // 存入 AppState 供退出时回收（不再立即 drop 而遗留孤儿进程）
+    *pb_child_slot.lock() = Some(pb::process::spawn_pocketbase(&handle, &data_dir, &mig_dir, port)?);
 
     // 步骤 4：等待 PB 就绪
     pb::process::wait_healthy(&base, 15_000).await?;
