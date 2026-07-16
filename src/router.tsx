@@ -3,6 +3,7 @@ import { DashboardLayout } from "./components/dashboard-layout";
 import Sessions from "./pages/sessions";
 import Settings from "./pages/settings";
 import Board from "./pages/board";
+import ReadingPage from "./features/reading/ReadingPage";
 
 export function AppRouter() {
   return (
@@ -11,6 +12,7 @@ export function AppRouter() {
         <Route element={<DashboardLayout />}>
           <Route path="/sessions" element={<Sessions />} />
           <Route path="/board" element={<Board />} />
+          <Route path="/reading" element={<ReadingPage />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/sessions" replace />} />
         </Route>

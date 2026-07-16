@@ -10,6 +10,7 @@ export const COL = {
   boardMembers: "board_project_members",
   boardTemplates: "board_templates",
   docs: "docs",
+  readingItems: "reading_items",
 } as const;
 export const list = <T>(coll: string, opts: Record<string, unknown> = {}) =>
   pb.collection(coll).getFullList<T>({ requestKey: null, ...opts });

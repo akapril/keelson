@@ -3,6 +3,7 @@ import type { IconSvgElement } from "@hugeicons/react";
 import {
   Chat01Icon,
   DashboardSquare02Icon,
+  BookOpen01Icon,
   Settings02Icon,
 } from "@hugeicons/core-free-icons";
 
@@ -33,6 +34,12 @@ export const navGroups: NavGroup[] = [
         url: "/board",
         icon: DashboardSquare02Icon,
         description: "项目工作台：会话 · 看板 · 文档 · git",
+      },
+      {
+        title: "阅读",
+        url: "/reading",
+        icon: BookOpen01Icon,
+        description: "个人书签 / 稍后读",
       },
     ],
   },
