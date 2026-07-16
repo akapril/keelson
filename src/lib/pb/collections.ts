@@ -11,6 +11,7 @@ export const COL = {
   boardTemplates: "board_templates",
   docs: "docs",
   readingItems: "reading_items",
+  calendarEvents: "calendar_events",
 } as const;
 export const list = <T>(coll: string, opts: Record<string, unknown> = {}) =>
   pb.collection(coll).getFullList<T>({ requestKey: null, ...opts });
