@@ -74,6 +74,19 @@ export function listDueTasks(): Promise<BoardTask[]> {
     .then((all) => all.filter((t) => !!t.due_date));
 }
 
+/**
+ * 获取由指定会话衍生的任务（source_session_id 反查，跨项目）。
+ * 用于会话↔看板双向跳转：在会话预览里展示它已创建的看板任务。
+ * owner 范围由访问规则保证；按创建时间倒序（新任务在前）。
+ */
+export function listTasksBySession(sessionId: string): Promise<BoardTask[]> {
+  return pb.collection(COL.boardTasks).getFullList<BoardTask>({
+    requestKey: null,
+    filter: pb.filter("source_session_id = {:sid}", { sid: sessionId }),
+    sort: "-created",
+  });
+}
+
 // ── 通用 CRUD ─────────────────────────────────────────────
 
 /** 创建记录，返回创建后的完整记录 */
