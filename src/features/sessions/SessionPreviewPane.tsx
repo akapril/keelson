@@ -6,6 +6,7 @@ import { RestoreDialog } from "./RestoreDialog";
 import { SessionLinkedTasks } from "./SessionLinkedTasks";
 import { SessionContinueDialog } from "./SessionContinueDialog";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
+import { DistillDialog } from "../chemistry/DistillDialog";
 
 // ── 预览消息的显示数量上限 ────────────────────────────────
 const PREVIEW_LIMIT = 10;
@@ -40,6 +41,8 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   const [linkedRefresh, setLinkedRefresh] = useState(0);
   // 控制"在 AI 中继续"对话框
   const [continueOpen, setContinueOpen] = useState(false);
+  // 控制"AI 提炼沉淀"对话框
+  const [distillOpen, setDistillOpen] = useState(false);
 
   // 面板容器 ref，用于注册键盘监听
   const paneRef = useRef<HTMLDivElement>(null);
@@ -118,6 +121,14 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
               title="载入会话历史，在 AI 中继续对话"
             >
               AI 续聊
+            </button>
+            {/* AI 提炼沉淀：抽取候选任务/文档并写入项目 */}
+            <button
+              onClick={() => setDistillOpen(true)}
+              className="rounded-lg border border-border bg-card px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              title="用 AI 从此会话提炼任务与文档，确认后写入项目"
+            >
+              AI 提炼
             </button>
             {/* 建任务按钮：打开"从会话建任务"对话框 */}
             <button
@@ -205,6 +216,12 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
     <SessionContinueDialog
       session={continueOpen ? session : null}
       onClose={() => setContinueOpen(false)}
+    />
+
+    {/* AI 提炼沉淀对话框 */}
+    <DistillDialog
+      session={distillOpen ? session : null}
+      onClose={() => setDistillOpen(false)}
     />
 
     {/* 从会话建任务对话框 */}
