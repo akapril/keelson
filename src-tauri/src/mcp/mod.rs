@@ -3,6 +3,7 @@
 pub mod registry;
 pub mod rank;
 pub mod tools;
+pub mod server;
 
 /// MCP handler 的上下文：以 local-user 身份打 PB。
 pub struct McpCtx {
