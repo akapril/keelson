@@ -28,6 +28,8 @@ pub mod fs;
 pub mod web;
 // RAG 命令（rag_build_index / rag_search；跨会话语义检索）
 pub mod rag;
+// MCP 一键接入命令（把 rework MCP 写入 claude / codex 配置）
+pub mod mcp;
 
 // 注意：generate_handler! 宏需要使用函数定义所在的原始路径（含辅助符号），
 // 故不做 re-export；lib.rs 中直接使用 commands::sessions::sessions_list 等完整路径。
