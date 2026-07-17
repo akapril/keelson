@@ -3,6 +3,7 @@
 pub mod chunk;
 pub mod store;
 pub mod embed;
+pub mod indexer;
 
 use serde::{Deserialize, Serialize};
 
@@ -23,4 +24,14 @@ pub struct EmbedConfig {
     pub base_url: String,
     pub api_key: String,
     pub model: String,
+}
+
+/// 检索命中片段（回传前端）。
+#[derive(Debug, Clone, Serialize)]
+pub struct RagHit {
+    pub session_id: String,
+    pub provider: String,
+    pub role: String,
+    pub snippet: String,
+    pub score: f32,
 }
