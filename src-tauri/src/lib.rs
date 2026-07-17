@@ -379,6 +379,17 @@ async fn setup_pocketbase(
     let pb_client = pb::client::PbClient::new(&auth.base_url, &auth.token);
     *auth_slot.lock() = Some(auth);
 
+    // 启动应用内 MCP server（auth 已就绪；失败不阻断应用启动，仅打日志）。
+    {
+        let mcp_handle = handle.clone();
+        tauri::async_runtime::spawn(async move {
+            match crate::mcp::server::start(mcp_handle).await {
+                Ok(ep) => println!("[mcp] MCP server 就绪：{}", ep.url),
+                Err(e) => eprintln!("[mcp] MCP server 启动失败：{e}"),
+            }
+        });
+    }
+
     // 步骤 6：扫描会话（缓存秒加载 + 增量）+ 重建 Tantivy 索引 + 同步到 PB
     let reg = Arc::new(providers::ProviderRegistry::new());
     let cache_path = data_dir.join("scan_cache.json");
