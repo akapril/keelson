@@ -62,3 +62,32 @@ export const DEFAULT_AI_CONFIG: AiConfig = {
   model: "gpt-4o-mini",
   cli_path: "",
 };
+
+// ── 按服务商隔离的配置 ─────────────────────────────────────
+// 每个服务商各自持久化一份字段（provider 本身除外），切换服务商时互不覆盖。
+
+/** 单个服务商保存的字段（不含 provider）。 */
+export interface AiProviderFields {
+  base_url: string;
+  api_key: string;
+  model: string;
+  cli_path?: string;
+}
+
+/** 各服务商的默认模型；本地 CLI 由自身决定模型，无需填写，故留空。 */
+export const DEFAULT_MODEL_BY_PROVIDER: Record<AiProvider, string> = {
+  openai: "gpt-4o-mini",
+  anthropic: "claude-3-5-sonnet-latest",
+  "claude-cli": "",
+  "codex-cli": "",
+};
+
+/** 构造某服务商的默认字段（模型预填官方默认，其余留空）。 */
+export function defaultFieldsFor(provider: AiProvider): AiProviderFields {
+  return {
+    base_url: "",
+    api_key: "",
+    model: DEFAULT_MODEL_BY_PROVIDER[provider],
+    cli_path: "",
+  };
+}
