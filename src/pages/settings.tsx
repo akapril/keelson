@@ -276,50 +276,74 @@ export default function Settings() {
             <SelectContent>
               <SelectItem value="openai">OpenAI 兼容</SelectItem>
               <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+              <SelectItem value="claude-cli">Claude Code（本地 CLI）</SelectItem>
+              <SelectItem value="codex-cli">Codex（本地 CLI）</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {/* 接口 Base URL */}
-        <div className="space-y-1.5">
-          <Label htmlFor="ai-base-url">Base URL</Label>
-          <Input
-            id="ai-base-url"
-            type="text"
-            value={aiConfig.base_url}
-            placeholder={
-              aiConfig.provider === "anthropic"
-                ? "https://api.anthropic.com（留空用默认）"
-                : "https://api.openai.com/v1（留空用默认）"
-            }
-            onChange={(e) => setAiConfig({ base_url: e.target.value })}
-          />
-        </div>
+        {/* 本地 CLI provider 无需 base_url / api_key */}
+        {(() => {
+          const isCliProvider =
+            aiConfig.provider === "claude-cli" || aiConfig.provider === "codex-cli";
+          return (
+            <>
+              {!isCliProvider && (
+                <>
+                  {/* 接口 Base URL */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="ai-base-url">Base URL</Label>
+                    <Input
+                      id="ai-base-url"
+                      type="text"
+                      value={aiConfig.base_url}
+                      placeholder={
+                        aiConfig.provider === "anthropic"
+                          ? "https://api.anthropic.com（留空用默认）"
+                          : "https://api.openai.com/v1（留空用默认）"
+                      }
+                      onChange={(e) => setAiConfig({ base_url: e.target.value })}
+                    />
+                  </div>
 
-        {/* 模型名称 */}
-        <div className="space-y-1.5">
-          <Label htmlFor="ai-model">模型</Label>
-          <Input
-            id="ai-model"
-            type="text"
-            value={aiConfig.model}
-            placeholder="gpt-4o-mini / claude-3-5-sonnet-..."
-            onChange={(e) => setAiConfig({ model: e.target.value })}
-          />
-        </div>
+                  {/* API 密钥（明文不回显，仅本机保存） */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="ai-api-key">API 密钥</Label>
+                    <Input
+                      id="ai-api-key"
+                      type="password"
+                      autoComplete="off"
+                      value={aiConfig.api_key}
+                      placeholder="sk-..."
+                      onChange={(e) => setAiConfig({ api_key: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
 
-        {/* API 密钥（明文不回显，仅本机保存） */}
-        <div className="space-y-1.5">
-          <Label htmlFor="ai-api-key">API 密钥</Label>
-          <Input
-            id="ai-api-key"
-            type="password"
-            autoComplete="off"
-            value={aiConfig.api_key}
-            placeholder="sk-..."
-            onChange={(e) => setAiConfig({ api_key: e.target.value })}
-          />
-        </div>
+              {/* 模型名称（CLI provider 保留，CLI 会忽略或按自身默认） */}
+              <div className="space-y-1.5">
+                <Label htmlFor="ai-model">模型</Label>
+                <Input
+                  id="ai-model"
+                  type="text"
+                  value={aiConfig.model}
+                  placeholder="gpt-4o-mini / claude-3-5-sonnet-..."
+                  onChange={(e) => setAiConfig({ model: e.target.value })}
+                />
+              </div>
+
+              {/* CLI provider 说明文案 */}
+              {isCliProvider && (
+                <p className="text-xs text-muted-foreground">
+                  将调用本机已安装的{" "}
+                  <code>{aiConfig.provider === "codex-cli" ? "codex" : "claude"}</code>{" "}
+                  命令行（走你的本地订阅，数据不出本机）。请确保它已安装并在 PATH 中。
+                </p>
+              )}
+            </>
+          );
+        })()}
       </section>
 
       <div className="border-t border-border" />

@@ -126,7 +126,10 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
     if (!text || loading) return;
 
     const aiConfig = useSettingsStore.getState().aiConfig;
-    if (!aiConfig.api_key) {
+    // CLI provider 无需 api_key；其余 provider 仍要求密钥
+    const isCli =
+      aiConfig.provider === "claude-cli" || aiConfig.provider === "codex-cli";
+    if (!isCli && !aiConfig.api_key) {
       setNeedConfig(true);
       return;
     }
