@@ -6,8 +6,11 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
+  FolderOpenIcon,
   Settings02Icon,
 } from "@hugeicons/core-free-icons";
+import { toast } from "sonner";
+import { ipc } from "@/lib/tauri/ipc";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -131,6 +134,20 @@ export function ProjectWorkspace() {
             </div>
           )}
         </div>
+        {repoPath && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              void ipc
+                .openPath(repoPath)
+                .catch((e) => toast.error(`打开位置失败：${String(e)}`))
+            }
+          >
+            <HugeiconsIcon icon={FolderOpenIcon} strokeWidth={2} />
+            打开位置
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={() => setShowSheet(true)}>
           <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
           项目设置
