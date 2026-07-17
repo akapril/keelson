@@ -200,7 +200,11 @@ export default function Settings() {
     setRebuilding(true);
     try {
       const n = await ipc.ragBuildIndex(embedCfg);
-      toast.success(`索引完成：${n} 个片段`);
+      if (n === 0) {
+        toast(`暂无会话可索引（可能扫描未完成）`);
+      } else {
+        toast.success(`索引完成：${n} 个片段`);
+      }
     } catch (e) {
       toast.error(`索引失败：${String(e)}`);
     } finally {
