@@ -4,6 +4,7 @@ import { LanguageDescription } from "@codemirror/language"
 import { CrepeBuilder } from "@milkdown/crepe/builder"
 import { codeMirror } from "@milkdown/crepe/feature/code-mirror"
 import { cursor } from "@milkdown/crepe/feature/cursor"
+import { imageBlock } from "@milkdown/crepe/feature/image-block"
 import { linkTooltip } from "@milkdown/crepe/feature/link-tooltip"
 import { listItem } from "@milkdown/crepe/feature/list-item"
 import { placeholder } from "@milkdown/crepe/feature/placeholder"
@@ -11,6 +12,7 @@ import { table } from "@milkdown/crepe/feature/table"
 import "@milkdown/crepe/theme/common/reset.css"
 import "@milkdown/crepe/theme/common/prosemirror.css"
 import "@milkdown/crepe/theme/common/cursor.css"
+import "@milkdown/crepe/theme/common/image-block.css"
 import "@milkdown/crepe/theme/common/link-tooltip.css"
 import "@milkdown/crepe/theme/common/list-item.css"
 import "@milkdown/crepe/theme/common/table.css"
@@ -70,6 +72,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { uploadDocAsset, resolveAssetURL } from "@/lib/pb/assets"
 
 export type DocumentEditorMode = "rich-text" | "source" | "diff"
 
@@ -198,6 +201,14 @@ function MilkdownEditorBody({
       .addFeature(placeholder, { text: "Start writing…" })
       .addFeature(table)
       .addFeature(codeMirror, { languages: CODE_LANGUAGES })
+      // 图片：粘贴/拖拽即上传到 PB（doc_assets），正文只存稳定 URL，避免 base64 撑爆内容；
+      // 受保护文件在渲染时经 proxyDomURL 追加新鲜文件 token。
+      .addFeature(imageBlock, {
+        onUpload: uploadDocAsset,
+        blockOnUpload: uploadDocAsset,
+        inlineOnUpload: uploadDocAsset,
+        proxyDomURL: resolveAssetURL,
+      })
     crepe.on((listener) => {
       listener.markdownUpdated((_ctx, markdown, previousMarkdown) => {
         if (markdown !== previousMarkdown) onChange(markdown)
@@ -266,6 +277,8 @@ function MilkdownToolbar({
 
   return (
     <div className="milkdown-system-toolbar">
+      {/* 格式按钮组：容器变窄时横向滚动，绝不裁剪（修复窄窗体下工具栏被遮挡） */}
+      <div className="milkdown-toolbar-scroll">
       <ToolbarButton
         label="Undo"
         disabled={disabled}
@@ -369,7 +382,9 @@ function MilkdownToolbar({
         onClick={() => run(insertHrCommand)}
         icon={MinusSignIcon}
       />
-      <div className="ml-auto flex items-center gap-0.5">
+      </div>
+      {/* 模式/全屏组：始终钉在右侧、不随格式区滚动，保证可达 */}
+      <div className="milkdown-toolbar-fixed flex items-center gap-0.5">
         <ModeButton
           label="Rich text"
           active={mode === "rich-text"}

@@ -10,6 +10,7 @@ export const COL = {
   boardMembers: "board_project_members",
   boardTemplates: "board_templates",
   docs: "docs",
+  docAssets: "doc_assets",
   readingItems: "reading_items",
   calendarEvents: "calendar_events",
   notifications: "notifications",
