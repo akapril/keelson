@@ -1,6 +1,5 @@
 // ReadingDetailDialog —— 阅读条目详情(交互):AI 摘要/要点、标签编辑、置顶、备注。
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   LinkSquare02Icon,
@@ -19,8 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useReadingStore } from "@/store/reading";
-import { useSettingsStore } from "@/store/settings";
-import { summarizeReadingItem } from "./summarize";
+import { runReadingSummarize } from "./summarize-action";
 import { splitTags, joinTags } from "./reading-utils";
 import type { ReadingItem, ReadingStatus } from "@/types/reading";
 
@@ -63,26 +61,12 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
     }
   })();
 
-  // AI 摘要:抓正文 → AI → 写回 summary/key_points/content_text
+  // AI 摘要:抓正文 → AI → 写回（共享 action，含门禁/toast）
   const runSummarize = async () => {
     if (summarizing) return;
-    const cfg = useSettingsStore.getState().aiConfig;
-    const isCli = cfg.provider === "claude-cli" || cfg.provider === "codex-cli";
-    if (!isCli && !cfg.api_key) {
-      toast.error("请先在设置中配置 AI 服务");
-      return;
-    }
     setSummarizing(true);
     try {
-      const r = await summarizeReadingItem(item, cfg);
-      await updateItem(item.id, {
-        summary: r.summary,
-        key_points: JSON.stringify(r.key_points),
-        content_text: r.content_text,
-      });
-      toast.success("已生成 AI 摘要");
-    } catch (e) {
-      toast.error(String(e instanceof Error ? e.message : e));
+      await runReadingSummarize(item);
     } finally {
       setSummarizing(false);
     }
