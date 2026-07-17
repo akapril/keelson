@@ -3,6 +3,7 @@ import { useSettingsStore } from "../store/settings";
 import type { AiProvider } from "../types/ai";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -13,6 +14,10 @@ import {
 import { ExportSection } from "@/features/export/ExportSection";
 import { UpdateSection } from "@/features/updater/UpdateSection";
 import { BackendSection } from "@/features/backend/BackendSection";
+import { toast } from "sonner";
+import { ipc } from "@/lib/tauri/ipc";
+import { DEFAULT_EMBED_CONFIG } from "@/types/rag";
+import type { EmbedConfig } from "@/types/rag";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
 /**
@@ -167,6 +172,41 @@ export default function Settings() {
 
   // 本地工作区路径编辑状态（不直接写 store 的 workspacePath 避免频繁触发渲染）
   const [localPath, setLocalPath] = useState(workspacePath);
+
+  // 检索 / 嵌入配置（与 AskPane 共享同一 localStorage key：rework-embed-config）
+  const [embedCfg, setEmbedCfgState] = useState<EmbedConfig>(() => {
+    try {
+      const raw = localStorage.getItem("rework-embed-config");
+      return { ...DEFAULT_EMBED_CONFIG, ...(raw ? JSON.parse(raw) : {}) };
+    } catch {
+      return { ...DEFAULT_EMBED_CONFIG };
+    }
+  });
+
+  // 「重建索引」加载状态
+  const [rebuilding, setRebuilding] = useState(false);
+
+  /** 更新嵌入配置并同步写入 localStorage */
+  function setEmbed(patch: Partial<EmbedConfig>) {
+    setEmbedCfgState((prev) => {
+      const next = { ...prev, ...patch };
+      localStorage.setItem("rework-embed-config", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  /** 调用后端重建全量嵌入索引 */
+  const rebuildIndex = async () => {
+    setRebuilding(true);
+    try {
+      const n = await ipc.ragBuildIndex(embedCfg);
+      toast.success(`索引完成：${n} 个片段`);
+    } catch (e) {
+      toast.error(`索引失败：${String(e)}`);
+    } finally {
+      setRebuilding(false);
+    }
+  };
 
   // 挂载时从后端加载设置
   useEffect(() => {
@@ -344,6 +384,93 @@ export default function Settings() {
             </>
           );
         })()}
+      </section>
+
+      <div className="border-t border-border" />
+
+      {/* ── 检索 / 嵌入 ── */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium">检索 / 嵌入</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            配置「问」模式的语义检索嵌入服务；密钥仅保存在本机。
+          </p>
+        </div>
+
+        {/* 嵌入服务商 */}
+        <div className="space-y-1.5">
+          <Label htmlFor="embed-provider">嵌入服务商</Label>
+          <Select
+            value={embedCfg.provider}
+            onValueChange={(v) => setEmbed({ provider: v })}
+          >
+            <SelectTrigger id="embed-provider" className="w-full">
+              <SelectValue placeholder="选择嵌入服务商" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="local">本地 fastembed（数据不出本机）</SelectItem>
+              <SelectItem value="api">云 Embeddings API</SelectItem>
+              <SelectItem value="mock">Mock（占位 / 离线兜底）</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 仅 api 时显示 base_url 和 api_key */}
+        {embedCfg.provider === "api" && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="embed-base-url">Base URL</Label>
+              <Input
+                id="embed-base-url"
+                type="text"
+                value={embedCfg.base_url}
+                placeholder="https://api.openai.com/v1（留空用默认）"
+                onChange={(e) => setEmbed({ base_url: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="embed-api-key">API 密钥</Label>
+              <Input
+                id="embed-api-key"
+                type="password"
+                autoComplete="off"
+                value={embedCfg.api_key}
+                placeholder="sk-..."
+                onChange={(e) => setEmbed({ api_key: e.target.value })}
+              />
+            </div>
+          </>
+        )}
+
+        {/* 模型名称（所有 provider 可见） */}
+        <div className="space-y-1.5">
+          <Label htmlFor="embed-model">模型</Label>
+          <Input
+            id="embed-model"
+            type="text"
+            value={embedCfg.model}
+            placeholder="text-embedding-3-small"
+            onChange={(e) => setEmbed({ model: e.target.value })}
+          />
+        </div>
+
+        {/* 重建索引 */}
+        <Button
+          onClick={rebuildIndex}
+          disabled={rebuilding}
+          variant="outline"
+          size="sm"
+        >
+          {rebuilding ? "索引中…" : "重建索引"}
+        </Button>
+
+        {/* 数据流向说明 */}
+        <p className="text-xs text-muted-foreground">
+          {embedCfg.provider === "api"
+            ? "使用云 API 时，会话片段将发送到配置的云 Embedding 接口；请确认你的隐私设置。"
+            : "当前模式（local / mock）全程不出本机，数据仅在本地处理。"}
+        </p>
       </section>
 
       <div className="border-t border-border" />
