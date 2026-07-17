@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useNotificationsStore } from "@/store/notifications";
 import { syncDueReminders } from "@/features/notifications/due-reminders";
+import { syncNewSessionsReminder } from "@/features/notifications/new-sessions";
 import type { AppNotification, NotificationKind } from "@/types/notifications";
 
 // 类别 → 色点
@@ -51,7 +52,10 @@ export function NotificationBell() {
     void useNotificationsStore
       .getState()
       .load()
-      .then(() => syncDueReminders());
+      .then(() => {
+        void syncDueReminders();
+        void syncNewSessionsReminder();
+      });
   }, []);
 
   const onItemClick = (n: AppNotification) => {
