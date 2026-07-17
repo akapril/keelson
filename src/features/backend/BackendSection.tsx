@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getRemotePbUrl, setRemotePbUrl } from "@/lib/pb";
+import { ipc } from "@/lib/tauri/ipc";
 
 export function BackendSection() {
   const [url, setUrl] = useState(getRemotePbUrl());
@@ -15,6 +16,16 @@ export function BackendSection() {
     setRemotePbUrl(value);
     toast.success(value ? "已切换到远程 PocketBase，即将重载…" : "已切回本地，即将重载…");
     setTimeout(() => window.location.reload(), 800);
+  };
+
+  // 打开本地 PocketBase 数据目录（pb_data）
+  const openDataDir = async () => {
+    try {
+      const dir = await ipc.pbDataDir();
+      await ipc.openPath(dir);
+    } catch (e) {
+      toast.error(`打开数据目录失败：${e instanceof Error ? e.message : e}`);
+    }
   };
 
   return (
@@ -65,6 +76,14 @@ export function BackendSection() {
       <p className="text-[11px] text-muted-foreground">
         注意（最小版）：会话元数据同步仍写入本地 PB；看板 / 文档 / 阅读 / 日历 / 通知等数据走所选后端。
       </p>
+
+      {/* 本地数据目录：只读定位，方便备份/排障（不做迁移，避免停服搬数据的复杂度） */}
+      <div className="flex items-center gap-2 border-t border-border pt-3">
+        <span className="text-xs text-muted-foreground">本地数据目录（pb_data）</span>
+        <Button variant="outline" size="sm" className="ml-auto" onClick={() => void openDataDir()}>
+          打开数据目录
+        </Button>
+      </div>
     </section>
   );
 }

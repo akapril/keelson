@@ -20,6 +20,9 @@ export const ipc = {
   /** 在系统文件管理器中打开路径（会话中枢 / 项目工作台「打开位置」） */
   openPath: (path: string) => invoke<void>("open_path", { path }),
 
+  /** 获取 PocketBase 数据目录绝对路径（设置页「打开数据目录」） */
+  pbDataDir: () => invoke<string>("pb_data_dir"),
+
   // ── MCP 一键接入（把 rework MCP 写入 claude / codex 配置） ──────────
   /** 获取当前 MCP 端点（url + secret，供设置页展示） */
   mcpEndpoint: () => invoke<{ url: string; secret: string }>("mcp_endpoint"),

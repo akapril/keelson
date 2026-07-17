@@ -307,6 +307,8 @@ pub fn run() {
             commands::fs::write_text_file,
             // 在系统文件管理器打开路径（会话中枢 / 项目工作台「打开位置」）
             commands::fs::open_path,
+            // 返回 PocketBase 数据目录路径（设置页「打开数据目录」）
+            commands::fs::pb_data_dir,
             // 网页抓取（阅读「AI 解析」）
             commands::web::fetch_url_text,
         ])
