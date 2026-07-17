@@ -28,6 +28,8 @@ pub mod sync;
 pub mod scan_cache;
 // 跨会话语义检索：分块纯逻辑、向量存储、嵌入（Task 1）
 pub mod rag;
+// 应用内 MCP server
+mod mcp;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
