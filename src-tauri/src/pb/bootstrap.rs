@@ -29,7 +29,7 @@ pub fn get_passwords() -> (String, String) {
 
 /// 从 keychain 读取密码；若不存在则随机生成并写入。
 /// 若 keychain Entry 无法创建（系统不支持），则生成临时随机密码并打印安全警告。
-fn get_or_make_secret(account: &str) -> String {
+pub(crate) fn get_or_make_secret(account: &str) -> String {
     /// 内部辅助：生成 32 字符随机字母数字密码。
     fn random_pw() -> String {
         use rand::Rng;

@@ -28,6 +28,8 @@ pub mod sync;
 pub mod scan_cache;
 // 跨会话语义检索：分块纯逻辑、向量存储、嵌入（Task 1）
 pub mod rag;
+// 应用内 MCP server
+mod mcp;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
@@ -295,6 +297,10 @@ pub fn run() {
             // RAG 语义检索（rag_build_index / rag_search）
             commands::rag::rag_build_index,
             commands::rag::rag_search,
+            // MCP 一键接入 claude / codex
+            commands::mcp::mcp_endpoint,
+            commands::mcp::mcp_install_claude,
+            commands::mcp::mcp_install_codex,
             // 文件写入（导出「另存为」）
             commands::fs::write_text_file,
             // 在系统文件管理器打开路径（会话中枢 / 项目工作台「打开位置」）
@@ -376,6 +382,17 @@ async fn setup_pocketbase(
     let user_id = auth.user_id.clone();
     let pb_client = pb::client::PbClient::new(&auth.base_url, &auth.token);
     *auth_slot.lock() = Some(auth);
+
+    // 启动应用内 MCP server（auth 已就绪；失败不阻断应用启动，仅打日志）。
+    {
+        let mcp_handle = handle.clone();
+        tauri::async_runtime::spawn(async move {
+            match crate::mcp::server::start(mcp_handle).await {
+                Ok(ep) => println!("[mcp] MCP server 就绪：{}", ep.url),
+                Err(e) => eprintln!("[mcp] MCP server 启动失败：{e}"),
+            }
+        });
+    }
 
     // 步骤 6：扫描会话（缓存秒加载 + 增量）+ 重建 Tantivy 索引 + 同步到 PB
     let reg = Arc::new(providers::ProviderRegistry::new());
