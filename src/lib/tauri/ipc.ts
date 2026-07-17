@@ -1,5 +1,6 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import type { Session, SessionHit, TimelineMessage } from "../../types/session";
+import type { EmbedConfig, RagHit } from "@/types/rag";
 import type {
   AiConfig,
   AiChatMessage,
@@ -92,4 +93,13 @@ export const ipc = {
   /** 取消进行中的流式对话（停止生成）。 */
   aiCancelStream: (streamId: string) =>
     invoke<void>("ai_cancel_stream", { streamId }),
+
+  // ── RAG 语义检索 ───────────────────────────────────────────
+  /** 语义召回：返回与 query 最相似的历史会话片段列表（limit 默认 8） */
+  ragSearch: (config: EmbedConfig, query: string, limit: number) =>
+    invoke<RagHit[]>("rag_search", { config, query, limit }),
+
+  /** 为全量历史会话建嵌入索引；返回已索引的消息数 */
+  ragBuildIndex: (config: EmbedConfig) =>
+    invoke<number>("rag_build_index", { config }),
 };
