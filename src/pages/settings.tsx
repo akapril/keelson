@@ -16,6 +16,10 @@ import { UpdateSection } from "@/features/updater/UpdateSection";
 import { BackendSection } from "@/features/backend/BackendSection";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
+import {
+  newSessionsPref,
+  setNewSessionsPref,
+} from "@/features/notifications/new-sessions";
 import { DEFAULT_EMBED_CONFIG } from "@/types/rag";
 import type { EmbedConfig } from "@/types/rag";
 
@@ -236,6 +240,34 @@ function McpSection() {
         提示：secret 已持久化，端口固定 47600，接入一次长期有效（除非端口被占用回退）。
         仅本机（127.0.0.1）；需 rework 应用开着。
       </p>
+    </section>
+  );
+}
+
+/** 通知偏好:发现新会话提醒开关(启动时摘要,可关)。 */
+function NotifyPrefsSection() {
+  const [on, setOn] = useState(newSessionsPref());
+  const toggle = (v: boolean) => {
+    setOn(v);
+    setNewSessionsPref(v);
+  };
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-sm font-medium">通知偏好</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          控制哪些事件推送到通知中心。
+        </p>
+      </div>
+      <label className="flex cursor-pointer items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => toggle(e.target.checked)}
+          className="h-3.5 w-3.5 rounded border-input accent-primary"
+        />
+        <span>发现新的本地 CLI 会话时提醒（启动时汇总一条）</span>
+      </label>
     </section>
   );
 }
@@ -576,6 +608,11 @@ export default function Settings() {
 
       {/* ── MCP 接入（让 claude / codex 操作看板与文档） ── */}
       <McpSection />
+
+      <div className="border-t border-border" />
+
+      {/* ── 通知偏好 ── */}
+      <NotifyPrefsSection />
 
       <div className="border-t border-border" />
 
