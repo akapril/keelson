@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useNotificationsStore } from "@/store/notifications";
+import { syncDueReminders } from "@/features/notifications/due-reminders";
 import type { AppNotification, NotificationKind } from "@/types/notifications";
 
 // 类别 → 色点
@@ -45,9 +46,12 @@ export function NotificationBell() {
   const items = useNotificationsStore((s) => s.items);
   const unread = useNotificationsStore((s) => s.items.filter((n) => !n.read).length);
 
-  // 挂载时加载 + 订阅（store 内部保证仅订阅一次）
+  // 挂载时加载 + 订阅（store 内部保证仅订阅一次），随后扫描到期项生成截止提醒（一次/会话）
   useEffect(() => {
-    void useNotificationsStore.getState().load();
+    void useNotificationsStore
+      .getState()
+      .load()
+      .then(() => syncDueReminders());
   }, []);
 
   const onItemClick = (n: AppNotification) => {
