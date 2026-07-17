@@ -20,6 +20,14 @@ export const ipc = {
   /** 在系统文件管理器中打开路径（会话中枢 / 项目工作台「打开位置」） */
   openPath: (path: string) => invoke<void>("open_path", { path }),
 
+  // ── MCP 一键接入（把 rework MCP 写入 claude / codex 配置） ──────────
+  /** 获取当前 MCP 端点（url + secret，供设置页展示） */
+  mcpEndpoint: () => invoke<{ url: string; secret: string }>("mcp_endpoint"),
+  /** 一键接入 Claude Code（写 ~/.claude.json 的 mcpServers.rework） */
+  mcpInstallClaude: () => invoke<string>("mcp_install_claude"),
+  /** 一键接入 Codex（写 ~/.codex/config.toml 的 [mcp_servers.rework]） */
+  mcpInstallCodex: () => invoke<string>("mcp_install_codex"),
+
   /** 抓取 URL 并返回粗提取的可读正文（阅读「AI 解析」用） */
   fetchUrlText: (url: string) => invoke<string>("fetch_url_text", { url }),
 

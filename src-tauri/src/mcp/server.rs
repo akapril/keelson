@@ -3,7 +3,6 @@
 use super::registry::tool_schemas;
 use super::McpCtx;
 use crate::AppState;
-use rand::Rng;
 use rmcp::{
     handler::server::ServerHandler,
     model::{
@@ -28,10 +27,10 @@ pub struct EndpointInfo {
     pub secret: String,
 }
 
-/// 生成随机 secret（32 hex 字符）。
+/// 获取 MCP secret：持久化到 OS keychain（重启不变），客户端一次接入长期有效。
+/// 复用 bootstrap 的 keychain 辅助（同 PB 密码的存法）。
 pub fn gen_secret() -> String {
-    let bytes: [u8; 16] = rand::thread_rng().gen();
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    crate::pb::bootstrap::get_or_make_secret("mcp-secret")
 }
 
 /// 从 AppState.auth 构造 McpCtx；auth 未就绪返回错误。
@@ -226,10 +225,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn secret_is_nonempty_and_varies() {
+    fn secret_is_nonempty_and_stable() {
+        // 持久化 secret：非空且两次调用一致（keychain 支撑，重启不变）
         let a = gen_secret();
         let b = gen_secret();
         assert!(a.len() >= 16, "secret 太短");
-        assert_ne!(a, b, "两次 secret 不应相同");
+        assert_eq!(a, b, "持久化 secret 两次应一致");
     }
 }
