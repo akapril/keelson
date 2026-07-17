@@ -53,7 +53,20 @@ interface ReadingStoreState {
   /** 更新阅读条目字段（乐观更新 + 回滚） */
   updateItem: (
     id: string,
-    patch: Partial<Pick<ReadingItem, "title" | "url" | "note" | "status">>,
+    patch: Partial<
+      Pick<
+        ReadingItem,
+        | "title"
+        | "url"
+        | "note"
+        | "status"
+        | "tags"
+        | "summary"
+        | "key_points"
+        | "content_text"
+        | "pinned"
+      >
+    >,
   ) => Promise<void>;
   /** 删除阅读条目（乐观移除 + 回滚） */
   removeItem: (id: string) => Promise<void>;
