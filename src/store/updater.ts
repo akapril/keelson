@@ -3,9 +3,37 @@
 import { create } from "zustand";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { useNotificationsStore } from "./notifications";
+import { osNotify } from "../lib/os-notify";
 
 // 待安装的 Update 句柄（非可序列化，模块级持有）
 let pending: Update | null = null;
+// 本会话已就该版本推过通知（避免重复检查时反复推）
+let notifiedVersion = "";
+
+/** 发现新版本时推一条通知（应用内 + 系统弹窗），按版本去重。 */
+async function pushUpdateNotification(version: string, notes: string) {
+  if (!version || version === notifiedVersion) return;
+  notifiedVersion = version;
+  const mark = `nkey=update-${version}`;
+  // 跨会话去重：通知已存在则不重复建
+  const exists = useNotificationsStore
+    .getState()
+    .items.some((n) => n.link.includes(mark));
+  if (!exists) {
+    await useNotificationsStore
+      .getState()
+      .add({
+        title: `有新版本 ${version}`,
+        body: notes.slice(0, 120) || "前往设置更新到最新版",
+        kind: "info",
+        source: "更新",
+        link: `/settings?${mark}`,
+      })
+      .catch(() => {});
+  }
+  void osNotify("rework 有新版本", `v${version} 可更新`);
+}
 
 interface UpdaterState {
   /** 是否发现可用更新（红标依据） */
@@ -37,6 +65,8 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
       if (update) {
         pending = update;
         set({ available: true, version: update.version, notes: update.body ?? "" });
+        // 发现更新 → 推通知（应用内 + 系统弹窗），按版本去重
+        void pushUpdateNotification(update.version, update.body ?? "");
       } else {
         pending = null;
         set({ available: false, version: "", notes: "" });

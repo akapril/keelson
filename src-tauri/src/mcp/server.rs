@@ -103,13 +103,77 @@ impl ServerHandler for ReworkMcpHandler {
             Ok(c) => c,
             Err(e) => return Ok(CallToolResult::error(vec![Content::text(e)])),
         };
+        let name = req.name.to_string();
         let args = serde_json::Value::Object(req.arguments.unwrap_or_default());
-        match crate::mcp::tools::dispatch(req.name.as_ref(), args, &mcp_ctx).await {
-            // 工具返回 JSON Value → 文本化后作为内容
-            Ok(v) => Ok(CallToolResult::success(vec![Content::text(v.to_string())])),
+        // 建任务/文档需要 project_id 做跳转链接（dispatch 会消费 args，先取出）
+        let project_id = args
+            .get("project_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        match crate::mcp::tools::dispatch(&name, args, &mcp_ctx).await {
+            // 工具返回 JSON Value → 文本化后作为内容；成功建任务/文档时推通知
+            Ok(v) => {
+                self.notify_external_action(&name, &v, project_id.as_deref(), &mcp_ctx)
+                    .await;
+                Ok(CallToolResult::success(vec![Content::text(v.to_string())]))
+            }
             // 工具级错误 → isError=true（对调用方可见，协议层不报 500）
             Err(e) => Ok(CallToolResult::error(vec![Content::text(e)])),
         }
+    }
+}
+
+impl ReworkMcpHandler {
+    /// 外部 MCP 操作(建任务/文档)后推一条通知：应用内记录 + 系统桌面弹窗，
+    /// 让用户知道 claude/codex 在后台动了看板/文档。失败静默(不影响工具结果)。
+    async fn notify_external_action(
+        &self,
+        tool: &str,
+        result: &serde_json::Value,
+        project_id: Option<&str>,
+        ctx: &McpCtx,
+    ) {
+        use tauri_plugin_notification::NotificationExt;
+        let title = result.get("title").and_then(|v| v.as_str()).unwrap_or("");
+        let (text, link) = match tool {
+            "create_task" => (
+                format!("MCP 新建任务：{title}"),
+                project_id
+                    .map(|p| format!("/board?open={p}&tab=board"))
+                    .unwrap_or_else(|| "/board".into()),
+            ),
+            "create_doc" => (
+                format!("MCP 新建文档：{title}"),
+                project_id
+                    .map(|p| format!("/board?open={p}&tab=docs"))
+                    .unwrap_or_else(|| "/docs".into()),
+            ),
+            _ => return, // 其它工具(查/改)不推送
+        };
+        // 1) 应用内通知记录(经 PB，通知铃实时收到)
+        let _ = ctx
+            .client
+            .create(
+                "notifications",
+                &serde_json::json!({
+                    "owner": ctx.user_id,
+                    "title": text,
+                    "body": "由外部 AI（claude / codex）经 MCP 创建",
+                    "kind": "info",
+                    "read": false,
+                    "link": link,
+                    "source": "MCP",
+                }),
+            )
+            .await;
+        // 2) 系统桌面通知(rework 未聚焦时也能看到)
+        let _ = self
+            .app
+            .notification()
+            .builder()
+            .title("rework")
+            .body(&text)
+            .show();
     }
 }
 
