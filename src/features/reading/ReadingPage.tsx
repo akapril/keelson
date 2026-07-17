@@ -8,16 +8,13 @@ import {
   Delete02Icon,
   LinkSquare02Icon,
   TaskAdd01Icon,
-  AiChat02Icon,
 } from "@hugeicons/core-free-icons";
 
 import { useReadingStore } from "@/store/reading";
-import { useSettingsStore } from "@/store/settings";
-import { ipc } from "@/lib/tauri/ipc";
 import type { ReadingItem, ReadingStatus } from "@/types/reading";
-import type { AiChatMessage } from "@/types/ai";
 import { CreateTaskFromReadingDialog } from "./CreateTaskFromReadingDialog";
 import { ReadingDetailDialog } from "./ReadingDetailDialog";
+import { groupReading, splitTags } from "@/features/reading/reading-utils";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -77,61 +74,15 @@ interface ReadingRowProps {
 function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
   const updateItem = useReadingStore((s) => s.updateItem);
   const removeItem = useReadingStore((s) => s.removeItem);
-  // AI 解析进行中标记
-  const [parsing, setParsing] = useState(false);
-  // 详情对话框（完整查看备注/AI 摘要）
+  // 详情对话框（完整查看备注 / AI 摘要）
   const [detailOpen, setDetailOpen] = useState(false);
-
-  // 抓取网页正文 → AI 摘要 → 保存到备注
-  async function handleAiParse() {
-    if (!item.url || parsing) return;
-    const cfg = useSettingsStore.getState().aiConfig;
-    if (!cfg.api_key) {
-      toast.error("请先在设置中配置 AI 服务");
-      return;
-    }
-    setParsing(true);
-    try {
-      const text = await ipc.fetchUrlText(item.url);
-      if (!text.trim()) {
-        toast.error("未能抓取到网页正文");
-        return;
-      }
-      const msgs: AiChatMessage[] = [
-        {
-          role: "system",
-          content:
-            "你是阅读助手。请对给定网页正文用简洁中文输出：第一行一句话摘要；随后 3-6 个关键点，每行以「- 」开头。不要客套或复述原文。",
-        },
-        { role: "user", content: text },
-      ];
-      const reply = (await ipc.aiChat(cfg, msgs)).trim();
-      if (!reply) {
-        toast.error("AI 未返回内容");
-        return;
-      }
-      // 合并到备注（保留已有内容），并限长以规避 PB text 字段上限
-      const merged = item.note?.trim()
-        ? `${item.note.trim()}\n\n— AI 摘要 —\n${reply}`
-        : reply;
-      const note = merged.length > 4800 ? merged.slice(0, 4800) : merged;
-      await updateItem(item.id, { note });
-      toast.success("已生成 AI 摘要并保存到备注");
-      // 解析完成后自动打开详情，便于立即查看完整摘要
-      setDetailOpen(true);
-    } catch (e) {
-      toast.error(`解析失败：${String(e)}`);
-    } finally {
-      setParsing(false);
-    }
-  }
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
     <Card size="sm" className="gap-2">
       <div className="flex items-start gap-3 px-4">
-        {/* 标题 + 链接 + 备注 */}
+        {/* 标题 + 链接 + 标签胶囊 + 摘要/备注 */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             {item.url ? (
@@ -164,40 +115,35 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
             </p>
           )}
 
-          {/* 备注 / AI 摘要（截断显示；点击查看全文） */}
-          {item.note && (
+          {/* 标签胶囊 */}
+          {splitTags(item.tags).length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {splitTags(item.tags).map((t) => (
+                <span key={t} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* 摘要/备注（截断,点击查看详情） */}
+          {(item.summary || item.note) && (
             <button
               type="button"
               onClick={() => setDetailOpen(true)}
               className="mt-1 block w-full text-left"
-              title="查看全文"
+              title="查看详情"
             >
               <span className="line-clamp-2 text-sm text-muted-foreground">
-                {item.note}
+                {item.summary || item.note}
               </span>
-              <span className="text-xs text-primary hover:underline">查看全文</span>
+              <span className="text-xs text-primary hover:underline">查看详情</span>
             </button>
           )}
         </div>
 
-        {/* AI 解析 + 建任务 + 状态切换 + 删除 */}
+        {/* 建任务 + 状态切换 + 删除 */}
         <div className="flex shrink-0 items-center gap-1.5">
-          {/* AI 解析：抓取网页正文并生成摘要，保存到备注（仅有链接时可用） */}
-          {item.url && (
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label="AI 解析"
-              disabled={parsing}
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => void handleAiParse()}
-              title="抓取网页并用 AI 生成摘要，保存到备注"
-            >
-              <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} />
-              {parsing ? "解析中…" : "AI 解析"}
-            </Button>
-          )}
-
           {/* 从当前阅读条目创建看板任务 */}
           <Button
             variant="ghost"
@@ -253,15 +199,8 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
             打开链接
           </ContextMenuItem>
         )}
-        {item.url && (
-          <ContextMenuItem onSelect={() => void handleAiParse()} disabled={parsing}>
-            {parsing ? "解析中…" : "AI 解析"}
-          </ContextMenuItem>
-        )}
+        <ContextMenuItem onSelect={() => setDetailOpen(true)}>详情</ContextMenuItem>
         <ContextMenuItem onSelect={() => onCreateTask(item)}>建任务</ContextMenuItem>
-        {item.note && (
-          <ContextMenuItem onSelect={() => setDetailOpen(true)}>查看全文</ContextMenuItem>
-        )}
         <ContextMenuSeparator />
         {STATUS_OPTIONS.filter((o) => o.value !== item.status).map((o) => (
           <ContextMenuItem
@@ -303,6 +242,8 @@ export default function ReadingPage() {
   const [url, setUrl] = useState("");
   // 状态筛选
   const [filter, setFilter] = useState<FilterValue>("all");
+  // 关键词搜索（标题 / 链接 / 标签）
+  const [query, setQuery] = useState("");
   // 建任务对话框：当前选中的来源阅读条目（null = 关闭）
   const [taskFromItem, setTaskFromItem] = useState<ReadingItem | null>(null);
 
@@ -314,12 +255,18 @@ export default function ReadingPage() {
     };
   }, []);
 
-  // 按当前筛选过滤列表
-  const visible = useMemo(
-    () =>
-      filter === "all" ? items : items.filter((it) => it.status === filter),
-    [items, filter],
-  );
+  // 先按状态筛、再按关键词（标题 / url / 标签）过滤
+  const visible = useMemo(() => {
+    const byStatus = filter === "all" ? items : items.filter((it) => it.status === filter);
+    const q = query.trim().toLowerCase();
+    if (!q) return byStatus;
+    return byStatus.filter(
+      (it) =>
+        it.title.toLowerCase().includes(q) ||
+        it.url.toLowerCase().includes(q) ||
+        splitTags(it.tags).some((t) => t.toLowerCase().includes(q)),
+    );
+  }, [items, filter, query]);
 
   // 提交添加：标题必填，成功后清空输入
   const handleAdd = async () => {
@@ -385,6 +332,15 @@ export default function ReadingPage() {
         </TabsList>
       </Tabs>
 
+      {/* 搜索框：标题 / 链接 / 标签关键词过滤 */}
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="搜索标题 / 链接 / 标签…"
+        className="mb-3 shrink-0"
+        aria-label="搜索"
+      />
+
       {/* 错误提示 */}
       {error && (
         <div
@@ -409,15 +365,37 @@ export default function ReadingPage() {
             )}
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
-            {visible.map((item) => (
-              <ReadingRow
-                key={item.id}
-                item={item}
-                onCreateTask={setTaskFromItem}
-              />
-            ))}
-          </div>
+          (() => {
+            const { pinned, rest } = groupReading(visible);
+            return (
+              <div className="flex flex-col gap-4">
+                {pinned.length > 0 && (
+                  <section>
+                    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      📌 置顶（{pinned.length}）
+                    </h2>
+                    <div className="flex flex-col gap-2">
+                      {pinned.map((it) => (
+                        <ReadingRow key={it.id} item={it} onCreateTask={setTaskFromItem} />
+                      ))}
+                    </div>
+                  </section>
+                )}
+                <section>
+                  {pinned.length > 0 && (
+                    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      最近
+                    </h2>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    {rest.map((it) => (
+                      <ReadingRow key={it.id} item={it} onCreateTask={setTaskFromItem} />
+                    ))}
+                  </div>
+                </section>
+              </div>
+            );
+          })()
         )}
       </div>
 
