@@ -90,4 +90,18 @@ impl PbClient {
         let body = json_or_err(resp).await?;
         Ok(body["items"].as_array().cloned().unwrap_or_default())
     }
+
+    /// 按 filter 拉取记录（最多 500 条），仅返回指定字段。
+    pub async fn list(&self, coll: &str, filter: &str, fields: &str) -> anyhow::Result<Vec<Value>> {
+        let url = format!("{}/api/collections/{}/records", self.base_url, coll);
+        let resp = self
+            .http()
+            .get(&url)
+            .bearer_auth(&self.token)
+            .query(&[("perPage", "500"), ("filter", filter), ("fields", fields)])
+            .send()
+            .await?;
+        let body = json_or_err(resp).await?;
+        Ok(body["items"].as_array().cloned().unwrap_or_default())
+    }
 }
