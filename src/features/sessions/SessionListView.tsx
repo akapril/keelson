@@ -5,6 +5,7 @@ import { useSessionsStore } from "../../store/sessions";
 import { useSessionSearchStore } from "../../store/session-search";
 import { SessionCard } from "./SessionCard";
 import { PromoteToProjectDialog } from "../board/PromoteToProjectDialog";
+import { AskPane } from "./AskPane";
 import type { Session } from "../../types/session";
 
 // ── Props ──────────────────────────────────────────────────
@@ -34,7 +35,10 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
   // 搜索词非空时进入搜索模式
   const isSearching = query.trim().length > 0;
 
-  // 本地状态：当前正在“提升为看板项目”的分组路径（null = 未打开对话框）
+  // 搜索 / 问历史 模式切换
+  const [mode, setMode] = useState<"search" | "ask">("search");
+
+  // 本地状态：当前正在"提升为看板项目"的分组路径（null = 未打开对话框）
   const [promotingPath, setPromotingPath] = useState<string | null>(null);
   // 已折叠的分组路径集合（项目多时可折叠收纳）
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -48,6 +52,30 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
 
   return (
     <div className="flex h-full flex-col gap-3">
+      {/* 搜索 / 问历史 模式切换 */}
+      <div className="mb-2 flex gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={() => setMode("search")}
+          className={`rounded-lg px-2.5 py-1 text-xs ${mode === "search" ? "bg-accent" : "text-muted-foreground"}`}
+        >
+          搜索
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("ask")}
+          className={`rounded-lg px-2.5 py-1 text-xs ${mode === "ask" ? "bg-accent" : "text-muted-foreground"}`}
+        >
+          问历史
+        </button>
+      </div>
+
+      {/* 问历史模式 */}
+      {mode === "ask" && <AskPane />}
+
+      {/* 搜索模式：原有搜索框 + 列表 */}
+      {mode === "search" && (
+        <>
       {/* 搜索框 */}
       <div className="shrink-0">
         <input
@@ -154,6 +182,8 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* 提升为看板项目对话框（受本地状态控制） */}
       {promotingPath && (
