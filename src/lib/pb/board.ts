@@ -115,6 +115,11 @@ export function listTasksBySession(sessionId: string): Promise<BoardTask[]> {
   });
 }
 
+/** 更新任务截止日期（日历拖拽改期用；due 为 yyyy-MM-dd，空串则清除）。 */
+export function updateTaskDueDate(id: string, due: string): Promise<BoardTask> {
+  return updateRecord<BoardTask>(COL.boardTasks, id, { due_date: due || null });
+}
+
 // ── 通用 CRUD ─────────────────────────────────────────────
 
 /** 创建记录，返回创建后的完整记录 */

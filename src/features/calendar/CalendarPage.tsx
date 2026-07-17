@@ -9,6 +9,8 @@ import {
   endOfWeek,
   eachDayOfInterval,
   addMonths,
+  addDays,
+  differenceInCalendarDays,
   format,
   isSameMonth,
   isToday,
@@ -34,7 +36,7 @@ import {
 } from "@/components/ui/context-menu";
 import { useCalendarStore } from "@/store/calendar";
 import type { CalendarEvent } from "@/types/calendar";
-import { listDueTasks, listProjects } from "@/lib/pb/board";
+import { listDueTasks, listProjects, updateTaskDueDate } from "@/lib/pb/board";
 import type { BoardTask, BoardProject } from "@/types/board";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +81,11 @@ interface FormState {
   description: string;
   project: string;
 }
+
+// 拖拽载荷：事件带 start/end（改期时保留时长），任务只需 id
+type DragPayload =
+  | { kind: "event"; id: string; start: string; end: string }
+  | { kind: "task"; id: string };
 
 /**
  * 判断事件 ev 是否覆盖某一天 day。
@@ -168,6 +175,9 @@ export default function CalendarPage() {
   const [form, setForm] = useState<FormState>(() =>
     initialForm({ open: false }),
   );
+  // 拖拽改期：当前被拖动项 + 悬停高亮的目标日（yyyy-MM-dd）
+  const [drag, setDrag] = useState<DragPayload | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
   // 挂载时加载数据；卸载时清理订阅
   useEffect(() => {
@@ -243,6 +253,41 @@ export default function CalendarPage() {
     closeDialog();
   };
 
+  // 拖拽放到某天：事件平移(保留时长)改 start/end；任务改 due_date（乐观 + 失败回滚）
+  const handleDropOnDay = async (day: Date) => {
+    const d = drag;
+    setDrag(null);
+    setDragOverKey(null);
+    if (!d) return;
+    const dayStr = format(day, "yyyy-MM-dd");
+
+    if (d.kind === "task") {
+      const prev = dueTasks;
+      // 乐观：本地先把该任务移到目标日
+      setDueTasks((ts) =>
+        ts.map((t) => (t.id === d.id ? { ...t, due_date: dayStr } : t)),
+      );
+      try {
+        await updateTaskDueDate(d.id, dayStr);
+      } catch {
+        setDueTasks(prev); // 回滚
+      }
+      return;
+    }
+
+    // 事件：以 start 为锚点计算位移，end 同步平移以保留时长
+    const origStart = startOfDay(parseISO(d.start));
+    if (Number.isNaN(origStart.getTime())) return;
+    const delta = differenceInCalendarDays(startOfDay(day), origStart);
+    if (delta === 0) return;
+    const patch: { start: string; end?: string } = { start: dayStr };
+    if (d.end) {
+      const newEnd = addDays(startOfDay(parseISO(d.end)), delta);
+      if (!Number.isNaN(newEnd.getTime())) patch.end = format(newEnd, "yyyy-MM-dd");
+    }
+    await updateEvent(d.id, patch);
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
       {/* 头部：当前月份标题 + 月份切换 + 新建 */}
@@ -309,13 +354,25 @@ export default function CalendarPage() {
           const dayEvents = events.filter((ev) => eventCoversDay(ev, day));
           const dayTasks = dueTasks.filter((t) => taskOnDay(t, day));
 
+          const dayKey = format(day, "yyyy-MM-dd");
           return (
             <div
               key={day.toISOString()}
-              onClick={() => openAdd(format(day, "yyyy-MM-dd"))}
+              onClick={() => openAdd(dayKey)}
+              // 拖拽改期：允许放置 + 悬停高亮 + 放下时改期
+              onDragOver={(e) => {
+                if (!drag) return;
+                e.preventDefault();
+                if (dragOverKey !== dayKey) setDragOverKey(dayKey);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                void handleDropOnDay(day);
+              }}
               className={cn(
                 "flex min-h-24 cursor-pointer flex-col gap-1 border-r border-b border-border p-1.5 text-left transition-colors hover:bg-muted/40",
                 outside && "bg-muted/20",
+                dragOverKey === dayKey && "ring-2 ring-inset ring-primary bg-primary/5",
               )}
             >
               {/* 日期数字：右上；非本月置灰；今天为主色实心圆 */}
@@ -338,6 +395,15 @@ export default function CalendarPage() {
                     <ContextMenuTrigger asChild>
                       <button
                         type="button"
+                        draggable
+                        onDragStart={(e) => {
+                          e.stopPropagation();
+                          setDrag({ kind: "event", id: ev.id, start: ev.start, end: ev.end || "" });
+                        }}
+                        onDragEnd={() => {
+                          setDrag(null);
+                          setDragOverKey(null);
+                        }}
                         onClick={(e) => {
                           e.stopPropagation(); // 阻止冒泡到格子的新建
                           openEdit(ev);
@@ -372,12 +438,21 @@ export default function CalendarPage() {
                   <button
                     key={t.id}
                     type="button"
+                    draggable
+                    onDragStart={(e) => {
+                      e.stopPropagation();
+                      setDrag({ kind: "task", id: t.id });
+                    }}
+                    onDragEnd={() => {
+                      setDrag(null);
+                      setDragOverKey(null);
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/board?open=${t.project}`);
                     }}
                     className="flex items-center gap-1 rounded px-1 py-0.5 text-left text-xs hover:bg-muted"
-                    title={`任务：${t.title}`}
+                    title={`任务：${t.title}（可拖到其它日期改期）`}
                   >
                     <HugeiconsIcon
                       icon={KanbanIcon}
