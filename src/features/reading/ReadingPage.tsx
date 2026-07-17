@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Add01Icon,
+  AiChat02Icon,
   Delete02Icon,
   LinkSquare02Icon,
   TaskAdd01Icon,
@@ -14,6 +15,7 @@ import { useReadingStore } from "@/store/reading";
 import type { ReadingItem, ReadingStatus } from "@/types/reading";
 import { CreateTaskFromReadingDialog } from "./CreateTaskFromReadingDialog";
 import { ReadingDetailDialog } from "./ReadingDetailDialog";
+import { runReadingSummarize } from "./summarize-action";
 import { groupReading, splitTags } from "@/features/reading/reading-utils";
 import {
   ContextMenu,
@@ -76,6 +78,19 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
   const removeItem = useReadingStore((s) => s.removeItem);
   // 详情对话框（完整查看备注 / AI 摘要）
   const [detailOpen, setDetailOpen] = useState(false);
+  // 卡片内 AI 摘要进行中状态（一键摘要，无需进详情）
+  const [summarizing, setSummarizing] = useState(false);
+
+  // 卡片一键 AI 摘要：复用共享 action（含无 key 门禁 + toast）
+  const handleSummarize = async () => {
+    if (summarizing) return;
+    setSummarizing(true);
+    try {
+      await runReadingSummarize(item);
+    } finally {
+      setSummarizing(false);
+    }
+  };
 
   return (
     <ContextMenu>
@@ -142,8 +157,22 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
           )}
         </div>
 
-        {/* 建任务 + 状态切换 + 删除 */}
+        {/* AI 摘要 + 建任务 + 状态切换 + 删除 */}
         <div className="flex shrink-0 items-center gap-1.5">
+          {/* 一键 AI 摘要：仅有链接时可用；无摘要显示「AI 摘要」，已有则「重新摘要」 */}
+          {item.url && (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="AI 摘要"
+              className="text-muted-foreground hover:text-foreground"
+              disabled={summarizing}
+              onClick={() => void handleSummarize()}
+            >
+              <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} />
+              {summarizing ? "摘要中…" : item.summary ? "重新摘要" : "AI 摘要"}
+            </Button>
+          )}
           {/* 从当前阅读条目创建看板任务 */}
           <Button
             variant="ghost"
@@ -200,6 +229,11 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
           </ContextMenuItem>
         )}
         <ContextMenuItem onSelect={() => setDetailOpen(true)}>详情</ContextMenuItem>
+        {item.url && (
+          <ContextMenuItem disabled={summarizing} onSelect={() => void handleSummarize()}>
+            {item.summary ? "重新 AI 摘要" : "AI 摘要"}
+          </ContextMenuItem>
+        )}
         <ContextMenuItem onSelect={() => onCreateTask(item)}>建任务</ContextMenuItem>
         <ContextMenuSeparator />
         {STATUS_OPTIONS.filter((o) => o.value !== item.status).map((o) => (
