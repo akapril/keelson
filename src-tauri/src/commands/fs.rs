@@ -18,6 +18,18 @@ pub fn write_text_file(path: String, content: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 返回 PocketBase 数据目录（app_data_dir/pb_data）的绝对路径，供设置页「打开数据目录」用。
+#[tauri::command]
+pub fn pb_data_dir(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("取应用数据目录失败: {e}"))?
+        .join("pb_data");
+    Ok(dir.to_string_lossy().into_owned())
+}
+
 /// 在系统文件管理器中打开指定目录/文件所在位置。
 /// 直接用平台命令（explorer / open / xdg-open），不经 shell 插件的 URL 校验，可打开本地目录。
 #[tauri::command]
