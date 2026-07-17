@@ -3,8 +3,9 @@
 migrate((app) => {
   const col = app.findCollectionByNameOrId("reading_items");
   col.fields.add(new Field({ name: "tags", type: "text", max: 500 }));
-  col.fields.add(new Field({ name: "summary", type: "text", max: 5000 }));
-  col.fields.add(new Field({ name: "key_points", type: "text", max: 5000 }));
+  // summary / key_points 也用 max:0：AI 输出长度不定，避免超 5000 默认上限致 PB 写失败
+  col.fields.add(new Field({ name: "summary", type: "text", max: 0 }));
+  col.fields.add(new Field({ name: "key_points", type: "text", max: 0 }));
   col.fields.add(new Field({ name: "content_text", type: "text", max: 0 }));
   col.fields.add(new Field({ name: "pinned", type: "bool" }));
   col.addIndex("idx_reading_owner_pinned", false, "owner, pinned", "");
