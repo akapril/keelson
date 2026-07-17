@@ -295,6 +295,7 @@ pub fn run() {
             commands::ai::ai_chat_stream,
             commands::ai::ai_cancel_stream,
             commands::ai::ai_chat_tools,
+            commands::ai::list_models,
             // RAG 语义检索（rag_build_index / rag_search）
             commands::rag::rag_build_index,
             commands::rag::rag_search,

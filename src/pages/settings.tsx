@@ -280,6 +280,33 @@ export default function Settings() {
   const aiConfig = useSettingsStore((s) => s.aiConfig);
   const setAiConfig = useSettingsStore((s) => s.setAiConfig);
 
+  // 模型列表（可选：从服务商 /models 接口拉取，作为输入建议；拉不到则纯手填）
+  const [models, setModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+
+  // 切换服务商时清空上一个商的模型建议，避免张冠李戴
+  useEffect(() => {
+    setModels([]);
+  }, [aiConfig.provider]);
+
+  // 拉取当前服务商的可用模型；成功给下拉建议，失败/为空提示手动输入
+  const fetchModels = async () => {
+    if (modelsLoading) return;
+    setModelsLoading(true);
+    try {
+      const list = await ipc.listModels(aiConfig);
+      setModels(list);
+      toast[list.length ? "success" : "message"](
+        list.length ? `获取到 ${list.length} 个模型` : "未获取到模型列表，请手动输入",
+      );
+    } catch (e) {
+      setModels([]);
+      toast.error(`拉取模型失败，请手动输入：${e instanceof Error ? e.message : e}`);
+    } finally {
+      setModelsLoading(false);
+    }
+  };
+
   // 本地工作区路径编辑状态（不直接写 store 的 workspacePath 避免频繁触发渲染）
   const [localPath, setLocalPath] = useState(workspacePath);
 
@@ -296,11 +323,47 @@ export default function Settings() {
   // 「重建索引」加载状态
   const [rebuilding, setRebuilding] = useState(false);
 
-  /** 更新嵌入配置并同步写入 localStorage */
+  /**
+   * 更新嵌入配置。按嵌入服务商隔离各自字段，切换服务商互不覆盖：
+   * - rework-embed-config 保存「当前激活」的扁平配置（AskPane 读这份，结构不变）；
+   * - rework-embed-by-provider 保存每个服务商各自的 {base_url,api_key,model} 快照。
+   */
   function setEmbed(patch: Partial<EmbedConfig>) {
+    type EmbedFields = Omit<EmbedConfig, "provider">;
+    const MAP_KEY = "rework-embed-by-provider";
+    const loadMap = (): Record<string, EmbedFields> => {
+      try {
+        const raw = localStorage.getItem(MAP_KEY);
+        return raw ? (JSON.parse(raw) as Record<string, EmbedFields>) : {};
+      } catch {
+        return {};
+      }
+    };
     setEmbedCfgState((prev) => {
-      const next = { ...prev, ...patch };
-      localStorage.setItem("rework-embed-config", JSON.stringify(next));
+      const map = loadMap();
+      // 先把当前服务商字段快照进 map（不含 provider）
+      map[prev.provider] = { base_url: prev.base_url, api_key: prev.api_key, model: prev.model };
+
+      let next: EmbedConfig;
+      if (patch.provider && patch.provider !== prev.provider) {
+        // 切换服务商：取目标商已存字段，缺省用默认（模型预填默认，key/url 留空）
+        const f = map[patch.provider] ?? {
+          base_url: "",
+          api_key: "",
+          model: DEFAULT_EMBED_CONFIG.model,
+        };
+        next = { provider: patch.provider, ...f };
+      } else {
+        // 同一服务商内改字段：更新当前商的快照
+        next = { ...prev, ...patch };
+        map[next.provider] = { base_url: next.base_url, api_key: next.api_key, model: next.model };
+      }
+      try {
+        localStorage.setItem("rework-embed-config", JSON.stringify(next)); // AskPane 读的扁平当前值
+        localStorage.setItem(MAP_KEY, JSON.stringify(map));
+      } catch {
+        // 忽略 localStorage 写入失败（如隐私模式）
+      }
       return next;
     });
   }
@@ -472,20 +535,41 @@ export default function Settings() {
                       onChange={(e) => setAiConfig({ api_key: e.target.value })}
                     />
                   </div>
+
+                  {/* 模型名称：本地 CLI 由自身决定模型、无需填写，故仅非 CLI 服务商显示。
+                      可点「拉取模型」从服务商 /models 接口取建议（datalist），拉不到则手动输入。 */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="ai-model">模型</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        disabled={modelsLoading}
+                        onClick={() => void fetchModels()}
+                      >
+                        {modelsLoading ? "拉取中…" : "拉取模型"}
+                      </Button>
+                    </div>
+                    <Input
+                      id="ai-model"
+                      type="text"
+                      list="ai-model-suggestions"
+                      value={aiConfig.model}
+                      placeholder="gpt-4o-mini / claude-3-5-sonnet-...（可点『拉取模型』获取建议）"
+                      onChange={(e) => setAiConfig({ model: e.target.value })}
+                    />
+                    {models.length > 0 && (
+                      <datalist id="ai-model-suggestions">
+                        {models.map((m) => (
+                          <option key={m} value={m} />
+                        ))}
+                      </datalist>
+                    )}
+                  </div>
                 </>
               )}
-
-              {/* 模型名称（CLI provider 保留，CLI 会忽略或按自身默认） */}
-              <div className="space-y-1.5">
-                <Label htmlFor="ai-model">模型</Label>
-                <Input
-                  id="ai-model"
-                  type="text"
-                  value={aiConfig.model}
-                  placeholder="gpt-4o-mini / claude-3-5-sonnet-..."
-                  onChange={(e) => setAiConfig({ model: e.target.value })}
-                />
-              </div>
 
               {/* CLI provider：可选命令路径 + 说明 */}
               {isCliProvider && (

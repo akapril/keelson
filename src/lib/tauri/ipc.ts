@@ -102,6 +102,10 @@ export const ipc = {
   aiCancelStream: (streamId: string) =>
     invoke<void>("ai_cancel_stream", { streamId }),
 
+  /** 拉取服务商可用模型 id 列表；本地 CLI 返回空数组，失败时 reject（前端回退手填）。 */
+  listModels: (config: AiConfig) =>
+    invoke<string[]>("list_models", { config }),
+
   // ── RAG 语义检索 ───────────────────────────────────────────
   /** 语义召回：返回与 query 最相似的历史会话片段列表（limit 默认 8） */
   ragSearch: (config: EmbedConfig, query: string, limit: number) =>

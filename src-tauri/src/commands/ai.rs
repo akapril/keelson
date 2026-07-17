@@ -130,6 +130,54 @@ pub async fn ai_chat(config: AiConfig, messages: Vec<ChatMessage>) -> Result<Str
     parsed.ok_or_else(|| "响应中未找到助手回复".to_string())
 }
 
+/// 拉取服务商可用模型 id 列表（OpenAI/Anthropic 均为 `GET /models` → `{data:[{id}]}`）。
+/// 本地 CLI 无此接口 → 返回空列表；失败返回 Err（前端两种情况都回退到手动输入）。
+#[tauri::command]
+pub async fn list_models(config: AiConfig) -> Result<Vec<String>, String> {
+    if crate::commands::cli::is_cli_provider(&config.provider) {
+        return Ok(vec![]);
+    }
+    let is_anthropic = config.provider == "anthropic";
+    let base = config.base_url.trim_end_matches('/');
+    let url = if is_anthropic {
+        let root = if base.is_empty() { "https://api.anthropic.com" } else { base };
+        format!("{root}/v1/models")
+    } else {
+        let root = if base.is_empty() { "https://api.openai.com/v1" } else { base };
+        format!("{root}/models")
+    };
+
+    let client = reqwest::Client::new();
+    let mut rb = client.get(&url);
+    if is_anthropic {
+        rb = rb
+            .header("x-api-key", &config.api_key)
+            .header("anthropic-version", "2023-06-01");
+    } else {
+        rb = rb.header("authorization", format!("Bearer {}", config.api_key));
+    }
+
+    let resp = rb.send().await.map_err(|e| format!("请求失败: {e}"))?;
+    let status = resp.status();
+    let text = resp.text().await.map_err(|e| format!("读取响应失败: {e}"))?;
+    if !status.is_success() {
+        let snippet: String = text.chars().take(200).collect();
+        return Err(format!("模型列表接口返回 {status}: {snippet}"));
+    }
+    let v: Value = serde_json::from_str(&text).map_err(|e| format!("解析 JSON 失败: {e}"))?;
+    // OpenAI 与 Anthropic 的 /models 都返回 { data: [ { id: "..." }, ... ] }
+    let ids = v
+        .get("data")
+        .and_then(|d| d.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| m.get("id").and_then(|i| i.as_str()).map(|s| s.to_string()))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    Ok(ids)
+}
+
 // ── 工具调用（agent loop 基础层）──────────────────────────
 // 前端下发「中性」工具定义 {name, description, parameters(JSON schema)}，
 // 按 provider 转成各自线格式。富消息支持 assistant 的 tool_calls 与 tool 结果跨轮传递。
