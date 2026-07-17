@@ -23,7 +23,7 @@ export function SpotlightList() {
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 px-4 py-10 text-muted-foreground">
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-muted-foreground">
         <HugeiconsIcon icon={InboxIcon} strokeWidth={1.5} className="size-8 opacity-50" />
         <span className="text-sm">没有匹配的会话</span>
       </div>
@@ -31,7 +31,7 @@ export function SpotlightList() {
   }
 
   return (
-    <div ref={listRef} className="max-h-80 overflow-y-auto p-2">
+    <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto p-2">
       {items.map((item, idx) => {
         const isSelected = idx === selectedIndex;
         const provider = item.session.provider;
