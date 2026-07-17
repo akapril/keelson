@@ -16,6 +16,9 @@ export const ipc = {
   writeTextFile: (path: string, content: string) =>
     invoke<void>("write_text_file", { path, content }),
 
+  /** 在系统文件管理器中打开路径（会话中枢 / 项目工作台「打开位置」） */
+  openPath: (path: string) => invoke<void>("open_path", { path }),
+
   /** 抓取 URL 并返回粗提取的可读正文（阅读「AI 解析」用） */
   fetchUrlText: (url: string) => invoke<string>("fetch_url_text", { url }),
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { ipc } from "@/lib/tauri/ipc";
 import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
 import { RestoreDialog } from "./RestoreDialog";
@@ -139,6 +140,15 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
           {isFav ? "取消收藏" : "收藏"}
         </ContextMenuItem>
         <ContextMenuSeparator />
+        <ContextMenuItem
+          onSelect={() =>
+            void ipc
+              .openPath(session.project_path)
+              .catch((e) => toast.error(`打开位置失败：${String(e)}`))
+          }
+        >
+          打开项目位置
+        </ContextMenuItem>
         <ContextMenuItem
           onSelect={() =>
             void navigator.clipboard
