@@ -220,13 +220,33 @@
   min-height: 2.75rem;
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.125rem;
-  overflow: visible;
   width: 100%;
   padding: 0.4rem 1.25rem;
   border-bottom: 1px solid var(--border);
   background: var(--background);
+}
+
+/* 中间格式区：占据剩余宽度，窄容器下横向滚动而非被外层 overflow:hidden 裁掉 */
+.milkdown-toolbar-scroll {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.125rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+/* 右侧模式/全屏组：固定不缩、不滚动，始终可见 */
+.milkdown-toolbar-fixed {
+  flex: 0 0 auto;
+  margin-left: 0.25rem;
+  padding-left: 0.375rem;
+  border-left: 1px solid var(--border);
 }
 
 .milkdown-rich-area {
@@ -358,7 +378,6 @@
 
 @media (max-width: 768px) {
   .milkdown-system-toolbar {
-    overflow-x: auto;
     padding-inline: 0.75rem;
   }
 
