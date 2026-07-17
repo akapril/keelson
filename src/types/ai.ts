@@ -7,6 +7,8 @@ export interface AiConfig {
   base_url: string;
   api_key: string;
   model: string;
+  /** 本地 CLI 可执行文件绝对路径（可选）。填了则绕过 PATH 直接启动，解决 GUI 进程找不到 codex/claude 的问题。 */
+  cli_path?: string;
 }
 
 export interface AiChatMessage {
@@ -58,4 +60,5 @@ export const DEFAULT_AI_CONFIG: AiConfig = {
   base_url: "",
   api_key: "",
   model: "gpt-4o-mini",
+  cli_path: "",
 };

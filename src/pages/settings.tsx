@@ -377,13 +377,30 @@ export default function Settings() {
                 />
               </div>
 
-              {/* CLI provider 说明文案 */}
+              {/* CLI provider：可选命令路径 + 说明 */}
               {isCliProvider && (
-                <p className="text-xs text-muted-foreground">
-                  将调用本机已安装的{" "}
-                  <code>{aiConfig.provider === "codex-cli" ? "codex" : "claude"}</code>{" "}
-                  命令行（走你的本地订阅，数据不出本机）。请确保它已安装并在 PATH 中。
-                </p>
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="ai-cli-path">命令路径（可选）</Label>
+                    <Input
+                      id="ai-cli-path"
+                      type="text"
+                      value={aiConfig.cli_path ?? ""}
+                      placeholder={
+                        aiConfig.provider === "codex-cli"
+                          ? "留空自动查找；如 C:\\Users\\you\\AppData\\Roaming\\npm\\codex.cmd"
+                          : "留空自动查找；如 C:\\Users\\you\\AppData\\Roaming\\npm\\claude.cmd"
+                      }
+                      onChange={(e) => setAiConfig({ cli_path: e.target.value })}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    将调用本机的{" "}
+                    <code>{aiConfig.provider === "codex-cli" ? "codex" : "claude"}</code>{" "}
+                    命令行（走本地订阅，数据不出本机）。若提示「program not found」但终端里能运行，
+                    在上面填它的绝对路径即可（终端里用 <code>where {aiConfig.provider === "codex-cli" ? "codex" : "claude"}</code> 查）。
+                  </p>
+                </>
               )}
             </>
           );
