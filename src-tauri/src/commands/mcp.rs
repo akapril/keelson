@@ -38,9 +38,11 @@ pub fn mcp_install_claude(app: tauri::AppHandle) -> Result<String, String> {
         json!({})
     };
 
-    // 写前备份，防意外损坏用户 claude 配置。
+    // 写前备份，防意外损坏用户 claude 配置。备份失败则告警（不静默）。
     if path.exists() {
-        let _ = std::fs::copy(&path, home.join(".claude.json.rework-bak"));
+        if let Err(e) = std::fs::copy(&path, home.join(".claude.json.rework-bak")) {
+            eprintln!("[rework/mcp] 备份 ~/.claude.json 失败，仍将继续写入：{e}");
+        }
     }
 
     // 只设 mcpServers.rework 一项，保留其它服务器与全部其它键。
@@ -75,7 +77,9 @@ pub fn mcp_install_codex(app: tauri::AppHandle) -> Result<String, String> {
         toml::Value::Table(toml::map::Map::new())
     };
     if path.exists() {
-        let _ = std::fs::copy(&path, dir.join("config.toml.rework-bak"));
+        if let Err(e) = std::fs::copy(&path, dir.join("config.toml.rework-bak")) {
+            eprintln!("[rework/mcp] 备份 ~/.codex/config.toml 失败，仍将继续写入：{e}");
+        }
     }
 
     // 确保 [mcp_servers] 表，只设 rework 一项。
