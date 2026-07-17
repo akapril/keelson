@@ -83,6 +83,10 @@ pub fn parse_anthropic(v: &Value) -> Option<String> {
 /// 非流式对话：按 provider 组装请求、POST、解析出助手回复文本。
 #[tauri::command]
 pub async fn ai_chat(config: AiConfig, messages: Vec<ChatMessage>) -> Result<String, String> {
+    // 本地 CLI provider：直接调用 claude/codex，绕过 HTTP。
+    if crate::commands::cli::is_cli_provider(&config.provider) {
+        return crate::commands::cli::run_cli(&config.provider, &messages).await;
+    }
     let is_anthropic = config.provider == "anthropic";
     let base = config.base_url.trim_end_matches('/');
 
@@ -405,6 +409,30 @@ pub async fn ai_chat_stream(
     on_event: tauri::ipc::Channel<AiStreamEvent>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    // 本地 CLI provider：逐行读取 stdout，按 delta 事件推送；不复用 HTTP 取消标志。
+    if crate::commands::cli::is_cli_provider(&config.provider) {
+        let result = crate::commands::cli::run_cli_stream(
+            &config.provider,
+            &messages,
+            |line| {
+                let _ = on_event.send(AiStreamEvent {
+                    kind: "delta".into(),
+                    text: Some(format!("{line}\n")),
+                });
+            },
+        )
+        .await;
+        match result {
+            Ok(()) => {
+                let _ = on_event.send(AiStreamEvent { kind: "done".into(), text: None });
+                return Ok(());
+            }
+            Err(e) => {
+                let _ = on_event.send(AiStreamEvent { kind: "error".into(), text: Some(e) });
+                return Ok(());
+            }
+        }
+    }
     // 注册本次流的取消标志
     let cancel = Arc::new(AtomicBool::new(false));
     state
