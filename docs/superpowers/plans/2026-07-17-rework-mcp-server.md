@@ -470,8 +470,9 @@ async fn create_task(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     let filter = format!("project = \"{}\" && state = \"{}\"", pid.replace('"', ""), state.replace('"', ""));
     let existing = ctx.client.list("board_tasks", &filter, "rank").await.or_else(|e| err(e))?;
     let ranks: Vec<f64> = existing.iter().filter_map(|r| r["rank"].as_f64()).collect();
+    // board_tasks 无 owner 字段，必填 created_by（授权靠 createRule 的 project.owner）
     let mut data = json!({
-        "owner": ctx.user_id,
+        "created_by": ctx.user_id,
         "project": pid,
         "state": state,
         "title": title,
@@ -558,10 +559,11 @@ git commit -m "feat(mcp): 8 个看板/文档 handler + dispatch + PbClient::list
 `src-tauri/Cargo.toml` `[dependencies]` 加:
 
 ```toml
-rmcp = { version = "2", features = ["server", "transport-streamable-http-server"] } # 应用内 MCP server
+rmcp = { version = "0.16", features = ["server", "transport-streamable-http-server"] } # 应用内 MCP server（crates.io 是 0.x semver，非 "2.x"）
+axum = "0.8" # StreamableHttpService 产出 tower Service，用 axum::serve 承载 + Bearer 中间件
 ```
 
-（实现时以 `cargo doc -p rmcp` 确认 2.x 实际 feature 名与 API；若 feature 名有出入按 docs 调整。）
+（rmcp 确切 API 见 `.superpowers/sdd/rmcp-api-notes.md`（已联网调研，含可编译骨架 + 需 cargo doc 核实清单）；实现时 `cargo doc -p rmcp --no-deps` 核对字段名后照抄适配。）
 
 - [ ] **Step 2: 写失败测试**（secret 生成，纯逻辑）
 
