@@ -1,5 +1,5 @@
 // AI 对话相关类型（字段与 Rust commands/ai.rs 的 serde 结构对齐，snake_case）。
-export type AiProvider = "openai" | "anthropic";
+export type AiProvider = "openai" | "anthropic" | "claude-cli" | "codex-cli";
 
 export interface AiConfig {
   provider: AiProvider;

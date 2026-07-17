@@ -20,6 +20,8 @@ pub mod workbench;
 pub mod git;
 // AI 对话命令（ai_chat；项目工作台 AI 标签用，provider 可切）
 pub mod ai;
+// 本地 CLI provider（claude / codex）
+pub mod cli;
 // 文件写入命令（write_text_file；导出「另存为」用）
 pub mod fs;
 // 网页抓取命令（fetch_url_text；阅读「AI 解析」用）
