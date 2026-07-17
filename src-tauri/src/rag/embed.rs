@@ -19,9 +19,18 @@ pub struct MockEmbedder {
     pub dim: usize,
 }
 
+/// 本地 ONNX 嵌入（fastembed）：仅在 local-embed feature 启用时编译。
+#[cfg(feature = "local-embed")]
+pub struct LocalEmbedder {
+    model: std::sync::Arc<parking_lot::Mutex<fastembed::TextEmbedding>>,
+    pub dim: usize,
+}
+
 pub enum Embedder {
     Api(ApiEmbedder),
     Mock(MockEmbedder),
+    #[cfg(feature = "local-embed")]
+    Local(LocalEmbedder),
 }
 
 impl MockEmbedder {
@@ -46,12 +55,24 @@ impl Embedder {
         match self {
             Embedder::Api(e) => e.dim,
             Embedder::Mock(e) => e.dim,
+            #[cfg(feature = "local-embed")]
+            Embedder::Local(e) => e.dim,
         }
     }
 
     pub async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, String> {
         match self {
             Embedder::Mock(e) => Ok(texts.iter().map(|t| e.embed_one(t)).collect()),
+            #[cfg(feature = "local-embed")]
+            Embedder::Local(e) => {
+                // fastembed 的 embed 是同步调用，通过 Arc<Mutex> 防并发
+                let vectors: Vec<Vec<f32>> = e
+                    .model
+                    .lock()
+                    .embed(texts.to_vec(), None)
+                    .map_err(|err| format!("本地嵌入推理失败：{err}"))?;
+                Ok(vectors)
+            }
             Embedder::Api(e) => {
                 let root = if e.base_url.trim().is_empty() {
                     "https://api.openai.com/v1".to_string()
@@ -97,7 +118,26 @@ pub fn build_embedder(cfg: &EmbedConfig) -> Result<Embedder, String> {
             dim: infer_dim(&cfg.model),
         })),
         "mock" => Ok(Embedder::Mock(MockEmbedder { dim: 384 })),
-        // "local" 在 local-embed feature 中补（Task 7）
+        "local" => {
+            // local-embed feature 启用时构建 LocalEmbedder，否则报友好错误
+            #[cfg(feature = "local-embed")]
+            {
+                use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+                let model = TextEmbedding::try_new(
+                    InitOptions::new(EmbeddingModel::AllMiniLML6V2)
+                        .with_show_download_progress(false),
+                )
+                .map_err(|e| format!("本地嵌入模型加载失败：{e}"))?;
+                Ok(Embedder::Local(LocalEmbedder {
+                    model: std::sync::Arc::new(parking_lot::Mutex::new(model)),
+                    dim: 384, // AllMiniLML6V2 = 384 维
+                }))
+            }
+            #[cfg(not(feature = "local-embed"))]
+            {
+                Err("本地嵌入未启用：请以 --features local-embed 构建".into())
+            }
+        }
         other => Err(format!("暂不支持的嵌入 provider：{other}")),
     }
 }
