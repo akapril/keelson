@@ -82,11 +82,11 @@ export default function UsagePage() {
         <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={summary.daily}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="date" tick={{ fontSize: 11 }} />
               <YAxis tickFormatter={fmtTokens} tick={{ fontSize: 11 }} width={48} />
               <Tooltip formatter={fmtTooltip} />
-              <Line type="monotone" dataKey="tokens" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="tokens" stroke="var(--primary)" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -98,11 +98,11 @@ export default function UsagePage() {
         <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={summary.byProvider}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="provider" tick={{ fontSize: 11 }} />
               <YAxis tickFormatter={fmtTokens} tick={{ fontSize: 11 }} width={48} />
               <Tooltip formatter={fmtTooltip} />
-              <Bar dataKey="tokens" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="tokens" fill="var(--primary)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
