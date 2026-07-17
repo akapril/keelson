@@ -66,8 +66,9 @@ async fn create_task(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     let filter = format!("project = \"{}\" && state = \"{}\"", pid.replace('"', ""), state.replace('"', ""));
     let existing = ctx.client.list("board_tasks", &filter, "rank").await.or_else(|e| err(e))?;
     let ranks: Vec<f64> = existing.iter().filter_map(|r| r["rank"].as_f64()).collect();
+    // board_tasks 无 owner 字段，必填 created_by（授权靠 createRule 的 project.owner）。
     let mut data = json!({
-        "owner": ctx.user_id,
+        "created_by": ctx.user_id,
         "project": pid,
         "state": state,
         "title": title,
