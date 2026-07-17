@@ -43,6 +43,8 @@ jieba-rs = "0.7"
 toml = "0.8"
 bincode = "1" # RAG 向量文件序列化
 fastembed = { version = "4", optional = true } # 本地嵌入（ONNX），仅 local-embed feature
+rmcp = { version = "0.16", features = ["server", "transport-streamable-http-server"] }
+axum = "0.8"
 
 [features]
 local-embed = ["dep:fastembed"]
