@@ -39,7 +39,11 @@ pub async fn rag_search(
     limit: u32,
     _state: State<'_, AppState>,
 ) -> Result<Vec<RagHit>, String> {
-    let embedder = build_embedder(&config)?;
+    // 嵌入配置失效也降级为空（与其它失败路径一致），让前端回退关键词检索，而非抛命令错误
+    let embedder = match build_embedder(&config) {
+        Ok(e) => e,
+        Err(_) => return Ok(vec![]),
+    };
     let path = match vec_path(&app) {
         Ok(p) => p,
         Err(_) => return Ok(vec![]),
