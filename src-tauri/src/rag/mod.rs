@@ -2,6 +2,7 @@
 //! 分块（chunk）+ 向量存储（store）+ 嵌入（embed），命令层在 commands::rag。
 pub mod chunk;
 pub mod store;
+pub mod embed;
 
 use serde::{Deserialize, Serialize};
 
@@ -13,4 +14,13 @@ pub struct Chunk {
     pub role: String, // "user" / "assistant"
     pub seq: u32,     // 会话内块序号
     pub text: String,
+}
+
+/// 嵌入配置（前端按调用传入，仿 AiConfig）。
+#[derive(Debug, Clone, Deserialize)]
+pub struct EmbedConfig {
+    pub provider: String, // "api" | "local" | "mock"
+    pub base_url: String,
+    pub api_key: String,
+    pub model: String,
 }
