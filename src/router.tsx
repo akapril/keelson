@@ -7,6 +7,7 @@ import Board from "./pages/board";
 import DocsPage from "./pages/docs";
 import ReadingPage from "./features/reading/ReadingPage";
 import CalendarPage from "./features/calendar/CalendarPage";
+import UsagePage from "./pages/usage";
 
 export function AppRouter() {
   return (
@@ -19,6 +20,7 @@ export function AppRouter() {
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/reading" element={<ReadingPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/usage" element={<UsagePage />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
