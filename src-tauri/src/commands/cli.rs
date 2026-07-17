@@ -92,7 +92,7 @@ pub async fn run_cli_stream<F: FnMut(String)>(
         let spawned = Command::new(&cand)
             .args(&args)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::null()) // 丢弃 stderr，避免缓冲区满导致死锁
             .spawn();
         match spawned {
             Ok(mut child) => {
@@ -164,5 +164,15 @@ mod tests {
         let (bin, args) = build_cli_command("codex", "hello");
         assert_eq!(bin, "codex");
         assert_eq!(args, vec!["exec".to_string(), "hello".to_string()]);
+    }
+
+    #[test]
+    fn bin_candidates_platform_order() {
+        let c = bin_candidates("claude");
+        #[cfg(windows)]
+        assert_eq!(c, vec!["claude.cmd".to_string(), "claude.exe".to_string(), "claude".to_string()]);
+        #[cfg(not(windows))]
+        assert_eq!(c, vec!["claude".to_string()]);
+        assert!(c.contains(&"claude".to_string()));
     }
 }
