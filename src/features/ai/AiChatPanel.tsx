@@ -55,6 +55,9 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
   const [includeContext, setIncludeContext] = useState(false);
   // 工具模式：允许 AI 调用工具建/改看板任务与文档
   const [useTools, setUseTools] = useState(false);
+  // 响应式派生：当前 provider 是否为本地 CLI（不支持工具模式）
+  const provider = useSettingsStore((s) => s.aiConfig.provider);
+  const isCli = provider === "claude-cli" || provider === "codex-cli";
   const listRef = useRef<HTMLDivElement>(null);
   // 当前进行中的流 id（用于「停止生成」）
   const activeStreamId = useRef<string | null>(null);
@@ -135,8 +138,8 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
     }
     setNeedConfig(false);
 
-    // 工具模式走 agent loop（非流式）
-    if (useTools) {
+    // 工具模式走 agent loop（非流式）；CLI provider 不支持，直接跳过走流式
+    if (useTools && !isCli) {
       await sendWithTools(text, aiConfig);
       return;
     }
@@ -341,15 +344,19 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
             />
             包含项目上下文（文档 + 关联会话）
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+          <label className={`flex cursor-pointer items-center gap-2 text-xs ${isCli ? "cursor-not-allowed opacity-50 text-muted-foreground" : "text-muted-foreground"}`}>
             <input
               type="checkbox"
               checked={useTools}
               onChange={(e) => setUseTools(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-input accent-primary"
+              disabled={isCli}
+              className="h-3.5 w-3.5 rounded border-input accent-primary disabled:cursor-not-allowed"
             />
             工具模式（允许 AI 建/改看板任务与文档）
           </label>
+          {isCli && (
+            <p className="text-xs text-muted-foreground/70 pl-5">本地 CLI 暂不支持工具模式</p>
+          )}
         </div>
         {messages.length > 0 && (
           <Button

@@ -321,6 +321,10 @@ pub async fn ai_chat_tools(
     messages: Vec<ToolChatMessage>,
     tools: Vec<Value>,
 ) -> Result<AiToolTurn, String> {
+    // 本地 CLI provider 无 tool-calling 协议，不支持工具模式；明确报错而非静默打到 OpenAI。
+    if crate::commands::cli::is_cli_provider(&config.provider) {
+        return Err("本地 CLI provider 暂不支持工具模式，请关闭「工具模式」或改用 API provider。".into());
+    }
     let is_anthropic = config.provider == "anthropic";
     let base = config.base_url.trim_end_matches('/');
 
