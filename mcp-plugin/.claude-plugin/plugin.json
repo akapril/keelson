@@ -1,0 +1,8 @@
+{
+  "name": "rework",
+  "version": "0.1.0",
+  "description": "用 claude 操作 rework 的看板任务与文档（经 rework 应用内置的 MCP server）。含引导 skill 与 /rework-triage 命令。",
+  "author": "rework",
+  "homepage": "https://github.com/akapril/rework",
+  "keywords": ["rework", "kanban", "mcp", "task", "docs"]
+}
