@@ -4,7 +4,6 @@ use super::embed::{model_id, Embedder};
 use super::store::{StoredVec, VectorStore};
 use super::{EmbedConfig, RagHit};
 use crate::models::Session;
-use std::collections::HashSet;
 
 /// 全量构建向量库：分块→嵌入→装 store。分批嵌入以控请求大小。
 pub async fn build_store(
@@ -23,6 +22,14 @@ pub async fn build_store(
     for batch in chunks.chunks(BATCH) {
         let texts: Vec<String> = batch.iter().map(|c| c.text.clone()).collect();
         let vectors = embedder.embed(&texts).await?;
+        // 校验嵌入返回数量与请求一致，避免 zip 静默丢块
+        if vectors.len() != batch.len() {
+            return Err(format!(
+                "嵌入返回数量({})与请求({})不符",
+                vectors.len(),
+                batch.len()
+            ));
+        }
         for (chunk, vector) in batch.iter().zip(vectors.into_iter()) {
             store.vecs.push(StoredVec { chunk: chunk.clone(), vector });
         }
@@ -34,7 +41,6 @@ pub async fn build_store(
 pub fn hits_from(results: Vec<(StoredVec, f32)>, per_session: usize) -> Vec<RagHit> {
     let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     let mut out = Vec::new();
-    let mut _dedup: HashSet<String> = HashSet::new();
     for (sv, score) in results {
         let count = seen.entry(sv.chunk.session_id.clone()).or_insert(0);
         if *count >= per_session {
