@@ -1,6 +1,7 @@
 //! RAG：把本地会话历史变成可语义检索的知识库。
 //! 分块（chunk）+ 向量存储（store）+ 嵌入（embed），命令层在 commands::rag。
 pub mod chunk;
+pub mod store;
 
 use serde::{Deserialize, Serialize};
 
