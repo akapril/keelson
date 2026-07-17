@@ -292,6 +292,9 @@ pub fn run() {
             commands::ai::ai_chat_stream,
             commands::ai::ai_cancel_stream,
             commands::ai::ai_chat_tools,
+            // RAG 语义检索（rag_build_index / rag_search）
+            commands::rag::rag_build_index,
+            commands::rag::rag_search,
             // 文件写入（导出「另存为」）
             commands::fs::write_text_file,
             // 在系统文件管理器打开路径（会话中枢 / 项目工作台「打开位置」）
