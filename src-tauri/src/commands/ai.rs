@@ -11,10 +11,14 @@ use tauri::State;
 /// 前端下发的 AI 配置（字段为 snake_case，与 TS 侧一致）。
 #[derive(Deserialize, Clone, Debug)]
 pub struct AiConfig {
-    pub provider: String, // "openai" | "anthropic"
+    pub provider: String, // "openai" | "anthropic" | "claude-cli" | "codex-cli"
     pub base_url: String, // 可空：空则用官方默认
     pub api_key: String,
     pub model: String,
+    /// 本地 CLI 可执行文件的绝对路径（可选）。填了则绕过 PATH 直接 spawn，
+    /// 解决 GUI 进程 PATH 与终端不一致导致的 "program not found"。
+    #[serde(default)]
+    pub cli_path: Option<String>,
 }
 
 /// 一条对话消息。
@@ -85,7 +89,12 @@ pub fn parse_anthropic(v: &Value) -> Option<String> {
 pub async fn ai_chat(config: AiConfig, messages: Vec<ChatMessage>) -> Result<String, String> {
     // 本地 CLI provider：直接调用 claude/codex，绕过 HTTP。
     if crate::commands::cli::is_cli_provider(&config.provider) {
-        return crate::commands::cli::run_cli(&config.provider, &messages).await;
+        return crate::commands::cli::run_cli(
+            &config.provider,
+            config.cli_path.as_deref(),
+            &messages,
+        )
+        .await;
     }
     let is_anthropic = config.provider == "anthropic";
     let base = config.base_url.trim_end_matches('/');
@@ -417,6 +426,7 @@ pub async fn ai_chat_stream(
     if crate::commands::cli::is_cli_provider(&config.provider) {
         let result = crate::commands::cli::run_cli_stream(
             &config.provider,
+            config.cli_path.as_deref(),
             &messages,
             |line| {
                 let _ = on_event.send(AiStreamEvent {

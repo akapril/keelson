@@ -54,14 +54,29 @@ fn bin_candidates(bin: &str) -> Vec<String> {
     }
 }
 
+/// 解析可执行候选：用户显式配置了命令路径则优先（绝对路径绕过 PATH，
+/// 解决 GUI 进程 PATH 与交互式 shell 不一致导致的 "program not found"）；
+/// 否则回退按平台猜测的候选名（依赖进程 PATH）。
+fn candidates_for(bin: &str, cli_path: Option<&str>) -> Vec<String> {
+    match cli_path {
+        Some(p) if !p.trim().is_empty() => vec![p.trim().to_string()],
+        _ => bin_candidates(bin),
+    }
+}
+
 /// 非流式：spawn CLI，等待结束，返回 stdout 文本。
-pub async fn run_cli(provider: &str, messages: &[ChatMessage]) -> Result<String, String> {
+/// `cli_path` 为用户在设置里填的绝对路径（可选），优先于 PATH 查找。
+pub async fn run_cli(
+    provider: &str,
+    cli_path: Option<&str>,
+    messages: &[ChatMessage],
+) -> Result<String, String> {
     let bin = cli_bin_for(provider).ok_or_else(|| format!("未知 CLI provider：{provider}"))?;
     let prompt = flatten_messages(messages);
     let (_b, args) = build_cli_command(bin, &prompt);
 
     let mut last_err = String::new();
-    for cand in bin_candidates(bin) {
+    for cand in candidates_for(bin, cli_path) {
         match Command::new(&cand).args(&args).output().await {
             Ok(output) => {
                 if output.status.success() {
@@ -73,12 +88,15 @@ pub async fn run_cli(provider: &str, messages: &[ChatMessage]) -> Result<String,
             Err(e) => last_err = format!("无法启动 {cand}：{e}"),
         }
     }
-    Err(format!("{last_err}（请确认已安装 {bin} 并在 PATH 中）"))
+    Err(format!(
+        "{last_err}（请确认已安装 {bin}，或在设置里填写「命令路径」为其绝对路径 —— GUI 进程的 PATH 可能与终端不同）"
+    ))
 }
 
 /// 流式：逐行读 stdout，每读到一行调用 on_line 回调。
 pub async fn run_cli_stream<F: FnMut(String)>(
     provider: &str,
+    cli_path: Option<&str>,
     messages: &[ChatMessage],
     mut on_line: F,
 ) -> Result<(), String> {
@@ -88,7 +106,7 @@ pub async fn run_cli_stream<F: FnMut(String)>(
     let (_b, args) = build_cli_command(bin, &prompt);
 
     let mut last_err = String::new();
-    for cand in bin_candidates(bin) {
+    for cand in candidates_for(bin, cli_path) {
         let spawned = Command::new(&cand)
             .args(&args)
             .stdout(Stdio::piped())
@@ -110,7 +128,9 @@ pub async fn run_cli_stream<F: FnMut(String)>(
             Err(e) => last_err = format!("无法启动 {cand}：{e}"),
         }
     }
-    Err(format!("{last_err}（请确认已安装 {bin} 并在 PATH 中）"))
+    Err(format!(
+        "{last_err}（请确认已安装 {bin}，或在设置里填写「命令路径」为其绝对路径 —— GUI 进程的 PATH 可能与终端不同）"
+    ))
 }
 
 #[cfg(test)]
@@ -135,6 +155,18 @@ mod tests {
         assert_eq!(cli_bin_for("claude-cli"), Some("claude"));
         assert_eq!(cli_bin_for("codex-cli"), Some("codex"));
         assert_eq!(cli_bin_for("openai"), None);
+    }
+
+    #[test]
+    fn explicit_cli_path_overrides_candidates() {
+        // 显式绝对路径 → 单一候选，绕过 PATH 猜测
+        assert_eq!(
+            candidates_for("codex", Some("C:/tools/codex.cmd")),
+            vec!["C:/tools/codex.cmd".to_string()]
+        );
+        // 空白路径 / None → 回退平台候选
+        assert_eq!(candidates_for("codex", Some("   ")), bin_candidates("codex"));
+        assert_eq!(candidates_for("codex", None), bin_candidates("codex"));
     }
 
     #[test]
