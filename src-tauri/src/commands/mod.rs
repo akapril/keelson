@@ -26,6 +26,8 @@ pub mod cli;
 pub mod fs;
 // 网页抓取命令（fetch_url_text；阅读「AI 解析」用）
 pub mod web;
+// RAG 命令（rag_build_index / rag_search；跨会话语义检索）
+pub mod rag;
 
 // 注意：generate_handler! 宏需要使用函数定义所在的原始路径（含辅助符号），
 // 故不做 re-export；lib.rs 中直接使用 commands::sessions::sessions_list 等完整路径。
