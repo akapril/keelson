@@ -13,4 +13,14 @@ export interface ReadingItem {
   status: ReadingStatus;
   created: string;
   updated: string;
+  /** 逗号分隔的标签文本（前端拆/合） */
+  tags: string;
+  /** AI 摘要（一段） */
+  summary: string;
+  /** 要点：JSON 字符串数组（前端 parse） */
+  key_points: string;
+  /** 缓存的网页正文（可长；PB 字段 max:0） */
+  content_text: string;
+  /** 是否置顶 */
+  pinned: boolean;
 }
