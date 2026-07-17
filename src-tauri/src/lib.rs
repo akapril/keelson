@@ -26,6 +26,8 @@ pub mod terminal;
 pub mod sync;
 // 扫描缓存 + 增量更新（⑥ 启动秒加载）
 pub mod scan_cache;
+// 跨会话语义检索：分块纯逻辑、向量存储、嵌入（Task 1）
+pub mod rag;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
