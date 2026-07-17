@@ -48,13 +48,14 @@ pub async fn rag_search(
         Ok(p) => p,
         Err(_) => return Ok(vec![]),
     };
-    let store = match VectorStore::load(&path, &model_id(&config), embedder.dim()) {
-        Some(s) => s,
-        None => return Ok(vec![]), // 未建/失效 → 空，前端回退
-    };
+    // 先嵌入 query，以其实际维度加载向量库（infer_dim 对云端可能猜错，实际向量长度才准）
     let qv = match embedder.embed(&[query]).await {
         Ok(mut v) if !v.is_empty() => v.remove(0),
         _ => return Ok(vec![]),
+    };
+    let store = match VectorStore::load(&path, &model_id(&config), qv.len()) {
+        Some(s) => s,
+        None => return Ok(vec![]), // 未建/失效 → 空，前端回退
     };
     // 取较大候选后按会话去重成 limit 条
     let raw = store.search(&qv, (limit as usize) * 3);

@@ -107,7 +107,7 @@ impl Embedder {
     }
 }
 
-/// 依配置构建 Embedder。未知 provider 回退 Mock（保证可用）。
+/// 依配置构建 Embedder。未知 provider 返回 Err（不静默降级）。
 pub fn build_embedder(cfg: &EmbedConfig) -> Result<Embedder, String> {
     match cfg.provider.as_str() {
         "api" => Ok(Embedder::Api(ApiEmbedder {
