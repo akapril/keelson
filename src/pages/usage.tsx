@@ -131,6 +131,40 @@ export default function UsagePage() {
           )}
         </div>
       </section>
+
+      {/* 按项目分布（哪个项目最烧钱） */}
+      <section className="rounded-xl border border-border bg-card p-4">
+        <h2 className="mb-3 text-sm font-medium">按项目</h2>
+        <div className="h-56 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={summary.byProject.slice(0, 12)}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="project_name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={50} />
+              <YAxis tickFormatter={fmtTokens} tick={{ fontSize: 11 }} width={48} />
+              <Tooltip formatter={fmtTooltip} />
+              <Bar dataKey="tokens" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {summary.byProject.map((p) => (
+            <div key={p.project_path || p.project_name} className="flex items-center gap-3 text-sm">
+              <span className="min-w-0 flex-1 truncate font-medium" title={p.project_path}>
+                {p.project_name}
+              </span>
+              <span className="w-20 shrink-0 text-right text-muted-foreground">{p.sessions} 会话</span>
+              <span className="w-32 shrink-0 text-right text-muted-foreground">
+                {fmtTokens(p.tokens)} · {cur}
+                {p.cost.toFixed(2)}
+              </span>
+            </div>
+          ))}
+          {summary.byProject.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">该时间范围内暂无会话数据</p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

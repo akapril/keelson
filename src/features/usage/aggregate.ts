@@ -19,11 +19,20 @@ export interface ProviderStat {
   cost: number;
 }
 
+export interface ProjectStat {
+  project_path: string;
+  project_name: string;
+  sessions: number;
+  tokens: number;
+  cost: number;
+}
+
 export interface UsageSummary {
   totalSessions: number;
   totalTokens: number;
   totalCost: number;
   byProvider: ProviderStat[];
+  byProject: ProjectStat[];
   daily: DailyPoint[];
 }
 
@@ -54,6 +63,8 @@ export function aggregateUsage(
 
   // 按 provider 聚合
   const provMap = new Map<string, ProviderStat>();
+  // 按项目聚合（key = project_path，标签用 project_name）
+  const projMap = new Map<string, ProjectStat>();
   // 按天聚合
   const dayMap = new Map<string, number>();
 
@@ -78,11 +89,26 @@ export function aggregateUsage(
     ps.cost += cost;
     provMap.set(s.provider, ps);
 
+    // 按项目：key=project_path（不同项目可能重名，用路径去重）
+    const pjKey = s.project_path || s.project_name || "(未知)";
+    const pj = projMap.get(pjKey) ?? {
+      project_path: s.project_path,
+      project_name: s.project_name || s.project_path || "(未知)",
+      sessions: 0,
+      tokens: 0,
+      cost: 0,
+    };
+    pj.sessions += 1;
+    pj.tokens += tokens;
+    pj.cost += cost;
+    projMap.set(pjKey, pj);
+
     const dk = dayKey(s.created_at);
     dayMap.set(dk, (dayMap.get(dk) ?? 0) + tokens);
   }
 
   const byProvider = [...provMap.values()].sort((a, b) => b.tokens - a.tokens);
+  const byProject = [...projMap.values()].sort((a, b) => b.tokens - a.tokens);
   const daily = [...dayMap.entries()]
     .map(([date, tokens]) => ({ date, tokens }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
@@ -92,6 +118,7 @@ export function aggregateUsage(
     totalTokens,
     totalCost,
     byProvider,
+    byProject,
     daily,
   };
 }
