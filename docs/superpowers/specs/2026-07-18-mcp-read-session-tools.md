@@ -32,8 +32,9 @@
 - 纯逻辑 `summarize_sessions(sessions, repo_path, limit) -> Vec<Value>` 可测（过滤/排序/截断/投影）。
 
 ### `search_sessions`
-- 入参：`query`(必填)、`limit`(可选，默认 20)。
-- 返回：`Vec<SessionHit>`（session_id/provider/role/snippet/score）。直接 `session_backend::search`，index 未就绪返回空数组 + 一句提示。
+- 入参：`query`(必填)、`limit`(可选，默认 20，钳到 MAX_LIMIT=200)。
+- 返回：`Vec<SessionHit>`（session_id/provider/role/snippet/score）。直接 `session_backend::search`。
+- **index 未就绪**（应用仍在建索引）→ 返回**明确错误**(MCP isError)，而非空数组——避免外部 agent 把 `[]` 误读为"无相关会话"。
 
 ### `get_session`
 - 入参：`provider`(必填，"claude"/"codex")、`session_id`(必填)。
