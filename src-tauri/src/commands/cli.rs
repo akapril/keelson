@@ -37,11 +37,29 @@ pub fn flatten_messages(messages: &[ChatMessage]) -> String {
 }
 
 /// 构造 CLI 命令：claude 用 `-p <prompt>`，codex 用 `exec <prompt>`。
-pub fn build_cli_command(bin: &str, prompt: &str) -> (String, Vec<String>) {
+/// with_tools=true（工具模式）时追加「完全自动」标志，让 CLI 自主 agent 循环可调用
+/// 已配置的 MCP 工具（含 rework MCP）：
+/// - claude：`--dangerously-skip-permissions`（= bypassPermissions，MCP 调用自动放行）。
+/// - codex：`--dangerously-bypass-approvals-and-sandbox`（非交互下调 MCP 工具的唯一可行开关），
+///   且须放在 `exec` 之后、prompt 之前。
+pub fn build_cli_command(bin: &str, prompt: &str, with_tools: bool) -> (String, Vec<String>) {
     match bin {
-        "codex" => (bin.to_string(), vec!["exec".to_string(), prompt.to_string()]),
+        "codex" => {
+            let mut args = vec!["exec".to_string()];
+            if with_tools {
+                args.push("--dangerously-bypass-approvals-and-sandbox".to_string());
+            }
+            args.push(prompt.to_string());
+            (bin.to_string(), args)
+        }
         // 默认按 claude：-p 走一次性 print 模式
-        _ => (bin.to_string(), vec!["-p".to_string(), prompt.to_string()]),
+        _ => {
+            let mut args = vec!["-p".to_string(), prompt.to_string()];
+            if with_tools {
+                args.push("--dangerously-skip-permissions".to_string());
+            }
+            (bin.to_string(), args)
+        }
     }
 }
 
@@ -70,10 +88,11 @@ pub async fn run_cli(
     provider: &str,
     cli_path: Option<&str>,
     messages: &[ChatMessage],
+    with_tools: bool,
 ) -> Result<String, String> {
     let bin = cli_bin_for(provider).ok_or_else(|| format!("未知 CLI provider：{provider}"))?;
     let prompt = flatten_messages(messages);
-    let (_b, args) = build_cli_command(bin, &prompt);
+    let (_b, args) = build_cli_command(bin, &prompt, with_tools);
 
     let mut last_err = String::new();
     for cand in candidates_for(bin, cli_path) {
@@ -98,12 +117,13 @@ pub async fn run_cli_stream<F: FnMut(String)>(
     provider: &str,
     cli_path: Option<&str>,
     messages: &[ChatMessage],
+    with_tools: bool,
     mut on_line: F,
 ) -> Result<(), String> {
     use std::process::Stdio;
     let bin = cli_bin_for(provider).ok_or_else(|| format!("未知 CLI provider：{provider}"))?;
     let prompt = flatten_messages(messages);
-    let (_b, args) = build_cli_command(bin, &prompt);
+    let (_b, args) = build_cli_command(bin, &prompt, with_tools);
 
     let mut last_err = String::new();
     for cand in candidates_for(bin, cli_path) {
@@ -185,17 +205,45 @@ mod tests {
     }
 
     #[test]
-    fn builds_claude_command() {
-        let (bin, args) = build_cli_command("claude", "hello");
+    fn builds_claude_command_plain() {
+        let (bin, args) = build_cli_command("claude", "hello", false);
         assert_eq!(bin, "claude");
         assert_eq!(args, vec!["-p".to_string(), "hello".to_string()]);
     }
 
     #[test]
-    fn builds_codex_command() {
-        let (bin, args) = build_cli_command("codex", "hello");
+    fn builds_claude_command_with_tools() {
+        // 权限绕过标志追加在 -p prompt 之后
+        let (_bin, args) = build_cli_command("claude", "hello", true);
+        assert_eq!(
+            args,
+            vec![
+                "-p".to_string(),
+                "hello".to_string(),
+                "--dangerously-skip-permissions".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn builds_codex_command_plain() {
+        let (bin, args) = build_cli_command("codex", "hello", false);
         assert_eq!(bin, "codex");
         assert_eq!(args, vec!["exec".to_string(), "hello".to_string()]);
+    }
+
+    #[test]
+    fn builds_codex_command_with_tools() {
+        // 标志在 exec 之后、prompt 之前
+        let (_bin, args) = build_cli_command("codex", "hello", true);
+        assert_eq!(
+            args,
+            vec![
+                "exec".to_string(),
+                "--dangerously-bypass-approvals-and-sandbox".to_string(),
+                "hello".to_string(),
+            ]
+        );
     }
 
     #[test]
