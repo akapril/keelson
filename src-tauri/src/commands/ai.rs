@@ -89,10 +89,12 @@ pub fn parse_anthropic(v: &Value) -> Option<String> {
 pub async fn ai_chat(config: AiConfig, messages: Vec<ChatMessage>) -> Result<String, String> {
     // 本地 CLI provider：直接调用 claude/codex，绕过 HTTP。
     if crate::commands::cli::is_cli_provider(&config.provider) {
+        // 非流式路径暂不接工具模式，固定 false（工具模式走流式 ai_chat_stream）
         return crate::commands::cli::run_cli(
             &config.provider,
             config.cli_path.as_deref(),
             &messages,
+            false,
         )
         .await;
     }
@@ -468,14 +470,17 @@ pub async fn ai_chat_stream(
     messages: Vec<ChatMessage>,
     stream_id: String,
     on_event: tauri::ipc::Channel<AiStreamEvent>,
+    with_tools: bool,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     // 本地 CLI provider：逐行读取 stdout，按 delta 事件推送；不复用 HTTP 取消标志。
+    // with_tools=true → 让 CLI 自主 agent 循环 + 已装 MCP（含 rework）运行。
     if crate::commands::cli::is_cli_provider(&config.provider) {
         let result = crate::commands::cli::run_cli_stream(
             &config.provider,
             config.cli_path.as_deref(),
             &messages,
+            with_tools,
             |line| {
                 let _ = on_event.send(AiStreamEvent {
                     kind: "delta".into(),
