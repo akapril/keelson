@@ -55,9 +55,9 @@ describe("commitLinkedSessions", () => {
     expect(commitLinkedSessions(commit("not-a-date", null), [s1, s2])).toEqual([]);
   });
 
-  it("trailer 指向未加载会话 → 回退时间窗", () => {
-    // trailer=ghost 不在列表；时间落 s1 窗内 → 返回 s1(time)
+  it("trailer 指向未加载会话 → 空(不降级为时间窗)", () => {
+    // trailer=ghost 不在列表；即便时间落 s1 窗内，也不把精确降级成"可能相关"
     const out = commitLinkedSessions(commit("2026-07-18T10:30:00Z", "ghost"), [s1, s2]);
-    expect(out).toEqual([{ session: s1, kind: "time" }]);
+    expect(out).toEqual([]);
   });
 });

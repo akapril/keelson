@@ -1,6 +1,6 @@
 // WorkspaceCommits —— 工作台「提交」面：commit → 催生它的会话（溯源反向）。
 // 列最近提交；每条按 trailer(精确) / 时间窗(可能相关) 反查会话，点击跳会话中枢。
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { GitCommitIcon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
@@ -24,8 +24,11 @@ export function WorkspaceCommits({ repoPath }: { repoPath: string }) {
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 本仓库的会话（供反查）
-  const repoSessions = sessions.filter((s) => s.project_path === repoPath);
+  // 本仓库的会话（供反查）——memo 避免每次渲染重算
+  const repoSessions = useMemo(
+    () => sessions.filter((s) => s.project_path === repoPath),
+    [sessions, repoPath],
+  );
 
   useEffect(() => {
     let cancelled = false;
