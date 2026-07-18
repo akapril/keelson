@@ -1,7 +1,16 @@
 // utils.test.ts — Spotlight 纯函数辅助测试
 import { describe, it, expect } from "vitest";
-import { recentSessions, filterSessions, sessionToItem } from "../utils";
+import {
+  recentSessions,
+  filterSessions,
+  sessionToItem,
+  taskToItem,
+  docToItem,
+  buildItems,
+} from "../utils";
 import type { Session } from "../../../types/session";
+import type { BoardTask } from "../../../types/board";
+import type { BoardDoc } from "../../../types/docs";
 
 /** 构造最小化测试用 Session */
 function makeSession(
@@ -104,6 +113,55 @@ describe("filterSessions", () => {
     const result = filterSessions(sessions, "fix");
     expect(result).toHaveLength(1);
     expect(result[0].session_id).toBe("b");
+  });
+});
+
+const task = (id: string, title: string): BoardTask =>
+  ({ id, title, project: "p1" }) as unknown as BoardTask;
+const doc = (id: string, title: string): BoardDoc =>
+  ({ id, title, project: "p2" }) as unknown as BoardDoc;
+
+describe("taskToItem / docToItem", () => {
+  it("任务→导航候选：kind=task，path 指向该项目看板", () => {
+    const it0 = taskToItem(task("t1", "修 bug"));
+    expect(it0.kind).toBe("task");
+    expect(it0.label).toBe("修 bug");
+    expect(it0.path).toContain("open=p1");
+    expect(it0.path).toContain("tab=board");
+  });
+  it("文档→导航候选：kind=doc，path 定位到该文档", () => {
+    const it0 = docToItem(doc("d1", "设计稿"));
+    expect(it0.kind).toBe("doc");
+    expect(it0.path).toContain("open=p2");
+    expect(it0.path).toContain("tab=docs");
+    expect(it0.path).toContain("doc=d1");
+  });
+});
+
+describe("buildItems", () => {
+  const sessions = [
+    makeSession("a", "alpha", "fix login", "2024-01-03T00:00:00Z"),
+    makeSession("b", "beta", "add cache", "2024-01-02T00:00:00Z"),
+  ];
+  const tasks = [task("t1", "fix pipeline"), task("t2", "unrelated")];
+  const docs = [doc("d1", "fix notes")];
+
+  it("空 query → 仅最近会话（kind 全为 session）", () => {
+    const items = buildItems("", sessions, tasks, docs, 20);
+    expect(items).toHaveLength(2);
+    expect(items.every((i) => i.kind === "session")).toBe(true);
+  });
+
+  it("有 query → 会话 + 任务 + 文档 混合（按标题匹配）", () => {
+    const items = buildItems("fix", sessions, tasks, docs, 20);
+    const kinds = items.map((i) => i.kind);
+    expect(kinds).toContain("session"); // "fix login" 命中
+    expect(kinds).toContain("task"); // "fix pipeline" 命中
+    expect(kinds).toContain("doc"); // "fix notes" 命中
+    // 会话在前
+    expect(items[0].kind).toBe("session");
+    // "unrelated" 任务不应命中
+    expect(items.some((i) => i.kind === "task" && i.label === "unrelated")).toBe(false);
   });
 });
 

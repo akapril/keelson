@@ -171,6 +171,17 @@ fn show_main(app: &tauri::AppHandle) {
     }
 }
 
+/// Spotlight 打开任务/文档：聚焦主窗 + 广播导航事件（主窗监听后跳深链）+ 隐藏 spotlight。
+/// 窗口操作走 Rust 侧（复用 show_main），无需前端 window capability。
+#[tauri::command]
+fn spotlight_open(app: tauri::AppHandle, path: String) {
+    show_main(&app);
+    let _ = app.emit("spotlight-navigate", path);
+    if let Some(w) = app.get_webview_window("spotlight") {
+        let _ = w.hide();
+    }
+}
+
 /// 创建系统托盘：图标 + 菜单（显示 / 退出）+ 左键点击唤起主窗口。
 fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     use tauri::menu::{Menu, MenuItem};
@@ -277,6 +288,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // 基础命令
             get_bootstrap_auth,
+            spotlight_open,
             commands::ping,
             // 会话相关（Task 16 - sessions.rs）
             commands::sessions::sessions_list,

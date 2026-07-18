@@ -1,11 +1,21 @@
 import { create } from "zustand";
 import type { Session } from "../types/session";
 
-// ── Spotlight 候选项类型 ───────────────────────────────────
-export interface SpotlightItem {
-  session: Session;
+// ── Spotlight 候选项类型（联合：会话 / 任务 / 文档） ─────────────
+/** 会话候选：Enter 恢复终端（asTab 决定新窗/标签）。 */
+export interface SessionSpotlightItem {
+  kind: "session";
   label: string;
+  session: Session;
 }
+/** 导航候选（任务/文档）：Enter 聚焦主窗并跳转到工作台深链。 */
+export interface NavSpotlightItem {
+  kind: "task" | "doc";
+  label: string;
+  /** 主窗要导航到的深链，如 /board?open=<pid>&tab=board */
+  path: string;
+}
+export type SpotlightItem = SessionSpotlightItem | NavSpotlightItem;
 
 // ── Store 状态类型 ─────────────────────────────────────────
 interface SpotlightState {

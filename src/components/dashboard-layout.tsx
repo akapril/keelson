@@ -1,13 +1,27 @@
 // 应用主布局 —— 移植自 workavera（Apache-2.0），去掉 ChatRunMonitor 与 full-bleed 分支。
 // rework 各页面自管内边距与滚动，故 main 只提供全高容器。
-import { Outlet } from "react-router-dom";
+import { useEffect } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
 import { CommandPalette } from "@/components/command-palette";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { on } from "@/lib/tauri/events";
 
 export function DashboardLayout() {
+  const navigate = useNavigate();
+
+  // 监听 Spotlight 发来的导航事件（打开任务/文档）：在主窗内跳转到深链。
+  useEffect(() => {
+    const p = on<string>("spotlight-navigate", (path) => {
+      if (path) navigate(path);
+    });
+    return () => {
+      void p.then((un) => un());
+    };
+  }, [navigate]);
+
   return (
     <SidebarProvider>
       <AppSidebar />
