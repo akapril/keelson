@@ -90,6 +90,7 @@ export const ipc = {
     messages: AiChatMessage[],
     streamId: string,
     onEvent: (ev: AiStreamEvent) => void,
+    withTools = false,
   ) => {
     const channel = new Channel<AiStreamEvent>();
     channel.onmessage = onEvent;
@@ -98,6 +99,7 @@ export const ipc = {
       messages,
       streamId,
       onEvent: channel,
+      withTools,
     });
   },
 

@@ -180,13 +180,20 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
     activeStreamId.current = streamId;
 
     try {
-      await ipc.aiChatStream(aiConfig, reqMsgs, streamId, (ev) => {
-        if (ev.kind === "delta" && ev.text) {
-          updateAssistant((c) => c + ev.text);
-        } else if (ev.kind === "error") {
-          updateAssistant(() => `请求失败：${ev.text ?? ""}`);
-        }
-      });
+      // CLI + 工具模式：让 CLI 自主 agent 循环 + 已装 MCP（含 rework）运行（withTools=true）
+      await ipc.aiChatStream(
+        aiConfig,
+        reqMsgs,
+        streamId,
+        (ev) => {
+          if (ev.kind === "delta" && ev.text) {
+            updateAssistant((c) => c + ev.text);
+          } else if (ev.kind === "error") {
+            updateAssistant(() => `请求失败：${ev.text ?? ""}`);
+          }
+        },
+        useTools && isCli,
+      );
       // 结束时助手仍为空 → 给个占位
       updateAssistant((c) => (c === "" ? "（无回复）" : c));
     } catch (e) {
@@ -344,18 +351,19 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
             />
             包含项目上下文（文档 + 关联会话）
           </label>
-          <label className={`flex cursor-pointer items-center gap-2 text-xs ${isCli ? "cursor-not-allowed opacity-50 text-muted-foreground" : "text-muted-foreground"}`}>
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
             <input
               type="checkbox"
               checked={useTools}
               onChange={(e) => setUseTools(e.target.checked)}
-              disabled={isCli}
-              className="h-3.5 w-3.5 rounded border-input accent-primary disabled:cursor-not-allowed"
+              className="h-3.5 w-3.5 rounded border-input accent-primary"
             />
             工具模式（允许 AI 建/改看板任务与文档）
           </label>
-          {isCli && (
-            <p className="text-xs text-muted-foreground/70 pl-5">本地 CLI 暂不支持工具模式</p>
+          {isCli && useTools && (
+            <p className="text-xs text-muted-foreground/70 pl-5">
+              CLI 将自主调用已装的 MCP 工具（完全自动，可能读写文件 / 跑命令）
+            </p>
           )}
         </div>
         {messages.length > 0 && (
