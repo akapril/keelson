@@ -470,7 +470,8 @@ pub async fn ai_chat_stream(
     messages: Vec<ChatMessage>,
     stream_id: String,
     on_event: tauri::ipc::Channel<AiStreamEvent>,
-    with_tools: bool,
+    // Option 以兼容缺省调用（前端 ipc 包装器总会传；直连 invoke 漏传时按 false）
+    with_tools: Option<bool>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     // 本地 CLI provider：逐行读取 stdout，按 delta 事件推送；不复用 HTTP 取消标志。
@@ -480,7 +481,7 @@ pub async fn ai_chat_stream(
             &config.provider,
             config.cli_path.as_deref(),
             &messages,
-            with_tools,
+            with_tools.unwrap_or(false),
             |line| {
                 let _ = on_event.send(AiStreamEvent {
                     kind: "delta".into(),
