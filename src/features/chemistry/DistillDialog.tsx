@@ -57,9 +57,11 @@ export function DistillDialog({
 
     void (async () => {
       const cfg = useSettingsStore.getState().aiConfig;
-      if (!cfg.api_key) {
+      // 本地 CLI provider 无需 api_key（走本机 claude/codex）；仅其他 provider 要求密钥
+      const isCli = cfg.provider === "claude-cli" || cfg.provider === "codex-cli";
+      if (!isCli && !cfg.api_key) {
         if (!cancelled) {
-          setError("尚未配置 AI 服务（请在设置页填写 API Key）");
+          setError("尚未配置 AI 服务（请在设置页填写 API Key，或改用本地 CLI provider）");
           setPhase("idle");
         }
         return;
