@@ -79,26 +79,29 @@ pub fn summarize_sessions(sessions: &[Session], repo_path: Option<&str>, limit: 
         .collect()
 }
 
+/// 单次返回条数上限（防外部不可信 limit 诱发大分配；与前端 SEARCH_LIMIT 对齐）。
+const MAX_LIMIT: usize = 200;
+
 /// 分发读会话工具。上下文为 &AppState（server 层经 self.app.state 取得）。
 /// 复用 commands::sessions 的后端：sessions 缓存 / session_backend::search / reg.read_timeline。
+/// 注：async 仅为与 handler 形态统一——三个分支内部均同步，无 .await（故 parking_lot guard 不跨 await）。
 pub async fn dispatch_session(name: &str, args: Value, state: &AppState) -> Result<Value, String> {
     match name {
         "list_sessions" => {
             let repo = opt_str(&args, "repo_path");
-            let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
+            let limit = (args.get("limit").and_then(|v| v.as_u64()).unwrap_or(50) as usize).min(MAX_LIMIT);
             let sessions = state.sessions.lock().clone();
             Ok(json!(summarize_sessions(&sessions, repo.as_deref(), limit)))
         }
         "search_sessions" => {
             let query = require_str(&args, "query")?;
-            let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
-            // 索引未就绪（初始化中/构建失败）时静默回退空，与前端命令一致
+            let limit = (args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize).min(MAX_LIMIT);
             let guard = state.index.lock();
-            let hits = match guard.as_ref() {
-                Some(idx) => crate::search::session_backend::search(idx, &query, limit),
-                None => Vec::new(),
-            };
-            Ok(json!(hits))
+            match guard.as_ref() {
+                Some(idx) => Ok(json!(crate::search::session_backend::search(idx, &query, limit))),
+                // 索引未就绪（应用仍在建索引）：对外部 agent 明确报错，避免它把空数组误读为"无相关会话"
+                None => Err("会话全文索引尚未就绪（应用仍在建索引），请稍后重试".into()),
+            }
         }
         "get_session" => {
             let provider = require_str(&args, "provider")?;
@@ -194,5 +197,56 @@ mod tests {
             assert!(r.get(k).is_some(), "投影缺字段 {k}");
         }
         assert_eq!(r["message_count"], 3);
+    }
+
+    // ── dispatch 层：参数校验与错误分支（AppState::default 造空 state，不触真实会话文件）──
+
+    #[tokio::test]
+    async fn dispatch_search_requires_query() {
+        let st = crate::AppState::default();
+        let r = dispatch_session("search_sessions", json!({}), &st).await;
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("query"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_get_session_requires_provider_and_id() {
+        let st = crate::AppState::default();
+        // 缺 provider
+        assert!(dispatch_session("get_session", json!({ "session_id": "x" }), &st)
+            .await
+            .is_err());
+        // 缺 session_id
+        assert!(dispatch_session("get_session", json!({ "provider": "claude" }), &st)
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn dispatch_get_session_unknown_provider_errors() {
+        let st = crate::AppState::default();
+        let r = dispatch_session(
+            "get_session",
+            json!({ "provider": "notaprovider", "session_id": "x" }),
+            &st,
+        )
+        .await;
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("未知 provider"));
+    }
+
+    #[tokio::test]
+    async fn dispatch_list_sessions_empty_state_ok_empty() {
+        let st = crate::AppState::default();
+        let r = dispatch_session("list_sessions", json!({}), &st).await.unwrap();
+        assert!(r.as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn dispatch_unknown_tool_errors() {
+        let st = crate::AppState::default();
+        let r = dispatch_session("nope", json!({}), &st).await;
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("未知会话工具"));
     }
 }
