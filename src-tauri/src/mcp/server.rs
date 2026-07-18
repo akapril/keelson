@@ -76,9 +76,11 @@ impl ServerHandler for ReworkMcpHandler {
         _req: Option<PaginatedRequestParams>,
         _ctx: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
-        // 把 ToolDef 映射成 rmcp 的 Tool（每次调用都重新生成，无状态）
+        // 把 ToolDef 映射成 rmcp 的 Tool（每次调用都重新生成，无状态）。
+        // board 工具 + 读会话工具合并暴露。
         let tools: Vec<Tool> = tool_schemas()
             .into_iter()
+            .chain(super::session_tools::session_tool_schemas())
             .map(|t| {
                 // input_schema 必须是 Arc<JsonObject(=Map)>
                 let schema = t
@@ -98,13 +100,23 @@ impl ServerHandler for ReworkMcpHandler {
         req: CallToolRequestParams,
         _ctx: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        // 每次调用现从 AppState.auth 构造 McpCtx（token 每启动刷新）
+        let name = req.name.to_string();
+        let args = serde_json::Value::Object(req.arguments.unwrap_or_default());
+
+        // 读会话工具：走 AppState（sessions/index/reg），无需 PB/auth，也不推通知（是读操作）
+        if super::session_tools::is_session_tool(&name) {
+            let state = self.app.state::<AppState>();
+            return match super::session_tools::dispatch_session(&name, args, state.inner()).await {
+                Ok(v) => Ok(CallToolResult::success(vec![Content::text(v.to_string())])),
+                Err(e) => Ok(CallToolResult::error(vec![Content::text(e)])),
+            };
+        }
+
+        // board 工具：现从 AppState.auth 构造 McpCtx（token 每启动刷新）
         let mcp_ctx = match ctx_from_state(&self.app) {
             Ok(c) => c,
             Err(e) => return Ok(CallToolResult::error(vec![Content::text(e)])),
         };
-        let name = req.name.to_string();
-        let args = serde_json::Value::Object(req.arguments.unwrap_or_default());
         // 建任务/文档需要 project_id 做跳转链接（dispatch 会消费 args，先取出）
         let project_id = args
             .get("project_id")
