@@ -75,6 +75,7 @@ pub fn sessions_project_paths(state: State<AppState>) -> Vec<String> {
 }
 
 /// 会话→提交关联的默认宽限（4h）：提交常在会话结束后不久。
+/// 前端 commit→会话 反查用同值（src/features/sessions/commit-correlate.ts 的 COMMIT_GRACE_SECS），改此处需同步。
 const COMMIT_GRACE_SECS: i64 = 14400;
 
 /// 返回与指定会话关联的提交（trailer 精确 / 时间窗可能相关）。
@@ -97,13 +98,10 @@ pub fn session_commits(
             None => return Vec::new(),
         }
     };
-    // 从会话开始时间起拉取提交（trailer 命中即使晚于窗口也能被 correlate 保留），correlate 再筛
-    let commits = crate::commands::git::git_log(
-        sess.project_path.clone(),
-        Some(sess.created_at.to_rfc3339()),
-        None,
-        500,
-    );
+    // 取数下界放宽到 created - grace：既覆盖时间窗候选，也让「略早于会话创建但 trailer 命中」
+    // 的提交进入 correlate（避免 git --since 把精确关联先于 trailer 判据切掉）。correlate 再定性。
+    let since = (sess.created_at - chrono::Duration::seconds(COMMIT_GRACE_SECS)).to_rfc3339();
+    let commits = crate::commands::git::git_log(sess.project_path.clone(), Some(since), None, 500);
     crate::commands::git::correlate_session_commits(
         sess.created_at,
         sess.updated_at,

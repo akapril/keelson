@@ -90,12 +90,13 @@ pub fn parse_git_log(stdout: &str) -> Vec<CommitInfo> {
             let subject = it.next().unwrap_or("").to_string();
             let author = it.next().unwrap_or("").to_string();
             let committed_at = it.next().unwrap_or("").to_string();
-            let trailer = it.next().unwrap_or("").trim();
-            let rework_session = if trailer.is_empty() {
-                None
-            } else {
-                Some(trailer.to_string())
-            };
+            // trailer 列：多值时 git 以逗号分隔（format 指定 separator=,），取首个非空值
+            let trailer = it.next().unwrap_or("");
+            let rework_session = trailer
+                .split(',')
+                .map(|s| s.trim())
+                .find(|s| !s.is_empty())
+                .map(|s| s.to_string());
             Some(CommitInfo { hash, short, subject, author, committed_at, rework_session })
         })
         .collect()
@@ -144,8 +145,9 @@ pub fn git_log(
     limit: u32,
 ) -> Vec<CommitInfo> {
     let n = limit.min(500).to_string();
-    // 列序：hash / short / subject / author / committedISO / Rework-Session trailer
-    let fmt = "--pretty=format:%H\u{1f}%h\u{1f}%s\u{1f}%an\u{1f}%cI\u{1f}%(trailers:key=Rework-Session,valueonly)";
+    // 列序：hash / short / subject / author / committedISO / Rework-Session trailer。
+    // separator=%x2c(逗号) 把多值 trailer 压到单行，避免行错位（解析取首值）。
+    let fmt = "--pretty=format:%H\u{1f}%h\u{1f}%s\u{1f}%an\u{1f}%cI\u{1f}%(trailers:key=Rework-Session,valueonly,separator=%x2c)";
     let mut args: Vec<&str> = vec!["log", "--no-color", fmt, "-n", &n];
     if let Some(s) = since.as_deref() {
         args.push("--since");
@@ -197,6 +199,15 @@ mod tests {
         assert!(parse_git_log("\n").is_empty());
     }
 
+    #[test]
+    fn parse_git_log_multi_trailer_takes_first() {
+        // 多值 trailer 经 separator=, 压到单行 → 取首个非空值
+        let out = "h\u{1f}h\u{1f}s\u{1f}a\u{1f}2026-07-18T10:00:00+00:00\u{1f}sess-1,sess-2\n";
+        let v = parse_git_log(out);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].rework_session.as_deref(), Some("sess-1"));
+    }
+
     fn ci(hash: &str, at: &str, sess: Option<&str>) -> CommitInfo {
         CommitInfo {
             hash: hash.into(),
@@ -225,6 +236,17 @@ mod tests {
         assert!(ids.contains(&("c_time", LinkKind::Time)));
         assert!(ids.contains(&("c_other", LinkKind::Time))); // 时间窗兜住
         assert!(!ids.iter().any(|(h, _)| *h == "c_out"));
+    }
+
+    #[test]
+    fn correlate_trailer_wins_even_before_created() {
+        // trailer 命中的提交即使早于会话 created，也应判为 Trailer（精确不受时间窗限制）
+        let created = Utc.with_ymd_and_hms(2026, 7, 18, 10, 0, 0).unwrap();
+        let updated = Utc.with_ymd_and_hms(2026, 7, 18, 11, 0, 0).unwrap();
+        let commits = vec![ci("early", "2026-07-18T08:00:00+00:00", Some("S"))];
+        let out = correlate_session_commits(created, updated, "S", commits, 14400);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].link_kind, LinkKind::Trailer);
     }
 
     #[test]

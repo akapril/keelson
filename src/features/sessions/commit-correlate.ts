@@ -14,8 +14,9 @@ export interface CommitSessionLink {
 
 /**
  * 求某提交关联到的会话：
- * - commit.rework_session 命中某已加载会话 → 仅返回该会话（trailer 精确）。
- * - 否则按时间窗返回所有 committed_at 落在其 [created, updated+grace] 内的会话（time 可能相关）。
+ * - commit 带 trailer → 只认精确：命中已加载会话则返回该会话(trailer)，未命中(如会话未加载/跨机)
+ *   返回空——**不降级为时间窗**，避免把精确信号误显示成"可能相关"。
+ * - 无 trailer → 按时间窗返回所有 committed_at 落在其 [created, updated+grace] 内的会话（time）。
  * 时间解析失败 → 空。sessions 应已按仓库过滤。
  */
 export function commitLinkedSessions(
@@ -25,7 +26,7 @@ export function commitLinkedSessions(
 ): CommitSessionLink[] {
   if (commit.rework_session) {
     const hit = sessions.find((s) => s.session_id === commit.rework_session);
-    if (hit) return [{ session: hit, kind: "trailer" }];
+    return hit ? [{ session: hit, kind: "trailer" }] : [];
   }
   const t = new Date(commit.committed_at).getTime();
   if (Number.isNaN(t)) return [];
