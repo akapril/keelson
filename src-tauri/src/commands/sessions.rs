@@ -74,6 +74,45 @@ pub fn sessions_project_paths(state: State<AppState>) -> Vec<String> {
     distinct_project_paths(&sessions)
 }
 
+/// 会话→提交关联的默认宽限（4h）：提交常在会话结束后不久。
+const COMMIT_GRACE_SECS: i64 = 14400;
+
+/// 返回与指定会话关联的提交（trailer 精确 / 时间窗可能相关）。
+/// 判据单点在 git::correlate_session_commits，避免前后端两份逻辑漂移。
+/// 会话不存在 / 非 git 仓库 / git 失败 → 空列表。
+#[tauri::command]
+pub fn session_commits(
+    session_id: String,
+    provider: String,
+    state: State<AppState>,
+) -> Vec<crate::commands::git::CorrelatedCommit> {
+    // 取该会话的仓库路径与起止时间
+    let sess = {
+        let guard = state.sessions.lock();
+        match guard
+            .iter()
+            .find(|s| s.session_id == session_id && s.provider == provider)
+        {
+            Some(s) => s.clone(),
+            None => return Vec::new(),
+        }
+    };
+    // 从会话开始时间起拉取提交（trailer 命中即使晚于窗口也能被 correlate 保留），correlate 再筛
+    let commits = crate::commands::git::git_log(
+        sess.project_path.clone(),
+        Some(sess.created_at.to_rfc3339()),
+        None,
+        500,
+    );
+    crate::commands::git::correlate_session_commits(
+        sess.created_at,
+        sess.updated_at,
+        &session_id,
+        commits,
+        COMMIT_GRACE_SECS,
+    )
+}
+
 // ─────────────────────────────────────────────────────────────
 // 单元测试
 // ─────────────────────────────────────────────────────────────

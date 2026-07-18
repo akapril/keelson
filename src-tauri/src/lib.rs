@@ -283,13 +283,15 @@ pub fn run() {
             commands::sessions::sessions_search,
             commands::sessions::sessions_timeline,
             commands::sessions::sessions_project_paths,
+            commands::sessions::session_commits,
             // 终端（Task 16 - terminal.rs）
             commands::terminal::terminal_resume,
             // 配置（Task 16 - config.rs）
             commands::config::config_get_hotkey,
             commands::config::config_set_hotkey,
-            // git 状态（Board - git.rs）
+            // git 状态 + 提交日志（Board - git.rs）
             commands::git::git_info,
+            commands::git::git_log,
             // AI 对话（ai.rs，provider 可切）
             commands::ai::ai_chat,
             commands::ai::ai_chat_stream,
