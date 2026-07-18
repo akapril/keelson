@@ -25,6 +25,7 @@ import { KanbanBoard } from "./KanbanBoard";
 import { ProjectSheet } from "./ProjectSheet";
 import { GitStatusBar } from "./GitStatusBar";
 import { WorkspaceSessions } from "./WorkspaceSessions";
+import { WorkspaceCommits } from "./WorkspaceCommits";
 import { DocsPanel } from "@/features/docs/DocsPanel";
 import { AiChatPanel } from "@/features/ai/AiChatPanel";
 import { STATE_CATEGORY_META } from "./board-meta";
@@ -163,6 +164,8 @@ export function ProjectWorkspace() {
         <TabsList className="shrink-0">
           <TabsTrigger value="overview">概览</TabsTrigger>
           <TabsTrigger value="sessions">会话</TabsTrigger>
+          {/* 提交面仅在绑定了仓库路径时有意义 */}
+          {repoPath && <TabsTrigger value="commits">提交</TabsTrigger>}
           <TabsTrigger value="board">看板</TabsTrigger>
           <TabsTrigger value="docs">文档</TabsTrigger>
           <TabsTrigger value="ai">AI</TabsTrigger>
@@ -323,6 +326,17 @@ export function ProjectWorkspace() {
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               该项目未绑定仓库路径 —— 在「项目设置」填写 repo_path 后即可关联本地会话。
+            </div>
+          )}
+        </TabsContent>
+
+        {/* 提交（commit → 催生它的会话；仅有仓库路径时） */}
+        <TabsContent value="commits" className="mt-3 flex min-h-0 flex-1 flex-col">
+          {repoPath ? (
+            <WorkspaceCommits repoPath={repoPath} />
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              该项目未绑定仓库路径。
             </div>
           )}
         </TabsContent>
