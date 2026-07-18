@@ -1,7 +1,7 @@
 //! 本地 CLI provider：直接调用本机 `claude` / `codex` 可执行文件进行对话。
 //! 不走 tauri-plugin-shell（capability scope 限制），用 tokio::process 直接 spawn PATH 上的 CLI。
 use crate::commands::ai::ChatMessage;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 
 /// 判断 provider 是否为本地 CLI 类型。
@@ -130,18 +130,33 @@ pub async fn run_cli_stream<F: FnMut(String)>(
         let spawned = Command::new(&cand)
             .args(&args)
             .stdout(Stdio::piped())
-            .stderr(Stdio::null()) // 丢弃 stderr，避免缓冲区满导致死锁
+            .stderr(Stdio::piped()) // 捕获 stderr 供失败诊断（工具模式首次会有一次性权限警告）
             .spawn();
         match spawned {
             Ok(mut child) => {
                 let stdout = child.stdout.take().ok_or("无法获取 stdout")?;
+                // 并发抽干 stderr：避免其管道缓冲写满阻塞子进程（原先 null 丢弃即为规避此死锁）
+                let stderr = child.stderr.take();
+                let stderr_task = tokio::spawn(async move {
+                    let mut buf = String::new();
+                    if let Some(se) = stderr {
+                        let _ = BufReader::new(se).read_to_string(&mut buf).await;
+                    }
+                    buf
+                });
                 let mut reader = BufReader::new(stdout).lines();
                 while let Ok(Some(line)) = reader.next_line().await {
                     on_line(line);
                 }
                 let status = child.wait().await.map_err(|e| e.to_string())?;
+                let errtext = stderr_task.await.unwrap_or_default();
                 if !status.success() {
-                    return Err(format!("{bin} 退出码非零"));
+                    let se = errtext.trim();
+                    return Err(if se.is_empty() {
+                        format!("{bin} 退出码非零")
+                    } else {
+                        format!("{bin} 退出码非零：{se}")
+                    });
                 }
                 return Ok(());
             }
