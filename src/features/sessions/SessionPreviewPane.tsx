@@ -4,6 +4,7 @@ import { useSessionMetaStore } from "../../store/session-meta";
 import { Textarea } from "@/components/ui/textarea";
 import { RestoreDialog } from "./RestoreDialog";
 import { SessionLinkedTasks } from "./SessionLinkedTasks";
+import { SessionCommits } from "./SessionCommits";
 import { SessionChat } from "./SessionChat";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 import { DistillDialog } from "../chemistry/DistillDialog";
@@ -110,6 +111,9 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
 
         {/* 关联任务（本会话已衍生的看板任务，点击跳看板） */}
         <SessionLinkedTasks sessionId={session.session_id} refreshKey={linkedRefresh} />
+
+        {/* 会话→Commit 溯源：此会话期间/关联的提交（精确 trailer / 时间窗可能相关） */}
+        <SessionCommits key={session.session_id} session={session} />
 
         {/* 内联聊天：历史气泡 + 底部续聊（切换会话时 key 重置） */}
         <SessionChat key={session.session_id} session={session} className="flex-1" />
