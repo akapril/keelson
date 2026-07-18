@@ -1,6 +1,7 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import type { Session, SessionHit, TimelineMessage } from "../../types/session";
 import type { EmbedConfig, RagHit } from "@/types/rag";
+import type { CommitInfo, CorrelatedCommit } from "@/types/git";
 import type {
   AiConfig,
   AiChatMessage,
@@ -70,6 +71,14 @@ export const ipc = {
   /** 读取本地仓库的当前分支与未提交变更数（Task 13，包装 git_info 命令） */
   gitInfo: (path: string) =>
     invoke<{ branch: string | null; dirty_count: number; is_repo: boolean }>("git_info", { path }),
+
+  /** 读取仓库指定时间窗的提交（会话→Commit 溯源）；非仓库/失败返回空数组 */
+  gitLog: (path: string, since: string | null, until: string | null, limit: number) =>
+    invoke<CommitInfo[]>("git_log", { path, since, until, limit }),
+
+  /** 返回与某会话关联的提交（trailer 精确 / 时间窗可能相关）。判据在 Rust 单点。 */
+  sessionCommits: (sessionId: string, provider: string) =>
+    invoke<CorrelatedCommit[]>("session_commits", { sessionId, provider }),
 
   // ── AI 对话（provider 可切；包装 ai_chat 命令） ────────────
   /** 非流式对话：返回助手回复文本 */
