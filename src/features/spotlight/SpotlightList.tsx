@@ -25,7 +25,7 @@ export function SpotlightList() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-muted-foreground">
         <HugeiconsIcon icon={InboxIcon} strokeWidth={1.5} className="size-8 opacity-50" />
-        <span className="text-sm">没有匹配的会话</span>
+        <span className="text-sm">没有匹配项</span>
       </div>
     );
   }
@@ -34,10 +34,11 @@ export function SpotlightList() {
     <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto p-2">
       {items.map((item, idx) => {
         const isSelected = idx === selectedIndex;
-        const provider = item.session.provider;
+        // key：会话用 session_id；任务/文档用 kind+path+idx（path 可能跨条重复，idx 保唯一）
+        const key = item.kind === "session" ? `s:${item.session.session_id}` : `${item.kind}:${idx}`;
         return (
           <div
-            key={item.session.session_id}
+            key={key}
             role="option"
             aria-selected={isSelected}
             onMouseEnter={() => setSelectedIndex(idx)}
@@ -47,27 +48,46 @@ export function SpotlightList() {
               isSelected ? "bg-[var(--item-selected)]" : "hover:bg-[var(--item-selected)]/60",
             )}
           >
-            {/* provider 徽章 */}
-            <span
-              className={cn(
-                "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-                provider === "claude"
-                  ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                  : "bg-sky-500/15 text-sky-600 dark:text-sky-400",
-              )}
-            >
-              {provider}
-            </span>
-
-            {/* 项目名 + 会话摘要 */}
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-semibold text-foreground">
-                {item.session.project_name}
-              </div>
-              <div className="truncate text-xs text-muted-foreground">
-                {item.session.first_prompt || item.session.last_prompt || item.session.session_id}
-              </div>
-            </div>
+            {item.kind === "session" ? (
+              <>
+                {/* provider 徽章 */}
+                <span
+                  className={cn(
+                    "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                    item.session.provider === "claude"
+                      ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                      : "bg-sky-500/15 text-sky-600 dark:text-sky-400",
+                  )}
+                >
+                  {item.session.provider}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-semibold text-foreground">
+                    {item.session.project_name}
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {item.session.first_prompt || item.session.last_prompt || item.session.session_id}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* 任务/文档 类型徽章 */}
+                <span
+                  className={cn(
+                    "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                    item.kind === "task"
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                      : "bg-violet-500/15 text-violet-600 dark:text-violet-400",
+                  )}
+                >
+                  {item.kind === "task" ? "任务" : "文档"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-medium text-foreground">{item.label}</div>
+                </div>
+              </>
+            )}
 
             {/* 选中项显示回车提示 */}
             {isSelected && (

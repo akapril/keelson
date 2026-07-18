@@ -24,6 +24,9 @@ export const ipc = {
   /** 获取 PocketBase 数据目录绝对路径（设置页「打开数据目录」） */
   pbDataDir: () => invoke<string>("pb_data_dir"),
 
+  /** Spotlight 打开任务/文档：聚焦主窗 + 广播导航事件 + 隐藏 spotlight（后端处理） */
+  spotlightOpen: (path: string) => invoke<void>("spotlight_open", { path }),
+
   // ── MCP 一键接入（把 rework MCP 写入 claude / codex 配置） ──────────
   /** 获取当前 MCP 端点（url + secret，供设置页展示） */
   mcpEndpoint: () => invoke<{ url: string; secret: string }>("mcp_endpoint"),
