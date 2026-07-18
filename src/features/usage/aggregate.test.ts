@@ -71,6 +71,22 @@ describe("aggregateUsage", () => {
     expect(out.daily[out.daily.length - 1]).toEqual({ date: "2026-07-12", tokens: 30 });
   });
 
+  it("按项目分组统计并按 token 降序（同名不同路径不合并）", () => {
+    const out = aggregateUsage(
+      [
+        s({ session_id: "a", project_path: "/p/a", project_name: "a", total_tokens: 200 }),
+        s({ session_id: "b", project_path: "/p/b", project_name: "b", total_tokens: 900 }),
+        s({ session_id: "c", project_path: "/p/a", project_name: "a", total_tokens: 100 }),
+      ],
+      rates,
+      365,
+    );
+    expect(out.byProject[0].project_path).toBe("/p/b"); // 900 在前
+    expect(out.byProject[1].project_path).toBe("/p/a");
+    expect(out.byProject[1].sessions).toBe(2);
+    expect(out.byProject[1].tokens).toBe(300);
+  });
+
   it("未配置单价的 provider 成本按 0 计", () => {
     const out = aggregateUsage(
       [s({ provider: "unknown", total_tokens: 1_000_000 })],
