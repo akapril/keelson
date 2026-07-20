@@ -10,6 +10,12 @@ import type {
   AiToolDef,
   AiToolTurn,
 } from "../../types/ai";
+/** 仓库内 markdown 文件项（「导入计划」对话框用；对应 Rust MdFile） */
+export interface MdFile {
+  name: string;
+  path: string;
+}
+
 // 唯一允许出现 invoke 字符串命令名的地方。新增本地能力只加一个方法。
 export const ipc = {
   ping: () => invoke<string>("ping"),
@@ -23,6 +29,11 @@ export const ipc = {
 
   /** 获取 PocketBase 数据目录绝对路径（设置页「打开数据目录」） */
   pbDataDir: () => invoke<string>("pb_data_dir"),
+
+  /** 读文本文件（「导入计划」解析计划/spec 用） */
+  readTextFile: (path: string) => invoke<string>("read_text_file", { path }),
+  /** 列目录下 .md 文件（「导入计划」列计划目录用；目录不存在返回空） */
+  listMarkdownFiles: (dir: string) => invoke<MdFile[]>("list_markdown_files", { dir }),
 
   /** Spotlight 打开任务/文档：聚焦主窗 + 广播导航事件 + 隐藏 spotlight（后端处理） */
   spotlightOpen: (path: string) => invoke<void>("spotlight_open", { path }),
