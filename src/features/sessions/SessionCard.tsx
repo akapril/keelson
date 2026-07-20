@@ -5,6 +5,7 @@ import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
 import { RestoreDialog } from "./RestoreDialog";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
+import { PromptDialog } from "@/components/prompt-dialog";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -43,17 +44,19 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
   const [restoreTarget, setRestoreTarget] = useState<Session | null>(null);
   // 控制"从会话建任务"对话框的显示状态
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  // 重命名对话框
+  const [renameOpen, setRenameOpen] = useState(false);
 
   // 显示名：自定义名优先，否则 Rust 序列化的 project_name
   const customName = customNames.get(session.session_id);
   const displayName = customName || session.project_name;
   const isFav = favorites.has(session.session_id);
 
-  // 改名：用浏览器 prompt（Tauri webview 支持），取消返回 null 不动，空串=清除自定义名
-  function handleRename() {
-    const input = window.prompt("会话名称（留空恢复默认）", customName ?? "");
-    if (input === null) return;
-    void setCustomName(session.session_id, input);
+  // 改名：风格化对话框；取消(null)不动，空串=清除自定义名恢复默认
+  function handleRenameResult(value: string | null) {
+    setRenameOpen(false);
+    if (value === null) return;
+    void setCustomName(session.session_id, value);
   }
 
   function handleStarClick(e: React.MouseEvent) {
@@ -152,7 +155,7 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
         <ContextMenuItem onSelect={() => toggleFavorite(session.session_id)}>
           {isFav ? "取消收藏" : "收藏"}
         </ContextMenuItem>
-        <ContextMenuItem onSelect={handleRename}>
+        <ContextMenuItem onSelect={() => setRenameOpen(true)}>
           {customName ? "重命名 / 恢复默认" : "重命名"}
         </ContextMenuItem>
         <ContextMenuSeparator />
@@ -199,6 +202,18 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
           onClose={() => setTaskDialogOpen(false)}
         />
       )}
+
+      {/* 会话重命名对话框（替代原生 prompt） */}
+      <PromptDialog
+        open={renameOpen}
+        title="重命名会话"
+        description="给会话起个好认的名字；留空恢复默认（项目名）。"
+        label="会话名称"
+        placeholder="如：支付重构排障"
+        defaultValue={customName ?? ""}
+        confirmText="保存"
+        onResult={handleRenameResult}
+      />
     </>
   );
 }
