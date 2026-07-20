@@ -26,6 +26,7 @@ import { ProjectSheet } from "./ProjectSheet";
 import { GitStatusBar } from "./GitStatusBar";
 import { WorkspaceSessions } from "./WorkspaceSessions";
 import { WorkspaceCommits } from "./WorkspaceCommits";
+import { ImportPlanDialog } from "./ImportPlanDialog";
 import { DocsPanel } from "@/features/docs/DocsPanel";
 import { AiChatPanel } from "@/features/ai/AiChatPanel";
 import { STATE_CATEGORY_META } from "./board-meta";
@@ -45,6 +46,7 @@ export function ProjectWorkspace() {
   const focusDocId = searchParams.get("doc") || undefined;
   const [tab, setTab] = useState(() => paramTab || "board");
   const [showSheet, setShowSheet] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [projectEvents, setProjectEvents] = useState<CalendarEvent[]>([]);
   const [docCount, setDocCount] = useState(0);
   const navigate = useNavigate();
@@ -147,6 +149,11 @@ export function ProjectWorkspace() {
           >
             <HugeiconsIcon icon={FolderOpenIcon} strokeWidth={2} />
             打开位置
+          </Button>
+        )}
+        {repoPath && (
+          <Button variant="outline" size="sm" onClick={() => setShowImport(true)}>
+            导入计划
           </Button>
         )}
         <Button variant="outline" size="sm" onClick={() => setShowSheet(true)}>
@@ -362,6 +369,9 @@ export function ProjectWorkspace() {
 
       {/* 项目设置抽屉 */}
       <ProjectSheet open={showSheet} onClose={() => setShowSheet(false)} />
+
+      {/* 导入计划到看板 */}
+      <ImportPlanDialog open={showImport} onClose={() => setShowImport(false)} project={project} />
     </div>
   );
 }
