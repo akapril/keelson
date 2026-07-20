@@ -1,4 +1,20 @@
 // MemoryReviewDialog —— 从会话提炼记忆：AI 出候选 → 去重分类 → 勾选确认 → 写 memories。
+import { DEFAULT_EMBED_CONFIG } from "@/types/rag";
+import { classifyBySimilarity } from "./extract";
+
+// 读设置页存的嵌入配置（与 AskPane 同源 localStorage）
+function readEmbedConfig() {
+  try {
+    const raw = localStorage.getItem("rework-embed-config");
+    return raw ? { ...DEFAULT_EMBED_CONFIG, ...JSON.parse(raw) } : DEFAULT_EMBED_CONFIG;
+  } catch {
+    return DEFAULT_EMBED_CONFIG;
+  }
+}
+function hasRealEmbedding(c: ReturnType<typeof readEmbedConfig>): boolean {
+  return c.provider === "local" || (c.provider === "api" && !!c.api_key);
+}
+
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -67,7 +83,28 @@ export function MemoryReviewDialog({
           { role: "user", content: buildContext(tl) || "（无会话内容）" },
         ]);
         if (cancelled) return;
-        const classified = classifyCandidates(parseMemories(reply), existing);
+        const cands = parseMemories(reply);
+        let classified;
+        const embedCfg = readEmbedConfig();
+        if (cands.length > 0 && hasRealEmbedding(embedCfg)) {
+          // 语义去重：一次批量嵌入 [候选 + 已有]，失败则回退字符级
+          try {
+            const texts = [...cands.map((c) => c.content), ...existing.map((m) => m.content)];
+            const vecs = await ipc.embedTexts(embedCfg, texts);
+            if (cancelled) return;
+            if (vecs.length === texts.length) {
+              const candVecs = vecs.slice(0, cands.length);
+              const existVecs = vecs.slice(cands.length);
+              classified = classifyBySimilarity(cands, existing, candVecs, existVecs);
+            } else {
+              classified = classifyCandidates(cands, existing);
+            }
+          } catch {
+            classified = classifyCandidates(cands, existing);
+          }
+        } else {
+          classified = classifyCandidates(cands, existing);
+        }
         setItems(classified);
         // 默认勾选全新记忆（duplicateOf === null）
         setSel(new Set(classified.map((c, i) => (c.duplicateOf === null ? i : -1)).filter((i) => i >= 0)));
