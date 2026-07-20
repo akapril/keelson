@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseMemories, normalize, isDuplicate, classifyCandidates, cosine, classifyBySimilarity } from "./extract";
-import type { Memory, MemoryKind, MemoryScope } from "@/types/memory";
+import type { Memory } from "@/types/memory";
 import type { MemoryCandidate } from "./extract";
 
 const mem = (id: string, content: string, kind = "fact", scope = "project"): Memory =>

@@ -152,4 +152,8 @@ export const ipc = {
   /** 为全量历史会话建嵌入索引；返回已索引的消息数 */
   ragBuildIndex: (config: EmbedConfig) =>
     invoke<number>("rag_build_index", { config }),
+
+  // 通用文本嵌入（记忆语义去重用）
+  embedTexts: (config: EmbedConfig, texts: string[]) =>
+    invoke<number[][]>("embed_texts", { config, texts }),
 };
