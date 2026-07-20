@@ -1,5 +1,6 @@
 // 记忆账本 —— 查看/筛选/编辑/删除跨厂商提炼的记忆；每条可溯源回跳原会话。
 import { useEffect, useMemo, useState } from "react";
+import { Virtualizer } from "virtua";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { listMemories, updateMemoryRecord, deleteMemoryRecord } from "@/lib/pb/memory";
@@ -122,9 +123,9 @@ export default function MemoryPage() {
             暂无记忆。在会话预览点「提炼记忆」从会话沉淀。
           </p>
         ) : (
-          <div className="flex flex-col gap-1.5">
+          <Virtualizer>
             {visible.map((m) => (
-              <div key={m.id} className="group flex items-start gap-2.5 rounded-lg border border-border bg-card p-2.5">
+              <div key={m.id} className="group mb-1.5 flex items-start gap-2.5 rounded-lg border border-border bg-card p-2.5">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-foreground">{m.content}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -153,7 +154,7 @@ export default function MemoryPage() {
                 </div>
               </div>
             ))}
-          </div>
+          </Virtualizer>
         )}
       </div>
 
