@@ -65,3 +65,58 @@ pub fn open_path(path: String) -> Result<(), String> {
     cmd.spawn().map_err(|e| format!("打开路径失败: {e}"))?;
     Ok(())
 }
+
+/// markdown 文件项（「导入计划」对话框列目录用）。
+#[derive(serde::Serialize)]
+pub struct MdFile {
+    pub name: String,
+    pub path: String,
+}
+
+/// 读文本文件（导入计划 / 规格用）。不存在或非 UTF-8 → Err。
+#[tauri::command]
+pub fn read_text_file(path: String) -> Result<String, String> {
+    fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {e}"))
+}
+
+/// 列目录下的 .md 文件（非递归，按名排序）。目录不存在 → 空列表（非错误，便于前端空态）。
+#[tauri::command]
+pub fn list_markdown_files(dir: String) -> Result<Vec<MdFile>, String> {
+    let d = Path::new(&dir);
+    if !d.is_dir() {
+        return Ok(vec![]);
+    }
+    let mut out: Vec<MdFile> = vec![];
+    let rd = fs::read_dir(d).map_err(|e| format!("读取目录失败: {e}"))?;
+    for entry in rd.flatten() {
+        let p = entry.path();
+        // 仅收 .md 文件
+        if p.extension().and_then(|s| s.to_str()) == Some("md") {
+            if let Some(name) = p.file_name().and_then(|s| s.to_str()) {
+                out.push(MdFile {
+                    name: name.to_string(),
+                    path: p.to_string_lossy().into_owned(),
+                });
+            }
+        }
+    }
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn list_markdown_missing_dir_is_empty() {
+        // 目录不存在应返回空列表而非报错
+        let out = list_markdown_files("Z:/no/such/dir/xxxx".into()).unwrap();
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn read_missing_file_errors() {
+        assert!(read_text_file("Z:/no/such/file.md".into()).is_err());
+    }
+}
