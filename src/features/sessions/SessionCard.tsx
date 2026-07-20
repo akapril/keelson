@@ -21,6 +21,24 @@ export function truncate(text: string, maxLen = 80): string {
   return text.slice(0, maxLen).trimEnd() + "…";
 }
 
+/**
+ * 相对时间：刚刚 / N 分钟前 / N 小时前 / N 天前 / MM-DD（超 7 天）。
+ * 解析失败返回空串（不显示）。纯函数、可测。
+ */
+export function relativeTime(iso: string, now: number = Date.now()): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  const diff = Math.max(0, now - t);
+  const min = 60_000, hour = 3_600_000, day = 86_400_000;
+  if (diff < min) return "刚刚";
+  if (diff < hour) return `${Math.floor(diff / min)} 分钟前`;
+  if (diff < day) return `${Math.floor(diff / hour)} 小时前`;
+  if (diff < 7 * day) return `${Math.floor(diff / day)} 天前`;
+  const d = new Date(t);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 // ── Props ──────────────────────────────────────────────────
 interface SessionCardProps {
   session: Session;
@@ -165,10 +183,15 @@ export function SessionCard({
           </div>
         </div>
 
-        {/* 第二行：provider 标签 + 消息数量 */}
+        {/* 第二行：provider 标签 + 消息数量 + 相对时间（更新时间） */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{session.provider}</span>
           <span>{session.message_count} 条消息</span>
+          {relativeTime(session.updated_at) && (
+            <span className="ml-auto shrink-0" title={session.updated_at}>
+              {relativeTime(session.updated_at)}
+            </span>
+          )}
         </div>
 
         {/* 第三行：last_prompt 截断展示 */}
