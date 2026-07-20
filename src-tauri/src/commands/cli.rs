@@ -44,7 +44,9 @@ pub fn flatten_messages(messages: &[ChatMessage]) -> String {
 /// with_tools=true（工具模式）追加「完全自动」标志：
 /// - claude：`--dangerously-skip-permissions`；
 /// - codex：`--dangerously-bypass-approvals-and-sandbox`（放 `exec` 之后）。
-pub fn build_cli_command(bin: &str, with_tools: bool) -> (String, Vec<String>) {
+/// stream=true（流式路径）时，claude 用 stream-json 事件输出（含部分消息增量），
+/// 让前端实时看到思考/工具/正文增量，而非结束才一次性吐全文。codex 的 exec 无此开关，忽略。
+pub fn build_cli_command(bin: &str, with_tools: bool, stream: bool) -> (String, Vec<String>) {
     match bin {
         "codex" => {
             let mut args = vec!["exec".to_string()];
@@ -57,12 +59,63 @@ pub fn build_cli_command(bin: &str, with_tools: bool) -> (String, Vec<String>) {
         // 默认按 claude：-p 一次性 print 模式，无 prompt 参数则读 stdin
         _ => {
             let mut args = vec!["-p".to_string()];
+            if stream {
+                // 流式事件输出 + 部分消息增量（逐 token / 工具活动实时可见）
+                args.push("--output-format".to_string());
+                args.push("stream-json".to_string());
+                args.push("--verbose".to_string());
+                args.push("--include-partial-messages".to_string());
+            }
             if with_tools {
                 args.push("--dangerously-skip-permissions".to_string());
             }
             (bin.to_string(), args)
         }
     }
+}
+
+/// 解析 claude stream-json 的一行事件，抽出要展示的文本片段：
+/// - `content_block_delta` 的 `text_delta` → 正文增量；
+/// - `content_block_start` 的 `tool_use` → 一行工具活动提示（让「思考/动作」可见）。
+/// 其它事件（system/assistant/result/user）返回 None，避免与增量重复计数。纯函数、可测。
+pub fn claude_stream_piece(line: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(line.trim()).ok()?;
+    if v.get("type")?.as_str()? != "stream_event" {
+        return None;
+    }
+    let ev = v.get("event")?;
+    match ev.get("type")?.as_str()? {
+        "content_block_delta" => {
+            let d = ev.get("delta")?;
+            match d.get("type")?.as_str()? {
+                "text_delta" => d.get("text")?.as_str().map(|s| s.to_string()),
+                _ => None,
+            }
+        }
+        "content_block_start" => {
+            let cb = ev.get("content_block")?;
+            if cb.get("type")?.as_str()? == "tool_use" {
+                let name = cb.get("name").and_then(|n| n.as_str()).unwrap_or("tool");
+                Some(format!("\n\n🔧 {name}\n"))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// 从 claude 的 `result` 事件抽最终文本——作为「全程没收到任何增量」时的兜底
+/// （如 claude 版本不支持 --include-partial-messages）。纯函数、可测。
+pub fn claude_result_text(line: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(line.trim()).ok()?;
+    if v.get("type")?.as_str()? != "result" {
+        return None;
+    }
+    v.get("result")?
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
 }
 
 /// 平台化解析可执行名：Windows 下 CLI 常为 .cmd，返回候选列表按序尝试。
@@ -84,26 +137,40 @@ fn candidates_for(bin: &str, cli_path: Option<&str>) -> Vec<String> {
     }
 }
 
+/// 在给定候选可执行名上构造 Command：设定 args、三管道，并在 cwd 非空时切工作目录。
+/// cwd = 项目仓库路径 → 让 claude/codex 在对应项目目录下运行（能看到项目文件）。
+fn build_process(cand: &str, args: &[String], cwd: Option<&str>) -> Command {
+    let mut c = Command::new(cand);
+    c.args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(d) = cwd {
+        if !d.trim().is_empty() {
+            c.current_dir(d);
+        }
+    }
+    c
+}
+
 /// 非流式：spawn CLI，等待结束，返回 stdout 文本。
 /// `cli_path` 为用户在设置里填的绝对路径（可选），优先于 PATH 查找。
+/// `cwd` 为项目仓库路径（可选）：非空则在该目录下运行 CLI。
 pub async fn run_cli(
     provider: &str,
     cli_path: Option<&str>,
+    cwd: Option<&str>,
     messages: &[ChatMessage],
     with_tools: bool,
 ) -> Result<String, String> {
     let bin = cli_bin_for(provider).ok_or_else(|| format!("未知 CLI provider：{provider}"))?;
     let prompt = flatten_messages(messages);
-    let (_b, args) = build_cli_command(bin, with_tools);
+    // 非流式：claude 用普通 -p 文本输出（stream=false）
+    let (_b, args) = build_cli_command(bin, with_tools, false);
 
     let mut last_err = String::new();
     for cand in candidates_for(bin, cli_path) {
-        let spawned = Command::new(&cand)
-            .args(&args)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn();
+        let spawned = build_process(&cand, &args, cwd).spawn();
         match spawned {
             Ok(mut child) => {
                 // prompt 经 stdin 传入并关闭（发送 EOF，避免 codex 挂等输入）
@@ -126,26 +193,26 @@ pub async fn run_cli(
     ))
 }
 
-/// 流式：逐行读 stdout，每读到一行调用 on_line 回调。
+/// 流式：逐行读 stdout。claude 走 stream-json（解析出正文增量/工具活动）；
+/// codex 原样逐行透传。`on_line` 收到的是「可直接追加到气泡」的文本片段（claude 已含所需换行）。
+/// `cwd`=项目仓库路径（可选），非空则在该目录运行 CLI。
 pub async fn run_cli_stream<F: FnMut(String)>(
     provider: &str,
     cli_path: Option<&str>,
+    cwd: Option<&str>,
     messages: &[ChatMessage],
     with_tools: bool,
     mut on_line: F,
 ) -> Result<(), String> {
     let bin = cli_bin_for(provider).ok_or_else(|| format!("未知 CLI provider：{provider}"))?;
     let prompt = flatten_messages(messages);
-    let (_b, args) = build_cli_command(bin, with_tools);
+    // 流式：claude 用 stream-json（stream=true）；codex 忽略该开关
+    let (_b, args) = build_cli_command(bin, with_tools, true);
+    let is_claude = bin == "claude";
 
     let mut last_err = String::new();
     for cand in candidates_for(bin, cli_path) {
-        let spawned = Command::new(&cand)
-            .args(&args)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped()) // 捕获 stderr 供失败诊断（工具模式首次会有一次性权限警告）
-            .spawn();
+        let spawned = build_process(&cand, &args, cwd).spawn();
         match spawned {
             Ok(mut child) => {
                 // prompt 经 stdin 传入并关闭（避免超长命令行 + codex 挂等 EOF）
@@ -164,8 +231,27 @@ pub async fn run_cli_stream<F: FnMut(String)>(
                     buf
                 });
                 let mut reader = BufReader::new(stdout).lines();
+                // claude 流式兜底：若全程没有增量文本（版本不支持 partial），用 result 事件文本
+                let mut got_text = false;
+                let mut result_fallback: Option<String> = None;
                 while let Ok(Some(line)) = reader.next_line().await {
-                    on_line(line);
+                    if is_claude {
+                        if let Some(piece) = claude_stream_piece(&line) {
+                            got_text = true;
+                            on_line(piece);
+                        } else if let Some(r) = claude_result_text(&line) {
+                            result_fallback = Some(r);
+                        }
+                        // 其它事件忽略
+                    } else {
+                        // codex：原样逐行（补换行，保持可读分行）
+                        on_line(format!("{line}\n"));
+                    }
+                }
+                if is_claude && !got_text {
+                    if let Some(r) = result_fallback {
+                        on_line(r);
+                    }
                 }
                 let status = child.wait().await.map_err(|e| e.to_string())?;
                 let errtext = stderr_task.await.unwrap_or_default();
@@ -240,15 +326,15 @@ mod tests {
 
     #[test]
     fn builds_claude_command_plain() {
-        // prompt 不进 args（经 stdin 传）；claude -p 无参读 stdin
-        let (bin, args) = build_cli_command("claude", false);
+        // prompt 不进 args（经 stdin 传）；非流式 claude -p 无参读 stdin
+        let (bin, args) = build_cli_command("claude", false, false);
         assert_eq!(bin, "claude");
         assert_eq!(args, vec!["-p".to_string()]);
     }
 
     #[test]
     fn builds_claude_command_with_tools() {
-        let (_bin, args) = build_cli_command("claude", true);
+        let (_bin, args) = build_cli_command("claude", true, false);
         assert_eq!(
             args,
             vec!["-p".to_string(), "--dangerously-skip-permissions".to_string()]
@@ -256,9 +342,25 @@ mod tests {
     }
 
     #[test]
+    fn builds_claude_command_stream() {
+        // 流式：追加 stream-json 事件输出 + 部分消息增量
+        let (_bin, args) = build_cli_command("claude", false, true);
+        assert_eq!(
+            args,
+            vec![
+                "-p".to_string(),
+                "--output-format".to_string(),
+                "stream-json".to_string(),
+                "--verbose".to_string(),
+                "--include-partial-messages".to_string(),
+            ]
+        );
+    }
+
+    #[test]
     fn builds_codex_command_plain() {
-        // codex exec -  （- 占位表示 stdin 即完整 prompt）
-        let (bin, args) = build_cli_command("codex", false);
+        // codex exec -  （- 占位表示 stdin 即完整 prompt）；stream 开关对 codex 无效
+        let (bin, args) = build_cli_command("codex", false, true);
         assert_eq!(bin, "codex");
         assert_eq!(args, vec!["exec".to_string(), "-".to_string()]);
     }
@@ -266,7 +368,7 @@ mod tests {
     #[test]
     fn builds_codex_command_with_tools() {
         // 标志在 exec 之后、- 之前
-        let (_bin, args) = build_cli_command("codex", true);
+        let (_bin, args) = build_cli_command("codex", true, false);
         assert_eq!(
             args,
             vec![
@@ -275,6 +377,37 @@ mod tests {
                 "-".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn claude_stream_piece_extracts_text_delta() {
+        let line = r#"{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"你好"}}}"#;
+        assert_eq!(claude_stream_piece(line), Some("你好".to_string()));
+    }
+
+    #[test]
+    fn claude_stream_piece_marks_tool_use() {
+        let line = r#"{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","name":"Edit"}}}"#;
+        let p = claude_stream_piece(line).unwrap();
+        assert!(p.contains("Edit") && p.contains("🔧"));
+    }
+
+    #[test]
+    fn claude_stream_piece_ignores_other_events() {
+        assert_eq!(
+            claude_stream_piece(r#"{"type":"assistant","message":{"content":[]}}"#),
+            None
+        );
+        assert_eq!(claude_stream_piece(r#"{"type":"system","subtype":"init"}"#), None);
+        assert_eq!(claude_stream_piece("非 JSON"), None);
+    }
+
+    #[test]
+    fn claude_result_text_extracts_final() {
+        let line = r#"{"type":"result","subtype":"success","result":"最终答案","is_error":false}"#;
+        assert_eq!(claude_result_text(line), Some("最终答案".to_string()));
+        // 非 result 事件返回 None
+        assert_eq!(claude_result_text(r#"{"type":"assistant"}"#), None);
     }
 
     #[test]

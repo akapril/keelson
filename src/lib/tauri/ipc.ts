@@ -114,9 +114,9 @@ export const ipc = {
   uninstallActivityHook: () => invoke<void>("uninstall_activity_hook"),
 
   // ── AI 对话（provider 可切；包装 ai_chat 命令） ────────────
-  /** 非流式对话：返回助手回复文本 */
-  aiChat: (config: AiConfig, messages: AiChatMessage[]) =>
-    invoke<string>("ai_chat", { config, messages }),
+  /** 非流式对话：返回助手回复文本。cwd=项目仓库路径（可选），CLI provider 在该目录下运行。 */
+  aiChat: (config: AiConfig, messages: AiChatMessage[], cwd?: string) =>
+    invoke<string>("ai_chat", { config, messages, cwd }),
 
   /** 一轮工具对话：返回「最终文本」或「待执行工具调用」（agent loop 由前端驱动） */
   aiChatTools: (
@@ -133,6 +133,7 @@ export const ipc = {
     streamId: string,
     onEvent: (ev: AiStreamEvent) => void,
     withTools = false,
+    cwd?: string,
   ) => {
     const channel = new Channel<AiStreamEvent>();
     channel.onmessage = onEvent;
@@ -142,6 +143,7 @@ export const ipc = {
       streamId,
       onEvent: channel,
       withTools,
+      cwd,
     });
   },
 
