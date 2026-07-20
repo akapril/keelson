@@ -390,6 +390,7 @@ mod tests {
             message_count: 2,
             user_messages: vec![first_prompt.to_string()],
             total_tokens: 100,
+            by_model: Default::default(),
         }
     }
 

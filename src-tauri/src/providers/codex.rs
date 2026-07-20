@@ -137,6 +137,8 @@ pub fn scan_codex_session(path: &Path) -> Option<Session> {
     let mut first_timestamp: Option<DateTime<Utc>> = None;
     let mut last_timestamp: Option<DateTime<Utc>> = None;
     let mut total_tokens: u64 = 0;
+    // 会话模型（在 turn_context 行的 payload.model；取首个非空。实证 codex 一会话一模型）
+    let mut model = String::new();
 
     for line in reader.lines() {
         let line = match line {
@@ -167,6 +169,18 @@ pub fn scan_codex_session(path: &Path) -> Option<Session> {
                     }
                     if let Some(c) = payload.get("cwd").and_then(|v| v.as_str()) {
                         cwd = c.to_string();
+                    }
+                }
+            }
+            Some("turn_context") => {
+                // 提取会话模型（首个非空）
+                if model.is_empty() {
+                    if let Some(payload) = &entry.payload {
+                        if let Some(m) = payload.get("model").and_then(|v| v.as_str()) {
+                            if !m.is_empty() {
+                                model = m.to_string();
+                            }
+                        }
                     }
                 }
             }
@@ -217,6 +231,13 @@ pub fn scan_codex_session(path: &Path) -> Option<Session> {
         .to_string_lossy()
         .to_string();
 
+    // 整会话 token 归到该会话唯一模型（一会话一模型近似；无 model → "(unknown)"）
+    let mut by_model = std::collections::HashMap::new();
+    by_model.insert(
+        if model.is_empty() { "(unknown)".to_string() } else { model },
+        total_tokens,
+    );
+
     Some(Session {
         session_id,
         provider: "codex".to_string(),
@@ -229,6 +250,7 @@ pub fn scan_codex_session(path: &Path) -> Option<Session> {
         message_count: user_messages.len() as u32,
         user_messages,
         total_tokens,
+        by_model,
     })
 }
 
@@ -385,6 +407,8 @@ mod tests {
 
         // 验证 token 统计：input(320) + output(180) = 500
         assert_eq!(session.total_tokens, 500);
+        // 恒等式：Σ by_model == total_tokens（整会话归一模型 / (unknown)）
+        assert_eq!(session.by_model.values().sum::<u64>(), session.total_tokens);
 
         // 验证项目路径和名称
         assert_eq!(session.project_path, "/home/user/workspace/myproject");

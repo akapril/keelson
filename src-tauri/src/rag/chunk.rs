@@ -62,6 +62,7 @@ mod tests {
             message_count: msgs.len() as u32,
             user_messages: msgs.into_iter().map(String::from).collect(),
             total_tokens: 0,
+            by_model: Default::default(),
         }
     }
 

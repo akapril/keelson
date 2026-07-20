@@ -183,6 +183,7 @@ mod tests {
             message_count,
             user_messages: vec![last_prompt.to_string()],
             total_tokens: 100,
+            by_model: Default::default(),
         }
     }
 

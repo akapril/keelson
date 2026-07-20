@@ -253,6 +253,7 @@ pub fn parse_session_file(
     let mut last_timestamp: Option<DateTime<Utc>> = None;
     let mut message_count: u32 = 0;
     let mut total_tokens: u64 = 0;
+    let mut by_model: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
     let mut cwd_from_file: Option<String> = None;
     for line in reader.lines() {
         let line = match line {
@@ -269,18 +270,22 @@ pub fn parse_session_file(
                 }
             }
 
-            // 提取 assistant 消息中的 usage 信息
+            // 提取 assistant 消息中的 usage 信息（按模型归因）
             if raw.get("type").and_then(|v| v.as_str()) == Some("assistant") {
                 if let Some(usage) = raw.pointer("/message/usage") {
-                    let input = usage
-                        .get("input_tokens")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0);
-                    let output = usage
-                        .get("output_tokens")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0);
-                    total_tokens += input + output;
+                    let g = |k: &str| usage.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
+                    // 同口径计入 input+output+cache（cache 量级常远大于 input，之前忽略导致成本系统性低估）
+                    let tok = g("input_tokens")
+                        + g("output_tokens")
+                        + g("cache_creation_input_tokens")
+                        + g("cache_read_input_tokens");
+                    total_tokens += tok;
+                    let model = raw
+                        .pointer("/message/model")
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or("(unknown)");
+                    *by_model.entry(model.to_string()).or_insert(0) += tok;
                 }
             }
 
@@ -355,6 +360,7 @@ pub fn parse_session_file(
         message_count,
         user_messages,
         total_tokens,
+        by_model,
     })
 }
 

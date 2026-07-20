@@ -24,8 +24,12 @@ pub struct Session {
     pub message_count: u32,
     /// 所有用户消息列表（用于全文检索）
     pub user_messages: Vec<String>,
-    /// 总 token 数（从会话文件中提取）
+    /// 总 token 数（从会话文件中提取；含 input/output/cache 各类，同口径）
     pub total_tokens: u64,
+    /// 按模型的 token 归因（模型名 → token 数；Σ == total_tokens）。
+    /// serde default 兼容旧 scan_cache（缺字段反序列化为空 map，不报错）。
+    #[serde(default)]
+    pub by_model: std::collections::HashMap<String, u64>,
 }
 
 /// 时间轴消息（会话详情页展示用）
