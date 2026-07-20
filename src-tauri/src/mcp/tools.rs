@@ -74,6 +74,9 @@ async fn create_task(args: Value, ctx: &McpCtx) -> Result<Value, String> {
         "state": state,
         "title": title,
         "rank": next_rank(&ranks),
+        // board_tasks 的 priority 为必填（PB 非空校验）；与前端 store 一致默认 "none"，
+        // 调用方传了则下方覆盖。缺此默认会导致 MCP 建任务 PB 400。
+        "priority": "none",
     });
     if let Some(d) = opt_str(&args, "description") { data["description"] = json!(d); }
     if let Some(p) = opt_str(&args, "priority") { data["priority"] = json!(p); }
