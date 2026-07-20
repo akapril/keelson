@@ -33,7 +33,11 @@ interface NotificationsState {
   add: (input: CreateNotificationInput) => Promise<void>;
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
+  /** 批量标记已读（收件箱批处理） */
+  markManyRead: (ids: string[]) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  /** 批量删除/归档（收件箱批处理） */
+  removeMany: (ids: string[]) => Promise<void>;
   clearAll: () => Promise<void>;
 }
 
@@ -95,11 +99,36 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     }
   },
 
+  markManyRead: async (ids) => {
+    const idSet = new Set(ids);
+    const snapshot = get().items;
+    const targets = snapshot.filter((n) => idSet.has(n.id) && !n.read);
+    if (targets.length === 0) return;
+    set({ items: snapshot.map((n) => (idSet.has(n.id) ? { ...n, read: true } : n)) });
+    try {
+      await Promise.all(targets.map((n) => setNotificationRead(n.id, true)));
+    } catch (e) {
+      set({ items: snapshot, error: String(e) });
+    }
+  },
+
   remove: async (id) => {
     const snapshot = get().items;
     set({ items: snapshot.filter((n) => n.id !== id) });
     try {
       await deleteNotification(id);
+    } catch (e) {
+      set({ items: snapshot, error: String(e) });
+    }
+  },
+
+  removeMany: async (ids) => {
+    const idSet = new Set(ids);
+    const snapshot = get().items;
+    if (!snapshot.some((n) => idSet.has(n.id))) return;
+    set({ items: snapshot.filter((n) => !idSet.has(n.id)) });
+    try {
+      await Promise.all([...idSet].map((id) => deleteNotification(id)));
     } catch (e) {
       set({ items: snapshot, error: String(e) });
     }

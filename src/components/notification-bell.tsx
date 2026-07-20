@@ -109,7 +109,7 @@ export function NotificationBell() {
               <span className="text-xs">暂无通知</span>
             </div>
           ) : (
-            items.map((n) => (
+            items.slice(0, 8).map((n) => (
               <div
                 key={n.id}
                 className={cn(
@@ -148,6 +148,15 @@ export function NotificationBell() {
             ))
           )}
         </div>
+
+        {/* 底部：查看全部（收件箱可批处理/过滤/分组） */}
+        <button
+          type="button"
+          onClick={() => navigate("/inbox")}
+          className="w-full border-t border-border px-3 py-2 text-center text-xs text-primary hover:bg-accent"
+        >
+          查看全部（收件箱）{items.length > 8 ? ` · 共 ${items.length}` : ""} →
+        </button>
       </DropdownMenuContent>
     </DropdownMenu>
   );
