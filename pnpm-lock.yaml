@@ -149,6 +149,9 @@ importers:
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
+      virtua:
+        specifier: ^0.49.3
+        version: 0.49.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vue@3.5.39(typescript@5.8.3))
       zustand:
         specifier: latest
         version: 5.0.14(@types/react@19.2.17)(immer@11.1.15)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7))
@@ -2601,6 +2604,26 @@ packages:
 
   victory-vendor@37.3.6:
     resolution: {integrity: sha512-SbPDPdDBYp+5MJHhBCAyI7wKM3d5ivekigc2Dk2s7pgbZ9wIgIBYGVw4zGHBml/qTFbexrofXW6Gu4noGxrOwQ==}
+
+  virtua@0.49.3:
+    resolution: {integrity: sha512-k1Yn988Vz/L40uDtEWPjfdVo15Suumh4tU4/z5Srs0elNcU9DgBskqdh3llpHyAlXrCeHWTfcclYvY1uU4MmIg==}
+    peerDependencies:
+      react: '>=16.14.0'
+      react-dom: '>=16.14.0'
+      solid-js: '>=1.0'
+      svelte: '>=5.0'
+      vue: '>=3.2'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
+      solid-js:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
 
   vite@8.1.4:
     resolution: {integrity: sha512-bTT9PsdWO+MQMNG9ZXIP/qM9wGh37DFxTV/sPq9cFpHr3w4jkgef032PkAL9jAqhk3Nz8NQw3O8n6/xFkqO4QQ==}
@@ -5854,6 +5877,12 @@ snapshots:
       d3-shape: 3.2.0
       d3-time: 3.1.0
       d3-timer: 3.0.1
+
+  virtua@0.49.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vue@3.5.39(typescript@5.8.3)):
+    optionalDependencies:
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
+      vue: 3.5.39(typescript@5.8.3)
 
   vite@8.1.4(@types/node@20.19.43)(jiti@2.7.0):
     dependencies:

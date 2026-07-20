@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { Virtualizer } from "virtua";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { useSessionsStore } from "../../store/sessions";
@@ -101,6 +102,25 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
       else next.add(path);
       return next;
     });
+
+  // 把「搜索扁平列表」与「分组视图」统一压平成一维行序列，交给 virtua 虚拟化：
+  // 只渲染可视区行，会话成百上千也不卡。header 行 sticky 吸顶；折叠的分组不产出卡片行。
+  type Row =
+    | { kind: "header"; path: string; name: string; count: number; collapsed: boolean }
+    | { kind: "card"; session: Session };
+  const rows = useMemo<Row[]>(() => {
+    if (isSearching) {
+      return shownResults.map((s) => ({ kind: "card", session: s }));
+    }
+    const out: Row[] = [];
+    for (const [path, sessions] of Object.entries(shownGroups)) {
+      const name = path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+      const isCollapsed = collapsed.has(path);
+      out.push({ kind: "header", path, name, count: sessions.length, collapsed: isCollapsed });
+      if (!isCollapsed) for (const s of sessions) out.push({ kind: "card", session: s });
+    }
+    return out;
+  }, [isSearching, shownResults, shownGroups, collapsed]);
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -211,108 +231,80 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
         </div>
       )}
 
-      {/* 内容区：可滚动 */}
+      {/* 内容区：可滚动 + virtua 虚拟化（只渲染可视区行，会话极多也不卡死） */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
-          // 加载状态
           <p className="py-8 text-center text-sm text-muted-foreground">加载中…</p>
-        ) : isSearching ? (
-          // ── 搜索结果视图（Tantivy 全文检索，覆盖全部消息）──────
-          <div className="flex flex-col gap-2">
-            {searchLoading && results.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">检索中…</p>
-            ) : shownResults.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                {favOnly ? "没有收藏的会话" : "未找到匹配的会话"}
-              </p>
-            ) : (
-              shownResults.map((session) => (
-                <SessionCard
-                  key={session.session_id}
-                  session={session}
-                  selected={session.session_id === selectedId}
-                  onSelect={onSelect}
-                  selectMode={selectMode}
-                  checked={checked.has(session.session_id)}
-                  onToggleCheck={toggleCheck}
-                />
-              ))
-            )}
-          </div>
+        ) : isSearching && searchLoading && results.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">检索中…</p>
+        ) : rows.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            {isSearching
+              ? favOnly
+                ? "没有收藏的会话"
+                : "未找到匹配的会话"
+              : favOnly
+                ? "没有收藏的会话"
+                : scanned
+                  ? "暂无会话记录"
+                  : "正在扫描本地会话…"}
+          </p>
         ) : (
-          // ── 分组视图 ──────────────────────────────────────
-          <div className="flex flex-col gap-4">
-            {Object.keys(shownGroups).length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                {favOnly
-                  ? "没有收藏的会话"
-                  : scanned
-                    ? "暂无会话记录"
-                    : "正在扫描本地会话…"}
-              </p>
-            ) : (
-              Object.entries(shownGroups).map(([projectPath, sessions]) => {
-                // 从完整路径提取可读的项目名
-                const projectName =
-                  projectPath.split(/[\\/]/).filter(Boolean).at(-1) ?? projectPath;
-                const isCollapsed = collapsed.has(projectPath);
-                return (
-                  <section key={projectPath}>
-                    {/* 分组标题行：滚动时吸顶固定，折叠开关始终可点 */}
-                    <div className="sticky top-0 z-10 mb-1 flex items-center justify-between gap-2 bg-background pb-1.5 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => toggleCollapse(projectPath)}
-                        title={isCollapsed ? "展开" : "折叠"}
-                        aria-expanded={!isCollapsed}
-                        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-0.5 py-0.5 text-left hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        <HugeiconsIcon
-                          icon={ArrowRight01Icon}
-                          strokeWidth={2}
-                          className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${
-                            isCollapsed ? "" : "rotate-90"
-                          }`}
-                        />
-                        <span
-                          className="min-w-0 truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                          title={projectPath}
-                        >
-                          {projectName}
-                        </span>
-                        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
-                          {sessions.length}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPromotingPath(projectPath)}
-                        title="提升为看板项目"
-                        className="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        提升为看板项目
-                      </button>
-                    </div>
-                    {!isCollapsed && (
-                      <div className="flex flex-col gap-1.5">
-                        {sessions.map((session) => (
-                          <SessionCard
-                            key={session.session_id}
-                            session={session}
-                            selected={session.session_id === selectedId}
-                            onSelect={onSelect}
-                            selectMode={selectMode}
-                            checked={checked.has(session.session_id)}
-                            onToggleCheck={toggleCheck}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                );
-              })
+          <Virtualizer>
+            {rows.map((row) =>
+              row.kind === "header" ? (
+                // 分组标题行：sticky 吸顶；折叠开关 + 提升为看板项目
+                <div
+                  key={`h:${row.path}`}
+                  className="sticky top-0 z-10 mb-1 mt-3 flex items-center justify-between gap-2 bg-background pb-1.5 pt-0.5 first:mt-0"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleCollapse(row.path)}
+                    title={row.collapsed ? "展开" : "折叠"}
+                    aria-expanded={!row.collapsed}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-0.5 py-0.5 text-left hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <HugeiconsIcon
+                      icon={ArrowRight01Icon}
+                      strokeWidth={2}
+                      className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${
+                        row.collapsed ? "" : "rotate-90"
+                      }`}
+                    />
+                    <span
+                      className="min-w-0 truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      title={row.path}
+                    >
+                      {row.name}
+                    </span>
+                    <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                      {row.count}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPromotingPath(row.path)}
+                    title="提升为看板项目"
+                    className="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    提升为看板项目
+                  </button>
+                </div>
+              ) : (
+                <div key={row.session.session_id} className="pb-1.5">
+                  <SessionCard
+                    session={row.session}
+                    selected={row.session.session_id === selectedId}
+                    onSelect={onSelect}
+                    selectMode={selectMode}
+                    checked={checked.has(row.session.session_id)}
+                    onToggleCheck={toggleCheck}
+                  />
+                </div>
+              ),
             )}
-          </div>
+          </Virtualizer>
         )}
       </div>
         </>
