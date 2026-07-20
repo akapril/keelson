@@ -61,3 +61,39 @@ pub async fn rag_search(
     let raw = store.search(&qv, (limit as usize) * 3);
     Ok(hits_from(raw, 1).into_iter().take(limit as usize).collect())
 }
+
+/// 通用文本嵌入：前端记忆语义去重用。空输入返回空；provider 未就绪返回 Err（前端据此回退字符级）。
+#[tauri::command]
+pub async fn embed_texts(config: EmbedConfig, texts: Vec<String>) -> Result<Vec<Vec<f32>>, String> {
+    if texts.is_empty() {
+        return Ok(vec![]);
+    }
+    let embedder = build_embedder(&config)?;
+    embedder.embed(&texts).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn embed_texts_empty_returns_empty() {
+        let cfg = EmbedConfig { provider: "mock".into(), base_url: "".into(), api_key: "".into(), model: "m".into() };
+        let out = embed_texts(cfg, vec![]).await.unwrap();
+        assert!(out.is_empty());
+    }
+
+    #[tokio::test]
+    async fn embed_texts_mock_returns_vectors_per_text() {
+        let cfg = EmbedConfig { provider: "mock".into(), base_url: "".into(), api_key: "".into(), model: "m".into() };
+        let out = embed_texts(cfg, vec!["a".into(), "b".into()]).await.unwrap();
+        assert_eq!(out.len(), 2);
+        assert!(!out[0].is_empty());
+    }
+
+    #[tokio::test]
+    async fn embed_texts_unknown_provider_errors() {
+        let cfg = EmbedConfig { provider: "nope".into(), base_url: "".into(), api_key: "".into(), model: "m".into() };
+        assert!(embed_texts(cfg, vec!["a".into()]).await.is_err());
+    }
+}

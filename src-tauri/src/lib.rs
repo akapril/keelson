@@ -314,9 +314,10 @@ pub fn run() {
             commands::ai::ai_cancel_stream,
             commands::ai::ai_chat_tools,
             commands::ai::list_models,
-            // RAG 语义检索（rag_build_index / rag_search）
+            // RAG 语义检索（rag_build_index / rag_search / embed_texts）
             commands::rag::rag_build_index,
             commands::rag::rag_search,
+            commands::rag::embed_texts,
             // MCP 一键接入 claude / codex
             commands::mcp::mcp_endpoint,
             commands::mcp::mcp_install_claude,
