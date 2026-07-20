@@ -37,6 +37,8 @@ interface SessionCardProps {
 export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
   const favorites = useSessionMetaStore((s) => s.favorites);
   const toggleFavorite = useSessionMetaStore((s) => s.toggleFavorite);
+  const hidden = useSessionMetaStore((s) => s.hidden);
+  const toggleHidden = useSessionMetaStore((s) => s.toggleHidden);
   const customNames = useSessionMetaStore((s) => s.customNames);
   const setCustomName = useSessionMetaStore((s) => s.setCustomName);
 
@@ -51,6 +53,7 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
   const customName = customNames.get(session.session_id);
   const displayName = customName || session.project_name;
   const isFav = favorites.has(session.session_id);
+  const isHidden = hidden.has(session.session_id);
 
   // 改名：风格化对话框；取消(null)不动，空串=清除自定义名恢复默认
   function handleRenameResult(value: string | null) {
@@ -94,6 +97,8 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
           selected
             ? "bg-accent text-accent-foreground"
             : "bg-card text-card-foreground hover:bg-accent/50",
+          // 已隐藏（仅在"显示隐藏"时可见）淡化区分
+          isHidden ? "opacity-55" : "",
         ].join(" ")}
       >
         {/* 首行：项目名 + 收藏星标 + 恢复按钮 */}
@@ -157,6 +162,9 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => setRenameOpen(true)}>
           {customName ? "重命名 / 恢复默认" : "重命名"}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => toggleHidden(session.session_id)}>
+          {isHidden ? "取消隐藏" : "隐藏"}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem

@@ -33,26 +33,33 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
   const run = useSessionSearchStore((s) => s.run);
   const searchLoading = useSessionSearchStore((s) => s.loading);
   const favorites = useSessionMetaStore((s) => s.favorites);
+  const hidden = useSessionMetaStore((s) => s.hidden);
 
   // 搜索词非空时进入搜索模式
   const isSearching = query.trim().length > 0;
 
-  // 「只看收藏」筛选
+  // 「只看收藏」/「显示已隐藏」筛选
   const [favOnly, setFavOnly] = useState(false);
-  const shownResults = useMemo(
-    () => (favOnly ? results.filter((s) => favorites.has(s.session_id)) : results),
-    [favOnly, results, favorites],
+  const [showHidden, setShowHidden] = useState(false);
+  // 单条是否应展示：默认排除已隐藏（除非显示隐藏）；favOnly 时仅收藏
+  const keep = useMemo(
+    () => (id: string) =>
+      (showHidden || !hidden.has(id)) && (!favOnly || favorites.has(id)),
+    [showHidden, hidden, favOnly, favorites],
   );
-  // 分组视图：按收藏过滤每组、丢弃空组
+  const shownResults = useMemo(
+    () => results.filter((s) => keep(s.session_id)),
+    [results, keep],
+  );
+  // 分组视图：过滤每组、丢弃空组
   const shownGroups = useMemo(() => {
-    if (!favOnly) return groups;
     const out: Record<string, Session[]> = {};
     for (const [path, list] of Object.entries(groups)) {
-      const kept = list.filter((s) => favorites.has(s.session_id));
+      const kept = list.filter((s) => keep(s.session_id));
       if (kept.length) out[path] = kept;
     }
     return out;
-  }, [favOnly, groups, favorites]);
+  }, [groups, keep]);
 
   // 搜索 / 问历史 模式切换
   const [mode, setMode] = useState<"search" | "ask">("search");
@@ -115,6 +122,17 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
           }`}
         >
           {favOnly ? "★" : "☆"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowHidden((v) => !v)}
+          title={showHidden ? "隐藏「已隐藏」会话" : "显示「已隐藏」会话"}
+          aria-pressed={showHidden}
+          className={`shrink-0 rounded-lg border border-border px-2.5 py-2 text-xs leading-none transition-colors ${
+            showHidden ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
+          }`}
+        >
+          {showHidden ? "隐藏项✓" : "隐藏项"}
         </button>
       </div>
 

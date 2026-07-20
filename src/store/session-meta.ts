@@ -22,6 +22,8 @@ interface SessionNoteRecord {
 // ── Store 状态类型 ─────────────────────────────────────────
 interface SessionMetaState {
   favorites: Set<string>;
+  /** 已隐藏的会话 id（列表默认不显示；用于收纳噪音会话） */
+  hidden: Set<string>;
   notes: Map<string, string>;
   /** session_id -> 自定义名称（custom_name，覆盖显示用；空表示未设） */
   customNames: Map<string, string>;
@@ -31,6 +33,8 @@ interface SessionMetaState {
   load: () => Promise<void>;
   /** 切换收藏状态（写回 PocketBase） */
   toggleFavorite: (sessionId: string) => Promise<void>;
+  /** 切换隐藏状态（写回 PocketBase） */
+  toggleHidden: (sessionId: string) => Promise<void>;
   /** 保存会话笔记（写回 PocketBase） */
   setNote: (sessionId: string, text: string) => Promise<void>;
   /** 设置/清除会话自定义名称（写回 PocketBase；空串=清除） */
@@ -43,6 +47,7 @@ let noteRecordMap: Map<string, string> = new Map();
 
 export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
   favorites: new Set(),
+  hidden: new Set(),
   notes: new Map(),
   customNames: new Map(),
   loading: false,
@@ -57,10 +62,12 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
         filter: `owner="${userId}"`,
       });
       const favorites = new Set<string>();
+      const hidden = new Set<string>();
       const customNames = new Map<string, string>();
       metaRecordMap = new Map();
       for (const row of metaRows) {
         if (row.favorite) favorites.add(row.session_id);
+        if (row.hidden) hidden.add(row.session_id);
         if (row.custom_name) customNames.set(row.session_id, row.custom_name);
         metaRecordMap.set(row.session_id, row.id);
       }
@@ -76,7 +83,7 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
         noteRecordMap.set(row.session_id, row.id);
       }
 
-      set({ favorites, notes, customNames, loading: false });
+      set({ favorites, hidden, notes, customNames, loading: false });
     } catch (e) {
       set({ error: String(e), loading: false });
     }
@@ -109,6 +116,36 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
     } catch (e) {
       // 回滚乐观更新
       set({ favorites, error: String(e) });
+    }
+  },
+
+  toggleHidden: async (sessionId) => {
+    const { hidden } = get();
+    const isHidden = hidden.has(sessionId);
+    // 乐观更新
+    const next = new Set(hidden);
+    if (isHidden) next.delete(sessionId);
+    else next.add(sessionId);
+    set({ hidden: next });
+
+    try {
+      const userId = currentUserId();
+      const recordId = metaRecordMap.get(sessionId);
+      if (recordId) {
+        await pbUpdate(COL.sessionsMeta, recordId, { hidden: !isHidden });
+      } else {
+        // 无记录：新建（防御性兜底，与 toggleFavorite 一致）
+        const row = await pbCreate<SessionMetaRecord>(COL.sessionsMeta, {
+          session_id: sessionId,
+          owner: userId,
+          favorite: false,
+          hidden: !isHidden,
+        });
+        metaRecordMap.set(sessionId, row.id);
+      }
+    } catch (e) {
+      // 回滚
+      set({ hidden, error: String(e) });
     }
   },
 
