@@ -1,17 +1,31 @@
-// 成本单价配置：每个 provider 每百万 token 的价格 + 货币符号。纯前端 localStorage 持久化。
+// 成本单价配置：provider / 模型 每百万 token 的价格 + 货币符号。纯前端 localStorage 持久化。
 import { create } from "zustand";
-import type { CostRates } from "@/features/usage/aggregate";
+import type { CostRates, ModelRates } from "@/features/usage/aggregate";
 
 const STORAGE_KEY = "rework-cost-config";
 
 export interface CostConfig {
-  rates: CostRates; // 每百万 token 单价
+  rates: CostRates; // 按 provider 的每百万 token 单价（回退用）
+  modelRates: ModelRates; // 按模型的每百万 token 单价（优先）
   currency: string; // 展示用符号，如 "$" / "¥"
 }
+
+// 内置占位单价表（货币/百万 token，混合 in/out+cache 的粗估，用户可改）。
+// 模型名用前缀近似匹配的原始串常见形态；未命中则回退 provider 单价。
+export const DEFAULT_MODEL_RATES: ModelRates = {
+  "claude-opus-4-8": 15,
+  "claude-sonnet-4-6": 3,
+  "claude-3-5-haiku": 0.8,
+  "gpt-5.1-codex-max": 2,
+  "gpt-5.1": 2,
+  "gpt-4o": 2.5,
+  "gpt-4o-mini": 0.15,
+};
 
 // 默认单价为占位估算值，用户可在页面改；单位：货币/百万 token
 export const DEFAULT_COST_CONFIG: CostConfig = {
   rates: { claude: 3, codex: 2, openai: 0.6, anthropic: 3 },
+  modelRates: DEFAULT_MODEL_RATES,
   currency: "$",
 };
 
@@ -22,6 +36,7 @@ function load(): CostConfig {
     const parsed = JSON.parse(raw) as Partial<CostConfig>;
     return {
       rates: { ...DEFAULT_COST_CONFIG.rates, ...(parsed.rates ?? {}) },
+      modelRates: { ...DEFAULT_COST_CONFIG.modelRates, ...(parsed.modelRates ?? {}) },
       currency: parsed.currency ?? DEFAULT_COST_CONFIG.currency,
     };
   } catch {
@@ -40,6 +55,7 @@ function persist(cfg: CostConfig) {
 interface CostState {
   config: CostConfig;
   setRate: (provider: string, rate: number) => void;
+  setModelRate: (model: string, rate: number) => void;
   setCurrency: (currency: string) => void;
 }
 
@@ -49,6 +65,14 @@ export const useCostStore = create<CostState>((set, get) => ({
     const next: CostConfig = {
       ...get().config,
       rates: { ...get().config.rates, [provider]: rate },
+    };
+    set({ config: next });
+    persist(next);
+  },
+  setModelRate: (model, rate) => {
+    const next: CostConfig = {
+      ...get().config,
+      modelRates: { ...get().config.modelRates, [model]: rate },
     };
     set({ config: next });
     persist(next);

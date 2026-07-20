@@ -27,12 +27,26 @@ export interface ProjectStat {
   cost: number;
 }
 
+export interface ModelStat {
+  model: string;
+  provider: string;
+  sessions: number;
+  tokens: number;
+  cost: number;
+}
+
+/** 按模型单价（模型名 → 每百万 token 金额）；缺省回退 provider 单价。 */
+export interface ModelRates {
+  [model: string]: number;
+}
+
 export interface UsageSummary {
   totalSessions: number;
   totalTokens: number;
   totalCost: number;
   byProvider: ProviderStat[];
   byProject: ProjectStat[];
+  byModel: ModelStat[];
   daily: DailyPoint[];
 }
 
@@ -54,6 +68,7 @@ export function aggregateUsage(
   sessions: Session[],
   rates: CostRates,
   days: number,
+  modelRates: ModelRates = {},
 ): UsageSummary {
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
   const inRange = sessions.filter((s) => {
@@ -65,6 +80,8 @@ export function aggregateUsage(
   const provMap = new Map<string, ProviderStat>();
   // 按项目聚合（key = project_path，标签用 project_name）
   const projMap = new Map<string, ProjectStat>();
+  // 按模型聚合（key = 模型名）
+  const modelMap = new Map<string, ModelStat>();
   // 按天聚合
   const dayMap = new Map<string, number>();
 
@@ -103,12 +120,33 @@ export function aggregateUsage(
     pj.cost += cost;
     projMap.set(pjKey, pj);
 
+    // 按模型：优先用 by_model；缺省(旧数据)回退 {provider: 总token}，保证总量不丢
+    const bm =
+      s.by_model && Object.keys(s.by_model).length > 0
+        ? s.by_model
+        : { [s.provider]: tokens };
+    for (const [model, mtok] of Object.entries(bm)) {
+      const mrate = modelRates[model] ?? rates[s.provider] ?? 0;
+      const ms = modelMap.get(model) ?? {
+        model,
+        provider: s.provider,
+        sessions: 0,
+        tokens: 0,
+        cost: 0,
+      };
+      ms.sessions += 1;
+      ms.tokens += mtok;
+      ms.cost += estimateCost(mtok, mrate);
+      modelMap.set(model, ms);
+    }
+
     const dk = dayKey(s.created_at);
     dayMap.set(dk, (dayMap.get(dk) ?? 0) + tokens);
   }
 
   const byProvider = [...provMap.values()].sort((a, b) => b.tokens - a.tokens);
   const byProject = [...projMap.values()].sort((a, b) => b.tokens - a.tokens);
+  const byModel = [...modelMap.values()].sort((a, b) => b.tokens - a.tokens);
   const daily = [...dayMap.entries()]
     .map(([date, tokens]) => ({ date, tokens }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
@@ -119,6 +157,7 @@ export function aggregateUsage(
     totalCost,
     byProvider,
     byProject,
+    byModel,
     daily,
   };
 }
