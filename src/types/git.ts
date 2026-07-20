@@ -18,3 +18,11 @@ export interface CorrelatedCommit {
   commit: CommitInfo;
   link_kind: LinkKind;
 }
+
+/** 会话溯源钩子状态（Phase 2）。 */
+export interface HookStatus {
+  installed: boolean;
+  hooks_path: string;
+  /** 是否存在别的工具的 prepare-commit-msg（将与之共存） */
+  foreign_hook_present: boolean;
+}

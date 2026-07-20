@@ -163,6 +163,216 @@ pub fn git_log(
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Phase 2：会话溯源 git 钩子（prepare-commit-msg 自动打 Rework-Session trailer）
+// ─────────────────────────────────────────────────────────────
+
+const HOOK_MARKER_BEGIN: &str = "# >>> rework-session-trailer >>>";
+const HOOK_MARKER_END: &str = "# <<< rework-session-trailer <<<";
+
+/// 钩子标记块（含首尾标记行）。POSIX sh，Windows 走 Git 自带 sh。
+/// 仅普通提交注入；merge/squash/amend 跳过；已有 trailer 不重复；marker 缺失则空操作。
+const HOOK_BLOCK: &str = r#"# >>> rework-session-trailer >>>
+# 由 rework 自动追加会话溯源 trailer；仅普通提交注入
+case "$2" in message|template|"") : ;; *) exit 0 ;; esac
+GITDIR=$(git rev-parse --git-dir 2>/dev/null) || exit 0
+MARKER="$GITDIR/rework-session"
+[ -f "$MARKER" ] || exit 0
+SID=$(grep '^session_id=' "$MARKER" | head -n1 | cut -d= -f2-)
+[ -n "$SID" ] || exit 0
+grep -qi '^Rework-Session:' "$1" && exit 0
+printf '\nRework-Session: %s\n' "$SID" >> "$1"
+# <<< rework-session-trailer <<<
+"#;
+
+/// 精简会话视图（供 marker 纯逻辑单测，不依赖完整 Session）。
+pub struct SessionLite {
+    pub project_path: String,
+    pub session_id: String,
+    pub provider: String,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// 每仓库取 updated_at 最新的会话 → project_path → (session_id, provider)。纯函数、可测。
+pub fn pick_latest_session_per_repo(
+    sessions: &[SessionLite],
+) -> std::collections::HashMap<String, (String, String)> {
+    let mut best: std::collections::HashMap<String, &SessionLite> =
+        std::collections::HashMap::new();
+    for s in sessions {
+        if s.project_path.is_empty() {
+            continue;
+        }
+        match best.get(&s.project_path) {
+            Some(prev) if prev.updated_at >= s.updated_at => {}
+            _ => {
+                best.insert(s.project_path.clone(), s);
+            }
+        }
+    }
+    best.into_iter()
+        .map(|(k, v)| (k, (v.session_id.clone(), v.provider.clone())))
+        .collect()
+}
+
+/// 移除钩子内容里的 rework 标记块（含首尾标记行）。纯函数、可测。
+pub fn strip_hook_block(content: &str) -> String {
+    let mut out: Vec<&str> = Vec::new();
+    let mut skip = false;
+    for line in content.lines() {
+        let t = line.trim();
+        if t == HOOK_MARKER_BEGIN {
+            skip = true;
+            continue;
+        }
+        if t == HOOK_MARKER_END {
+            skip = false;
+            continue;
+        }
+        if !skip {
+            out.push(line);
+        }
+    }
+    let mut s = out.join("\n");
+    if content.ends_with('\n') && !s.is_empty() {
+        s.push('\n');
+    }
+    s
+}
+
+/// 解析 repo 的 .git 目录（支持 worktree/submodule/.git 为文件）。
+fn resolve_git_dir(repo: &str) -> Option<std::path::PathBuf> {
+    let out = git(repo, &["rev-parse", "--git-dir"])?;
+    let p = std::path::PathBuf::from(out.trim());
+    Some(if p.is_absolute() { p } else { std::path::Path::new(repo).join(p) })
+}
+
+/// 解析 hooks 目录（尊重 core.hooksPath）。
+fn resolve_hooks_dir(repo: &str) -> Option<std::path::PathBuf> {
+    let out = git(repo, &["rev-parse", "--git-path", "hooks"])?;
+    let p = std::path::PathBuf::from(out.trim());
+    Some(if p.is_absolute() { p } else { std::path::Path::new(repo).join(p) })
+}
+
+/// 该仓库是否已装 rework 的钩子（以标记块存在为准）。
+pub fn hook_installed(repo: &str) -> bool {
+    resolve_hooks_dir(repo)
+        .map(|h| h.join("prepare-commit-msg"))
+        .and_then(|f| std::fs::read_to_string(f).ok())
+        .map(|c| c.contains(HOOK_MARKER_BEGIN))
+        .unwrap_or(false)
+}
+
+/// 写会话 marker（供钩子读取）。仅当钩子已装才写，避免污染未启用仓库。原子写。
+pub fn write_session_marker(repo: &str, session_id: &str, provider: &str) {
+    if !hook_installed(repo) {
+        return;
+    }
+    let Some(gd) = resolve_git_dir(repo) else {
+        return;
+    };
+    let content = format!("session_id={session_id}\nprovider={provider}\n");
+    let tmp = gd.join("rework-session.tmp");
+    if std::fs::write(&tmp, content).is_ok() {
+        let _ = std::fs::rename(&tmp, gd.join("rework-session"));
+    }
+}
+
+#[cfg(unix)]
+fn set_executable(p: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(md) = std::fs::metadata(p) {
+        let mut perm = md.permissions();
+        perm.set_mode(0o755);
+        let _ = std::fs::set_permissions(p, perm);
+    }
+}
+#[cfg(not(unix))]
+fn set_executable(_p: &std::path::Path) {}
+
+/// 钩子状态（供前端展示）。
+#[derive(Serialize)]
+pub struct HookStatus {
+    pub installed: bool,
+    pub hooks_path: String,
+    /// 存在别的工具的 prepare-commit-msg（将与之共存）
+    pub foreign_hook_present: bool,
+}
+
+/// 查询某仓库的会话溯源钩子状态。
+#[tauri::command]
+pub fn session_hook_status(path: String) -> HookStatus {
+    let hd = resolve_hooks_dir(&path);
+    let hooks_path = hd
+        .as_ref()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let content = hd
+        .map(|h| h.join("prepare-commit-msg"))
+        .and_then(|f| std::fs::read_to_string(f).ok());
+    let installed = content.as_deref().map(|c| c.contains(HOOK_MARKER_BEGIN)).unwrap_or(false);
+    let foreign_hook_present =
+        content.as_deref().map(|c| !c.contains(HOOK_MARKER_BEGIN)).unwrap_or(false);
+    HookStatus { installed, hooks_path, foreign_hook_present }
+}
+
+/// 安装钩子：幂等；无钩子则写完整脚本，有他人钩子则追加标记块共存（不覆盖）。
+#[tauri::command]
+pub fn install_session_trailer_hook(path: String) -> Result<(), String> {
+    let hd = resolve_hooks_dir(&path).ok_or("无法定位 git hooks 目录（非 git 仓库？）")?;
+    std::fs::create_dir_all(&hd).map_err(|e| format!("创建 hooks 目录失败: {e}"))?;
+    let file = hd.join("prepare-commit-msg");
+    match std::fs::read_to_string(&file) {
+        Ok(existing) => {
+            if existing.contains(HOOK_MARKER_BEGIN) {
+                return Ok(()); // 幂等：已装
+            }
+            // 共存：在他人钩子尾部追加标记块
+            let mut new = existing;
+            if !new.ends_with('\n') {
+                new.push('\n');
+            }
+            new.push('\n');
+            new.push_str(HOOK_BLOCK);
+            std::fs::write(&file, new).map_err(|e| format!("写钩子失败: {e}"))?;
+        }
+        Err(_) => {
+            let script = format!("#!/bin/sh\n{HOOK_BLOCK}");
+            std::fs::write(&file, script).map_err(|e| format!("写钩子失败: {e}"))?;
+            set_executable(&file);
+        }
+    }
+    Ok(())
+}
+
+/// 卸载钩子：只删自己的标记块（保留他人内容）；若文件仅剩 shebang/空白则删文件；一并删 marker。
+#[tauri::command]
+pub fn uninstall_session_trailer_hook(path: String) -> Result<(), String> {
+    if let Some(gd) = resolve_git_dir(&path) {
+        let _ = std::fs::remove_file(gd.join("rework-session"));
+    }
+    let Some(hd) = resolve_hooks_dir(&path) else {
+        return Ok(());
+    };
+    let file = hd.join("prepare-commit-msg");
+    let Ok(content) = std::fs::read_to_string(&file) else {
+        return Ok(());
+    };
+    if !content.contains(HOOK_MARKER_BEGIN) {
+        return Ok(()); // 不是我们的，不动
+    }
+    let stripped = strip_hook_block(&content);
+    let has_rest = stripped
+        .lines()
+        .any(|l| !l.trim().is_empty() && l.trim() != "#!/bin/sh");
+    if has_rest {
+        std::fs::write(&file, stripped).map_err(|e| format!("写钩子失败: {e}"))?;
+    } else {
+        std::fs::remove_file(&file).map_err(|e| format!("删钩子失败: {e}"))?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -259,5 +469,32 @@ mod tests {
         ];
         let out = correlate_session_commits(created, updated, "S", commits, 14400);
         assert!(out.is_empty());
+    }
+
+    #[test]
+    fn pick_latest_per_repo_takes_newest_and_isolates() {
+        let sl = |p: &str, id: &str, secs: i64| SessionLite {
+            project_path: p.into(),
+            session_id: id.into(),
+            provider: "claude".into(),
+            updated_at: Utc.timestamp_opt(secs, 0).unwrap(),
+        };
+        let out = pick_latest_session_per_repo(&[
+            sl("/a", "old", 100),
+            sl("/a", "new", 200),
+            sl("/b", "b1", 150),
+        ]);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out.get("/a").unwrap().0, "new"); // 同 repo 取最新
+        assert_eq!(out.get("/b").unwrap().0, "b1");
+    }
+
+    #[test]
+    fn strip_hook_block_keeps_foreign_removes_ours() {
+        let c = "#!/bin/sh\necho foreign\n# >>> rework-session-trailer >>>\nSID=x\n# <<< rework-session-trailer <<<\n";
+        let s = strip_hook_block(c);
+        assert!(s.contains("echo foreign"));
+        assert!(!s.contains("rework-session-trailer"));
+        assert!(!s.contains("SID=x"));
     }
 }

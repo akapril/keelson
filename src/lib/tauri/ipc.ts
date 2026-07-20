@@ -1,7 +1,7 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import type { Session, SessionHit, TimelineMessage } from "../../types/session";
 import type { EmbedConfig, RagHit } from "@/types/rag";
-import type { CommitInfo, CorrelatedCommit } from "@/types/git";
+import type { CommitInfo, CorrelatedCommit, HookStatus } from "@/types/git";
 import type {
   AiConfig,
   AiChatMessage,
@@ -82,6 +82,16 @@ export const ipc = {
   /** 返回与某会话关联的提交（trailer 精确 / 时间窗可能相关）。判据在 Rust 单点。 */
   sessionCommits: (sessionId: string, provider: string) =>
     invoke<CorrelatedCommit[]>("session_commits", { sessionId, provider }),
+
+  // ── 会话溯源 git 钩子（Phase 2） ──────────────────────────
+  /** 查询某仓库的会话溯源钩子状态 */
+  sessionHookStatus: (path: string) => invoke<HookStatus>("session_hook_status", { path }),
+  /** 在某仓库启用会话溯源（安装 prepare-commit-msg 钩子，幂等、与他人钩子共存） */
+  installSessionTrailerHook: (path: string) =>
+    invoke<void>("install_session_trailer_hook", { path }),
+  /** 停用（移除 rework 的钩子标记块 + marker） */
+  uninstallSessionTrailerHook: (path: string) =>
+    invoke<void>("uninstall_session_trailer_hook", { path }),
 
   // ── AI 对话（provider 可切；包装 ai_chat 命令） ────────────
   /** 非流式对话：返回助手回复文本 */
