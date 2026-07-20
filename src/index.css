@@ -252,7 +252,17 @@
 .milkdown-rich-area {
   min-height: 0;
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 修「长文档无法下滑滚动」：内层 milkdown / ProseMirror 自然增高、不自行裁剪，
+ * 让内容把 .milkdown-rich-area 撑高、由它统一纵向滚动（而非被内层 height:100%/overflow 卡住）。 */
+.rework-milkdown-editor .milkdown-rich-area .milkdown,
+.rework-milkdown-editor .milkdown-rich-area .ProseMirror {
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .rework-milkdown-editor .milkdown {
