@@ -53,6 +53,51 @@ function ContextMenuItem({
   );
 }
 
+function ContextMenuSub(
+  props: React.ComponentProps<typeof ContextMenuPrimitive.Sub>,
+) {
+  return <ContextMenuPrimitive.Sub data-slot="context-menu-sub" {...props} />;
+}
+
+function ContextMenuSubTrigger({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger>) {
+  return (
+    <ContextMenuPrimitive.SubTrigger
+      data-slot="context-menu-sub-trigger"
+      className={cn(
+        "flex cursor-default select-none items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent [&_svg]:size-4 [&_svg]:shrink-0",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+      {/* 右侧展开箭头 */}
+      <span className="ml-auto text-muted-foreground">›</span>
+    </ContextMenuPrimitive.SubTrigger>
+  );
+}
+
+function ContextMenuSubContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+  return (
+    <ContextMenuPrimitive.Portal>
+      <ContextMenuPrimitive.SubContent
+        data-slot="context-menu-sub-content"
+        className={cn(
+          "z-50 min-w-32 overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          className,
+        )}
+        {...props}
+      />
+    </ContextMenuPrimitive.Portal>
+  );
+}
+
 function ContextMenuSeparator({
   className,
   ...props
@@ -86,4 +131,7 @@ export {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuLabel,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
 };
