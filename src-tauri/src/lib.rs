@@ -325,6 +325,10 @@ pub fn run() {
             commands::mcp::mcp_endpoint,
             commands::mcp::mcp_install_claude,
             commands::mcp::mcp_install_codex,
+            // 实时活动 hook（Phase 2：Claude Code PostToolUse 全量工具流转发）
+            commands::hooks::activity_hook_status,
+            commands::hooks::install_activity_hook,
+            commands::hooks::uninstall_activity_hook,
             // 文件写入（导出「另存为」）
             commands::fs::write_text_file,
             // 在系统文件管理器打开路径（会话中枢 / 项目工作台「打开位置」）

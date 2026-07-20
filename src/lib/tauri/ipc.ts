@@ -105,6 +105,14 @@ export const ipc = {
   uninstallSessionTrailerHook: (path: string) =>
     invoke<void>("uninstall_session_trailer_hook", { path }),
 
+  // ── 实时活动 hook（Phase 2：Claude Code PostToolUse 全量工具流） ──────
+  /** 查询 ~/.claude/settings.json 是否已装 rework 的实时活动 hook */
+  activityHookStatus: () => invoke<{ installed: boolean }>("activity_hook_status"),
+  /** 安装实时活动 hook（写 ~/.claude/settings.json 的 PostToolUse，幂等、保留用户其它设置） */
+  installActivityHook: () => invoke<void>("install_activity_hook"),
+  /** 卸载实时活动 hook（只移除 rework 自己那一条） */
+  uninstallActivityHook: () => invoke<void>("uninstall_activity_hook"),
+
   // ── AI 对话（provider 可切；包装 ai_chat 命令） ────────────
   /** 非流式对话：返回助手回复文本 */
   aiChat: (config: AiConfig, messages: AiChatMessage[]) =>
