@@ -2,6 +2,7 @@ import { invoke, Channel } from "@tauri-apps/api/core";
 import type { Session, SessionHit, TimelineMessage } from "../../types/session";
 import type { EmbedConfig, RagHit } from "@/types/rag";
 import type { CommitInfo, CorrelatedCommit, HookStatus } from "@/types/git";
+import type { MemFilesStatus } from "@/types/memory";
 import type {
   AiConfig,
   AiChatMessage,
@@ -156,4 +157,12 @@ export const ipc = {
   // 通用文本嵌入（记忆语义去重用）
   embedTexts: (config: EmbedConfig, texts: string[]) =>
     invoke<number[][]>("embed_texts", { config, texts }),
+
+  // 记忆注入项目文件
+  memoryWriteProjectFiles: (
+    repoPath: string,
+    mems: { content: string; kind: string; scope: string }[],
+  ) => invoke<string[]>("memory_write_project_files", { repoPath, mems }),
+  memoryProjectFilesStatus: (repoPath: string) =>
+    invoke<MemFilesStatus>("memory_project_files_status", { repoPath }),
 };
