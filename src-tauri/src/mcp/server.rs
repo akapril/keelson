@@ -19,7 +19,7 @@ use rmcp::transport::streamable_http_server::{
 use serde_json::json;
 use std::io::Write;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 /// 端点信息（写入 mcp-endpoint.json，供客户端配置）。
 pub struct EndpointInfo {
@@ -44,6 +44,58 @@ fn ctx_from_state(app: &tauri::AppHandle) -> Result<McpCtx, String> {
         client: crate::pb::client::PbClient::new(&a.base_url, &a.token),
         user_id: a.user_id.clone(),
     })
+}
+
+// ——————————————————————————————————————————————————————————————————————
+// 活动流：纯逻辑（可测）+ 事件模型
+// ——————————————————————————————————————————————————————————————————————
+
+/// 判定某工具是否为「写操作」（决定是否落 PB activities，读操作只走内存流）。
+/// MCP 写工具：create_task/update_task/create_doc/update_doc。其余（list_*/search_*/get_*）为读。
+pub fn is_write_tool(tool: &str) -> bool {
+    matches!(
+        tool,
+        "create_task" | "update_task" | "create_doc" | "update_doc"
+    )
+}
+
+/// 从工具名 + 入参 + 结果，归一出 (action, summary)。
+/// action ∈ write|read|run|search，用于前端图标/分组；summary 为一行中文可读摘要。
+/// 纯函数（不做 IO），便于单测覆盖各代表工具。
+pub fn activity_summary(
+    tool: &str,
+    args: &serde_json::Value,
+    result: &serde_json::Value,
+) -> (String, String) {
+    // 优先取结果里的 title（建任务/文档成功时返回），否则回退入参 title/query
+    let title = result
+        .get("title")
+        .and_then(|v| v.as_str())
+        .or_else(|| args.get("title").and_then(|v| v.as_str()))
+        .unwrap_or("")
+        .to_string();
+    match tool {
+        "create_task" => ("write".into(), format!("新建任务：{title}")),
+        "update_task" => ("write".into(), "更新任务".to_string()),
+        "create_doc" => ("write".into(), format!("新建文档：{title}")),
+        "update_doc" => ("write".into(), "更新文档".to_string()),
+        "list_projects" => ("read".into(), "查询项目列表".to_string()),
+        "list_states" => ("read".into(), "查询看板状态列".to_string()),
+        "list_tasks" => ("read".into(), "查询任务".to_string()),
+        "list_docs" => ("read".into(), "查询文档".to_string()),
+        "search_memory" => {
+            let q = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
+            ("search".into(), format!("检索记忆：{q}"))
+        }
+        "list_sessions" => ("read".into(), "查询历史会话".to_string()),
+        "search_sessions" => {
+            let q = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
+            ("search".into(), format!("检索会话：{q}"))
+        }
+        "get_session" => ("read".into(), "读取会话时间线".to_string()),
+        // 未列出的工具：默认视作读操作，摘要取工具名
+        other => ("read".into(), format!("调用工具：{other}")),
+    }
 }
 
 // ——————————————————————————————————————————————————————————————————————
@@ -106,7 +158,10 @@ impl ServerHandler for ReworkMcpHandler {
         // 读会话工具：走 AppState（sessions/index/reg），无需 PB/auth，也不推通知（是读操作）
         if super::session_tools::is_session_tool(&name) {
             let state = self.app.state::<AppState>();
-            return match super::session_tools::dispatch_session(&name, args, state.inner()).await {
+            let result = super::session_tools::dispatch_session(&name, args.clone(), state.inner()).await;
+            // 活动流：会话工具均为读操作，只发内存事件、不落 PB（失败静默）
+            self.emit_activity(&name, &args, &result, None).await;
+            return match result {
                 Ok(v) => Ok(CallToolResult::success(vec![Content::text(v.to_string())])),
                 Err(e) => Ok(CallToolResult::error(vec![Content::text(e)])),
             };
@@ -122,7 +177,11 @@ impl ServerHandler for ReworkMcpHandler {
             .get("project_id")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        match crate::mcp::tools::dispatch(&name, args, &mcp_ctx).await {
+        let result = crate::mcp::tools::dispatch(&name, args.clone(), &mcp_ctx).await;
+        // 活动流：无论读写、成功失败都发一条内存事件；写操作额外落 PB（失败静默，不影响工具返回）
+        self.emit_activity(&name, &args, &result, Some(&mcp_ctx))
+            .await;
+        match result {
             // 工具返回 JSON Value → 文本化后作为内容；成功建任务/文档时推通知
             Ok(v) => {
                 self.notify_external_action(&name, &v, project_id.as_deref(), &mcp_ctx)
@@ -136,6 +195,75 @@ impl ServerHandler for ReworkMcpHandler {
 }
 
 impl ReworkMcpHandler {
+    /// 活动流：把一次工具调用（读写、成功失败均可）组装为 ActivityEvent 发到前端
+    /// （`app.emit("activity", ev)`）；若为写操作且拿到 PB ctx，额外落 activities 集合。
+    /// emit / PB 落盘任何失败一律静默，绝不影响 MCP 工具返回或阻断 agent。
+    async fn emit_activity(
+        &self,
+        tool: &str,
+        args: &serde_json::Value,
+        result: &Result<serde_json::Value, String>,
+        ctx: Option<&McpCtx>,
+    ) {
+        // 成功时用返回值参与摘要（如建任务的 title），失败时用空对象
+        let empty = json!({});
+        let result_val = result.as_ref().unwrap_or(&empty);
+        let (action, summary) = activity_summary(tool, args, result_val);
+        let status = if result.is_ok() { "ok" } else { "error" };
+        // project_id 从入参取（board 工具的 project_id；会话工具无则为空）
+        let project_id = args
+            .get("project_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let session_id = args
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let ts = chrono::Utc::now().to_rfc3339();
+        // 内存事件 id：ts + 工具名（前端做去重键；持久事件用 PB id）
+        let ev_id = format!("mcp-{ts}-{tool}");
+
+        // 1) 发内存事件（前端环形缓冲实时渲染）。失败静默。
+        let ev = json!({
+            "id": ev_id,
+            "ts": ts,
+            "source": "mcp",
+            "provider": "",
+            "tool": tool,
+            "action": action,
+            "summary": summary,
+            "project_id": project_id,
+            "repo_path": null,
+            "session_id": session_id,
+            "status": status,
+        });
+        let _ = self.app.emit("activity", &ev);
+
+        // 2) 写操作落 PB activities（可回放历史）。仅在拿到 ctx 时；失败静默。
+        if is_write_tool(tool) {
+            if let Some(ctx) = ctx {
+                let _ = ctx
+                    .client
+                    .create(
+                        "activities",
+                        &json!({
+                            "owner": ctx.user_id,
+                            "source": "mcp",
+                            "provider": "",
+                            "tool": tool,
+                            "action": ev["action"],
+                            "summary": ev["summary"],
+                            "project": project_id,
+                            "repo_path": "",
+                            "session_id": session_id,
+                            "status": status,
+                        }),
+                    )
+                    .await;
+            }
+        }
+    }
+
     /// 外部 MCP 操作(建任务/文档)后推一条通知：应用内记录 + 系统桌面弹窗，
     /// 让用户知道 claude/codex 在后台动了看板/文档。失败静默(不影响工具结果)。
     async fn notify_external_action(
@@ -305,5 +433,66 @@ mod tests {
         // gen_secret 委托 keychain 持久化辅助；单测只保证非空（"重启不变"的稳定性
         // 依赖 OS keychain，在测试进程里行为不确定，不作断言——由实机验证覆盖）。
         assert!(gen_secret().len() >= 16, "secret 太短");
+    }
+
+    #[test]
+    fn is_write_tool_classifies_write_vs_read() {
+        // 写工具：建/改任务与文档
+        for w in ["create_task", "update_task", "create_doc", "update_doc"] {
+            assert!(is_write_tool(w), "{w} 应判为写操作");
+        }
+        // 读工具：查询/检索/读会话
+        for r in [
+            "list_projects",
+            "list_tasks",
+            "list_docs",
+            "search_memory",
+            "list_sessions",
+            "search_sessions",
+            "get_session",
+            "nope",
+        ] {
+            assert!(!is_write_tool(r), "{r} 不应判为写操作");
+        }
+    }
+
+    #[test]
+    fn activity_summary_covers_representative_tools() {
+        // create_task：从结果 title 组装写摘要
+        let (a, s) = activity_summary(
+            "create_task",
+            &json!({ "project_id": "p1", "title": "入参标题" }),
+            &json!({ "ok": true, "id": "t1", "title": "修复登录" }),
+        );
+        assert_eq!(a, "write");
+        assert_eq!(s, "新建任务：修复登录");
+
+        // list_tasks：读动作，固定摘要
+        let (a, s) = activity_summary("list_tasks", &json!({ "project_id": "p1" }), &json!([]));
+        assert_eq!(a, "read");
+        assert_eq!(s, "查询任务");
+
+        // search_memory：search 动作，摘要含 query
+        let (a, s) = activity_summary(
+            "search_memory",
+            &json!({ "query": "登录流程" }),
+            &json!([]),
+        );
+        assert_eq!(a, "search");
+        assert_eq!(s, "检索记忆：登录流程");
+
+        // create_doc：无结果 title 时回退入参 title
+        let (a, s) = activity_summary(
+            "create_doc",
+            &json!({ "project_id": "p1", "title": "设计稿" }),
+            &json!({}),
+        );
+        assert_eq!(a, "write");
+        assert_eq!(s, "新建文档：设计稿");
+
+        // 未列出工具：默认读，摘要含工具名
+        let (a, s) = activity_summary("mystery_tool", &json!({}), &json!({}));
+        assert_eq!(a, "read");
+        assert_eq!(s, "调用工具：mystery_tool");
     }
 }
