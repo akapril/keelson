@@ -106,17 +106,18 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
           </div>
         </div>
 
-        {/* 会话备注（自动保存） */}
-        <SessionNoteEditor key={session.session_id} sessionId={session.session_id} />
+        {/* 会话备注（自动保存）。key 加前缀：兄弟节点若共用同一 session_id 作 key 会重复，
+            触发 React 重复 key 的"复制/遗漏"——切换时会叠出多个，故各自加唯一前缀。 */}
+        <SessionNoteEditor key={`note-${session.session_id}`} sessionId={session.session_id} />
 
         {/* 关联任务（本会话已衍生的看板任务，点击跳看板） */}
         <SessionLinkedTasks sessionId={session.session_id} refreshKey={linkedRefresh} />
 
         {/* 会话→Commit 溯源：此会话期间/关联的提交（精确 trailer / 时间窗可能相关） */}
-        <SessionCommits key={session.session_id} session={session} />
+        <SessionCommits key={`commits-${session.session_id}`} session={session} />
 
         {/* 内联聊天：历史气泡 + 底部续聊（切换会话时 key 重置） */}
-        <SessionChat key={session.session_id} session={session} className="flex-1" />
+        <SessionChat key={`chat-${session.session_id}`} session={session} className="flex-1" />
       </div>
 
       {/* 恢复对话框 */}
