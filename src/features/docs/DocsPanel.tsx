@@ -219,8 +219,10 @@ export function DocsPanel({
               </AlertDialog>
             </div>
 
-            {/* Milkdown 编辑器（rich-text / source / diff） */}
-            <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border">
+            {/* Milkdown 编辑器（rich-text / source / diff）。
+                外层必须是 flex 列容器：否则内部 .rework-milkdown-editor 的 flex:1 失效，
+                编辑器按内容撑高、溢出被 overflow-hidden 裁掉而无法滚动（修长文档不能下滑）。 */}
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border">
               <MilkdownDocumentEditor
                 key={selected.id}
                 value={content}
