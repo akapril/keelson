@@ -1,10 +1,19 @@
-// Markdown —— 轻量 markdown 渲染（react-markdown + GFM）。用于 AI 对话气泡等只读展示。
+// Markdown —— 轻量 markdown 渲染（react-markdown + GFM）。用于 AI 对话 / 会话消息等只读展示。
+// 全应用唯一的 markdown 渲染入口：统一样式/插件/安全策略（默认不渲染裸 HTML，避免 XSS）。
+// memo：同一 content 不因父组件重渲染而重新解析——用在消息气泡/列表里成本可控。
 // 用组件级 Tailwind 覆盖排版（不引 prose 插件）；颜色走中性主题语义 token。
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 
-export function Markdown({ content, className }: { content: string; className?: string }) {
+export const Markdown = memo(function Markdown({
+  content,
+  className,
+}: {
+  content: string;
+  className?: string;
+}) {
   return (
     <div className={cn("text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}>
       <ReactMarkdown
@@ -56,4 +65,4 @@ export function Markdown({ content, className }: { content: string; className?: 
       </ReactMarkdown>
     </div>
   );
-}
+});
