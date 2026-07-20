@@ -8,6 +8,7 @@ import { SentIcon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Markdown } from "@/components/markdown";
 import { useSettingsStore } from "@/store/settings";
 import { ipc } from "@/lib/tauri/ipc";
 import { cn } from "@/lib/utils";
@@ -174,13 +175,18 @@ export function SessionChat({
           const isUser = m.role === "user";
           const isError = m.role === "assistant" && m.content.startsWith("请求失败：");
           const isLast = i === messages.length - 1;
-          const display =
-            m.content || (m.role === "assistant" && isLast && loading ? "▍" : "");
+          const streamingThis = m.role === "assistant" && isLast && loading;
+          const display = m.content || (streamingThis ? "▍" : "");
+          // 会话消息可能是 markdown（claude/codex 输出）：助手正文渲染 markdown；
+          // 用户消息 / 错误 / 流式中保持纯文本。
+          const renderMarkdown =
+            m.role === "assistant" && !isError && !!m.content && !streamingThis;
           return (
             <div key={i} className={cn("flex", isUser ? "justify-end" : "justify-start")}>
               <div
                 className={cn(
-                  "max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
+                  "max-w-[88%] break-words rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
+                  !renderMarkdown && "whitespace-pre-wrap",
                   isUser
                     ? "bg-primary/10 text-foreground"
                     : isError
@@ -188,7 +194,7 @@ export function SessionChat({
                       : "bg-muted text-foreground",
                 )}
               >
-                {display}
+                {renderMarkdown ? <Markdown content={m.content} /> : display}
               </div>
             </div>
           );

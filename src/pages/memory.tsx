@@ -26,6 +26,20 @@ export default function MemoryPage() {
   const [scope, setScope] = useState<"all" | "global" | "project">("all");
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Memory | null>(null);
+  // 批量选择
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleSel = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const exitSelect = () => {
+    setSelectMode(false);
+    setSelected(new Set());
+  };
 
   const load = () => {
     setLoading(true);
@@ -53,6 +67,21 @@ export default function MemoryPage() {
       await deleteMemoryRecord(m.id);
     } catch (e) {
       toast.error(`删除失败：${String(e)}`);
+      load();
+    }
+  };
+
+  // 批量删除所选记忆（逐条删；失败则重载兜底）
+  const batchDelete = async () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setMemories((prev) => prev.filter((x) => !selected.has(x.id)));
+    exitSelect();
+    try {
+      for (const id of ids) await deleteMemoryRecord(id);
+      toast.success(`已删除 ${ids.length} 条记忆`);
+    } catch (e) {
+      toast.error(`批量删除失败：${String(e)}`);
       load();
     }
   };
@@ -112,6 +141,16 @@ export default function MemoryPage() {
           className="h-9 max-w-xs flex-1"
         />
         <span className="ml-auto text-xs text-muted-foreground">{visible.length} 条</span>
+        <button
+          type="button"
+          onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+          aria-pressed={selectMode}
+          className={`shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs transition-colors ${
+            selectMode ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
+          }`}
+        >
+          批量
+        </button>
       </div>
 
       {/* 列表 */}
@@ -124,39 +163,91 @@ export default function MemoryPage() {
           </p>
         ) : (
           <Virtualizer>
-            {visible.map((m) => (
-              <div key={m.id} className="group mb-1.5 flex items-start gap-2.5 rounded-lg border border-border bg-card p-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-foreground">{m.content}</p>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                    <span className="rounded bg-muted px-1">{MEMORY_KIND_LABEL[m.kind]}</span>
-                    <span className="rounded bg-muted px-1">{m.scope === "global" ? "全局" : "项目"}</span>
-                    <span>把握 {m.confidence}</span>
-                    {m.source_session_id && (
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/sessions?session=${m.source_session_id}`)}
-                        className="text-primary hover:underline"
-                        title="回跳来源会话"
-                      >
-                        来源会话 →
-                      </button>
-                    )}
+            {visible.map((m) => {
+              const isSel = selected.has(m.id);
+              return (
+                <div
+                  key={m.id}
+                  onClick={selectMode ? () => toggleSel(m.id) : undefined}
+                  className={`group mb-1.5 flex items-start gap-2.5 rounded-lg border p-2.5 ${
+                    selectMode ? "cursor-pointer" : ""
+                  } ${
+                    isSel ? "border-primary/60 bg-primary/5" : "border-border bg-card"
+                  }`}
+                >
+                  {selectMode && (
+                    <input
+                      type="checkbox"
+                      checked={isSel}
+                      readOnly
+                      className="mt-0.5 size-3.5 shrink-0 accent-primary"
+                      aria-label="选择记忆"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    {/* 内容整段多行显示（可能较长，换行 + 断词，不再单行截断） */}
+                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                      {m.content}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span className="rounded bg-muted px-1">{MEMORY_KIND_LABEL[m.kind]}</span>
+                      <span className="rounded bg-muted px-1">{m.scope === "global" ? "全局" : "项目"}</span>
+                      <span>把握 {m.confidence}</span>
+                      {m.source_session_id && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/sessions?session=${m.source_session_id}`);
+                          }}
+                          className="text-primary hover:underline"
+                          title="回跳来源会话"
+                        >
+                          来源会话 →
+                        </button>
+                      )}
+                    </div>
                   </div>
+                  {!selectMode && (
+                    <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Button variant="ghost" size="xs" onClick={() => setEditing(m)}>
+                        编辑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => void remove(m)}
+                      >
+                        删除
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Button variant="ghost" size="xs" onClick={() => setEditing(m)}>
-                    编辑
-                  </Button>
-                  <Button variant="ghost" size="xs" className="text-muted-foreground hover:text-destructive" onClick={() => void remove(m)}>
-                    删除
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </Virtualizer>
         )}
       </div>
+
+      {/* 批量操作栏（多选模式浮现） */}
+      {selectMode && (
+        <div className="mt-2 flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">
+          <span className="text-muted-foreground">已选 {selected.size} 条</span>
+          <Button
+            variant="ghost"
+            size="xs"
+            disabled={selected.size === 0}
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => void batchDelete()}
+          >
+            删除所选
+          </Button>
+          <Button variant="ghost" size="xs" className="ml-auto" onClick={exitSelect}>
+            退出多选
+          </Button>
+        </div>
+      )}
 
       {/* 编辑记忆（复用 PromptDialog） */}
       <PromptDialog

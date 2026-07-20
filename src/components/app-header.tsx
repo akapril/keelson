@@ -1,9 +1,14 @@
 // 应用头部 —— 移植自 workavera（Apache-2.0）的头部外壳，剥离通知/聊天/用户菜单耦合。
 // 保留：折叠触发器 + 面包屑 + 主题切换。用户菜单待 Phase⑤ 多用户再补。
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Logout02Icon, SearchIcon, Download04Icon } from "@hugeicons/core-free-icons";
+import {
+  Logout02Icon,
+  SearchIcon,
+  Download04Icon,
+  Analytics01Icon,
+} from "@hugeicons/core-free-icons";
 
 import {
   Breadcrumb,
@@ -33,6 +38,7 @@ import { useUpdaterStore } from "@/store/updater";
 
 export function AppHeader() {
   const location = useLocation();
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   // 更新可用状态（红标提示）
@@ -97,6 +103,22 @@ export function AppHeader() {
             </span>
           </Button>
         )}
+
+        {/* 成本控制塔入口（放在搜索左侧） */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className={
+            location.pathname === "/usage"
+              ? "gap-1.5 text-primary"
+              : "gap-1.5 text-muted-foreground"
+          }
+          onClick={() => navigate("/usage")}
+          title="成本控制塔（Token 用量 · 成本预估）"
+        >
+          <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} />
+          <span className="hidden sm:inline">成本</span>
+        </Button>
 
         {/* 全局搜索（打开命令面板 ⌘K） */}
         <Button
