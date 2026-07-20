@@ -48,7 +48,8 @@ export function SessionCommits({ session }: { session: Session }) {
         <HugeiconsIcon icon={GitCommitIcon} strokeWidth={2} className="size-3.5" />
         此会话期间的提交（{commits.length}）
       </div>
-      <div className="flex flex-col gap-1.5">
+      {/* 限高 + 内部滚动：提交可能很多，避免撑高把下方会话消息(flex-1)挤没 */}
+      <div className="flex max-h-40 flex-col gap-1.5 overflow-y-auto pr-1">
         {commits.map(({ commit, link_kind }) => (
           <div
             key={commit.hash}
