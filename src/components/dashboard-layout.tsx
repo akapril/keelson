@@ -8,6 +8,8 @@ import { AppHeader } from "@/components/app-header";
 import { CommandPalette } from "@/components/command-palette";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { on } from "@/lib/tauri/events";
+import { useActivityStore } from "@/store/activity";
+import type { ActivityEvent } from "@/types/activity";
 
 export function DashboardLayout() {
   const navigate = useNavigate();
@@ -21,6 +23,17 @@ export function DashboardLayout() {
       void p.then((un) => un());
     };
   }, [navigate]);
+
+  // 监听后端活动流事件（MCP 工具调用）：推入内存环形缓冲，供顶栏指示 + 项目 tab 实时渲染。
+  // 挂在 DashboardLayout（仅主窗渲染、生命周期与主界面一致），全应用仅订阅一次。
+  useEffect(() => {
+    const p = on<ActivityEvent>("activity", (ev) => {
+      if (ev) useActivityStore.getState().push(ev);
+    });
+    return () => {
+      void p.then((un) => un());
+    };
+  }, []);
 
   return (
     <SidebarProvider>

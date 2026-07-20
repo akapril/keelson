@@ -26,6 +26,7 @@ import { ProjectSheet } from "./ProjectSheet";
 import { GitStatusBar } from "./GitStatusBar";
 import { WorkspaceSessions } from "./WorkspaceSessions";
 import { WorkspaceCommits } from "./WorkspaceCommits";
+import { WorkspaceActivity } from "./WorkspaceActivity";
 import { ImportPlanDialog } from "./ImportPlanDialog";
 import { DocsPanel } from "@/features/docs/DocsPanel";
 import { AiChatPanel } from "@/features/ai/AiChatPanel";
@@ -176,6 +177,7 @@ export function ProjectWorkspace() {
           {repoPath && <TabsTrigger value="commits">提交</TabsTrigger>}
           <TabsTrigger value="board">看板</TabsTrigger>
           <TabsTrigger value="docs">文档</TabsTrigger>
+          <TabsTrigger value="activity">活动</TabsTrigger>
           <TabsTrigger value="ai">AI</TabsTrigger>
         </TabsList>
 
@@ -361,6 +363,11 @@ export function ProjectWorkspace() {
         <TabsContent value="docs" className="mt-3 flex min-h-0 flex-1 flex-col">
           <DocsPanel projectId={project.id} initialDocId={focusDocId} />
         </TabsContent>
+        {/* 活动（外部 AI 经 MCP 对本项目的操作：持久历史 + 实时流） */}
+        <TabsContent value="activity" className="mt-3 flex min-h-0 flex-1 flex-col">
+          <WorkspaceActivity projectId={project.id} />
+        </TabsContent>
+
         {/* AI 助手 */}
         <TabsContent value="ai" className="mt-3 flex min-h-0 flex-1 flex-col">
           <AiChatPanel
