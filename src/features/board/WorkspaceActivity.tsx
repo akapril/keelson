@@ -2,6 +2,7 @@
 // 挂载时 listActivities(projectId) 拉持久历史（写操作），叠加内存流里 project_id 命中的实时事件，
 // 合并去重（按 id）、按 ts 倒序。持久历史含写操作可回放；实时流含读/写全部动作。
 import { useEffect, useMemo, useState } from "react";
+import { Virtualizer } from "virtua";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -107,7 +108,7 @@ export function WorkspaceActivity({ projectId }: { projectId: string }) {
 
   return (
     <div className="h-full min-h-0 overflow-y-auto">
-      <ul className="flex flex-col">
+      <Virtualizer as="ul">
         {merged.map((ev) => {
           const Icon = ACTION_ICON[ev.action] ?? BookOpen01Icon;
           return (
@@ -146,7 +147,7 @@ export function WorkspaceActivity({ projectId }: { projectId: string }) {
             </li>
           );
         })}
-      </ul>
+      </Virtualizer>
     </div>
   );
 }

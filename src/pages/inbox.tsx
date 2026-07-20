@@ -1,5 +1,6 @@
 // 收件箱 —— 把所有通知聚成可批处理的一页：按来源/未读过滤、多选、批量已读/删除、点击跳转。
 import { useEffect, useMemo, useState } from "react";
+import { Virtualizer } from "virtua";
 import { useNavigate } from "react-router-dom";
 import { useNotificationsStore } from "@/store/notifications";
 import { useNotifPrefsStore } from "@/store/notification-prefs";
@@ -158,11 +159,11 @@ export default function InboxPage() {
             {unreadOnly ? "没有未读通知" : "暂无通知"}
           </p>
         ) : (
-          <div className="flex flex-col gap-1.5">
+          <Virtualizer>
             {visible.map((n) => (
               <div
                 key={n.id}
-                className={`flex items-start gap-2.5 rounded-lg border border-border p-2.5 ${
+                className={`mb-1.5 flex items-start gap-2.5 rounded-lg border border-border p-2.5 ${
                   n.read ? "bg-card" : "bg-primary/5"
                 }`}
               >
@@ -196,7 +197,7 @@ export default function InboxPage() {
                 </button>
               </div>
             ))}
-          </div>
+          </Virtualizer>
         )}
       </div>
     </div>
