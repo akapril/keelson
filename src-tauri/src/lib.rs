@@ -304,6 +304,10 @@ pub fn run() {
             // git 状态 + 提交日志（Board - git.rs）
             commands::git::git_info,
             commands::git::git_log,
+            // 会话溯源 git 钩子（Phase 2）
+            commands::git::session_hook_status,
+            commands::git::install_session_trailer_hook,
+            commands::git::uninstall_session_trailer_hook,
             // AI 对话（ai.rs，provider 可切）
             commands::ai::ai_chat,
             commands::ai::ai_chat_stream,
@@ -507,6 +511,33 @@ async fn setup_pocketbase(
             if let Err(e) = sync::sync_to_pb(&client, &owner, &to_sync).await {
                 eprintln!("[rework] Watcher 触发的 sync_to_pb 失败（非致命）: {e:#}");
             }
+
+            // Phase 2：为已装钩子的仓库更新"最近会话" marker（供 prepare-commit-msg 读取）。
+            // 「最近会话」按全量缓存判定，但只对本次变化涉及的 repo 落盘（避免每次跑遍所有 repo）。
+            {
+                let snapshot: Vec<crate::models::Session> = slot.lock().clone();
+                let lites: Vec<crate::commands::git::SessionLite> = snapshot
+                    .iter()
+                    .map(|s| crate::commands::git::SessionLite {
+                        project_path: s.project_path.clone(),
+                        session_id: s.session_id.clone(),
+                        provider: s.provider.clone(),
+                        updated_at: s.updated_at,
+                    })
+                    .collect();
+                let latest = crate::commands::git::pick_latest_session_per_repo(&lites);
+                let mut repos: std::collections::HashSet<String> = std::collections::HashSet::new();
+                for s in &to_sync {
+                    repos.insert(s.project_path.clone());
+                }
+                for repo in repos {
+                    if let Some((id, provider)) = latest.get(&repo) {
+                        // write_session_marker 内部先探测钩子是否已装，未装则跳过
+                        crate::commands::git::write_session_marker(&repo, id, provider);
+                    }
+                }
+            }
+
             // 通知前端会话有更新（文件变化增量同步后）
             let _ = h.emit("sessions-updated", ());
         });

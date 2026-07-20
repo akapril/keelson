@@ -2,13 +2,69 @@
 // 列最近提交；每条按 trailer(精确) / 时间窗(可能相关) 反查会话，点击跳会话中枢。
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { GitCommitIcon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 
 import { ipc } from "@/lib/tauri/ipc";
+import { Button } from "@/components/ui/button";
 import { useSessionsStore } from "@/store/sessions";
-import type { CommitInfo } from "@/types/git";
+import type { CommitInfo, HookStatus } from "@/types/git";
 import { commitLinkedSessions } from "@/features/sessions/commit-correlate";
+
+/** 会话溯源钩子状态条：启用后新提交自动带 Rework-Session trailer（精确关联）。 */
+function HookBar({ repoPath }: { repoPath: string }) {
+  const [status, setStatus] = useState<HookStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => {
+    ipc
+      .sessionHookStatus(repoPath)
+      .then(setStatus)
+      .catch(() => setStatus(null));
+  };
+  useEffect(refresh, [repoPath]);
+
+  const toggle = async () => {
+    if (!status || busy) return;
+    setBusy(true);
+    try {
+      if (status.installed) {
+        await ipc.uninstallSessionTrailerHook(repoPath);
+        toast.success("已停用会话溯源");
+      } else {
+        await ipc.installSessionTrailerHook(repoPath);
+        toast.success("已启用：之后的新提交将自动带会话溯源 trailer");
+      }
+      refresh();
+    } catch (e) {
+      toast.error(`操作失败：${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!status) return null;
+  return (
+    <div className="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs">
+      {status.installed ? (
+        <span className="rounded-full bg-primary/15 px-1.5 py-0.5 font-medium text-primary">
+          🎯 会话溯源已启用
+        </span>
+      ) : (
+        <span className="text-muted-foreground">
+          启用后，此仓库的新提交将自动打上 Rework-Session trailer（精确关联会话）
+        </span>
+      )}
+      {status.foreign_hook_present && !status.installed && (
+        <span className="text-muted-foreground/70">（将与已有 prepare-commit-msg 钩子共存）</span>
+      )}
+      <Button variant="ghost" size="xs" className="ml-auto" disabled={busy} onClick={() => void toggle()}>
+        {status.installed ? "停用" : "启用会话溯源"}
+      </Button>
+    </div>
+  );
+}
 
 /** 紧凑时间：MM-DD HH:mm（解析失败回退原串）。 */
 function shortWhen(iso: string): string {
@@ -51,25 +107,21 @@ export function WorkspaceCommits({ repoPath }: { repoPath: string }) {
     };
   }, [repoPath]);
 
-  if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        加载提交…
-      </div>
-    );
-  }
-  if (commits.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        近 30 天无提交记录（或该路径非 git 仓库）。
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="flex flex-col gap-1.5">
-        {commits.map((c) => {
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <HookBar repoPath={repoPath} />
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+          加载提交…
+        </div>
+      ) : commits.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+          近 30 天无提交记录（或该路径非 git 仓库）。
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="flex flex-col gap-1.5">
+            {commits.map((c) => {
           const links = commitLinkedSessions(c, repoSessions);
           return (
             <div
@@ -124,7 +176,9 @@ export function WorkspaceCommits({ repoPath }: { repoPath: string }) {
             </div>
           );
         })}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
