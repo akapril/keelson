@@ -2,12 +2,17 @@
 // 召回为空（索引未建/失效）时回退关键词检索（sessions_search）。
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
 import { useSettingsStore } from "@/store/settings";
 import { DEFAULT_EMBED_CONFIG } from "@/types/rag";
 import type { RagHit } from "@/types/rag";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ensureInboxProject } from "@/lib/pb/board";
+import { createDocRecord } from "@/lib/pb/docs";
+import { currentUserId } from "@/lib/pb";
+import { workspaceRecordUrl } from "@/lib/workspace-navigation";
 
 // 嵌入配置：MVP 复用默认（mock）；后续设置页可覆盖（Task 8）。
 function embedConfig() {
@@ -26,6 +31,49 @@ export function AskPane() {
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
   const [fellBack, setFellBack] = useState(false);
+  // 已问的问题（存文档时作标题/正文；ask 成功后固化，避免跟随输入框变化）
+  const [asked, setAsked] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // 复制答案到剪贴板
+  const copyAnswer = () => {
+    void navigator.clipboard
+      .writeText(answer)
+      .then(() => toast.success("已复制答案"))
+      .catch(() => toast.error("复制失败"));
+  };
+
+  // 存为文档（落「速记」项目，含问题 + 答案 + 来源片段）
+  const saveAsDoc = async () => {
+    if (saving || !answer) return;
+    setSaving(true);
+    try {
+      const q = asked || query.trim();
+      const sources = hits
+        .map((h, i) => `[${i + 1}] (${h.provider}) ${h.snippet}`)
+        .join("\n\n");
+      const content =
+        `# ${q}\n\n${answer}\n` + (sources ? `\n---\n\n**来源会话片段**\n\n${sources}\n` : "");
+      const inbox = await ensureInboxProject();
+      const rec = await createDocRecord({
+        owner: currentUserId(),
+        project: inbox.id,
+        title: q.slice(0, 60) || "历史问答",
+        content,
+      });
+      toast.success("已存为文档（速记）", {
+        action: {
+          label: "打开",
+          onClick: () =>
+            navigate(workspaceRecordUrl("board", inbox.id, { tab: "docs", doc: rec.id })),
+        },
+      });
+    } catch (e) {
+      toast.error(`存文档失败：${String(e)}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const ask = async () => {
     const q = query.trim();
@@ -33,6 +81,7 @@ export function AskPane() {
     setLoading(true);
     setAnswer("");
     setFellBack(false);
+    setAsked(q);
     try {
       let list = await ipc.ragSearch(embedConfig(), q, 8);
       // 语义召回为空 → 回退关键词检索
@@ -91,7 +140,18 @@ export function AskPane() {
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
         {answer && (
-          <div className="whitespace-pre-wrap rounded-xl bg-muted p-3 text-sm">{answer}</div>
+          <div className="rounded-xl bg-muted p-3">
+            <div className="whitespace-pre-wrap text-sm">{answer}</div>
+            {/* 沉淀操作：复制 / 存为文档（闭合 问→沉淀 闭环） */}
+            <div className="mt-2 flex items-center gap-2 border-t border-border/60 pt-2">
+              <Button variant="ghost" size="xs" onClick={copyAnswer}>
+                复制
+              </Button>
+              <Button variant="ghost" size="xs" disabled={saving} onClick={() => void saveAsDoc()}>
+                {saving ? "保存中…" : "存为文档"}
+              </Button>
+            </div>
+          </div>
         )}
         {fellBack && hits.length > 0 && (
           <p className="text-xs text-muted-foreground">（语义索引未就绪，已回退关键词检索）</p>
