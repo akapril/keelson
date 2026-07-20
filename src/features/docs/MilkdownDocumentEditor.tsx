@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { PromptDialog } from "@/components/prompt-dialog"
 
 import { LanguageDescription } from "@codemirror/language"
 import { CrepeBuilder } from "@milkdown/crepe/builder"
@@ -274,6 +275,8 @@ function MilkdownToolbar({
     getEditor().action(callCommand(command.key as never, payload as never))
   }
   const disabled = loading || mode !== "rich-text"
+  // 插入链接对话框（替代原生 window.prompt）
+  const [linkOpen, setLinkOpen] = useState(false)
 
   return (
     <div className="milkdown-system-toolbar">
@@ -340,10 +343,7 @@ function MilkdownToolbar({
       <ToolbarButton
         label="Link"
         disabled={disabled}
-        onClick={() => {
-          const href = window.prompt("Link URL")?.trim()
-          if (href) run(toggleLinkCommand, { href })
-        }}
+        onClick={() => setLinkOpen(true)}
         icon={Link01Icon}
       />
       <ToolbarButton
@@ -413,6 +413,21 @@ function MilkdownToolbar({
           icon={fullscreen ? Minimize01Icon : Maximize01Icon}
         />
       </div>
+
+      {/* 插入链接对话框（替代原生 prompt） */}
+      <PromptDialog
+        open={linkOpen}
+        title="插入链接"
+        label="链接地址"
+        placeholder="https://…"
+        confirmText="插入"
+        allowEmpty={false}
+        onResult={(value) => {
+          setLinkOpen(false)
+          const href = value?.trim()
+          if (href) run(toggleLinkCommand, { href })
+        }}
+      />
     </div>
   )
 }
