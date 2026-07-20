@@ -9,6 +9,7 @@ import {
   Calendar03Icon,
   Analytics01Icon,
   Notification03Icon,
+  BrainIcon,
   Settings02Icon,
 } from "@hugeicons/core-free-icons";
 
@@ -75,6 +76,12 @@ export const navGroups: NavGroup[] = [
         url: "/inbox",
         icon: Notification03Icon,
         description: "通知汇聚 · 批量处理",
+      },
+      {
+        title: "记忆账本",
+        url: "/memory",
+        icon: BrainIcon,
+        description: "跨厂商提炼的可复用记忆",
       },
     ],
   },
