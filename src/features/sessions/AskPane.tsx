@@ -14,7 +14,7 @@ import { createDocRecord } from "@/lib/pb/docs";
 import { currentUserId } from "@/lib/pb";
 import { workspaceRecordUrl } from "@/lib/workspace-navigation";
 
-// 嵌入配置：MVP 复用默认（mock）；后续设置页可覆盖（Task 8）。
+// 嵌入配置：默认 mock（非真语义）；设置页可切 api / local。
 function embedConfig() {
   try {
     const raw = localStorage.getItem("rework-embed-config");
@@ -24,13 +24,21 @@ function embedConfig() {
   }
 }
 
+/** 是否配置了「真语义」嵌入：api(需 key) 或 local；mock 是假向量，不算。 */
+function hasRealEmbedding(cfg: ReturnType<typeof embedConfig>): boolean {
+  return cfg.provider === "local" || (cfg.provider === "api" && !!cfg.api_key);
+}
+
+/** 检索方式：语义 / 语义未就绪回退关键词 / 未配置语义直接关键词。 */
+type Retrieval = "" | "semantic" | "kw-fallback" | "kw-only";
+
 export function AskPane() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<RagHit[]>([]);
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
-  const [fellBack, setFellBack] = useState(false);
+  const [retrieval, setRetrieval] = useState<Retrieval>("");
   // 已问的问题（存文档时作标题/正文；ask 成功后固化，避免跟随输入框变化）
   const [asked, setAsked] = useState("");
   const [saving, setSaving] = useState(false);
@@ -80,21 +88,35 @@ export function AskPane() {
     if (!q || loading) return;
     setLoading(true);
     setAnswer("");
-    setFellBack(false);
+    setRetrieval("");
     setAsked(q);
     try {
-      let list = await ipc.ragSearch(embedConfig(), q, 8);
-      // 语义召回为空 → 回退关键词检索
-      if (list.length === 0) {
+      const cfg = embedConfig();
+      const keyword = async (): Promise<RagHit[]> => {
         const kw = await ipc.searchSessions(q);
-        list = kw.map((h) => ({
+        return kw.map((h) => ({
           session_id: h.session_id,
           provider: h.provider,
           role: "user",
           snippet: h.snippet,
           score: h.score,
         }));
-        setFellBack(true);
+      };
+
+      let list: RagHit[];
+      if (hasRealEmbedding(cfg)) {
+        // 配了真语义嵌入：语义召回；为空再回退关键词
+        list = await ipc.ragSearch(cfg, q, 8);
+        if (list.length === 0) {
+          list = await keyword();
+          setRetrieval("kw-fallback");
+        } else {
+          setRetrieval("semantic");
+        }
+      } else {
+        // 未配置真语义（默认 mock=假向量）：直接关键词检索，不伪装成语义
+        list = await keyword();
+        setRetrieval("kw-only");
       }
       setHits(list);
 
@@ -153,7 +175,12 @@ export function AskPane() {
             </div>
           </div>
         )}
-        {fellBack && hits.length > 0 && (
+        {retrieval === "kw-only" && (
+          <p className="text-xs text-muted-foreground">
+            关键词检索（未配置语义嵌入 —— 可在「设置 → 检索 / 嵌入」切换 api / local 启用语义）
+          </p>
+        )}
+        {retrieval === "kw-fallback" && hits.length > 0 && (
           <p className="text-xs text-muted-foreground">（语义索引未就绪，已回退关键词检索）</p>
         )}
         {hits.map((h, i) => (
@@ -166,7 +193,7 @@ export function AskPane() {
             <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
               <span className="rounded bg-muted px-1.5 py-0.5">[{i + 1}]</span>
               <span>{h.provider}</span>
-              <span>· 相似度 {h.score.toFixed(2)}</span>
+              <span>· {retrieval === "semantic" ? "相似度" : "相关度"} {h.score.toFixed(2)}</span>
             </div>
             <p className="line-clamp-3 text-sm">{h.snippet}</p>
           </button>

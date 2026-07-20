@@ -625,9 +625,14 @@ export default function Settings() {
             <SelectContent>
               <SelectItem value="local">本地 fastembed（数据不出本机）</SelectItem>
               <SelectItem value="api">云 Embeddings API</SelectItem>
-              <SelectItem value="mock">Mock（占位 / 离线兜底）</SelectItem>
+              <SelectItem value="mock">Mock（占位假向量 / 非语义）</SelectItem>
             </SelectContent>
           </Select>
+          {embedCfg.provider === "mock" && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Mock 是占位假向量、非真实语义。「问」模式此时将改用<strong>关键词检索</strong>；要语义检索请选 local 或 api。
+            </p>
+          )}
         </div>
 
         {/* 仅 api 时显示 base_url 和 api_key */}
