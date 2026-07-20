@@ -30,6 +30,7 @@ import { ImportPlanDialog } from "./ImportPlanDialog";
 import { DocsPanel } from "@/features/docs/DocsPanel";
 import { AiChatPanel } from "@/features/ai/AiChatPanel";
 import { STATE_CATEGORY_META } from "./board-meta";
+import { MemoryFilesBar } from "@/features/memory/MemoryFilesBar";
 
 export function ProjectWorkspace() {
   const openedProjectId = useBoardStore((s) => s.openedProjectId);
@@ -244,6 +245,9 @@ export function ProjectWorkspace() {
                 <InfoItem label="最近更新">{fmtDate(project.updated)}</InfoItem>
               </dl>
             </div>
+
+            {/* 记忆注入项目文件（仅绑定仓库时） */}
+            {repoPath && <MemoryFilesBar repoPath={repoPath} projectId={project.id} />}
 
             {/* 近期截止任务（点击跳到看板） */}
             {upcomingTasks.length > 0 && (

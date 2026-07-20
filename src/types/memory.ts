@@ -32,3 +32,9 @@ export const MEMORY_KIND_LABEL: Record<MemoryKind, string> = {
   decision: "决策",
   convention: "约定",
 };
+
+/** 项目记忆注入文件状态（对应 Rust MemFilesStatus）。 */
+export interface MemFilesStatus {
+  claude_md: boolean;
+  agents_md: boolean;
+}
