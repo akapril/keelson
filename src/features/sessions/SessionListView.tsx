@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { useSessionsStore } from "../../store/sessions";
+import { useSessionMetaStore } from "../../store/session-meta";
 import { useSessionSearchStore } from "../../store/session-search";
 import { SessionCard } from "./SessionCard";
 import { PromoteToProjectDialog } from "../board/PromoteToProjectDialog";
@@ -31,9 +32,27 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
   const results = useSessionSearchStore((s) => s.results);
   const run = useSessionSearchStore((s) => s.run);
   const searchLoading = useSessionSearchStore((s) => s.loading);
+  const favorites = useSessionMetaStore((s) => s.favorites);
 
   // 搜索词非空时进入搜索模式
   const isSearching = query.trim().length > 0;
+
+  // 「只看收藏」筛选
+  const [favOnly, setFavOnly] = useState(false);
+  const shownResults = useMemo(
+    () => (favOnly ? results.filter((s) => favorites.has(s.session_id)) : results),
+    [favOnly, results, favorites],
+  );
+  // 分组视图：按收藏过滤每组、丢弃空组
+  const shownGroups = useMemo(() => {
+    if (!favOnly) return groups;
+    const out: Record<string, Session[]> = {};
+    for (const [path, list] of Object.entries(groups)) {
+      const kept = list.filter((s) => favorites.has(s.session_id));
+      if (kept.length) out[path] = kept;
+    }
+    return out;
+  }, [favOnly, groups, favorites]);
 
   // 搜索 / 问历史 模式切换
   const [mode, setMode] = useState<"search" | "ask">("search");
@@ -76,16 +95,27 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
       {/* 搜索模式：原有搜索框 + 列表 */}
       {mode === "search" && (
         <>
-      {/* 搜索框 */}
-      <div className="shrink-0">
+      {/* 搜索框 + 只看收藏 */}
+      <div className="flex shrink-0 items-center gap-2">
         <input
           type="search"
           value={query}
           onChange={(e) => run(e.target.value)}
           placeholder="搜索会话…"
-          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="min-w-0 flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           aria-label="搜索会话"
         />
+        <button
+          type="button"
+          onClick={() => setFavOnly((v) => !v)}
+          title={favOnly ? "显示全部会话" : "只看收藏"}
+          aria-pressed={favOnly}
+          className={`shrink-0 rounded-lg border border-border px-2.5 py-2 text-sm leading-none transition-colors ${
+            favOnly ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
+          }`}
+        >
+          {favOnly ? "★" : "☆"}
+        </button>
       </div>
 
       {/* 内容区：可滚动 */}
@@ -98,12 +128,12 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
           <div className="flex flex-col gap-2">
             {searchLoading && results.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">检索中…</p>
-            ) : results.length === 0 ? (
+            ) : shownResults.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                未找到匹配的会话
+                {favOnly ? "没有收藏的会话" : "未找到匹配的会话"}
               </p>
             ) : (
-              results.map((session) => (
+              shownResults.map((session) => (
                 <SessionCard
                   key={session.session_id}
                   session={session}
@@ -116,12 +146,16 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
         ) : (
           // ── 分组视图 ──────────────────────────────────────
           <div className="flex flex-col gap-4">
-            {Object.keys(groups).length === 0 ? (
+            {Object.keys(shownGroups).length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                {scanned ? "暂无会话记录" : "正在扫描本地会话…"}
+                {favOnly
+                  ? "没有收藏的会话"
+                  : scanned
+                    ? "暂无会话记录"
+                    : "正在扫描本地会话…"}
               </p>
             ) : (
-              Object.entries(groups).map(([projectPath, sessions]) => {
+              Object.entries(shownGroups).map(([projectPath, sessions]) => {
                 // 从完整路径提取可读的项目名
                 const projectName =
                   projectPath.split(/[\\/]/).filter(Boolean).at(-1) ?? projectPath;
