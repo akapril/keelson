@@ -106,6 +106,19 @@ pub fn tool_schemas() -> Vec<ToolDef> {
                 "required": ["doc_id"]
             }),
         },
+        ToolDef {
+            name: "search_memory",
+            description: "检索用户的记忆账本（跨 claude/codex 会话提炼的事实/偏好/决策/约定）。开工前用它了解用户的长期偏好与项目约定，避免重复问、少走弯路。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string", "description": "关键词，匹配记忆内容；省略返回全部" },
+                    "kind": { "type": "string", "enum": ["fact", "preference", "decision", "convention"] },
+                    "scope": { "type": "string", "enum": ["global", "project"] },
+                    "limit": { "type": "integer", "description": "最多返回，默认 20" }
+                }
+            }),
+        },
     ]
 }
 
@@ -115,15 +128,15 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn schemas_cover_all_eight_tools() {
+    fn schemas_cover_all_tools() {
         let names: Vec<&str> = tool_schemas().iter().map(|t| t.name).collect();
         for expected in [
             "list_projects", "list_states", "list_tasks", "create_task",
-            "update_task", "list_docs", "create_doc", "update_doc",
+            "update_task", "list_docs", "create_doc", "update_doc", "search_memory",
         ] {
             assert!(names.contains(&expected), "缺少工具 {expected}");
         }
-        assert_eq!(tool_schemas().len(), 8);
+        assert_eq!(tool_schemas().len(), 9);
     }
 
     #[test]

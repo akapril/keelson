@@ -21,6 +21,7 @@ pub async fn dispatch(name: &str, args: Value, ctx: &McpCtx) -> Result<Value, St
         "list_docs" => list_docs(args, ctx).await,
         "create_doc" => create_doc(args, ctx).await,
         "update_doc" => update_doc(args, ctx).await,
+        "search_memory" => search_memory(args, ctx).await,
         other => Err(format!("未知工具：{other}")),
     }
 }
@@ -119,6 +120,30 @@ async fn update_doc(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     if let Some(v) = opt_str(&args, "content") { patch["content"] = json!(v); }
     ctx.client.patch("docs", &id, &patch).await.or_else(|e| err(e))?;
     Ok(json!({ "ok": true, "id": id }))
+}
+
+/// 检索记忆账本（关键词/kind/scope 过滤，排除被合并的记忆）。Pull 注入的读侧。
+async fn search_memory(args: Value, ctx: &McpCtx) -> Result<Value, String> {
+    let mut clauses: Vec<String> = vec!["superseded_by = \"\"".to_string()];
+    if let Some(q) = opt_str(&args, "query") {
+        if !q.trim().is_empty() {
+            clauses.push(format!("content ~ \"{}\"", q.replace('"', "")));
+        }
+    }
+    if let Some(k) = opt_str(&args, "kind") {
+        clauses.push(format!("kind = \"{}\"", k.replace('"', "")));
+    }
+    if let Some(sc) = opt_str(&args, "scope") {
+        clauses.push(format!("scope = \"{}\"", sc.replace('"', "")));
+    }
+    let filter = clauses.join(" && ");
+    let items = ctx
+        .client
+        .list("memories", &filter, "content,kind,scope,confidence,project")
+        .await
+        .or_else(|e| err(e))?;
+    let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
+    Ok(json!(items.into_iter().take(limit).collect::<Vec<_>>()))
 }
 
 #[cfg(test)]

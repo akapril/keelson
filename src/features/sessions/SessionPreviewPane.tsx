@@ -8,6 +8,7 @@ import { SessionCommits } from "./SessionCommits";
 import { SessionChat } from "./SessionChat";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 import { DistillDialog } from "../chemistry/DistillDialog";
+import { MemoryReviewDialog } from "../memory/MemoryReviewDialog";
 
 /** 会话备注编辑器（存 session_notes，跟随配置后端；自动保存）。 */
 function SessionNoteEditor({ sessionId }: { sessionId: string }) {
@@ -54,6 +55,7 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [linkedRefresh, setLinkedRefresh] = useState(0);
   const [distillOpen, setDistillOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
 
   if (!session) {
     return (
@@ -82,6 +84,13 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
                 title="用 AI 从此会话提炼任务与文档，确认后写入项目"
               >
                 AI 提炼
+              </button>
+              <button
+                onClick={() => setMemoryOpen(true)}
+                className={action}
+                title="从此会话提炼可长期复用的记忆（事实/偏好/决策/约定），去重后存入记忆账本"
+              >
+                提炼记忆
               </button>
               <button
                 onClick={() => setTaskDialogOpen(true)}
@@ -127,6 +136,12 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
       <DistillDialog
         session={distillOpen ? session : null}
         onClose={() => setDistillOpen(false)}
+      />
+
+      {/* 提炼记忆对话框 */}
+      <MemoryReviewDialog
+        session={memoryOpen ? session : null}
+        onClose={() => setMemoryOpen(false)}
       />
 
       {/* 从会话建任务对话框 */}
