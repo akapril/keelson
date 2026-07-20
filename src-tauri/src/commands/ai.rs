@@ -86,13 +86,19 @@ pub fn parse_anthropic(v: &Value) -> Option<String> {
 
 /// 非流式对话：按 provider 组装请求、POST、解析出助手回复文本。
 #[tauri::command]
-pub async fn ai_chat(config: AiConfig, messages: Vec<ChatMessage>) -> Result<String, String> {
+pub async fn ai_chat(
+    config: AiConfig,
+    messages: Vec<ChatMessage>,
+    // 项目仓库路径（可选）：CLI provider 在该目录下运行，能看到对应项目文件
+    cwd: Option<String>,
+) -> Result<String, String> {
     // 本地 CLI provider：直接调用 claude/codex，绕过 HTTP。
     if crate::commands::cli::is_cli_provider(&config.provider) {
         // 非流式路径暂不接工具模式，固定 false（工具模式走流式 ai_chat_stream）
         return crate::commands::cli::run_cli(
             &config.provider,
             config.cli_path.as_deref(),
+            cwd.as_deref(),
             &messages,
             false,
         )
@@ -472,6 +478,8 @@ pub async fn ai_chat_stream(
     on_event: tauri::ipc::Channel<AiStreamEvent>,
     // Option 以兼容缺省调用（前端 ipc 包装器总会传；直连 invoke 漏传时按 false）
     with_tools: Option<bool>,
+    // 项目仓库路径（可选）：CLI provider 在该目录下运行，能看到对应项目文件
+    cwd: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     // 本地 CLI provider：逐行读取 stdout，按 delta 事件推送；不复用 HTTP 取消标志。
@@ -480,12 +488,14 @@ pub async fn ai_chat_stream(
         let result = crate::commands::cli::run_cli_stream(
             &config.provider,
             config.cli_path.as_deref(),
+            cwd.as_deref(),
             &messages,
             with_tools.unwrap_or(false),
-            |line| {
+            // run_cli_stream 已按 provider 组装好可直接追加的片段（claude 解析增量、codex 补换行）
+            |piece| {
                 let _ = on_event.send(AiStreamEvent {
                     kind: "delta".into(),
-                    text: Some(format!("{line}\n")),
+                    text: Some(piece),
                 });
             },
         )

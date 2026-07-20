@@ -8,6 +8,7 @@ import { SentIcon, AiChat02Icon, Delete02Icon } from "@hugeicons/core-free-icons
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Markdown } from "@/components/markdown";
 import { useSettingsStore } from "@/store/settings";
 import { ipc } from "@/lib/tauri/ipc";
 import type { AiChatMessage, AiConfig, ToolChatMessage } from "@/types/ai";
@@ -193,6 +194,8 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
           }
         },
         useTools && isCli,
+        // 项目仓库路径 → CLI 在该目录运行，能看到对应项目文件
+        repoPath,
       );
       // 结束时助手仍为空 → 给个占位
       updateAssistant((c) => (c === "" ? "（无回复）" : c));
@@ -308,18 +311,20 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
           // 流式中最后一条空助手气泡显示光标
           const display =
             m.content || (m.role === "assistant" && isLast && loading ? "▍" : "");
+          // 助手正文用 markdown 渲染；用户消息与错误保持纯文本
+          const renderMarkdown = m.role === "assistant" && !isError && !!m.content;
           return (
             <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm ${
+                className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                   isUser
-                    ? "bg-primary/10 text-foreground"
+                    ? "whitespace-pre-wrap bg-primary/10 text-foreground"
                     : isError
-                      ? "bg-destructive/10 text-destructive"
+                      ? "whitespace-pre-wrap bg-destructive/10 text-destructive"
                       : "bg-muted text-foreground"
                 }`}
               >
-                {display}
+                {renderMarkdown ? <Markdown content={m.content} /> : display}
               </div>
             </div>
           );
