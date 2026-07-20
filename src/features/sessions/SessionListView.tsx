@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { useSessionsStore } from "../../store/sessions";
@@ -43,13 +43,17 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
   // 批量选择
   const [selectMode, setSelectMode] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const toggleCheck = (id: string) =>
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  // useCallback：引用稳定，配合 SessionCard 的 React.memo，避免列表整体重渲时所有卡片跟着重渲。
+  const toggleCheck = useCallback(
+    (id: string) =>
+      setChecked((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      }),
+    [],
+  );
   const exitSelect = () => {
     setSelectMode(false);
     setChecked(new Set());

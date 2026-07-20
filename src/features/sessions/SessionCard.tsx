@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
 import type { Session } from "../../types/session";
@@ -59,7 +59,7 @@ interface SessionCardProps {
  * 单条会话卡片。
  * 展示：项目名称、provider、最后一条提示词（截断）、消息数量、收藏星标。
  */
-export function SessionCard({
+function SessionCardImpl({
   session,
   selected,
   onSelect,
@@ -67,11 +67,13 @@ export function SessionCard({
   checked = false,
   onToggleCheck,
 }: SessionCardProps) {
-  const favorites = useSessionMetaStore((s) => s.favorites);
+  // 性能：按本卡 session_id 精确订阅（返回布尔/字符串），只有自身值变化才重渲染，
+  // 避免任一会话的收藏/隐藏/改名触发整列表所有卡片重渲染。动作函数引用稳定。
+  const isFav = useSessionMetaStore((s) => s.favorites.has(session.session_id));
+  const isHidden = useSessionMetaStore((s) => s.hidden.has(session.session_id));
+  const customName = useSessionMetaStore((s) => s.customNames.get(session.session_id));
   const toggleFavorite = useSessionMetaStore((s) => s.toggleFavorite);
-  const hidden = useSessionMetaStore((s) => s.hidden);
   const toggleHidden = useSessionMetaStore((s) => s.toggleHidden);
-  const customNames = useSessionMetaStore((s) => s.customNames);
   const setCustomName = useSessionMetaStore((s) => s.setCustomName);
 
   // 控制恢复对话框的显示状态
@@ -84,10 +86,7 @@ export function SessionCard({
   const [memoryOpen, setMemoryOpen] = useState(false);
 
   // 显示名：自定义名优先，否则 Rust 序列化的 project_name
-  const customName = customNames.get(session.session_id);
   const displayName = customName || session.project_name;
-  const isFav = favorites.has(session.session_id);
-  const isHidden = hidden.has(session.session_id);
 
   // 改名：风格化对话框；取消(null)不动，空串=清除自定义名恢复默认
   function handleRenameResult(value: string | null) {
@@ -251,13 +250,12 @@ export function SessionCard({
       </ContextMenuContent>
       </ContextMenu>
 
-      {/* 恢复对话框（挂载于 SessionCard 外层，避免被卡片样式裁剪） */}
-      <RestoreDialog
-        session={restoreTarget}
-        onClose={() => setRestoreTarget(null)}
-      />
+      {/* 对话框一律「懒挂载」——仅在触发时才渲染，避免每张卡片常驻 3 个 Radix 对话框树
+          （会话多时挂载成本叠加导致卡顿/卡死）。 */}
+      {restoreTarget && (
+        <RestoreDialog session={restoreTarget} onClose={() => setRestoreTarget(null)} />
+      )}
 
-      {/* 从会话建任务对话框 */}
       {taskDialogOpen && (
         <CreateTaskFromSessionDialog
           session={session}
@@ -265,23 +263,25 @@ export function SessionCard({
         />
       )}
 
-      {/* 提炼记忆对话框（从会话沉淀可复用记忆） */}
-      <MemoryReviewDialog
-        session={memoryOpen ? session : null}
-        onClose={() => setMemoryOpen(false)}
-      />
+      {memoryOpen && (
+        <MemoryReviewDialog session={session} onClose={() => setMemoryOpen(false)} />
+      )}
 
-      {/* 会话重命名对话框（替代原生 prompt） */}
-      <PromptDialog
-        open={renameOpen}
-        title="重命名会话"
-        description="给会话起个好认的名字；留空恢复默认（项目名）。"
-        label="会话名称"
-        placeholder="如：支付重构排障"
-        defaultValue={customName ?? ""}
-        confirmText="保存"
-        onResult={handleRenameResult}
-      />
+      {renameOpen && (
+        <PromptDialog
+          open
+          title="重命名会话"
+          description="给会话起个好认的名字；留空恢复默认（项目名）。"
+          label="会话名称"
+          placeholder="如：支付重构排障"
+          defaultValue={customName ?? ""}
+          confirmText="保存"
+          onResult={handleRenameResult}
+        />
+      )}
     </>
   );
 }
+
+// memo：配合上面的「按 session_id 精确订阅」，只有本卡相关 props/状态变化才重渲染。
+export const SessionCard = memo(SessionCardImpl);
