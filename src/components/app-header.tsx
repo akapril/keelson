@@ -59,6 +59,13 @@ export function AppHeader() {
   const currentNav = flatNavItems.find(
     (item) => location.pathname === item.url,
   );
+  // 不在侧栏导航里的页面标题（成本塔入口在头部、收件箱经通知铃进入）
+  const EXTRA_TITLES: Record<string, string> = {
+    "/usage": "成本控制塔",
+    "/inbox": "收件箱",
+  };
+  const currentTitle =
+    currentNav?.title ?? EXTRA_TITLES[location.pathname] ?? "rework";
   const initials = (user?.name?.charAt(0) ?? "U").toUpperCase();
 
   return (
@@ -72,7 +79,7 @@ export function AppHeader() {
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbPage>{currentNav?.title ?? "rework"}</BreadcrumbPage>
+            <BreadcrumbPage>{currentTitle}</BreadcrumbPage>
           </BreadcrumbItem>
           {currentNav?.description && (
             <>
