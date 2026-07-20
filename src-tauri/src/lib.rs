@@ -318,6 +318,9 @@ pub fn run() {
             commands::rag::rag_build_index,
             commands::rag::rag_search,
             commands::rag::embed_texts,
+            // 记忆受管块注入（memory_write_project_files / memory_project_files_status）
+            commands::memory::memory_write_project_files,
+            commands::memory::memory_project_files_status,
             // MCP 一键接入 claude / codex
             commands::mcp::mcp_endpoint,
             commands::mcp::mcp_install_claude,
