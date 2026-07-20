@@ -134,6 +134,7 @@ mod tests {
             message_count: 0,
             user_messages: Vec::new(),
             total_tokens: 0,
+            by_model: Default::default(),
         }
     }
 

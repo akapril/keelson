@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 /// 缓存格式版本；Session 结构或解析逻辑变动时应 +1，使旧缓存自动失效（退回全量）。
-const CACHE_VERSION: u32 = 1;
+/// v2：Session 新增 by_model；旧缓存失效 → 首启一次全量重扫补齐按模型归因。
+const CACHE_VERSION: u32 = 2;
 
 #[derive(Serialize, Deserialize)]
 pub struct CacheData {
@@ -129,6 +130,7 @@ mod tests {
             message_count: mc,
             user_messages: vec![],
             total_tokens: 0,
+            by_model: Default::default(),
         }
     }
 
