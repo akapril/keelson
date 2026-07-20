@@ -7,8 +7,6 @@ import {
   File01Icon,
   BookOpen01Icon,
   Calendar03Icon,
-  Analytics01Icon,
-  Notification03Icon,
   BrainIcon,
   Settings02Icon,
 } from "@hugeicons/core-free-icons";
@@ -64,18 +62,6 @@ export const navGroups: NavGroup[] = [
         url: "/calendar",
         icon: Calendar03Icon,
         description: "个人日程 / 事件",
-      },
-      {
-        title: "成本控制塔",
-        url: "/usage",
-        icon: Analytics01Icon,
-        description: "Token 用量趋势 · 成本预估",
-      },
-      {
-        title: "收件箱",
-        url: "/inbox",
-        icon: Notification03Icon,
-        description: "通知汇聚 · 批量处理",
       },
       {
         title: "记忆账本",
