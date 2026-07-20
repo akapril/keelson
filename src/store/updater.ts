@@ -5,6 +5,7 @@ import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useNotificationsStore } from "./notifications";
 import { osNotify } from "../lib/os-notify";
+import { isTypeEnabled } from "./notification-prefs";
 
 // 待安装的 Update 句柄（非可序列化，模块级持有）
 let pending: Update | null = null;
@@ -32,7 +33,10 @@ async function pushUpdateNotification(version: string, notes: string) {
       })
       .catch(() => {});
   }
-  void osNotify("rework 有新版本", `v${version} 可更新`);
+  // 桌面弹窗遵循"更新"类型偏好
+  if (isTypeEnabled("更新")) {
+    void osNotify("rework 有新版本", `v${version} 可更新`);
+  }
 }
 
 interface UpdaterState {
