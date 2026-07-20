@@ -8,6 +8,8 @@ import {
   Calendar03Icon,
   TextAlignLeftIcon,
   Message01Icon,
+  CheckmarkCircle02Icon,
+  CircleIcon,
 } from "@hugeicons/core-free-icons";
 
 import { Badge } from "@/components/ui/badge";
@@ -45,13 +47,29 @@ interface TaskCardProps {
   task: BoardTask;
   /** 点击卡片进入编辑（拖拽激活距离 6px，纯点击不会触发拖拽）。 */
   onEdit?: (task: BoardTask) => void;
+  /** 当前是否处于多选模式。 */
+  selectMode?: boolean;
+  /** 当前卡片是否被选中（多选模式下）。 */
+  selected?: boolean;
+  /** 切换本卡片勾选状态（多选模式下点击卡片触发）。 */
+  onToggleSelect?: (taskId: string) => void;
+  /** 进入多选模式（右键菜单"选择"项触发）。 */
+  onEnterSelect?: (taskId: string) => void;
 }
 
 /**
  * 可拖拽任务卡片：标签 chip / 标题 / 描述指示 / 优先级徽章 / 截止日期 / 来源会话徽章。
  * inline style 仅用于用户数据颜色（label.color）与 dnd transform。
+ * 多选模式：左上角勾选框 + 点击切换勾选（不打开编辑）；拖拽禁用。
  */
-export function TaskCard({ task, onEdit }: TaskCardProps) {
+export function TaskCard({
+  task,
+  onEdit,
+  selectMode = false,
+  selected = false,
+  onToggleSelect,
+  onEnterSelect,
+}: TaskCardProps) {
   const labels = useBoardStore((s) => s.labels);
   const states = useBoardStore((s) => s.states);
   const tasks = useBoardStore((s) => s.tasks);
@@ -99,12 +117,24 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
   } = useSortable({
     id: task.id,
     data: { type: "task", stateId: task.state },
+    // 多选模式下禁用拖拽，避免多选点击与拖拽冲突
+    disabled: selectMode,
   });
 
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,
   };
+
+  // 卡片点击：多选模式下切换勾选；普通模式下打开编辑
+  function handleCardClick(e: React.MouseEvent) {
+    if (selectMode) {
+      e.stopPropagation();
+      onToggleSelect?.(task.id);
+    } else {
+      onEdit?.(task);
+    }
+  }
 
   // 点击"来源会话"徽章：跳转到会话中枢，携带会话 id 作为定位信号。
   function handleSourceClick(e: React.MouseEvent) {
@@ -127,15 +157,31 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
       style={style}
       {...attributes}
       {...listeners}
-      onClick={() => onEdit?.(task)}
+      onClick={handleCardClick}
       className={cn(
-        "group/card cursor-pointer rounded-xl border border-border/60 bg-card p-3 shadow-sm transition-all hover:border-border hover:shadow-md",
+        "group/card relative cursor-pointer rounded-xl border border-border/60 bg-card p-3 shadow-sm transition-all hover:border-border hover:shadow-md",
         isDragging && "opacity-50 shadow-lg ring-2 ring-primary/20",
+        // 多选模式选中态：蓝色描边高亮
+        selectMode && selected && "border-primary/60 ring-1 ring-primary/30 bg-primary/5",
       )}
     >
-      {/* 标签 chips（颜色来自用户数据，inline style） */}
+      {/* 多选模式：左上角勾选图标 */}
+      {selectMode && (
+        <div className="absolute left-2 top-2 z-10">
+          <HugeiconsIcon
+            icon={selected ? CheckmarkCircle02Icon : CircleIcon}
+            strokeWidth={2}
+            className={cn(
+              "size-4 transition-colors",
+              selected ? "text-primary" : "text-muted-foreground",
+            )}
+          />
+        </div>
+      )}
+
+      {/* 标签 chips（颜色来自用户数据，inline style；多选模式缩进避开勾选框） */}
       {taskLabels.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1">
+        <div className={cn("mb-2 flex flex-wrap gap-1", selectMode && "pl-6")}>
           {taskLabels.map((label) => (
             <span
               key={label.id}
@@ -148,8 +194,11 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
         </div>
       )}
 
-      {/* 标题 */}
-      <p className="text-sm font-medium leading-snug text-foreground">
+      {/* 标题（多选模式且无标签时缩进，避开勾选框） */}
+      <p className={cn(
+        "text-sm font-medium leading-snug text-foreground",
+        selectMode && taskLabels.length === 0 && "pl-6",
+      )}>
         {task.title}
       </p>
 
@@ -212,8 +261,11 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
     </div>
       </ContextMenuTrigger>
 
-      {/* 右键菜单：编辑 / 优先级 / 移动 / 来源会话 / 删除 */}
+      {/* 右键菜单：选择（进入多选）/ 编辑 / 优先级 / 移动 / 来源会话 / 删除 */}
       <ContextMenuContent>
+        {/* 「选择」：进入多选模式并将本卡片设为已选 */}
+        <ContextMenuItem onSelect={() => onEnterSelect?.(task.id)}>选择</ContextMenuItem>
+        <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => onEdit?.(task)}>编辑</ContextMenuItem>
 
         <ContextMenuSub>

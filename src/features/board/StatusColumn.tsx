@@ -16,17 +16,30 @@ interface StatusColumnProps {
   onAddTask: (stateId: string) => void;
   /** 点击任务卡片进入编辑。 */
   onEditTask: (task: BoardTask) => void;
+  /** 当前是否处于多选模式。 */
+  selectMode?: boolean;
+  /** 当前已选任务 ID 集合（多选模式下）。 */
+  selected?: Set<string>;
+  /** 切换单个任务的勾选状态。 */
+  onToggleSelect?: (taskId: string) => void;
+  /** 进入多选模式（右键"选择"）。 */
+  onEnterSelect?: (taskId: string) => void;
 }
 
 /**
  * 单状态列：useDroppable(id="state:<id>") + SortableContext。
  * 列头：颜色点 + 名称 + 计数 + 加号按钮；空列显示"添加任务"占位按钮。
+ * 多选模式：将 selectMode/selected/onToggleSelect/onEnterSelect 透传给 TaskCard。
  */
 export function StatusColumn({
   state,
   tasks,
   onAddTask,
   onEditTask,
+  selectMode,
+  selected,
+  onToggleSelect,
+  onEnterSelect,
 }: StatusColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `state:${state.id}`,
@@ -72,7 +85,15 @@ export function StatusColumn({
           strategy={verticalListSortingStrategy}
         >
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} onEdit={onEditTask} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              onEdit={onEditTask}
+              selectMode={selectMode}
+              selected={selected?.has(task.id)}
+              onToggleSelect={onToggleSelect}
+              onEnterSelect={onEnterSelect}
+            />
           ))}
         </SortableContext>
 
