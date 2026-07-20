@@ -1,5 +1,5 @@
 // KanbanBoard —— 已打开项目的拖拽看板（纯看板；git 状态/关联会话由 ProjectWorkspace 承载）。
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -11,11 +11,13 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { toast } from "sonner";
 import { useBoardStore } from "@/store/board";
-import type { BoardTask } from "@/types/board";
+import type { BoardTask, TaskPriority } from "@/types/board";
 import { StatusColumn } from "./StatusColumn";
 import { TaskCard } from "./TaskCard";
 import { TaskSheet } from "./TaskSheet";
+import { BatchActionBar } from "./BatchActionBar";
 
 // TaskSheet 的受控状态：新建（预填 state）或编辑（携带 task）。
 interface SheetState {
@@ -28,6 +30,9 @@ interface SheetState {
 /**
  * 看板视图：DndContext（PointerSensor 距离 6px）+ 按 sort_order 渲染 StatusColumn；
  * onDragEnd 解析目标 state + index → moveTask；DragOverlay 渲染幽灵卡片。
+ *
+ * 多选：selectMode + selected(Set<string>) 持有在此层，经 StatusColumn 透传到 TaskCard。
+ * 批量操作栏 BatchActionBar 在选中 >0 时浮现于底部。
  */
 export function KanbanBoard() {
   const states = useBoardStore((s) => s.states);
@@ -35,6 +40,8 @@ export function KanbanBoard() {
   const tasksByState = useBoardStore((s) => s.tasksByState);
   const moveTask = useBoardStore((s) => s.moveTask);
   const previewMove = useBoardStore((s) => s.previewMove);
+  const updateTask = useBoardStore((s) => s.updateTask);
+  const deleteTask = useBoardStore((s) => s.deleteTask);
   const openedProjectId = useBoardStore((s) => s.openedProjectId);
 
   // 当前正在拖拽的任务（用于 DragOverlay）
@@ -45,6 +52,116 @@ export function KanbanBoard() {
     open: false,
     mode: "create",
   });
+
+  // ── 多选状态 ─────────────────────────────────────────────────
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // 切换项目时退出多选，清空选中
+  useEffect(() => {
+    setSelectMode(false);
+    setSelected(new Set());
+  }, [openedProjectId]);
+
+  // 进入多选模式（右键"选择"）：同时将该卡片设为已选
+  const handleEnterSelect = useCallback((taskId: string) => {
+    setSelectMode(true);
+    setSelected(new Set([taskId]));
+  }, []);
+
+  // 切换单个卡片的勾选状态
+  const handleToggleSelect = useCallback((taskId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  }, []);
+
+  // 退出多选模式，清空选中
+  const handleExitSelect = useCallback(() => {
+    setSelectMode(false);
+    setSelected(new Set());
+  }, []);
+
+  // ── 批量移动 ─────────────────────────────────────────────────
+  const handleBatchMove = useCallback(
+    async (toStateId: string) => {
+      const ids = [...selected];
+      let successCount = 0;
+      const errors: string[] = [];
+      for (const id of ids) {
+        try {
+          // 追加到目标列末尾（当前目标列任务数作为 toIndex）
+          const toIndex = tasks.filter((t) => t.state === toStateId).length;
+          await moveTask(id, toStateId, toIndex);
+          successCount++;
+        } catch (e) {
+          errors.push(String(e));
+        }
+      }
+      if (errors.length > 0) {
+        toast.error(`批量移动部分失败（${successCount}/${ids.length} 成功）`);
+      } else {
+        const stateName =
+          states.find((s) => s.id === toStateId)?.name ?? toStateId;
+        toast.success(`已将 ${successCount} 项任务移动至「${stateName}」`);
+      }
+      handleExitSelect();
+    },
+    [selected, tasks, moveTask, states, handleExitSelect],
+  );
+
+  // ── 批量改优先级 ──────────────────────────────────────────────
+  const handleBatchPriority = useCallback(
+    async (priority: TaskPriority) => {
+      const ids = [...selected];
+      let successCount = 0;
+      const errors: string[] = [];
+      for (const id of ids) {
+        try {
+          await updateTask(id, { priority });
+          successCount++;
+        } catch (e) {
+          errors.push(String(e));
+        }
+      }
+      if (errors.length > 0) {
+        toast.error(
+          `批量改优先级部分失败（${successCount}/${ids.length} 成功）`,
+        );
+      } else {
+        toast.success(`已将 ${successCount} 项任务优先级设为「${priority}」`);
+      }
+      handleExitSelect();
+    },
+    [selected, updateTask, handleExitSelect],
+  );
+
+  // ── 批量删除 ─────────────────────────────────────────────────
+  const handleBatchDelete = useCallback(async () => {
+    const ids = [...selected];
+    let successCount = 0;
+    const errors: string[] = [];
+    for (const id of ids) {
+      try {
+        await deleteTask(id);
+        successCount++;
+      } catch (e) {
+        errors.push(String(e));
+      }
+    }
+    if (errors.length > 0) {
+      toast.error(`批量删除部分失败（${successCount}/${ids.length} 成功）`);
+    } else {
+      toast.success(`已删除 ${successCount} 项任务`);
+    }
+    handleExitSelect();
+  }, [selected, deleteTask, handleExitSelect]);
 
   // PointerSensor，激活约束：移动 6px 后才开始拖拽（防止误触点击）
   const sensors = useSensors(
@@ -133,6 +250,10 @@ export function KanbanBoard() {
                 setSheet({ open: true, mode: "create", stateId })
               }
               onEditTask={(task) => setSheet({ open: true, mode: "edit", task })}
+              selectMode={selectMode}
+              selected={selected}
+              onToggleSelect={handleToggleSelect}
+              onEnterSelect={handleEnterSelect}
             />
           ))}
 
@@ -152,6 +273,18 @@ export function KanbanBoard() {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {/* 批量操作栏：多选模式且已选 >0 时浮现于底部 */}
+      {selectMode && selected.size > 0 && (
+        <BatchActionBar
+          selectedCount={selected.size}
+          states={sortedStates}
+          onMove={handleBatchMove}
+          onPriority={handleBatchPriority}
+          onDelete={handleBatchDelete}
+          onExit={handleExitSelect}
+        />
+      )}
 
       {/* 任务新建/编辑面板（受控） */}
       <TaskSheet
