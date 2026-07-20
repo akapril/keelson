@@ -30,6 +30,8 @@ pub mod web;
 pub mod rag;
 // MCP 一键接入命令（把 rework MCP 写入 claude / codex 配置）
 pub mod mcp;
+// 记忆注入命令（把记忆写进项目 CLAUDE.md/AGENTS.md 受管块）
+pub mod memory;
 
 // 注意：generate_handler! 宏需要使用函数定义所在的原始路径（含辅助符号），
 // 故不做 re-export；lib.rs 中直接使用 commands::sessions::sessions_list 等完整路径。
