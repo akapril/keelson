@@ -73,6 +73,8 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
   add: async (input) => {
     const created = await createNotification(input);
+    // createNotification 返回 null 时表示该类型被偏好关闭，直接跳过
+    if (!created) return;
     // upsert 去重（实时 create echo 可能已插入）
     set((s) => ({ items: upsertById(s.items, created) }));
   },
