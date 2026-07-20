@@ -23,6 +23,8 @@ interface SessionNoteRecord {
 interface SessionMetaState {
   favorites: Set<string>;
   notes: Map<string, string>;
+  /** session_id -> 自定义名称（custom_name，覆盖显示用；空表示未设） */
+  customNames: Map<string, string>;
   loading: boolean;
   error?: string;
   /** 从 PocketBase 加载全部 meta 和 notes */
@@ -31,6 +33,8 @@ interface SessionMetaState {
   toggleFavorite: (sessionId: string) => Promise<void>;
   /** 保存会话笔记（写回 PocketBase） */
   setNote: (sessionId: string, text: string) => Promise<void>;
+  /** 设置/清除会话自定义名称（写回 PocketBase；空串=清除） */
+  setCustomName: (sessionId: string, name: string) => Promise<void>;
 }
 
 /** session_id -> PocketBase record id 的本地缓存（用于 update） */
@@ -40,6 +44,7 @@ let noteRecordMap: Map<string, string> = new Map();
 export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
   favorites: new Set(),
   notes: new Map(),
+  customNames: new Map(),
   loading: false,
   error: undefined,
 
@@ -52,9 +57,11 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
         filter: `owner="${userId}"`,
       });
       const favorites = new Set<string>();
+      const customNames = new Map<string, string>();
       metaRecordMap = new Map();
       for (const row of metaRows) {
         if (row.favorite) favorites.add(row.session_id);
+        if (row.custom_name) customNames.set(row.session_id, row.custom_name);
         metaRecordMap.set(row.session_id, row.id);
       }
 
@@ -69,7 +76,7 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
         noteRecordMap.set(row.session_id, row.id);
       }
 
-      set({ favorites, notes, loading: false });
+      set({ favorites, notes, customNames, loading: false });
     } catch (e) {
       set({ error: String(e), loading: false });
     }
@@ -129,6 +136,37 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
     } catch (e) {
       // 回滚
       set({ notes, error: String(e) });
+    }
+  },
+
+  setCustomName: async (sessionId, name) => {
+    const { customNames } = get();
+    const trimmed = name.trim();
+    // 乐观更新：空串=清除
+    const next = new Map(customNames);
+    if (trimmed) next.set(sessionId, trimmed);
+    else next.delete(sessionId);
+    set({ customNames: next });
+
+    try {
+      const userId = currentUserId();
+      const recordId = metaRecordMap.get(sessionId);
+      if (recordId) {
+        await pbUpdate(COL.sessionsMeta, recordId, { custom_name: trimmed });
+      } else {
+        // 无记录：新建（owner + 必填字段，满足 createRule）
+        const row = await pbCreate<SessionMetaRecord>(COL.sessionsMeta, {
+          session_id: sessionId,
+          owner: userId,
+          favorite: false,
+          hidden: false,
+          custom_name: trimmed,
+        });
+        metaRecordMap.set(sessionId, row.id);
+      }
+    } catch (e) {
+      // 回滚
+      set({ customNames, error: String(e) });
     }
   },
 }));

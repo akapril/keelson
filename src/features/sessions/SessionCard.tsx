@@ -36,15 +36,25 @@ interface SessionCardProps {
 export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
   const favorites = useSessionMetaStore((s) => s.favorites);
   const toggleFavorite = useSessionMetaStore((s) => s.toggleFavorite);
+  const customNames = useSessionMetaStore((s) => s.customNames);
+  const setCustomName = useSessionMetaStore((s) => s.setCustomName);
 
   // 控制恢复对话框的显示状态
   const [restoreTarget, setRestoreTarget] = useState<Session | null>(null);
   // 控制"从会话建任务"对话框的显示状态
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 
-  // 直接使用 Rust 序列化的 project_name 字段
-  const projectName = session.project_name;
+  // 显示名：自定义名优先，否则 Rust 序列化的 project_name
+  const customName = customNames.get(session.session_id);
+  const displayName = customName || session.project_name;
   const isFav = favorites.has(session.session_id);
+
+  // 改名：用浏览器 prompt（Tauri webview 支持），取消返回 null 不动，空串=清除自定义名
+  function handleRename() {
+    const input = window.prompt("会话名称（留空恢复默认）", customName ?? "");
+    if (input === null) return;
+    void setCustomName(session.session_id, input);
+  }
 
   function handleStarClick(e: React.MouseEvent) {
     // 阻止冒泡，避免同时触发 onSelect
@@ -85,8 +95,11 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
       >
         {/* 首行：项目名 + 收藏星标 + 恢复按钮 */}
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium" title={session.project_path}>
-            {projectName}
+          <span
+            className="truncate text-sm font-medium"
+            title={customName ? `${customName}（${session.project_path}）` : session.project_path}
+          >
+            {displayName}
           </span>
           <div className="flex shrink-0 items-center gap-1.5">
             {/* 建任务按钮：打开"从会话建任务"对话框（阻止冒泡避免选中卡片） */}
@@ -138,6 +151,9 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
         <ContextMenuItem onSelect={() => setTaskDialogOpen(true)}>建任务</ContextMenuItem>
         <ContextMenuItem onSelect={() => toggleFavorite(session.session_id)}>
           {isFav ? "取消收藏" : "收藏"}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={handleRename}>
+          {customName ? "重命名 / 恢复默认" : "重命名"}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
