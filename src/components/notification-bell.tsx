@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useNotificationsStore } from "@/store/notifications";
+import { useNotifPrefsStore } from "@/store/notification-prefs";
 import { syncDueReminders } from "@/features/notifications/due-reminders";
 import { syncNewSessionsReminder } from "@/features/notifications/new-sessions";
 import type { AppNotification, NotificationKind } from "@/types/notifications";
@@ -44,8 +45,14 @@ function shortTime(iso: string): string {
 
 export function NotificationBell() {
   const navigate = useNavigate();
-  const items = useNotificationsStore((s) => s.items);
-  const unread = useNotificationsStore((s) => s.items.filter((n) => !n.read).length);
+  const allItems = useNotificationsStore((s) => s.items);
+  // 按通知类型偏好过滤（含 MCP/Loop 等非前端发射的类型）
+  const prefs = useNotifPrefsStore((s) => s.prefs);
+  const items = allItems.filter((n) => {
+    if (!n.source) return true; // 无 source 的通知始终显示
+    return prefs[n.source] !== false; // 未知 source 默认 true
+  });
+  const unread = items.filter((n) => !n.read).length;
 
   // 挂载时加载 + 订阅（store 内部保证仅订阅一次），随后扫描到期项生成截止提醒（一次/会话）
   useEffect(() => {

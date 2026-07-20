@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotificationsStore } from "@/store/notifications";
+import { useNotifPrefsStore } from "@/store/notification-prefs";
 import type { AppNotification, NotificationKind } from "@/types/notifications";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,8 +35,14 @@ function whenLabel(iso: string): string {
 
 export default function InboxPage() {
   const navigate = useNavigate();
-  const items = useNotificationsStore((s) => s.items);
+  const allItems = useNotificationsStore((s) => s.items);
   const load = useNotificationsStore((s) => s.load);
+  // 按通知类型偏好过滤（覆盖 MCP/Loop 等外部写入的类型）
+  const prefs = useNotifPrefsStore((s) => s.prefs);
+  const items = allItems.filter((n) => {
+    if (!n.source) return true; // 无 source 始终显示
+    return prefs[n.source] !== false; // 未知 source 默认 true
+  });
   const markRead = useNotificationsStore((s) => s.markRead);
   const markManyRead = useNotificationsStore((s) => s.markManyRead);
   const removeMany = useNotificationsStore((s) => s.removeMany);

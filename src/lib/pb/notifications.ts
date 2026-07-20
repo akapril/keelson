@@ -3,6 +3,7 @@ import { pb } from "../pb";
 import { COL } from "./collections";
 import { currentUserId } from "../pb";
 import type { AppNotification, NotificationKind } from "../../types/notifications";
+import { isTypeEnabled } from "../../store/notification-prefs";
 
 /** 获取当前用户全部通知（按 created 降序，最新在前）。 */
 export function listNotifications(): Promise<AppNotification[]> {
@@ -20,10 +21,18 @@ export interface CreateNotificationInput {
   source?: string;
 }
 
-/** 创建一条通知（供更新/AI/沉淀等来源推送）。 */
+/**
+ * 创建一条通知（供更新/AI/沉淀等来源推送）。
+ * 若该 source 类型被用户关闭，直接返回 null 跳过写库，
+ * 调用方应使用可选链或判空处理（store.add 已做容错）。
+ */
 export function createNotification(
   input: CreateNotificationInput,
-): Promise<AppNotification> {
+): Promise<AppNotification | null> {
+  // 通知类型偏好过滤：source 被用户关闭则跳过写库
+  if (input.source && !isTypeEnabled(input.source)) {
+    return Promise.resolve(null);
+  }
   return pb.collection(COL.notifications).create<AppNotification>({
     owner: currentUserId(),
     title: input.title,
