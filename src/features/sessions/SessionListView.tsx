@@ -34,9 +34,31 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
   const searchLoading = useSessionSearchStore((s) => s.loading);
   const favorites = useSessionMetaStore((s) => s.favorites);
   const hidden = useSessionMetaStore((s) => s.hidden);
+  const toggleFavorite = useSessionMetaStore((s) => s.toggleFavorite);
+  const toggleHidden = useSessionMetaStore((s) => s.toggleHidden);
 
   // 搜索词非空时进入搜索模式
   const isSearching = query.trim().length > 0;
+
+  // 批量选择
+  const [selectMode, setSelectMode] = useState(false);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const toggleCheck = (id: string) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const exitSelect = () => {
+    setSelectMode(false);
+    setChecked(new Set());
+  };
+  // 批量动作：对所选按目标态幂等设置（已是目标态则跳过，避免误 toggle）
+  const batchFavorite = () =>
+    checked.forEach((id) => favorites.has(id) || void toggleFavorite(id));
+  const batchHide = () => checked.forEach((id) => hidden.has(id) || void toggleHidden(id));
+  const batchUnhide = () => checked.forEach((id) => hidden.has(id) && void toggleHidden(id));
 
   // 「只看收藏」/「显示已隐藏」筛选
   const [favOnly, setFavOnly] = useState(false);
@@ -134,7 +156,56 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
         >
           {showHidden ? "隐藏项✓" : "隐藏项"}
         </button>
+        <button
+          type="button"
+          onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+          title="批量选择会话"
+          aria-pressed={selectMode}
+          className={`shrink-0 rounded-lg border border-border px-2.5 py-2 text-xs leading-none transition-colors ${
+            selectMode ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
+          }`}
+        >
+          批量
+        </button>
       </div>
+
+      {/* 批量选择工具栏 */}
+      {selectMode && (
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1.5 text-xs">
+          <span className="mr-1 text-muted-foreground">已选 {checked.size}</span>
+          <button
+            type="button"
+            disabled={checked.size === 0}
+            onClick={batchFavorite}
+            className="rounded px-1.5 py-0.5 hover:bg-accent disabled:opacity-40"
+          >
+            收藏
+          </button>
+          <button
+            type="button"
+            disabled={checked.size === 0}
+            onClick={batchHide}
+            className="rounded px-1.5 py-0.5 hover:bg-accent disabled:opacity-40"
+          >
+            隐藏
+          </button>
+          <button
+            type="button"
+            disabled={checked.size === 0}
+            onClick={batchUnhide}
+            className="rounded px-1.5 py-0.5 hover:bg-accent disabled:opacity-40"
+          >
+            取消隐藏
+          </button>
+          <button
+            type="button"
+            onClick={exitSelect}
+            className="ml-auto rounded px-1.5 py-0.5 text-primary hover:bg-accent"
+          >
+            完成
+          </button>
+        </div>
+      )}
 
       {/* 内容区：可滚动 */}
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -157,6 +228,9 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
                   session={session}
                   selected={session.session_id === selectedId}
                   onSelect={onSelect}
+                  selectMode={selectMode}
+                  checked={checked.has(session.session_id)}
+                  onToggleCheck={toggleCheck}
                 />
               ))
             )}
@@ -223,6 +297,9 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
                             session={session}
                             selected={session.session_id === selectedId}
                             onSelect={onSelect}
+                            selectMode={selectMode}
+                            checked={checked.has(session.session_id)}
+                            onToggleCheck={toggleCheck}
                           />
                         ))}
                       </div>

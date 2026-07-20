@@ -28,13 +28,26 @@ interface SessionCardProps {
   selected: boolean;
   /** 用户点击卡片时的回调 */
   onSelect: (session: Session) => void;
+  /** 批量选择模式：为 true 时点击卡片切换勾选而非打开会话 */
+  selectMode?: boolean;
+  /** 批量选择中是否已勾选 */
+  checked?: boolean;
+  /** 切换勾选回调 */
+  onToggleCheck?: (sessionId: string) => void;
 }
 
 /**
  * 单条会话卡片。
  * 展示：项目名称、provider、最后一条提示词（截断）、消息数量、收藏星标。
  */
-export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
+export function SessionCard({
+  session,
+  selected,
+  onSelect,
+  selectMode = false,
+  checked = false,
+  onToggleCheck,
+}: SessionCardProps) {
   const favorites = useSessionMetaStore((s) => s.favorites);
   const toggleFavorite = useSessionMetaStore((s) => s.toggleFavorite);
   const hidden = useSessionMetaStore((s) => s.hidden);
@@ -87,24 +100,38 @@ export function SessionCard({ session, selected, onSelect }: SessionCardProps) {
       <div
         role="button"
         tabIndex={0}
-        aria-pressed={selected}
-        onClick={() => onSelect(session)}
-        onKeyDown={(e) => e.key === "Enter" && onSelect(session)}
+        aria-pressed={selectMode ? checked : selected}
+        onClick={() => (selectMode ? onToggleCheck?.(session.session_id) : onSelect(session))}
+        onKeyDown={(e) =>
+          e.key === "Enter" &&
+          (selectMode ? onToggleCheck?.(session.session_id) : onSelect(session))
+        }
         className={[
           // 基础卡片样式
-          "flex cursor-pointer flex-col gap-1 rounded-lg border border-border p-3 text-left transition-colors",
-          // 选中 vs 默认状态
-          selected
-            ? "bg-accent text-accent-foreground"
-            : "bg-card text-card-foreground hover:bg-accent/50",
+          "flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-left transition-colors",
+          // 勾选(批量) / 选中(预览) / 默认
+          selectMode && checked
+            ? "border-primary bg-primary/10"
+            : selected
+              ? "border-border bg-accent text-accent-foreground"
+              : "border-border bg-card text-card-foreground hover:bg-accent/50",
           // 已隐藏（仅在"显示隐藏"时可见）淡化区分
           isHidden ? "opacity-55" : "",
         ].join(" ")}
       >
-        {/* 首行：项目名 + 收藏星标 + 恢复按钮 */}
+        {/* 首行：[批量勾选框] + 项目名 + 收藏星标 + 恢复按钮 */}
         <div className="flex items-center justify-between gap-2">
+          {selectMode && (
+            <input
+              type="checkbox"
+              checked={checked}
+              readOnly
+              className="size-3.5 shrink-0 rounded border-input accent-primary"
+              aria-label="选择会话"
+            />
+          )}
           <span
-            className="truncate text-sm font-medium"
+            className="min-w-0 flex-1 truncate text-sm font-medium"
             title={customName ? `${customName}（${session.project_path}）` : session.project_path}
           >
             {displayName}
