@@ -245,6 +245,79 @@ function McpSection() {
   );
 }
 
+/**
+ * 实时活动 hook 区（Phase 2）：一键在 ~/.claude/settings.json 装/卸 rework 的 PostToolUse
+ * 转发条目，让 Claude Code 的全量工具流（Edit/Write/Bash/Read/…）实时出现在 rework 活动流。
+ * 仿溯源 HookBar：装/卸/状态 + toast。只增删 rework 自己那一条，用户其它 hooks/设置不动。
+ */
+function ActivityHookSection() {
+  const [installed, setInstalled] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => {
+    void ipc
+      .activityHookStatus()
+      .then((s) => setInstalled(s.installed))
+      .catch(() => setInstalled(null));
+  };
+  useEffect(refresh, []);
+
+  const toggle = async () => {
+    if (installed === null || busy) return;
+    setBusy(true);
+    try {
+      if (installed) {
+        await ipc.uninstallActivityHook();
+        toast.success("已停用实时活动 hook");
+      } else {
+        await ipc.installActivityHook();
+        toast.success("已启用：Claude Code 的工具操作将实时出现在活动流（需重启会话生效）");
+      }
+      refresh();
+    } catch (e) {
+      toast.error(`操作失败：${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-sm font-medium">实时活动 hook（Claude Code）</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          启用后，Claude Code 每次工具操作（编辑/写入/执行/读取…）都会实时上报到 rework 活动流。
+          仅改动 ~/.claude/settings.json 里 rework 自己那一条，其它设置逐字保留。需重启会话生效。
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        {installed === null ? (
+          <span className="text-xs text-muted-foreground">读取状态中…</span>
+        ) : installed ? (
+          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
+            实时活动 hook 已启用
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">未启用</span>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={installed === null || busy}
+          onClick={() => void toggle()}
+        >
+          {busy ? "处理中…" : installed ? "停用" : "启用实时活动 hook"}
+        </Button>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        说明：Codex 无逐工具 hook，仅通过 MCP（上方）上报看板/文档操作；实时全量工具流仅 Claude Code 支持。
+      </p>
+    </section>
+  );
+}
+
 /** 通知偏好:发现新会话提醒开关(启动时摘要,可关)。 */
 function NotifyPrefsSection() {
   const [on, setOn] = useState(newSessionsPref());
@@ -759,6 +832,11 @@ export default function Settings() {
 
       {/* ── MCP 接入（让 claude / codex 操作看板与文档） ── */}
       <McpSection />
+
+      <div className="border-t border-border" />
+
+      {/* ── 实时活动 hook（Claude Code 全量工具流，Phase 2） ── */}
+      <ActivityHookSection />
 
       <div className="border-t border-border" />
 
