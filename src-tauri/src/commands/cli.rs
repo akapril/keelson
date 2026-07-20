@@ -1,7 +1,8 @@
 //! 本地 CLI provider：直接调用本机 `claude` / `codex` 可执行文件进行对话。
 //! 不走 tauri-plugin-shell（capability scope 限制），用 tokio::process 直接 spawn PATH 上的 CLI。
 use crate::commands::ai::ChatMessage;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
+use std::process::Stdio;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 /// 判断 provider 是否为本地 CLI 类型。
@@ -36,25 +37,26 @@ pub fn flatten_messages(messages: &[ChatMessage]) -> String {
     parts.join("\n\n")
 }
 
-/// 构造 CLI 命令：claude 用 `-p <prompt>`，codex 用 `exec <prompt>`。
-/// with_tools=true（工具模式）时追加「完全自动」标志，让 CLI 自主 agent 循环可调用
-/// 已配置的 MCP 工具（含 rework MCP）：
-/// - claude：`--dangerously-skip-permissions`（= bypassPermissions，MCP 调用自动放行）。
-/// - codex：`--dangerously-bypass-approvals-and-sandbox`（非交互下调 MCP 工具的唯一可行开关），
-///   且须放在 `exec` 之后、prompt 之前。
-pub fn build_cli_command(bin: &str, prompt: &str, with_tools: bool) -> (String, Vec<String>) {
+/// 构造 CLI 命令。**prompt 不进命令行参数**，而是经 stdin 传入——避免超长 prompt
+/// 触发 Windows 命令行长度上限（os error 206「文件名或扩展名太长」）。
+/// - claude：`-p`（无 prompt 参数时读 stdin）。
+/// - codex：`exec -`（`-` 占位表示 stdin 即完整 prompt）。
+/// with_tools=true（工具模式）追加「完全自动」标志：
+/// - claude：`--dangerously-skip-permissions`；
+/// - codex：`--dangerously-bypass-approvals-and-sandbox`（放 `exec` 之后）。
+pub fn build_cli_command(bin: &str, with_tools: bool) -> (String, Vec<String>) {
     match bin {
         "codex" => {
             let mut args = vec!["exec".to_string()];
             if with_tools {
                 args.push("--dangerously-bypass-approvals-and-sandbox".to_string());
             }
-            args.push(prompt.to_string());
+            args.push("-".to_string()); // stdin 作为完整 prompt
             (bin.to_string(), args)
         }
-        // 默认按 claude：-p 走一次性 print 模式
+        // 默认按 claude：-p 一次性 print 模式，无 prompt 参数则读 stdin
         _ => {
-            let mut args = vec!["-p".to_string(), prompt.to_string()];
+            let mut args = vec!["-p".to_string()];
             if with_tools {
                 args.push("--dangerously-skip-permissions".to_string());
             }
@@ -92,12 +94,24 @@ pub async fn run_cli(
 ) -> Result<String, String> {
     let bin = cli_bin_for(provider).ok_or_else(|| format!("未知 CLI provider：{provider}"))?;
     let prompt = flatten_messages(messages);
-    let (_b, args) = build_cli_command(bin, &prompt, with_tools);
+    let (_b, args) = build_cli_command(bin, with_tools);
 
     let mut last_err = String::new();
     for cand in candidates_for(bin, cli_path) {
-        match Command::new(&cand).args(&args).output().await {
-            Ok(output) => {
+        let spawned = Command::new(&cand)
+            .args(&args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn();
+        match spawned {
+            Ok(mut child) => {
+                // prompt 经 stdin 传入并关闭（发送 EOF，避免 codex 挂等输入）
+                if let Some(mut stdin) = child.stdin.take() {
+                    let _ = stdin.write_all(prompt.as_bytes()).await;
+                    let _ = stdin.shutdown().await;
+                }
+                let output = child.wait_with_output().await.map_err(|e| e.to_string())?;
                 if output.status.success() {
                     return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
                 }
@@ -120,20 +134,25 @@ pub async fn run_cli_stream<F: FnMut(String)>(
     with_tools: bool,
     mut on_line: F,
 ) -> Result<(), String> {
-    use std::process::Stdio;
     let bin = cli_bin_for(provider).ok_or_else(|| format!("未知 CLI provider：{provider}"))?;
     let prompt = flatten_messages(messages);
-    let (_b, args) = build_cli_command(bin, &prompt, with_tools);
+    let (_b, args) = build_cli_command(bin, with_tools);
 
     let mut last_err = String::new();
     for cand in candidates_for(bin, cli_path) {
         let spawned = Command::new(&cand)
             .args(&args)
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped()) // 捕获 stderr 供失败诊断（工具模式首次会有一次性权限警告）
             .spawn();
         match spawned {
             Ok(mut child) => {
+                // prompt 经 stdin 传入并关闭（避免超长命令行 + codex 挂等 EOF）
+                if let Some(mut stdin) = child.stdin.take() {
+                    let _ = stdin.write_all(prompt.as_bytes()).await;
+                    let _ = stdin.shutdown().await;
+                }
                 let stdout = child.stdout.take().ok_or("无法获取 stdout")?;
                 // 并发抽干 stderr：避免其管道缓冲写满阻塞子进程（原先 null 丢弃即为规避此死锁）
                 let stderr = child.stderr.take();
@@ -221,42 +240,39 @@ mod tests {
 
     #[test]
     fn builds_claude_command_plain() {
-        let (bin, args) = build_cli_command("claude", "hello", false);
+        // prompt 不进 args（经 stdin 传）；claude -p 无参读 stdin
+        let (bin, args) = build_cli_command("claude", false);
         assert_eq!(bin, "claude");
-        assert_eq!(args, vec!["-p".to_string(), "hello".to_string()]);
+        assert_eq!(args, vec!["-p".to_string()]);
     }
 
     #[test]
     fn builds_claude_command_with_tools() {
-        // 权限绕过标志追加在 -p prompt 之后
-        let (_bin, args) = build_cli_command("claude", "hello", true);
+        let (_bin, args) = build_cli_command("claude", true);
         assert_eq!(
             args,
-            vec![
-                "-p".to_string(),
-                "hello".to_string(),
-                "--dangerously-skip-permissions".to_string(),
-            ]
+            vec!["-p".to_string(), "--dangerously-skip-permissions".to_string()]
         );
     }
 
     #[test]
     fn builds_codex_command_plain() {
-        let (bin, args) = build_cli_command("codex", "hello", false);
+        // codex exec -  （- 占位表示 stdin 即完整 prompt）
+        let (bin, args) = build_cli_command("codex", false);
         assert_eq!(bin, "codex");
-        assert_eq!(args, vec!["exec".to_string(), "hello".to_string()]);
+        assert_eq!(args, vec!["exec".to_string(), "-".to_string()]);
     }
 
     #[test]
     fn builds_codex_command_with_tools() {
-        // 标志在 exec 之后、prompt 之前
-        let (_bin, args) = build_cli_command("codex", "hello", true);
+        // 标志在 exec 之后、- 之前
+        let (_bin, args) = build_cli_command("codex", true);
         assert_eq!(
             args,
             vec![
                 "exec".to_string(),
                 "--dangerously-bypass-approvals-and-sandbox".to_string(),
-                "hello".to_string(),
+                "-".to_string(),
             ]
         );
     }
