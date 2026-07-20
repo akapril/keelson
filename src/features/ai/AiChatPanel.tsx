@@ -311,8 +311,12 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
           // 流式中最后一条空助手气泡显示光标
           const display =
             m.content || (m.role === "assistant" && isLast && loading ? "▍" : "");
-          // 助手正文用 markdown 渲染；用户消息与错误保持纯文本
-          const renderMarkdown = m.role === "assistant" && !isError && !!m.content;
+          // 助手正文用 markdown 渲染；用户消息与错误保持纯文本。
+          // 性能：正在流式的最后一条助手气泡先用纯文本（避免每 token 全量重解析 markdown，O(n²) 卡顿），
+          // 流结束后再渲染为 markdown。
+          const streamingThis = m.role === "assistant" && isLast && loading;
+          const renderMarkdown =
+            m.role === "assistant" && !isError && !!m.content && !streamingThis;
           return (
             <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
               <div
@@ -321,7 +325,9 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
                     ? "whitespace-pre-wrap bg-primary/10 text-foreground"
                     : isError
                       ? "whitespace-pre-wrap bg-destructive/10 text-destructive"
-                      : "bg-muted text-foreground"
+                      : renderMarkdown
+                        ? "bg-muted text-foreground"
+                        : "whitespace-pre-wrap bg-muted text-foreground"
                 }`}
               >
                 {renderMarkdown ? <Markdown content={m.content} /> : display}
