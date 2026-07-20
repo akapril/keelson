@@ -32,6 +32,8 @@ pub mod rag;
 pub mod mcp;
 // 记忆注入命令（把记忆写进项目 CLAUDE.md/AGENTS.md 受管块）
 pub mod memory;
+// 实时活动 hook 命令（Phase 2：装/卸 ~/.claude/settings.json 的 PostToolUse 转发条目）
+pub mod hooks;
 
 // 注意：generate_handler! 宏需要使用函数定义所在的原始路径（含辅助符号），
 // 故不做 re-export；lib.rs 中直接使用 commands::sessions::sessions_list 等完整路径。
