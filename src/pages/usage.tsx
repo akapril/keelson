@@ -30,7 +30,7 @@ function fmtTooltip(v: number | string | readonly (number | string)[] | undefine
 export default function UsagePage() {
   const sessions = useSessionsStore((s) => s.sessions);
   const load = useSessionsStore((s) => s.load);
-  const { config, setRate } = useCostStore();
+  const { config, setRate, setModelRate } = useCostStore();
   const [days, setDays] = useState(30);
 
   useEffect(() => {
@@ -38,8 +38,8 @@ export default function UsagePage() {
   }, [load]);
 
   const summary = useMemo(
-    () => aggregateUsage(sessions, config.rates, days),
-    [sessions, config.rates, days],
+    () => aggregateUsage(sessions, config.rates, days, config.modelRates),
+    [sessions, config.rates, days, config.modelRates],
   );
 
   const cur = config.currency;
@@ -161,6 +161,52 @@ export default function UsagePage() {
             </div>
           ))}
           {summary.byProject.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">该时间范围内暂无会话数据</p>
+          )}
+        </div>
+      </section>
+
+      {/* 按模型分布 + 单价编辑（opus/sonnet 单价差 5 倍，分开才看得清） */}
+      <section className="rounded-xl border border-border bg-card p-4">
+        <h2 className="mb-1 text-sm font-medium">按模型</h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          token 含 input/output/cache 各类（同口径）；单价优先按模型，未设则回退 provider 单价。
+        </p>
+        <div className="h-56 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={summary.byModel.slice(0, 12)}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="model" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={56} />
+              <YAxis tickFormatter={fmtTokens} tick={{ fontSize: 11 }} width={48} />
+              <Tooltip formatter={fmtTooltip} />
+              <Bar dataKey="tokens" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {summary.byModel.map((m) => (
+            <div key={m.model} className="flex items-center gap-3 text-sm">
+              <span className="min-w-0 flex-1 truncate font-mono text-xs" title={`${m.model}（${m.provider}）`}>
+                {m.model}
+              </span>
+              <span className="w-32 shrink-0 text-right text-muted-foreground">
+                {fmtTokens(m.tokens)} · {cur}
+                {m.cost.toFixed(2)}
+              </span>
+              <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                单价 {cur}/百万
+                <Input
+                  type="number"
+                  value={config.modelRates[m.model] ?? ""}
+                  placeholder={String(config.rates[m.provider] ?? 0)}
+                  onChange={(e) => setModelRate(m.model, Number(e.target.value) || 0)}
+                  className="h-7 w-24"
+                />
+              </label>
+            </div>
+          ))}
+          {summary.byModel.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">该时间范围内暂无会话数据</p>
           )}
         </div>

@@ -24,6 +24,8 @@ export interface Session {
   user_messages: string[];
   /** 总 token 数 */
   total_tokens: number;
+  /** 按模型的 token 归因（模型名 → token；Σ == total_tokens）。旧数据/未解析时可能缺省 */
+  by_model?: Record<string, number>;
 }
 
 /** 搜索命中条目（对应 Rust SessionHit 结构体，扁平结构） */

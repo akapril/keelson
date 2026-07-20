@@ -87,6 +87,32 @@ describe("aggregateUsage", () => {
     expect(out.byProject[1].tokens).toBe(300);
   });
 
+  it("按模型分组：模型单价优先、缺省回退 provider、无 by_model 回退、恒等式成立", () => {
+    const out = aggregateUsage(
+      [
+        s({
+          session_id: "a",
+          provider: "claude",
+          total_tokens: 1_000_000,
+          by_model: { "claude-opus-4-8": 600_000, "claude-sonnet-4-6": 400_000 },
+        }),
+        s({ session_id: "b", provider: "codex", total_tokens: 500_000 }), // 无 by_model → 回退 {codex: 500000}
+      ],
+      { claude: 3, codex: 2 },
+      365,
+      { "claude-opus-4-8": 15 }, // 仅 opus 配了模型单价
+    );
+    const opus = out.byModel.find((m) => m.model === "claude-opus-4-8")!;
+    expect(opus.tokens).toBe(600_000);
+    expect(opus.cost).toBeCloseTo((600_000 / 1e6) * 15); // 模型单价 15
+    const sonnet = out.byModel.find((m) => m.model === "claude-sonnet-4-6")!;
+    expect(sonnet.cost).toBeCloseTo((400_000 / 1e6) * 3); // 回退 provider claude=3
+    const codexM = out.byModel.find((m) => m.model === "codex")!;
+    expect(codexM.tokens).toBe(500_000); // 无 by_model 回退到 {provider: 总token}
+    // 恒等式：byModel 总 token == 总 token
+    expect(out.byModel.reduce((n, m) => n + m.tokens, 0)).toBe(out.totalTokens);
+  });
+
   it("未配置单价的 provider 成本按 0 计", () => {
     const out = aggregateUsage(
       [s({ provider: "unknown", total_tokens: 1_000_000 })],
