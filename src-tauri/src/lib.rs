@@ -327,6 +327,9 @@ pub fn run() {
             commands::fs::open_path,
             // 返回 PocketBase 数据目录路径（设置页「打开数据目录」）
             commands::fs::pb_data_dir,
+            // 读仓库 markdown（「导入计划」对话框）
+            commands::fs::read_text_file,
+            commands::fs::list_markdown_files,
             // 网页抓取（阅读「AI 解析」）
             commands::web::fetch_url_text,
         ])

@@ -19,6 +19,7 @@ import {
   createProjectFromTemplate as _createProjectFromTemplate,
   type CreateProjectInput,
 } from "../features/board/create-project";
+import { taskAnchor, type PlanTask } from "../features/board/plan-import";
 import type {
   BoardTemplate,
   BoardProject,
@@ -116,6 +117,11 @@ interface BoardStoreState {
   closeProject: () => void;
   /** 在当前项目的指定状态列末尾新建任务 */
   createTask: (input: CreateTaskInput) => Promise<BoardTask>;
+  /** 导入计划任务为看板卡片（幂等：同 source_anchor 跳过）。 */
+  importPlanTasks: (
+    tasks: PlanTask[],
+    planName: string,
+  ) => Promise<{ created: number; skipped: number }>;
   /** 更新任务字段（乐观更新 + 写回 PB） */
   updateTask: (id: string, patch: Partial<BoardTask>) => Promise<void>;
   /** 删除任务 */
@@ -303,6 +309,35 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
     // 避免本地再追加一次造成重复显示。
     set((s) => ({ tasks: upsertById(s.tasks, created) }));
     return created;
+  },
+
+  // ── 导入计划任务为卡片（幂等） ───────────────────────────
+  importPlanTasks: async (tasks, planName) => {
+    const { states, tasks: existing, createTask, openedProjectId } = get();
+    if (!openedProjectId) return { created: 0, skipped: 0 };
+    // 落入首个 pending 列（无则首个 state）
+    const pending = states.find((s) => s.category === "pending") ?? states[0];
+    if (!pending) return { created: 0, skipped: 0 };
+    let created = 0;
+    let skipped = 0;
+    for (const t of tasks) {
+      const anchor = taskAnchor(planName, t.n);
+      // 幂等：项目内已有同 source_anchor 的卡片则跳过
+      if (existing.some((x) => x.source_anchor === anchor)) {
+        skipped++;
+        continue;
+      }
+      await createTask({
+        project: openedProjectId,
+        state: pending.id,
+        title: t.title,
+        description: t.body,
+        source_anchor: anchor,
+        source_provider: "rework-plan",
+      });
+      created++;
+    }
+    return { created, skipped };
   },
 
   // ── 更新任务（乐观 + PB 写回） ──────────────────────────
