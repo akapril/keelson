@@ -5,6 +5,7 @@ import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
 import { RestoreDialog } from "./RestoreDialog";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
+import { MemoryReviewDialog } from "../memory/MemoryReviewDialog";
 import { PromptDialog } from "@/components/prompt-dialog";
 import {
   ContextMenu,
@@ -79,6 +80,8 @@ export function SessionCard({
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   // 重命名对话框
   const [renameOpen, setRenameOpen] = useState(false);
+  // 提炼记忆对话框
+  const [memoryOpen, setMemoryOpen] = useState(false);
 
   // 显示名：自定义名优先，否则 Rust 序列化的 project_name
   const customName = customNames.get(session.session_id);
@@ -207,6 +210,7 @@ export function SessionCard({
           恢复会话
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => setTaskDialogOpen(true)}>建任务</ContextMenuItem>
+        <ContextMenuItem onSelect={() => setMemoryOpen(true)}>提炼记忆</ContextMenuItem>
         <ContextMenuItem onSelect={() => toggleFavorite(session.session_id)}>
           {isFav ? "取消收藏" : "收藏"}
         </ContextMenuItem>
@@ -260,6 +264,12 @@ export function SessionCard({
           onClose={() => setTaskDialogOpen(false)}
         />
       )}
+
+      {/* 提炼记忆对话框（从会话沉淀可复用记忆） */}
+      <MemoryReviewDialog
+        session={memoryOpen ? session : null}
+        onClose={() => setMemoryOpen(false)}
+      />
 
       {/* 会话重命名对话框（替代原生 prompt） */}
       <PromptDialog
