@@ -14,8 +14,8 @@ import { cn } from "@/lib/utils";
 import type { AiChatMessage } from "@/types/ai";
 import type { Session } from "../../types/session";
 
-// 预载进上下文的历史消息条数上限
-const SEED_LIMIT = 20;
+// 送 AI 的上下文条数上限（仅限制发给模型的历史，不影响展示的完整时间线）
+const CONTEXT_LIMIT = 20;
 
 export function SessionChat({
   session,
@@ -25,7 +25,10 @@ export function SessionChat({
   className?: string;
 }) {
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<AiChatMessage[]>([]);
+  // 历史时间线（完整、只读、不持久化）与续聊（本地持久化）分开，
+  // 避免种子截断/持久化覆盖导致"内容不全、与列表不一致"。
+  const [history, setHistory] = useState<AiChatMessage[]>([]);
+  const [continued, setContinued] = useState<AiChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [needConfig, setNeedConfig] = useState(false);
@@ -33,32 +36,33 @@ export function SessionChat({
   const listRef = useRef<HTMLDivElement>(null);
   const activeStreamId = useRef<string | null>(null);
 
-  const storeKey = `rework-ai-continue-${session.session_id}`;
+  // 用新 key，避免旧版（历史+续聊混存）数据被当作续聊重复展示
+  const storeKey = `rework-ai-continue2-${session.session_id}`;
 
-  // 切换会话：优先载入已保存续聊；否则拉时间线作为预载历史。
+  // 展示 = 完整历史 + 续聊
+  const messages = [...history, ...continued];
+
+  // 切换会话：读完整时间线为历史 + 载入已存续聊。
   useEffect(() => {
     let cancelled = false;
     setNeedConfig(false);
     setSeedError(null);
+    setHistory([]);
+    // 载入该会话已保存的续聊（仅续聊，不含历史）
     try {
       const raw = localStorage.getItem(storeKey);
-      if (raw) {
-        setMessages(JSON.parse(raw) as AiChatMessage[]);
-        scrollToBottom();
-        return;
-      }
+      setContinued(raw ? (JSON.parse(raw) as AiChatMessage[]) : []);
     } catch {
-      /* ignore */
+      setContinued([]);
     }
-    setMessages([]);
+    // 拉完整时间线（不截断），作为只读历史
     ipc
       .sessionTimeline(session.provider, session.session_id)
       .then((tl) => {
         if (cancelled) return;
-        setMessages(
+        setHistory(
           tl
             .filter((m) => m.role === "user" || m.role === "assistant")
-            .slice(-SEED_LIMIT)
             .map((m) => ({ role: m.role, content: m.content })),
         );
         scrollToBottom();
@@ -72,15 +76,16 @@ export function SessionChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.session_id]);
 
-  // 持久化续聊（非流式中）
+  // 仅持久化续聊（非流式中）；为空则清除，避免残留
   useEffect(() => {
     if (loading) return;
     try {
-      if (messages.length > 0) localStorage.setItem(storeKey, JSON.stringify(messages));
+      if (continued.length > 0) localStorage.setItem(storeKey, JSON.stringify(continued));
+      else localStorage.removeItem(storeKey);
     } catch {
       /* ignore */
     }
-  }, [messages, loading, storeKey]);
+  }, [continued, loading, storeKey]);
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -89,8 +94,9 @@ export function SessionChat({
     });
   }
 
+  // 流式更新落在续聊的最后一条（助手占位）
   const updateAssistant = (fn: (prev: string) => string) => {
-    setMessages((prev) => {
+    setContinued((prev) => {
       const last = prev[prev.length - 1];
       if (!last || last.role !== "assistant") return prev;
       return [...prev.slice(0, -1), { ...last, content: fn(last.content) }];
@@ -114,8 +120,8 @@ export function SessionChat({
     setNeedConfig(false);
 
     const userMsg: AiChatMessage = { role: "user", content: text };
-    const history = messages;
-    setMessages([...history, userMsg, { role: "assistant", content: "" }]);
+    // 追加到续聊（用户消息 + 助手占位，流式往占位里填）
+    setContinued((prev) => [...prev, userMsg, { role: "assistant", content: "" }]);
     setInput("");
     setLoading(true);
     scrollToBottom();
@@ -124,7 +130,9 @@ export function SessionChat({
       role: "system",
       content: `以下对话是用户此前在「${session.project_name}」项目中与 ${session.provider} CLI 的会话历史，请理解上下文并继续协助，用简洁中文回答。`,
     };
-    const reqMsgs: AiChatMessage[] = [sys, ...history, userMsg];
+    // 送 AI 的上下文：完整历史+续聊+本轮用户消息，截断到最近 CONTEXT_LIMIT 条（控成本）
+    const ctx = [...history, ...continued, userMsg].slice(-CONTEXT_LIMIT);
+    const reqMsgs: AiChatMessage[] = [sys, ...ctx];
     const streamId = crypto.randomUUID();
     activeStreamId.current = streamId;
 
