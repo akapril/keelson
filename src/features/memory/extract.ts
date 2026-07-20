@@ -95,3 +95,52 @@ export function classifyCandidates(
     return { candidate: cand, duplicateOf: null };
   });
 }
+
+/** 余弦相似度；任一零向量或长度不匹配返回 0。 */
+export function cosine(a: number[], b: number[]): number {
+  const n = Math.min(a.length, b.length);
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < n; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+/**
+ * 语义去重：与字符级 classifyCandidates 同形，但用向量余弦判重。
+ * 同 scope 且 cosine ≥ threshold 即视为重复（不看 kind）。向量按传入顺序与 candidates/existing 对齐。
+ */
+export function classifyBySimilarity(
+  candidates: MemoryCandidate[],
+  existing: Memory[],
+  candVecs: number[][],
+  existVecs: number[][],
+  threshold = 0.86,
+): ClassifiedCandidate[] {
+  const freshIdx: number[] = []; // 已收 fresh 候选的下标（用于批内去重）
+  return candidates.map((cand, ci) => {
+    const cv = candVecs[ci] ?? [];
+    // 命中已有：同 scope、最高相似度且过阈值
+    let bestId: string | null = null;
+    let best = threshold;
+    existing.forEach((m, ei) => {
+      if (m.superseded_by || m.scope !== cand.scope) return;
+      const sim = cosine(cv, existVecs[ei] ?? []);
+      if (sim >= best) {
+        best = sim;
+        bestId = m.id;
+      }
+    });
+    if (bestId) return { candidate: cand, duplicateOf: bestId };
+    // 批内重复
+    const dupInBatch = freshIdx.some(
+      (fi) => candidates[fi].scope === cand.scope && cosine(cv, candVecs[fi] ?? []) >= threshold,
+    );
+    if (dupInBatch) return { candidate: cand, duplicateOf: "" };
+    freshIdx.push(ci);
+    return { candidate: cand, duplicateOf: null };
+  });
+}

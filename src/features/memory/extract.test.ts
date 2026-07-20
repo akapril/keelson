@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { parseMemories, normalize, isDuplicate, classifyCandidates } from "./extract";
-import type { Memory } from "@/types/memory";
+import { parseMemories, normalize, isDuplicate, classifyCandidates, cosine, classifyBySimilarity } from "./extract";
+import type { Memory, MemoryKind, MemoryScope } from "@/types/memory";
+import type { MemoryCandidate } from "./extract";
 
 const mem = (id: string, content: string, kind = "fact", scope = "project"): Memory =>
   ({
@@ -66,5 +67,53 @@ describe("classifyCandidates", () => {
     expect(out[0].duplicateOf).toBe("m1");
     expect(out[1].duplicateOf).toBeNull();
     expect(out[2].duplicateOf).toBe("");
+  });
+});
+
+describe("cosine", () => {
+  it("同向量为 1", () => expect(cosine([1, 2, 3], [1, 2, 3])).toBeCloseTo(1));
+  it("正交为 0", () => expect(cosine([1, 0], [0, 1])).toBeCloseTo(0));
+  it("零向量为 0", () => expect(cosine([0, 0], [1, 1])).toBe(0));
+});
+
+describe("classifyBySimilarity", () => {
+  const cand = (content: string, scope: "global" | "project" = "project") =>
+    ({ content, kind: "fact", scope, confidence: 50 }) as MemoryCandidate;
+  const mem2 = (id: string, content: string, scope: "global" | "project" = "project") =>
+    ({ id, content, kind: "fact", scope, superseded_by: "" }) as unknown as Memory;
+
+  it("与已有语义相同 → duplicateOf 命中 id", () => {
+    const c = [cand("用中文写注释")];
+    const e = [mem2("m1", "注释使用中文")];
+    const out = classifyBySimilarity(c, e, [[1, 0, 0]], [[1, 0, 0]], 0.86);
+    expect(out[0].duplicateOf).toBe("m1");
+  });
+
+  it("语义不同 → fresh(null)", () => {
+    const c = [cand("使用 Rust")];
+    const e = [mem2("m1", "使用 Python")];
+    const out = classifyBySimilarity(c, e, [[1, 0, 0]], [[0, 1, 0]], 0.86);
+    expect(out[0].duplicateOf).toBeNull();
+  });
+
+  it("跨 kind 也判重（同 scope、向量相近）", () => {
+    const c = [{ content: "偏好深色", kind: "preference", scope: "project", confidence: 50 } as MemoryCandidate];
+    const e = [mem2("m1", "喜欢深色主题")]; // kind=fact
+    const out = classifyBySimilarity(c, e, [[1, 0]], [[1, 0]], 0.86);
+    expect(out[0].duplicateOf).toBe("m1");
+  });
+
+  it("不同 scope 不判重", () => {
+    const c = [cand("同一句话", "global")];
+    const e = [mem2("m1", "同一句话", "project")];
+    const out = classifyBySimilarity(c, e, [[1, 0]], [[1, 0]], 0.86);
+    expect(out[0].duplicateOf).toBeNull();
+  });
+
+  it("批内重复 → duplicateOf 空串", () => {
+    const c = [cand("第一条"), cand("第一条近义")];
+    const out = classifyBySimilarity(c, [], [[1, 0], [1, 0]], [], 0.86);
+    expect(out[0].duplicateOf).toBeNull();
+    expect(out[1].duplicateOf).toBe("");
   });
 });
