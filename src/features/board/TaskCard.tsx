@@ -2,6 +2,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Calendar03Icon,
@@ -10,10 +11,21 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { Badge } from "@/components/ui/badge";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuLabel,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
+} from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/store/board";
 import type { BoardTask } from "@/types/board";
-import { PRIORITY_META } from "./board-meta";
+import { PRIORITY_META, PRIORITY_ORDER } from "./board-meta";
 
 // ── 日期格式化 ────────────────────────────────────────────────
 function formatDate(dateStr: string): string {
@@ -41,7 +53,41 @@ interface TaskCardProps {
  */
 export function TaskCard({ task, onEdit }: TaskCardProps) {
   const labels = useBoardStore((s) => s.labels);
+  const states = useBoardStore((s) => s.states);
+  const tasks = useBoardStore((s) => s.tasks);
+  const updateTask = useBoardStore((s) => s.updateTask);
+  const deleteTask = useBoardStore((s) => s.deleteTask);
+  const moveTask = useBoardStore((s) => s.moveTask);
   const navigate = useNavigate();
+
+  // 右键菜单：改优先级（同优先级不重复写）
+  const setPriority = (p: BoardTask["priority"]) => {
+    if (p === task.priority) return;
+    void updateTask(task.id, { priority: p }).catch((e) =>
+      toast.error(`修改优先级失败：${String(e)}`),
+    );
+  };
+  // 右键菜单：移动到目标状态列（追加到末尾）
+  const moveTo = (stateId: string) => {
+    if (stateId === task.state) return;
+    const toIndex = tasks.filter((t) => t.state === stateId).length;
+    void moveTask(task.id, stateId, toIndex).catch((e) =>
+      toast.error(`移动失败：${String(e)}`),
+    );
+  };
+  // 右键菜单：删除
+  const remove = () => {
+    void deleteTask(task.id)
+      .then(() => toast.success("已删除任务"))
+      .catch((e) => toast.error(`删除失败：${String(e)}`));
+  };
+  // 右键菜单：跳转来源会话（不经卡片点击事件）
+  const goSource = () => {
+    if (!task.source_session_id) return;
+    const params = new URLSearchParams({ session: task.source_session_id });
+    if (task.source_provider) params.set("provider", task.source_provider);
+    navigate(`/sessions?${params.toString()}`);
+  };
 
   const {
     attributes,
@@ -74,6 +120,8 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
   const overdue = task.due_date ? isOverdue(task.due_date) : false;
 
   return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
     <div
       ref={setNodeRef}
       style={style}
@@ -162,5 +210,64 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
         )}
       </div>
     </div>
+      </ContextMenuTrigger>
+
+      {/* 右键菜单：编辑 / 优先级 / 移动 / 来源会话 / 删除 */}
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => onEdit?.(task)}>编辑</ContextMenuItem>
+
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>优先级</ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            {PRIORITY_ORDER.map((p) => (
+              <ContextMenuItem key={p} onSelect={() => setPriority(p)}>
+                <span className={cn("size-1.5 rounded-full", PRIORITY_META[p].dot)} />
+                {PRIORITY_META[p].label}
+                {p === task.priority && (
+                  <span className="ml-auto text-xs text-muted-foreground">当前</span>
+                )}
+              </ContextMenuItem>
+            ))}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>移动到</ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            {states.length === 0 ? (
+              <ContextMenuLabel>无可用状态列</ContextMenuLabel>
+            ) : (
+              states.map((st) => (
+                <ContextMenuItem
+                  key={st.id}
+                  disabled={st.id === task.state}
+                  onSelect={() => moveTo(st.id)}
+                >
+                  <span className="size-1.5 rounded-full" style={{ backgroundColor: st.color }} />
+                  {st.name}
+                  {st.id === task.state && (
+                    <span className="ml-auto text-xs text-muted-foreground">当前</span>
+                  )}
+                </ContextMenuItem>
+              ))
+            )}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+
+        {task.source_session_id && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={goSource}>
+              跳转来源会话
+            </ContextMenuItem>
+          </>
+        )}
+
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onSelect={remove}>
+          删除
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
