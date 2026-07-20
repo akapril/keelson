@@ -1,6 +1,7 @@
 // WorkspaceCommits —— 工作台「提交」面：commit → 催生它的会话（溯源反向）。
 // 列最近提交；每条按 trailer(精确) / 时间窗(可能相关) 反查会话，点击跳会话中枢。
 import { useEffect, useMemo, useState } from "react";
+import { Virtualizer } from "virtua";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -120,13 +121,13 @@ export function WorkspaceCommits({ repoPath }: { repoPath: string }) {
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="flex flex-col gap-1.5">
+          <Virtualizer>
             {commits.map((c) => {
           const links = commitLinkedSessions(c, repoSessions);
           return (
             <div
               key={c.hash}
-              className="rounded-lg border border-border bg-card px-3 py-2"
+              className="mb-1.5 rounded-lg border border-border bg-card px-3 py-2"
             >
               <div className="flex items-center gap-2 text-sm">
                 <HugeiconsIcon
@@ -176,7 +177,7 @@ export function WorkspaceCommits({ repoPath }: { repoPath: string }) {
             </div>
           );
         })}
-          </div>
+          </Virtualizer>
         </div>
       )}
     </div>

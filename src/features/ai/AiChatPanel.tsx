@@ -1,7 +1,7 @@
 // AiChatPanel —— 项目级 AI 对话面板（流式 + 可选项目上下文/RAG）。
 // 消息仅本地内存（不持久化，YAGNI）；流式经 ipc.aiChatStream 逐块渲染。
 // 「包含项目上下文」开启后，注入本项目的文档 + 关联会话作为参考资料。
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SentIcon, AiChat02Icon, Delete02Icon } from "@hugeicons/core-free-icons";
@@ -39,6 +39,52 @@ function briefErr(result: string): string {
     return "失败";
   }
 }
+
+// 单条消息气泡（memo）：流式时只有内容变化的那条（最后一条）重渲染，
+// 已完成的助手气泡不再重复解析 markdown —— 消除长对话流式时的卡顿。
+const MessageRow = memo(function MessageRow({
+  message,
+  isStreaming,
+}: {
+  message: AiChatMessage;
+  isStreaming: boolean;
+}) {
+  // 工具活动行（role=system）：居中小胶囊
+  if (message.role === "system") {
+    return (
+      <div className="flex justify-center">
+        <span className="rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
+          {message.content}
+        </span>
+      </div>
+    );
+  }
+  const isUser = message.role === "user";
+  const isError = message.role === "assistant" && message.content.startsWith("请求失败：");
+  const streamingThis = message.role === "assistant" && isStreaming;
+  // 流式中的空助手气泡显示光标
+  const display = message.content || (streamingThis ? "▍" : "");
+  // 流式中先纯文本，结束后再 markdown（避免每 token 全量重解析）
+  const renderMarkdown =
+    message.role === "assistant" && !isError && !!message.content && !streamingThis;
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+          isUser
+            ? "whitespace-pre-wrap bg-primary/10 text-foreground"
+            : isError
+              ? "whitespace-pre-wrap bg-destructive/10 text-destructive"
+              : renderMarkdown
+                ? "bg-muted text-foreground"
+                : "whitespace-pre-wrap bg-muted text-foreground"
+        }`}
+      >
+        {renderMarkdown ? <Markdown content={message.content} /> : display}
+      </div>
+    </div>
+  );
+});
 
 interface AiChatPanelProps {
   projectId: string;
@@ -293,48 +339,13 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
           </div>
         )}
 
-        {messages.map((m, i) => {
-          // 工具活动行（role=system）：居中的小胶囊
-          if (m.role === "system") {
-            return (
-              <div key={i} className="flex justify-center">
-                <span className="rounded-full bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground">
-                  {m.content}
-                </span>
-              </div>
-            );
-          }
-          const isUser = m.role === "user";
-          const isError =
-            m.role === "assistant" && m.content.startsWith("请求失败：");
-          const isLast = i === messages.length - 1;
-          // 流式中最后一条空助手气泡显示光标
-          const display =
-            m.content || (m.role === "assistant" && isLast && loading ? "▍" : "");
-          // 助手正文用 markdown 渲染；用户消息与错误保持纯文本。
-          // 性能：正在流式的最后一条助手气泡先用纯文本（避免每 token 全量重解析 markdown，O(n²) 卡顿），
-          // 流结束后再渲染为 markdown。
-          const streamingThis = m.role === "assistant" && isLast && loading;
-          const renderMarkdown =
-            m.role === "assistant" && !isError && !!m.content && !streamingThis;
-          return (
-            <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
-                  isUser
-                    ? "whitespace-pre-wrap bg-primary/10 text-foreground"
-                    : isError
-                      ? "whitespace-pre-wrap bg-destructive/10 text-destructive"
-                      : renderMarkdown
-                        ? "bg-muted text-foreground"
-                        : "whitespace-pre-wrap bg-muted text-foreground"
-                }`}
-              >
-                {renderMarkdown ? <Markdown content={m.content} /> : display}
-              </div>
-            </div>
-          );
-        })}
+        {messages.map((m, i) => (
+          <MessageRow
+            key={i}
+            message={m}
+            isStreaming={i === messages.length - 1 && loading}
+          />
+        ))}
       </div>
 
       {/* 未配置密钥引导卡片 */}
