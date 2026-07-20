@@ -16,6 +16,7 @@ import { UpdateSection } from "@/features/updater/UpdateSection";
 import { BackendSection } from "@/features/backend/BackendSection";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
+import { on } from "@/lib/tauri/events";
 import {
   newSessionsPref,
   setNewSessionsPref,
@@ -320,8 +321,21 @@ export default function Settings() {
     }
   });
 
-  // 「重建索引」加载状态
+  // 「重建索引」加载状态 + 进度(会话数，0/结束为 null)
   const [rebuilding, setRebuilding] = useState(false);
+  const [indexProgress, setIndexProgress] = useState<number | null>(null);
+  // 上次成功建索引时的 embed 标识（provider:model），用于提示"配置已变，请重建"
+  const [lastIndexedModel, setLastIndexedModel] = useState<string>(
+    () => localStorage.getItem("rework-rag-indexed-model") ?? "",
+  );
+
+  // 监听后端索引进度事件（rag_build_index emit）
+  useEffect(() => {
+    const p = on<number>("rag-index-progress", (n) => setIndexProgress(n > 0 ? n : null));
+    return () => {
+      void p.then((un) => un());
+    };
+  }, []);
 
   /**
    * 更新嵌入配置。按嵌入服务商隔离各自字段，切换服务商互不覆盖：
@@ -368,6 +382,24 @@ export default function Settings() {
     });
   }
 
+  // 当前嵌入标识 + 索引是否可能过期（已建过、但 provider/model 变了）
+  const embedModelId = `${embedCfg.provider}:${embedCfg.model}`;
+  const indexStale = !!lastIndexedModel && lastIndexedModel !== embedModelId;
+  // AI 对话是否为「OpenAI 兼容 + 有 key」，可复用其密钥做 embeddings
+  const aiReusable = aiConfig.provider === "openai" && !!aiConfig.api_key;
+
+  /** 一键复用 AI 对话的 OpenAI 密钥做 embeddings（切到 api 并填 base_url/key/model） */
+  const reuseAiKey = () => {
+    if (!aiReusable) return;
+    setEmbed({ provider: "api" }); // 先切 provider（其字段隔离逻辑会先加载 api 快照）
+    setEmbed({
+      base_url: aiConfig.base_url,
+      api_key: aiConfig.api_key,
+      model: "text-embedding-3-small",
+    });
+    toast.success("已复用 AI 对话的 OpenAI 密钥（可点「重建索引」启用语义）");
+  };
+
   /** 调用后端重建全量嵌入索引 */
   const rebuildIndex = async () => {
     setRebuilding(true);
@@ -377,11 +409,15 @@ export default function Settings() {
         toast(`暂无会话可索引（可能扫描未完成）`);
       } else {
         toast.success(`索引完成：${n} 个片段`);
+        // 记录本次索引的 embed 标识，供"过期"提示比对
+        localStorage.setItem("rework-rag-indexed-model", embedModelId);
+        setLastIndexedModel(embedModelId);
       }
     } catch (e) {
       toast.error(`索引失败：${String(e)}`);
     } finally {
       setRebuilding(false);
+      setIndexProgress(null);
     }
   };
 
@@ -633,6 +669,25 @@ export default function Settings() {
               Mock 是占位假向量、非真实语义。「问」模式此时将改用<strong>关键词检索</strong>；要语义检索请选 local 或 api。
             </p>
           )}
+          {embedCfg.provider === "local" && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              本地嵌入需以 <code>--features local-embed</code> 构建的版本才可用；当前版本若未包含，选它会静默回退关键词。想开箱即用语义，建议用 api（可一键复用 AI 密钥）。
+            </p>
+          )}
+          {/* 主线 A：一键复用 AI 对话的 OpenAI 密钥 */}
+          <button
+            type="button"
+            onClick={reuseAiKey}
+            disabled={!aiReusable}
+            title={
+              aiReusable
+                ? "把 AI 对话配置的 OpenAI base_url/密钥填入嵌入(api)"
+                : "需先在「AI 助手」把服务商设为 OpenAI 并填密钥"
+            }
+            className="text-xs text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+          >
+            复用 AI 对话的 OpenAI 密钥启用语义检索
+          </button>
         </div>
 
         {/* 仅 api 时显示 base_url 和 api_key */}
@@ -675,15 +730,22 @@ export default function Settings() {
           />
         </div>
 
-        {/* 重建索引 */}
-        <Button
-          onClick={rebuildIndex}
-          disabled={rebuilding}
-          variant="outline"
-          size="sm"
-        >
-          {rebuilding ? "索引中…" : "重建索引"}
-        </Button>
+        {/* 索引过期提示（provider/model 变了） */}
+        {indexStale && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            嵌入配置已变（上次索引用 {lastIndexedModel}），语义检索可能过期，请点「重建索引」。
+          </p>
+        )}
+
+        {/* 重建索引 + 进度 */}
+        <div className="flex items-center gap-3">
+          <Button onClick={rebuildIndex} disabled={rebuilding} variant="outline" size="sm">
+            {rebuilding ? "索引中…" : "重建索引"}
+          </Button>
+          {rebuilding && indexProgress != null && (
+            <span className="text-xs text-muted-foreground">索引中…（{indexProgress} 会话）</span>
+          )}
+        </div>
 
         {/* 数据流向说明 */}
         <p className="text-xs text-muted-foreground">
