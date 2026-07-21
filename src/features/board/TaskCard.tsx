@@ -25,6 +25,7 @@ import {
   ContextMenuSubContent,
 } from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
+import { stripMarkdown } from "@/lib/markdown-preview";
 import { useBoardStore } from "@/store/board";
 import type { BoardTask } from "@/types/board";
 import { PRIORITY_META, PRIORITY_ORDER } from "./board-meta";
@@ -210,7 +211,8 @@ export function TaskCard({
             strokeWidth={2}
             className="size-3 shrink-0"
           />
-          <span className="truncate">{task.description}</span>
+          {/* 预览：剥掉 markdown 语法噪声后单行截断（描述可能是 markdown 数据） */}
+          <span className="truncate">{stripMarkdown(task.description)}</span>
         </div>
       )}
 
