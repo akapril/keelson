@@ -23,7 +23,8 @@ export async function openDocWindow(id: string, title?: string): Promise<void> {
     height: 720,
     minWidth: 480,
     minHeight: 400,
-    decorations: true, // 独立窗口用原生边框，最小化/最大化/关闭开箱即用
+    // 无原生标题栏，与主窗口一致用自建 TitleBar（拖拽 + 最小化/最大化/关闭）
+    decorations: false,
   });
   win.once("tauri://error", (e) => {
     console.error("打开文档窗口失败", e);
