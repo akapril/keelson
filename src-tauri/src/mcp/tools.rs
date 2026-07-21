@@ -97,11 +97,16 @@ async fn update_task(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     Ok(json!({ "ok": true, "id": id }))
 }
 
+/// docs 多对多过滤：projects 关系「包含」该项目 id（值做最简转义，禁双引号注入）。
+fn docs_by_project(project_id: &str) -> String {
+    format!("projects ~ \"{}\"", project_id.replace('"', ""))
+}
+
 async fn list_docs(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     let pid = require_str(&args, "project_id")?;
     let items = ctx
         .client
-        .list("docs", &by_project(&pid), "id,title")
+        .list("docs", &docs_by_project(&pid), "id,title")
         .await
         .or_else(|e| err(e))?;
     Ok(json!(items))
@@ -110,7 +115,8 @@ async fn list_docs(args: Value, ctx: &McpCtx) -> Result<Value, String> {
 async fn create_doc(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     let pid = require_str(&args, "project_id")?;
     let title = require_str(&args, "title")?;
-    let mut data = json!({ "owner": ctx.user_id, "project": pid, "title": title });
+    // 多对多：写 projects 数组（含当前项目）
+    let mut data = json!({ "owner": ctx.user_id, "projects": [pid], "title": title });
     if let Some(c) = opt_str(&args, "content") { data["content"] = json!(c); }
     let rec = ctx.client.create("docs", &data).await.or_else(|e| err(e))?;
     Ok(json!({ "ok": true, "id": rec["id"], "title": title }))

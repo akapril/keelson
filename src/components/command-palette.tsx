@@ -139,13 +139,13 @@ export function CommandPalette() {
                 // value 含 query，确保 cmdk 不会按其模糊算法把已匹配项过滤掉
                 value={`文档 ${query} ${d.title} ${d.id}`}
                 onSelect={() =>
-                  go(workspaceRecordUrl("board", d.project, { tab: "docs", doc: d.id }))
+                  go(workspaceRecordUrl("board", d.projects[0] ?? "", { tab: "docs", doc: d.id }))
                 }
               >
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate">{d.title || "未命名文档"}</span>
                   <span className="truncate text-xs text-muted-foreground">
-                    {projectNameById.get(d.project) ?? "文档"} · {docSnippet(d.content, q)}
+                    {projectNameById.get(d.projects[0] ?? "") ?? "文档"} · {docSnippet(d.content, q)}
                   </span>
                 </span>
               </CommandItem>

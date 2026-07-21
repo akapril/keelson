@@ -159,7 +159,7 @@ export function DistillDialog({
       for (const d of chosenDocs) {
         await createDocRecord({
           owner,
-          project: projectId,
+          projects: [projectId],
           title: d.title,
           content: d.content,
         });

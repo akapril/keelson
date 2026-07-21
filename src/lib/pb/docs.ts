@@ -5,9 +5,9 @@ import { COL } from "./collections";
 import type { BoardDoc } from "../../types/docs";
 
 // ── 查询辅助 ──────────────────────────────────────────────
-/** 按项目 ID 过滤的 PB filter 字符串 */
+/** 按项目 ID 过滤：projects 多选关系「包含」该项目（多对多）。 */
 const byProject = (projectId: string) =>
-  pb.filter("project = {:p}", { p: projectId });
+  pb.filter("projects ~ {:p}", { p: projectId });
 
 // ── 列表查询 ──────────────────────────────────────────────
 

@@ -88,9 +88,12 @@ export default function DocsPage() {
   const groups = useMemo(() => {
     const map = new Map<string, BoardDoc[]>();
     for (const d of filtered) {
-      const arr = map.get(d.project) ?? [];
-      arr.push(d);
-      map.set(d.project, arr);
+      // 多对多：文档出现在其每个关联项目分组下；孤档（无项目）不在此展示
+      for (const pid of d.projects ?? []) {
+        const arr = map.get(pid) ?? [];
+        arr.push(d);
+        map.set(pid, arr);
+      }
     }
     for (const arr of map.values())
       arr.sort((a, b) => (b.updated > a.updated ? 1 : -1));
@@ -98,7 +101,9 @@ export default function DocsPage() {
   }, [filtered]);
 
   const open = (d: BoardDoc) =>
-    navigate(workspaceRecordUrl("board", d.project, { tab: "docs", doc: d.id }));
+    navigate(
+      workspaceRecordUrl("board", d.projects[0] ?? "", { tab: "docs", doc: d.id }),
+    );
 
   // 新建速记：写入「速记」Inbox 项目并跳到编辑器
   const createQuickNote = async () => {
@@ -108,7 +113,7 @@ export default function DocsPage() {
       const inbox = await ensureInboxProject();
       const doc = await createDocRecord({
         owner: currentUserId(),
-        project: inbox.id,
+        projects: [inbox.id],
         title: "未命名速记",
         content: "",
       });
@@ -124,7 +129,7 @@ export default function DocsPage() {
   const confirmMove = async () => {
     if (!movingDoc || !moveTarget) return;
     try {
-      await updateDocRecord(movingDoc.id, { project: moveTarget });
+      await updateDocRecord(movingDoc.id, { projects: [moveTarget] });
       toast.success("已移动");
       setMovingDoc(null);
       reload();
@@ -239,7 +244,7 @@ export default function DocsPage() {
             </SelectTrigger>
             <SelectContent>
               {projects
-                .filter((p) => p.id !== movingDoc?.project)
+                .filter((p) => !movingDoc?.projects?.includes(p.id))
                 .map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name}

@@ -47,7 +47,7 @@ interface DocsStoreState {
   /** 更新文档标题 / 内容（乐观更新 + 回滚） */
   updateDoc: (
     id: string,
-    patch: Partial<Pick<BoardDoc, "title" | "content">>,
+    patch: Partial<Pick<BoardDoc, "title" | "content" | "projects">>,
   ) => Promise<void>;
   /** 删除文档（乐观移除 + 回滚） */
   deleteDoc: (id: string) => Promise<void>;
@@ -91,7 +91,7 @@ export const useDocsStore = create<DocsStoreState>((set, get) => ({
   createDoc: async (projectId: string, title: string) => {
     const created = await createDocRecord({
       owner: currentUserId(),
-      project: projectId,
+      projects: [projectId], // 多对多：新建时链接当前项目
       title,
       content: "", // 内容默认空串
     });

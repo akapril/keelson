@@ -84,7 +84,7 @@ export function ImportPlanDialog({
           const md = await ipc.readTextFile(specPath);
           await createDocRecord({
             owner: currentUserId(),
-            project: project.id,
+            projects: [project.id],
             title: parseDocTitle(md) || specNameForPlan(sel.name),
             content: md,
           });

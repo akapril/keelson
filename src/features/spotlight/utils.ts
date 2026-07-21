@@ -63,7 +63,7 @@ export function docToItem(doc: BoardDoc): NavSpotlightItem {
   return {
     kind: "doc",
     label: doc.title || "(无标题文档)",
-    path: workspaceRecordUrl("board", doc.project, { tab: "docs", doc: doc.id }),
+    path: workspaceRecordUrl("board", doc.projects[0] ?? "", { tab: "docs", doc: doc.id }),
   };
 }
 
