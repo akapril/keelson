@@ -23,9 +23,12 @@ function shortWhen(iso: string): string {
  */
 export function SessionCommits({ session }: { session: Session }) {
   const [commits, setCommits] = useState<CorrelatedCommit[]>([]);
+  // 关联提交需跑 git 扫描，可能较慢：区分「查找中」与「无关联」，避免误以为无数据
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     ipc
       .sessionCommits(session.session_id, session.provider)
       .then((list) => {
@@ -34,12 +37,27 @@ export function SessionCommits({ session }: { session: Session }) {
       .catch(() => {
         // 非仓库 / git 失败不阻断预览；静默留空
         if (!cancelled) setCommits([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, [session.session_id, session.provider]);
 
+  // 查找中：给一条轻量提示，明确"正在查而非没有"
+  if (loading) {
+    return (
+      <div className="shrink-0 border-t border-border pt-3">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <HugeiconsIcon icon={GitCommitIcon} strokeWidth={2} className="size-3.5 animate-pulse" />
+          正在查找此会话期间的提交…
+        </div>
+      </div>
+    );
+  }
+  // 查完确无关联 → 不渲染（避免占位噪声）
   if (commits.length === 0) return null;
 
   return (
