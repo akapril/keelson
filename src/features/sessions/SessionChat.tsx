@@ -18,6 +18,9 @@ import type { Session } from "../../types/session";
 // 送 AI 的上下文条数上限（仅限制发给模型的历史，不影响展示的完整时间线）
 const CONTEXT_LIMIT = 20;
 
+// 初始只渲染最近 N 条气泡，更早的按需展开（长会话上百条时避免一次性渲染 markdown 卡顿）
+const VISIBLE_LIMIT = 60;
+
 // 单条历史气泡（memo）：完整会话历史可能很长，流式续聊时只重渲变化的那条，
 // 已完成的助手气泡不重复解析 markdown（消除 O(n²) 卡顿）。
 const HistoryBubble = memo(function HistoryBubble({
@@ -69,6 +72,10 @@ export function SessionChat({
   const [loading, setLoading] = useState(false);
   const [needConfig, setNeedConfig] = useState(false);
   const [seedError, setSeedError] = useState<string | null>(null);
+  // 历史时间线加载中：区分「正在读取」与「真的没有消息」，避免误以为无数据
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  // 是否展开更早的消息（长会话默认只显示最近 VISIBLE_LIMIT 条）
+  const [showAll, setShowAll] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const activeStreamId = useRef<string | null>(null);
 
@@ -84,6 +91,8 @@ export function SessionChat({
     setNeedConfig(false);
     setSeedError(null);
     setHistory([]);
+    setShowAll(false);
+    setLoadingHistory(true);
     // 载入该会话已保存的续聊（仅续聊，不含历史）
     try {
       const raw = localStorage.getItem(storeKey);
@@ -105,6 +114,9 @@ export function SessionChat({
       })
       .catch((e: unknown) => {
         if (!cancelled) setSeedError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingHistory(false);
       });
     return () => {
       cancelled = true;
@@ -201,18 +213,46 @@ export function SessionChat({
         {seedError && (
           <p className="text-center text-sm text-destructive">载入历史失败：{seedError}</p>
         )}
-        {messages.length === 0 && !seedError && (
+        {/* 加载中骨架：区分「正在读取会话消息」与「真的没有消息」 */}
+        {loadingHistory && messages.length === 0 && !seedError && (
+          <div className="space-y-3 py-2" aria-live="polite">
+            <p className="text-center text-xs text-muted-foreground">正在加载会话消息…</p>
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className={cn("flex", i % 2 ? "justify-end" : "justify-start")}
+              >
+                <div className="h-10 w-2/3 animate-pulse rounded-2xl bg-muted" />
+              </div>
+            ))}
+          </div>
+        )}
+        {!loadingHistory && messages.length === 0 && !seedError && (
           <p className="py-8 text-center text-sm text-muted-foreground">
             此会话暂无消息，或直接在下方继续对话。
           </p>
         )}
-        {messages.map((m, i) => (
-          <HistoryBubble
-            key={i}
-            message={m}
-            isStreaming={i === messages.length - 1 && loading}
-          />
-        ))}
+        {/* 长会话分页：默认只渲染最近 VISIBLE_LIMIT 条，顶部按钮展开更早的 */}
+        {messages.length > VISIBLE_LIMIT && !showAll && (
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="mx-auto block rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            显示更早的 {messages.length - VISIBLE_LIMIT} 条消息
+          </button>
+        )}
+        {(showAll ? messages : messages.slice(-VISIBLE_LIMIT)).map((m, idx) => {
+          // 绝对索引：分页切片后仍需与"最后一条=流式中"对齐、并保持稳定 key
+          const absolute = showAll ? idx : Math.max(0, messages.length - VISIBLE_LIMIT) + idx;
+          return (
+            <HistoryBubble
+              key={absolute}
+              message={m}
+              isStreaming={absolute === messages.length - 1 && loading}
+            />
+          );
+        })}
       </div>
 
       {/* 未配置密钥引导 */}
