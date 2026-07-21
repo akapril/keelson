@@ -32,17 +32,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
 import {
   MilkdownDocumentEditor,
   type DocumentEditorMode,
 } from "@/features/docs/MilkdownDocumentEditor";
 import { parseHeadings } from "@/features/docs/toc";
+import { parseWikiLinks, contentLinksTo } from "@/features/docs/wiki-links";
 import { openDocWindow, closeThisWindow } from "@/lib/tauri/window";
 import {
   getDocRecord,
   updateDocRecord,
   deleteDocRecord,
+  listAllDocs,
 } from "@/lib/pb/docs";
 import { listProjects } from "@/lib/pb/board";
 import type { BoardDoc } from "@/types/docs";
@@ -54,6 +55,7 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
 
   const [doc, setDoc] = useState<BoardDoc | null>(null);
   const [projects, setProjects] = useState<BoardProject[]>([]);
+  const [allDocs, setAllDocs] = useState<BoardDoc[]>([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [projectIds, setProjectIds] = useState<string[]>([]);
@@ -83,6 +85,8 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
         if (!cancelled) setLoadState("missing");
       });
     void listProjects().then((ps) => !cancelled && setProjects(ps)).catch(() => {});
+    // 全部文档：用于 Wiki 双链的出链解析与反向链接计算
+    void listAllDocs().then((ds) => !cancelled && setAllDocs(ds)).catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -125,6 +129,29 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
 
   // 大纲：从正文解析标题（跳过代码块内 #）
   const headings = useMemo(() => parseHeadings(content), [content]);
+
+  // Wiki 双链：出链（本文 [[标题]] 解析到的文档）+ 反向链接（引用了本文标题的文档）
+  const titleToDoc = useMemo(() => {
+    const m = new Map<string, BoardDoc>();
+    for (const d of allDocs) if (d.title) m.set(d.title.trim().toLowerCase(), d);
+    return m;
+  }, [allDocs]);
+
+  const outLinks = useMemo(() => {
+    // 解析到的目标标题 → { target, doc?(命中则可跳转) }
+    return parseWikiLinks(content).map((target) => ({
+      target,
+      doc: titleToDoc.get(target.toLowerCase()),
+    }));
+  }, [content, titleToDoc]);
+
+  const backLinks = useMemo(() => {
+    const t = (title || "").trim();
+    if (!t) return [];
+    return allDocs.filter((d) => d.id !== id && contentLinksTo(d.content, t));
+  }, [allDocs, id, title]);
+
+  const hasAside = headings.length > 0 || outLinks.length > 0 || backLinks.length > 0;
 
   // 点击大纲项：滚动到富文本中第 index 个标题（source/diff 模式先切回富文本）
   const scrollToHeading = useCallback(
@@ -287,30 +314,88 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
           />
         </div>
 
-        {/* 大纲侧栏（有标题才显示） */}
-        {headings.length > 0 && (
-          <nav className="hidden w-56 shrink-0 flex-col overflow-y-auto lg:flex">
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <HugeiconsIcon icon={ListViewIcon} strokeWidth={2} className="size-3.5" />
-              大纲
-            </div>
-            <ul className="flex flex-col gap-0.5">
-              {headings.map((h) => (
-                <li key={h.index}>
-                  <button
-                    type="button"
-                    onClick={() => scrollToHeading(h.index)}
-                    className={cn(
-                      "block w-full truncate rounded-md px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                    )}
-                    style={{ paddingLeft: `${(h.level - 1) * 12 + 8}px` }}
-                    title={h.text}
-                  >
-                    {h.text}
-                  </button>
-                </li>
-              ))}
-            </ul>
+        {/* 右侧栏：大纲 TOC + Wiki 双链（出链/反向链接） */}
+        {hasAside && (
+          <nav className="hidden w-56 shrink-0 flex-col gap-5 overflow-y-auto lg:flex">
+            {headings.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <HugeiconsIcon icon={ListViewIcon} strokeWidth={2} className="size-3.5" />
+                  大纲
+                </div>
+                <ul className="flex flex-col gap-0.5">
+                  {headings.map((h) => (
+                    <li key={h.index}>
+                      <button
+                        type="button"
+                        onClick={() => scrollToHeading(h.index)}
+                        className="block w-full truncate rounded-md px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        style={{ paddingLeft: `${(h.level - 1) * 12 + 8}px` }}
+                        title={h.text}
+                      >
+                        {h.text}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* 出链：本文用 [[标题]] 引用的其它文档（命中可点跳转，未命中灰显） */}
+            {outLinks.length > 0 && (
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  出链 · [[…]]
+                </div>
+                <ul className="flex flex-col gap-0.5">
+                  {outLinks.map((l, i) =>
+                    l.doc ? (
+                      <li key={`${l.target}-${i}`}>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/docs/${l.doc!.id}`)}
+                          className="block w-full truncate rounded-md px-2 py-1 text-left text-xs text-primary transition-colors hover:bg-muted"
+                          title={l.target}
+                        >
+                          {l.target}
+                        </button>
+                      </li>
+                    ) : (
+                      <li
+                        key={`${l.target}-${i}`}
+                        className="truncate px-2 py-1 text-xs text-muted-foreground/50"
+                        title="未找到同名文档"
+                      >
+                        {l.target}（未创建）
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </div>
+            )}
+
+            {/* 反向链接：其它文档用 [[本文标题]] 引用了本文 */}
+            {backLinks.length > 0 && (
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  反向链接（{backLinks.length}）
+                </div>
+                <ul className="flex flex-col gap-0.5">
+                  {backLinks.map((d) => (
+                    <li key={d.id}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/docs/${d.id}`)}
+                        className="block w-full truncate rounded-md px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        title={d.title}
+                      >
+                        {d.title || "未命名文档"}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </nav>
         )}
       </div>
