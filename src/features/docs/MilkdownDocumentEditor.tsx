@@ -54,6 +54,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import {
   AiChat02Icon,
   CodeIcon,
+  EyeIcon,
   FileDiffIcon,
   LeftToRightListBulletIcon,
   LeftToRightListNumberIcon,
@@ -97,8 +98,9 @@ import { uploadDocAsset, resolveAssetURL } from "@/lib/pb/assets"
 import { useSettingsStore } from "@/store/settings"
 import { createDocAiProvider, aiConfigUsable } from "./doc-ai"
 import { parseHeadings } from "./toc"
+import { DocPreview } from "./DocPreview"
 
-export type DocumentEditorMode = "rich-text" | "source" | "diff"
+export type DocumentEditorMode = "rich-text" | "source" | "diff" | "preview"
 
 // 代码块高亮支持的语言列表。
 // 说明：仅保留 rework 已安装 codemirror 语言依赖的条目
@@ -279,6 +281,7 @@ function MilkdownEditorBody({
         />
       )}
       {mode === "diff" && <MarkdownDiff before={savedValue} after={value} />}
+      {mode === "preview" && <DocPreview content={value} />}
     </div>
   )
 }
@@ -455,6 +458,12 @@ function MilkdownToolbar({
           onClick={() => onModeChange("diff")}
           icon={FileDiffIcon}
         />
+        <ModeButton
+          label="预览（渲染 Mermaid 图表）"
+          active={mode === "preview"}
+          onClick={() => onModeChange("preview")}
+          icon={EyeIcon}
+        />
         <Separator
           orientation="vertical"
           className="mx-1 h-5 data-vertical:self-center"
@@ -569,6 +578,7 @@ function EditorContextMenu({
             <ContextMenuItem onSelect={() => onModeChange("rich-text")}>富文本</ContextMenuItem>
             <ContextMenuItem onSelect={() => onModeChange("source")}>源码</ContextMenuItem>
             <ContextMenuItem onSelect={() => onModeChange("diff")}>Diff</ContextMenuItem>
+            <ContextMenuItem onSelect={() => onModeChange("preview")}>预览（Mermaid）</ContextMenuItem>
             <ContextMenuItem onSelect={onToggleFullscreen}>
               {fullscreen ? "退出全屏" : "全屏"}
             </ContextMenuItem>
