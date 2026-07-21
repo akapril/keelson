@@ -49,7 +49,21 @@ export function PromoteToProjectDialog({
 }: PromoteToProjectDialogProps) {
   const templates = useBoardStore((s) => s.templates);
   const loadTemplates = useBoardStore((s) => s.loadTemplates);
+  const projects = useBoardStore((s) => s.projects);
   const navigate = useNavigate();
+
+  // 防重：同一仓库路径已有「进行中」项目 → 不允许重复提升（一仓库一项目），引导打开已有。
+  // 归档项目不算（可能已弃用，允许重新提升）。
+  const existing = projects.find(
+    (p) => (p.repo_path ?? "") === projectPath && !p.archived,
+  );
+
+  // 打开已有项目并跳转
+  async function openExisting(id: string) {
+    await useBoardStore.getState().openProject(id);
+    navigate(workspaceRecordUrl("board", id));
+    onClose();
+  }
 
   // ── 表单状态 ──────────────────────────────────────────────
   // 名称预填为路径末段
@@ -124,7 +138,32 @@ export function PromoteToProjectDialog({
           <DialogTitle id="promote-project-title">提升为看板项目</DialogTitle>
         </DialogHeader>
 
-        {/* 表单 */}
+        {existing ? (
+          /* 该仓库已提升 → 不允许重复提升，引导打开已有项目 */
+          <div className="flex flex-col gap-4">
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+              <p className="text-foreground">
+                此仓库已提升为项目「
+                <span className="font-medium">{existing.name}</span>」。
+              </p>
+              <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                {projectPath}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                一个仓库对应一个项目，避免重复。会话仍会关联到该项目。
+              </p>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                取消
+              </Button>
+              <Button type="button" onClick={() => void openExisting(existing.id)}>
+                打开「{existing.name}」
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+        /* 表单 */
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* 项目名称（必填，预填路径末段） */}
           <div className="flex flex-col gap-1.5">
@@ -216,6 +255,7 @@ export function PromoteToProjectDialog({
             </Button>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );
