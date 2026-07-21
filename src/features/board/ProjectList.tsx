@@ -47,11 +47,14 @@ function ProjectCard({
   project,
   stat,
   duplicate,
+  hint,
 }: {
   project: BoardProject;
   stat?: ProjectStat;
   /** 是否与其他项目同名（需展示消歧信息） */
   duplicate: boolean;
+  /** 无描述时的兜底提示：扫描到的最近会话提示词（「在做什么」） */
+  hint?: string;
 }) {
   const openProject = useBoardStore((s) => s.openProject);
   const updateProject = useBoardStore((s) => s.updateProject);
@@ -82,6 +85,19 @@ function ProjectCard({
           </span>
         )}
       </div>
+
+      {/* 「这个项目是做什么的」：优先项目描述；无则用扫描到的最近会话提示词兜底 */}
+      {project.description ? (
+        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+          {project.description}
+        </p>
+      ) : hint ? (
+        <p className="line-clamp-2 text-xs italic leading-relaxed text-muted-foreground/80">
+          最近：{hint}
+        </p>
+      ) : (
+        <p className="text-xs italic text-muted-foreground/50">暂无描述</p>
+      )}
 
       {/* 消歧信息：仓库路径 + 创建日期（同名项目务必显示以区分） */}
       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -187,6 +203,15 @@ export function ProjectList() {
   const sessionCount = (repoPath?: string) =>
     repoPath ? sessions.filter((s) => s.project_path === repoPath).length : 0;
 
+  // 最近会话提示词（扫描到的「在做什么」，无项目描述时兜底展示）
+  const latestPrompt = (repoPath?: string): string => {
+    if (!repoPath) return "";
+    const list = sessions.filter((s) => s.project_path === repoPath);
+    if (list.length === 0) return "";
+    const latest = list.reduce((a, b) => (a.updated_at > b.updated_at ? a : b));
+    return (latest.last_prompt || latest.first_prompt || "").trim();
+  };
+
   // 同名检测（用于消歧显示）
   const nameCounts = projects.reduce<Record<string, number>>((acc, p) => {
     acc[p.name] = (acc[p.name] ?? 0) + 1;
@@ -228,6 +253,7 @@ export function ProjectList() {
             key={project.id}
             project={project}
             duplicate={(nameCounts[project.name] ?? 0) > 1}
+            hint={latestPrompt(project.repo_path)}
             stat={{
               total: stat?.total ?? 0,
               done: stat?.done ?? 0,
