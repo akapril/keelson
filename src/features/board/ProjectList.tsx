@@ -171,7 +171,8 @@ export function ProjectList() {
           st.total += 1;
           if (doneState.has(t.state)) st.done += 1;
         }
-        for (const d of docs) ensure(d.project).docs += 1;
+        // 多对多：文档计入其每个关联项目
+        for (const d of docs) for (const pid of d.projects ?? []) ensure(pid).docs += 1;
         setStats(map);
       } catch {
         /* 统计失败不影响卡片基本展示 */

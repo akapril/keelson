@@ -6,6 +6,7 @@ import {
   Add01Icon,
   Delete02Icon,
   TaskAdd01Icon,
+  FolderOpenIcon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
@@ -22,6 +23,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useDocsStore } from "@/store/docs";
 import { useBoardStore } from "@/store/board";
@@ -40,6 +48,7 @@ export function DocsPanel({
 }) {
   const docs = useDocsStore((s) => s.docs);
   const loading = useDocsStore((s) => s.loading);
+  const allProjects = useBoardStore((s) => s.projects);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [content, setContent] = useState("");
@@ -97,6 +106,16 @@ export function DocsPanel({
     if (selected && title.trim() && title.trim() !== selected.title) {
       void useDocsStore.getState().updateDoc(selected.id, { title: title.trim() });
     }
+  }
+
+  // 切换文档与某项目的链接（多对多）：加入/移除 projects
+  function toggleDocProject(projId: string) {
+    if (!selected) return;
+    const cur = selected.projects ?? [];
+    const next = cur.includes(projId)
+      ? cur.filter((p) => p !== projId)
+      : [...cur, projId];
+    void useDocsStore.getState().updateDoc(selected.id, { projects: next });
   }
 
   // 从当前文档创建看板任务（同项目；工作台已打开该项目，状态列已加载）
@@ -178,6 +197,34 @@ export function DocsPanel({
                 placeholder="文档标题"
                 className="h-8 flex-1 border-0 bg-transparent px-1 text-base font-semibold shadow-none focus-visible:ring-0"
               />
+              {/* 所属项目（多对多）：可链接到多个项目 */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
+                    <HugeiconsIcon icon={FolderOpenIcon} strokeWidth={2} />
+                    {selected.projects?.length ?? 0} 个项目
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
+                  <DropdownMenuLabel>链接到项目</DropdownMenuLabel>
+                  {allProjects.length === 0 ? (
+                    <p className="px-2 py-1.5 text-xs text-muted-foreground">暂无项目</p>
+                  ) : (
+                    allProjects.map((p) => (
+                      <DropdownMenuCheckboxItem
+                        key={p.id}
+                        checked={selected.projects?.includes(p.id) ?? false}
+                        // 阻止选中即关闭菜单，便于连续勾选多个
+                        onSelect={(e) => e.preventDefault()}
+                        onCheckedChange={() => toggleDocProject(p.id)}
+                      >
+                        <span className="truncate">{p.name}</span>
+                      </DropdownMenuCheckboxItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <Button
                 size="icon-sm"
                 variant="ghost"
