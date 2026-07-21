@@ -18,8 +18,11 @@ import { ProjectWorkspace } from "@/features/board/ProjectWorkspace";
  */
 export default function Board() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  // 是否显示已归档项目（默认隐藏，让列表清爽；删除归档项目时切开来找）
+  const [showArchived, setShowArchived] = useState(false);
   const openedProjectId = useBoardStore((s) => s.openedProjectId);
   const projects = useBoardStore((s) => s.projects);
+  const archivedCount = projects.filter((p) => p.archived).length;
 
   const [searchParams] = useSearchParams();
   const requestedId = requestedRecordId(searchParams);
@@ -54,14 +57,27 @@ export default function Board() {
             每个项目 = 它的会话、看板、文档与 git，集中在一处工作台。
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-          新建项目
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* 显示/隐藏归档项目（有归档才出现） */}
+          {archivedCount > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => setShowArchived((v) => !v)}
+              aria-pressed={showArchived}
+              className={showArchived ? "text-primary" : "text-muted-foreground"}
+            >
+              {showArchived ? "隐藏归档" : `显示归档（${archivedCount}）`}
+            </Button>
+          )}
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
+            新建项目
+          </Button>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <ProjectList />
+        <ProjectList showArchived={showArchived} />
       </div>
 
       {showCreateDialog && (
