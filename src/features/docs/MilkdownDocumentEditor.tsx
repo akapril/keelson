@@ -3,6 +3,7 @@ import { PromptDialog } from "@/components/prompt-dialog"
 
 import { LanguageDescription } from "@codemirror/language"
 import { CrepeBuilder } from "@milkdown/crepe/builder"
+import { ai, runAICmd } from "@milkdown/crepe/feature/ai"
 import { blockEdit } from "@milkdown/crepe/feature/block-edit"
 import { codeMirror } from "@milkdown/crepe/feature/code-mirror"
 import { cursor } from "@milkdown/crepe/feature/cursor"
@@ -24,6 +25,8 @@ import "@milkdown/crepe/theme/common/placeholder.css"
 // 斜杠菜单(/ 唤出块菜单 + 拖拽块柄)与 KaTeX 数学公式样式（latex.css 内部已 @import katex.min.css）
 import "@milkdown/crepe/theme/common/block-edit.css"
 import "@milkdown/crepe/theme/common/latex.css"
+// 文内 AI：指令 tooltip + 流式指示 + diff 接受/拒绝面板样式
+import "@milkdown/crepe/theme/common/ai.css"
 import {
   createCodeBlockCommand,
   insertHrCommand,
@@ -49,6 +52,7 @@ import {
 import { diffLines } from "diff"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
+  AiChat02Icon,
   CodeIcon,
   FileDiffIcon,
   LeftToRightListBulletIcon,
@@ -79,6 +83,8 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { uploadDocAsset, resolveAssetURL } from "@/lib/pb/assets"
+import { useSettingsStore } from "@/store/settings"
+import { createDocAiProvider, aiConfigUsable } from "./doc-ai"
 
 export type DocumentEditorMode = "rich-text" | "source" | "diff"
 
@@ -211,6 +217,9 @@ function MilkdownEditorBody({
       .addFeature(blockEdit)
       // KaTeX 数学公式：$...$ 行内、$$...$$ 块级
       .addFeature(latex)
+      // 文内 AI：选中→指令→流式改写→diff 接受/拒绝（provider 桥接 rework 流式对话，
+      // 运行时读最新 AI 配置；未配置时工具栏 AI 按钮禁用，特性挂着也不会触发）
+      .addFeature(ai, { provider: createDocAiProvider() })
       // 图片：粘贴/拖拽即上传到 PB（doc_assets），正文只存稳定 URL，避免 base64 撑爆内容；
       // 受保护文件在渲染时经 proxyDomURL 追加新鲜文件 token。
       .addFeature(imageBlock, {
@@ -284,8 +293,12 @@ function MilkdownToolbar({
     getEditor().action(callCommand(command.key as never, payload as never))
   }
   const disabled = loading || mode !== "rich-text"
+  // AI 是否已配置（未配置则禁用 AI 按钮并提示去设置）
+  const aiUsable = useSettingsStore((s) => aiConfigUsable(s.aiConfig))
   // 插入链接对话框（替代原生 window.prompt）
   const [linkOpen, setLinkOpen] = useState(false)
+  // 文内 AI 指令对话框
+  const [aiOpen, setAiOpen] = useState(false)
 
   return (
     <div className="milkdown-system-toolbar">
@@ -394,6 +407,17 @@ function MilkdownToolbar({
       </div>
       {/* 模式/全屏组：始终钉在右侧、不随格式区滚动，保证可达 */}
       <div className="milkdown-toolbar-fixed flex items-center gap-0.5">
+        {/* 文内 AI：选中文本后点此输入指令，流式改写并以 diff 供接受/拒绝 */}
+        <ToolbarButton
+          label={aiUsable ? "AI 改写/续写（先选中文本）" : "AI 未配置：去设置填服务商/密钥"}
+          disabled={disabled || !aiUsable}
+          onClick={() => setAiOpen(true)}
+          icon={AiChat02Icon}
+        />
+        <Separator
+          orientation="vertical"
+          className="mx-1 h-5 data-vertical:self-center"
+        />
         <ModeButton
           label="Rich text"
           active={mode === "rich-text"}
@@ -435,6 +459,21 @@ function MilkdownToolbar({
           setLinkOpen(false)
           const href = value?.trim()
           if (href) run(toggleLinkCommand, { href })
+        }}
+      />
+
+      {/* 文内 AI 指令对话框：确认后触发 runAICmd（流式改写 + diff 接受/拒绝） */}
+      <PromptDialog
+        open={aiOpen}
+        title="AI 改写 / 续写"
+        label="告诉 AI 想怎么处理（基于选中内容 / 上下文）"
+        placeholder="如：润色这段 / 翻译成英文 / 基于上文续写一段"
+        confirmText="生成"
+        allowEmpty={false}
+        onResult={(value) => {
+          setAiOpen(false)
+          const instruction = value?.trim()
+          if (instruction) run(runAICmd, { instruction })
         }}
       />
     </div>
