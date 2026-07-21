@@ -1,7 +1,7 @@
 // SessionChat —— 会话中枢右侧内联聊天：展示会话历史(气泡) + 底部直接续聊(流式)。
 // codex-gui 风格:用户右、助手左，等宽友好，滚动到底。续聊用配置的 AI（非重开 CLI 会话），
 // 历史按会话持久化到 localStorage。
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SentIcon } from "@hugeicons/core-free-icons";
@@ -17,6 +17,41 @@ import type { Session } from "../../types/session";
 
 // 送 AI 的上下文条数上限（仅限制发给模型的历史，不影响展示的完整时间线）
 const CONTEXT_LIMIT = 20;
+
+// 单条历史气泡（memo）：完整会话历史可能很长，流式续聊时只重渲变化的那条，
+// 已完成的助手气泡不重复解析 markdown（消除 O(n²) 卡顿）。
+const HistoryBubble = memo(function HistoryBubble({
+  message,
+  isStreaming,
+}: {
+  message: AiChatMessage;
+  isStreaming: boolean;
+}) {
+  const isUser = message.role === "user";
+  const isError = message.role === "assistant" && message.content.startsWith("请求失败：");
+  const streamingThis = message.role === "assistant" && isStreaming;
+  const display = message.content || (streamingThis ? "▍" : "");
+  // 会话消息可能是 markdown：助手正文渲染 markdown；用户/错误/流式中保持纯文本
+  const renderMarkdown =
+    message.role === "assistant" && !isError && !!message.content && !streamingThis;
+  return (
+    <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
+      <div
+        className={cn(
+          "max-w-[88%] break-words rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
+          !renderMarkdown && "whitespace-pre-wrap",
+          isUser
+            ? "bg-primary/10 text-foreground"
+            : isError
+              ? "bg-destructive/10 text-destructive"
+              : "bg-muted text-foreground",
+        )}
+      >
+        {renderMarkdown ? <Markdown content={message.content} /> : display}
+      </div>
+    </div>
+  );
+});
 
 export function SessionChat({
   session,
@@ -171,34 +206,13 @@ export function SessionChat({
             此会话暂无消息，或直接在下方继续对话。
           </p>
         )}
-        {messages.map((m, i) => {
-          const isUser = m.role === "user";
-          const isError = m.role === "assistant" && m.content.startsWith("请求失败：");
-          const isLast = i === messages.length - 1;
-          const streamingThis = m.role === "assistant" && isLast && loading;
-          const display = m.content || (streamingThis ? "▍" : "");
-          // 会话消息可能是 markdown（claude/codex 输出）：助手正文渲染 markdown；
-          // 用户消息 / 错误 / 流式中保持纯文本。
-          const renderMarkdown =
-            m.role === "assistant" && !isError && !!m.content && !streamingThis;
-          return (
-            <div key={i} className={cn("flex", isUser ? "justify-end" : "justify-start")}>
-              <div
-                className={cn(
-                  "max-w-[88%] break-words rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
-                  !renderMarkdown && "whitespace-pre-wrap",
-                  isUser
-                    ? "bg-primary/10 text-foreground"
-                    : isError
-                      ? "bg-destructive/10 text-destructive"
-                      : "bg-muted text-foreground",
-                )}
-              >
-                {renderMarkdown ? <Markdown content={m.content} /> : display}
-              </div>
-            </div>
-          );
-        })}
+        {messages.map((m, i) => (
+          <HistoryBubble
+            key={i}
+            message={m}
+            isStreaming={i === messages.length - 1 && loading}
+          />
+        ))}
       </div>
 
       {/* 未配置密钥引导 */}
