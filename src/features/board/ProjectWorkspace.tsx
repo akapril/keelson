@@ -32,6 +32,7 @@ import { DocsPanel } from "@/features/docs/DocsPanel";
 import { AiChatPanel } from "@/features/ai/AiChatPanel";
 import { STATE_CATEGORY_META } from "./board-meta";
 import { MemoryFilesBar } from "@/features/memory/MemoryFilesBar";
+import { resolveInitialTab, rememberProjectTab } from "./project-tab-pref";
 
 export function ProjectWorkspace() {
   const openedProjectId = useBoardStore((s) => s.openedProjectId);
@@ -46,7 +47,8 @@ export function ProjectWorkspace() {
   // 深链接：?tab=<页> 决定初始标签页；?doc=<id> 定位文档标签内的具体文档
   const paramTab = searchParams.get("tab");
   const focusDocId = searchParams.get("doc") || undefined;
-  const [tab, setTab] = useState(() => paramTab || "board");
+  // 初始标签页：深链 ?tab= > 该项目上次停留 > 全局默认（设置页可改），末尾兜底「看板」
+  const [tab, setTab] = useState(() => resolveInitialTab(paramTab, openedProjectId));
   const [showSheet, setShowSheet] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [projectEvents, setProjectEvents] = useState<CalendarEvent[]>([]);
@@ -167,7 +169,11 @@ export function ProjectWorkspace() {
       {/* 标签页 */}
       <Tabs
         value={tab}
-        onValueChange={setTab}
+        onValueChange={(v) => {
+          setTab(v);
+          // 记住该项目上次停留的标签页，下次打开自动回到这里
+          if (openedProjectId) rememberProjectTab(openedProjectId, v);
+        }}
         className="min-h-0 flex-1"
       >
         <TabsList className="shrink-0">
