@@ -367,8 +367,14 @@ function ProjectFields({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>删除项目「{project.name}」？</AlertDialogTitle>
-            <AlertDialogDescription>
-              将永久删除该项目及其**任务、状态列、标签**，无法撤销。关联文档不会被删除，仅解除与本项目的链接。
+            <AlertDialogDescription asChild>
+              <div className="space-y-1.5">
+                <p>将永久删除该项目及其任务、状态列、标签，无法撤销。</p>
+                <p className="text-foreground">
+                  不会删除本地仓库文件 / git / 会话记录，也不会删除关联文档（仅解除与本项目的链接）——
+                  只移除 rework 里的这个看板项目。
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
