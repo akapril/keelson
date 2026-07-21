@@ -32,6 +32,11 @@ export function listAllDocs(): Promise<BoardDoc[]> {
     .getFullList<BoardDoc>({ requestKey: null, sort: "-updated" });
 }
 
+/** 按 id 获取单篇文档（全页编辑器 /docs/:id 用）；owner 范围由访问规则保证。 */
+export function getDocRecord(id: string): Promise<BoardDoc> {
+  return pb.collection(COL.docs).getOne<BoardDoc>(id, { requestKey: null });
+}
+
 // ── CRUD ─────────────────────────────────────────────────
 
 /** 创建文档记录，返回创建后的完整记录 */

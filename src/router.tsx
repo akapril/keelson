@@ -9,6 +9,7 @@ const Sessions = lazy(() => import("./pages/sessions"));
 const Settings = lazy(() => import("./pages/settings"));
 const Board = lazy(() => import("./pages/board"));
 const DocsPage = lazy(() => import("./pages/docs"));
+const DocPage = lazy(() => import("./pages/doc"));
 const ReadingPage = lazy(() => import("./features/reading/ReadingPage"));
 const CalendarPage = lazy(() => import("./features/calendar/CalendarPage"));
 const UsagePage = lazy(() => import("./pages/usage"));
@@ -24,6 +25,7 @@ export function AppRouter() {
           <Route path="/sessions" element={<Sessions />} />
           <Route path="/board" element={<Board />} />
           <Route path="/docs" element={<DocsPage />} />
+          <Route path="/docs/:id" element={<DocPage />} />
           <Route path="/reading" element={<ReadingPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/usage" element={<UsagePage />} />
