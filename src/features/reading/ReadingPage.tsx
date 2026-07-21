@@ -81,6 +81,11 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
   // 卡片内 AI 摘要进行中状态（一键摘要，无需进详情）
   const [summarizing, setSummarizing] = useState(false);
 
+  // 点开原文即视为开始阅读：未读 → 在读（不动已归档/在读）
+  const markReading = () => {
+    if (item.status === "unread") void updateItem(item.id, { status: "reading" });
+  };
+
   // 卡片一键 AI 摘要：复用共享 action（含无 key 门禁 + toast）
   const handleSummarize = async () => {
     if (summarizing) return;
@@ -105,6 +110,7 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
                 href={item.url}
                 target="_blank"
                 rel="noreferrer"
+                onClick={markReading}
                 className="truncate text-sm font-medium text-foreground hover:underline"
               >
                 {item.title}
@@ -224,7 +230,12 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
       </ContextMenuTrigger>
       <ContextMenuContent>
         {item.url && (
-          <ContextMenuItem onSelect={() => window.open(item.url, "_blank")}>
+          <ContextMenuItem
+            onSelect={() => {
+              markReading();
+              window.open(item.url, "_blank");
+            }}
+          >
             打开链接
           </ContextMenuItem>
         )}

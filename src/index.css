@@ -296,6 +296,20 @@
   font-family: var(--font-sans);
 }
 
+/* 光标可见性：中性主题下浏览器默认 caret 又细又淡，易被误认为「没定位到光标」。
+ * → 用主色高对比 caret；选区用主色淡影；编辑区聚焦时给一圈淡 focus 提示，
+ *   让「当前正在这里输入」一目了然。纯 CSS，不动编辑器逻辑。 */
+.rework-milkdown-editor .milkdown .ProseMirror {
+  caret-color: var(--primary);
+}
+.rework-milkdown-editor .milkdown .ProseMirror ::selection {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+}
+.rework-milkdown-editor .milkdown-rich-area:focus-within {
+  border-radius: var(--radius-lg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
 .rework-milkdown-editor .milkdown .milkdown-table-block {
   margin: 1.25rem 0;
   overflow-x: auto;

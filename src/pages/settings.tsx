@@ -24,6 +24,12 @@ import {
 import { NOTIF_TYPES, useNotifPrefsStore } from "@/store/notification-prefs";
 import { DEFAULT_EMBED_CONFIG } from "@/types/rag";
 import type { EmbedConfig } from "@/types/rag";
+import {
+  WORKSPACE_TABS,
+  getDefaultTab,
+  setDefaultTab,
+  type WorkspaceTab,
+} from "@/features/board/project-tab-pref";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
 /**
@@ -384,6 +390,44 @@ function NotifyPrefsSection() {
   );
 }
 
+/**
+ * 项目默认打开标签页：设全局兜底默认。打开项目时优先级为
+ * 深链 ?tab= > 该项目上次停留(自动记住) > 此处全局默认。纯本地偏好，无后端。
+ */
+function ProjectDefaultTabSection() {
+  const [tab, setTab] = useState<WorkspaceTab>(() => getDefaultTab());
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-sm font-medium">项目默认打开标签页</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          打开一个项目时默认停留的标签页。系统会自动记住每个项目上次停留的位置并优先回到那里；
+          此处仅作为「从未打开过」时的兜底默认。
+        </p>
+      </div>
+      <Select
+        value={tab}
+        onValueChange={(v) => {
+          const next = v as WorkspaceTab;
+          setTab(next);
+          setDefaultTab(next);
+        }}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="选择默认标签页" />
+        </SelectTrigger>
+        <SelectContent>
+          {WORKSPACE_TABS.map((t) => (
+            <SelectItem key={t.value} value={t.value}>
+              {t.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </section>
+  );
+}
+
 export default function Settings() {
   const { hotkey, workspacePath, loading, error, load, saveHotkey } =
     useSettingsStore();
@@ -615,6 +659,11 @@ export default function Settings() {
           留空则使用默认路径（~/.claude / ~/.codex）。
         </p>
       </section>
+
+      <div className="border-t border-border" />
+
+      {/* ── 项目默认打开标签页 ── */}
+      <ProjectDefaultTabSection />
 
       <div className="border-t border-border" />
 

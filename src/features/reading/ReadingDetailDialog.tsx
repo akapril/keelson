@@ -43,6 +43,16 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
     setTagInput("");
   }, [item?.id]);
 
+  // 自动已读：打开详情即视为「开始阅读」——未读静默升级为在读。
+  // 只动 unread（已归档/在读保持不变），非破坏、用户仍可手动改回。
+  useEffect(() => {
+    if (item && item.status === "unread") {
+      void updateItem(item.id, { status: "reading" });
+    }
+    // 仅在打开的条目切换时判断一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id]);
+
   if (!item) {
     return (
       <Dialog open={false} onOpenChange={(o) => !o && onClose()}>
