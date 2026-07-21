@@ -18,6 +18,8 @@ const SUPERUSER_EMAIL: &str = "local@app.internal";
 const LOCAL_EMAIL: &str = "you@local.rework";
 /// keychain 服务名称。
 const KEYRING_SERVICE: &str = "rework";
+/// 应用标识符（同 tauri.conf.json 的 identifier），用于还原 app_data_dir 做文件回退。
+const APP_IDENTIFIER: &str = "com.rework.app";
 
 /// 公开：一次性获取 superuser 密码和本地用户密码（供 lib.rs 统一调用）。
 /// 保证每次启动只调用一次 keychain，避免多处调用导致的不一致。
@@ -27,31 +29,121 @@ pub fn get_passwords() -> (String, String) {
     (super_pw, user_pw)
 }
 
-/// 从 keychain 读取密码；若不存在则随机生成并写入。
-/// 若 keychain Entry 无法创建（系统不支持），则生成临时随机密码并打印安全警告。
-pub(crate) fn get_or_make_secret(account: &str) -> String {
-    /// 内部辅助：生成 32 字符随机字母数字密码。
-    fn random_pw() -> String {
-        use rand::Rng;
-        rand::thread_rng()
-            .sample_iter(&rand::distributions::Alphanumeric)
-            .take(32)
-            .map(char::from)
-            .collect()
-    }
+/// 生成 32 字符随机字母数字密码。
+fn random_pw() -> String {
+    use rand::Rng;
+    rand::thread_rng()
+        .sample_iter(&rand::distributions::Alphanumeric)
+        .take(32)
+        .map(char::from)
+        .collect()
+}
 
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, account) {
-        if let Ok(pw) = entry.get_password() {
+/// 幂等地获取某个 secret（如 mcp-secret / superuser-pw / local-user-token）：
+/// 读取优先级 keychain → 文件回退；两者都没有时才生成新值并同时写回，保证「已存在即复用、
+/// 缺失才生成」，从而跨重启稳定。
+///
+/// 背景（根因）：`keyring` v3 若未启用平台后端 feature（如 windows-native），会静默退化为
+/// **内存 mock** 存储 —— 每次 `Entry::new` 都是全新空实例，`get_password` 必返回 NoEntry，
+/// 于是每次启动都重新生成随机值、写入也随进程退出丢失，导致 secret 重启即变。现已在 Cargo.toml
+/// 启用平台后端；同时加一层「仅当前用户可读」的文件回退，即便 keychain 不可用也能稳定持久化。
+pub(crate) fn get_or_make_secret(account: &str) -> String {
+    // 1) 优先读 keychain（平台后端已启用时为真实持久存储）
+    let entry = keyring::Entry::new(KEYRING_SERVICE, account).ok();
+    if let Some(e) = entry.as_ref() {
+        if let Ok(pw) = e.get_password() {
+            // keychain 命中：顺便同步到文件回退（幂等，忽略失败），保证两处一致
+            let _ = write_secret_file(account, &pw);
             return pw;
         }
-        // 首次生成随机密码并持久化
-        let pw = random_pw();
-        let _ = entry.set_password(&pw);
+    }
+
+    // 2) keychain 未命中：读文件回退（keychain 曾不可用/读失败时的历史值）
+    if let Some(pw) = read_secret_file(account) {
+        // 若 keychain 可用则把文件里的历史值补写回 keychain（幂等，忽略失败）
+        if let Some(e) = entry.as_ref() {
+            let _ = e.set_password(&pw);
+        }
         return pw;
     }
-    // keychain 不可用：生成临时随机密码，凭据不会跨启动持久化
-    eprintln!("[安全警告] 系统密钥链不可用，本次使用临时随机密码，凭据不会跨启动持久化");
-    random_pw()
+
+    // 3) 两处都没有：确属首次，生成新值并同时写入 keychain + 文件
+    let pw = random_pw();
+    let mut persisted = false;
+    if let Some(e) = entry.as_ref() {
+        if e.set_password(&pw).is_ok() {
+            persisted = true;
+        }
+    }
+    if write_secret_file(account, &pw).is_ok() {
+        persisted = true;
+    }
+    if !persisted {
+        // keychain 与文件都写失败：本次凭据无法跨启动持久化，明确告警
+        eprintln!("[安全警告] 密钥链与文件回退均不可用，本次使用临时随机密码，凭据不会跨启动持久化");
+    }
+    pw
+}
+
+/// secret 文件回退目录：app_data_dir（与 mcp-endpoint.json 同目录）。
+/// `get_or_make_secret` 无 Tauri 句柄，这里用 `dirs::config_dir()` + 应用标识符还原同一路径：
+/// Windows 上即 `%APPDATA%/Roaming/com.rework.app`，与 Tauri v2 的 `app_data_dir()` 一致。
+fn secret_dir() -> Option<std::path::PathBuf> {
+    let dir = dirs::config_dir()?.join(APP_IDENTIFIER).join("secrets");
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir)
+}
+
+/// 读取某 account 的文件回退值（去除首尾空白）；不存在或读失败返回 None。
+fn read_secret_file(account: &str) -> Option<String> {
+    read_secret_file_in(&secret_dir()?, account)
+}
+
+/// 把某 account 的 secret 写入文件回退（仅当前用户可读）。
+fn write_secret_file(account: &str, secret: &str) -> std::io::Result<()> {
+    let dir = secret_dir().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::NotFound, "无法定位 secret 回退目录")
+    })?;
+    write_secret_file_in(&dir, account, secret)
+}
+
+/// 从指定目录读取某 account 的文件回退值（去除首尾空白）；不存在/空/读失败返回 None。
+/// 抽出目录参数以便单测（真实 keychain 读写在测试进程里不可靠，只测文件回退路径）。
+fn read_secret_file_in(dir: &std::path::Path, account: &str) -> Option<String> {
+    let content = std::fs::read_to_string(dir.join(account)).ok()?;
+    let trimmed = content.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+/// 向指定目录写入某 account 的 secret（仅当前用户可读）。
+/// Unix 下设 0o600 权限；Windows 下依赖用户目录 ACL（app_data_dir 本身即用户私有）。
+fn write_secret_file_in(dir: &std::path::Path, account: &str, secret: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    let path = dir.join(account);
+    let mut f = std::fs::File::create(&path)?;
+    f.write_all(secret.as_bytes())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
+/// 文件回退路径的「已存在则复用、缺失才生成」纯逻辑（不碰 keychain）。
+/// 供单测覆盖幂等性：同一目录+account 反复调用返回同一值。
+#[cfg(test)]
+fn get_or_make_secret_file_in(dir: &std::path::Path, account: &str) -> String {
+    if let Some(pw) = read_secret_file_in(dir, account) {
+        return pw;
+    }
+    let pw = random_pw();
+    let _ = write_secret_file_in(dir, account, &pw);
+    pw
 }
 
 /// 核心入口：幂等地确保 superuser + local-user，返回 local-user 的 token。
@@ -198,4 +290,61 @@ async fn user_login(
         anyhow::bail!("local-user 登录返回空 token");
     }
     Ok(token)
+}
+
+// ——————————————————————————————————————————————————————————————————————
+// 单元测试：只覆盖「文件回退」路径的幂等性（keychain 真实读写在测试进程里不可靠）。
+// ——————————————————————————————————————————————————————————————————————
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 缺失才生成：首次调用生成新值并落文件。
+    #[test]
+    fn file_fallback_generates_when_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let pw = get_or_make_secret_file_in(dir.path(), "mcp-secret");
+        assert_eq!(pw.len(), 32, "生成的 secret 应为 32 字符");
+        // 文件确实落盘
+        assert_eq!(read_secret_file_in(dir.path(), "mcp-secret").as_deref(), Some(pw.as_str()));
+    }
+
+    /// 已存在则复用：同一目录+account 反复调用返回同一值（跨重启稳定的核心保证）。
+    #[test]
+    fn file_fallback_reuses_when_present() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = get_or_make_secret_file_in(dir.path(), "mcp-secret");
+        let second = get_or_make_secret_file_in(dir.path(), "mcp-secret");
+        let third = get_or_make_secret_file_in(dir.path(), "mcp-secret");
+        assert_eq!(first, second, "第二次应复用已存在值");
+        assert_eq!(second, third, "第三次仍应复用已存在值");
+    }
+
+    /// 不同 account 互不干扰（mcp-secret / superuser-pw / local-user-token 各自独立）。
+    #[test]
+    fn file_fallback_isolates_accounts() {
+        let dir = tempfile::tempdir().unwrap();
+        let mcp = get_or_make_secret_file_in(dir.path(), "mcp-secret");
+        let superpw = get_or_make_secret_file_in(dir.path(), "superuser-pw");
+        assert_ne!(mcp, superpw, "不同 account 应各自独立生成");
+        // 各自复用不串味
+        assert_eq!(get_or_make_secret_file_in(dir.path(), "mcp-secret"), mcp);
+        assert_eq!(get_or_make_secret_file_in(dir.path(), "superuser-pw"), superpw);
+    }
+
+    /// 写入后可原样读回（含 trim：空白/换行不影响命中）。
+    #[test]
+    fn file_read_write_roundtrip_and_trim() {
+        let dir = tempfile::tempdir().unwrap();
+        write_secret_file_in(dir.path(), "k", "abc123").unwrap();
+        assert_eq!(read_secret_file_in(dir.path(), "k").as_deref(), Some("abc123"));
+        // 手写带尾换行也应被 trim 后命中
+        std::fs::write(dir.path().join("k2"), "xyz\n").unwrap();
+        assert_eq!(read_secret_file_in(dir.path(), "k2").as_deref(), Some("xyz"));
+        // 空文件视作不存在
+        std::fs::write(dir.path().join("k3"), "   ").unwrap();
+        assert_eq!(read_secret_file_in(dir.path(), "k3"), None);
+        // 未写入的 account 返回 None
+        assert_eq!(read_secret_file_in(dir.path(), "nope"), None);
+    }
 }
