@@ -20,6 +20,7 @@ import {
   type CreateProjectInput,
 } from "../features/board/create-project";
 import { taskAnchor, type PlanTask } from "../features/board/plan-import";
+import { listAllDocs, updateDocRecord } from "../lib/pb/docs";
 import type {
   BoardTemplate,
   BoardProject,
@@ -187,6 +188,8 @@ interface BoardStoreState {
       archived: boolean;
     }>,
   ) => Promise<void>;
+  /** 删除项目（PB 级联删其任务/状态列/标签/成员；文档只断链保留）。 */
+  deleteProject: (id: string) => Promise<void>;
 }
 
 // ── Store 实现 ─────────────────────────────────────────────
@@ -521,6 +524,32 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
     // 同步 projects 数组中的对应条目
     set((s) => ({
       projects: s.projects.map((p) => (p.id === id ? updated : p)),
+    }));
+  },
+
+  // ── 删除项目 ─────────────────────────────────────────────
+  deleteProject: async (id) => {
+    // 文档多对多不级联：先从各文档的 projects 移除该项目（只断链、保留文档）
+    try {
+      const docs = await listAllDocs();
+      for (const d of docs) {
+        if (d.projects?.includes(id)) {
+          await updateDocRecord(d.id, {
+            projects: d.projects.filter((p) => p !== id),
+          });
+        }
+      }
+    } catch {
+      /* 断链失败不阻断删除（残留 id 在 UI 侧会被过滤忽略） */
+    }
+    // 删项目：PB 对任务/状态列/标签/成员设了 cascadeDelete，自动一并删除
+    await deleteRecord(COL.boardProjects, id);
+    set((s) => ({
+      projects: s.projects.filter((p) => p.id !== id),
+      // 若删的是当前打开项目，清空工作区状态
+      ...(s.openedProjectId === id
+        ? { openedProjectId: null, states: [], labels: [], tasks: [] }
+        : {}),
     }));
   },
 }));

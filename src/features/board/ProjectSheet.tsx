@@ -2,13 +2,19 @@
 // 移植自 workavera 的 edit-mode 交互（草稿式行内编辑 + 保存/删除），
 // 但完全走本仓库的 useBoardStore，本组件不直接访问 PB / invoke。
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowUp01Icon,
   ArrowDown01Icon,
   Delete02Icon,
   Add01Icon,
+  AiChat02Icon,
 } from "@hugeicons/core-free-icons"
+
+import { ipc } from "@/lib/tauri/ipc"
+import { useSettingsStore } from "@/store/settings"
+import { buildProjectContext } from "@/features/ai/project-context"
 
 import {
   Sheet,
@@ -71,7 +77,14 @@ const DEFAULT_COLOR = "#64748b"
 export function ProjectSheet({ open, onClose }: ProjectSheetProps) {
   const openedProjectId = useBoardStore((s) => s.openedProjectId)
   const projects = useBoardStore((s) => s.projects)
+  const closeProject = useBoardStore((s) => s.closeProject)
   const project = projects.find((p) => p.id === openedProjectId)
+
+  // 项目删除后：关抽屉 + 关闭当前项目（回到项目列表）
+  const handleDeleted = () => {
+    onClose()
+    closeProject()
+  }
 
   // 顶层错误：由各子区块通过 onError 回调上抛
   const [error, setError] = useState<string | undefined>(undefined)
@@ -108,7 +121,12 @@ export function ProjectSheet({ open, onClose }: ProjectSheetProps) {
         ) : (
           <div className="flex flex-col gap-6 overflow-y-auto px-6 pb-6">
             {/* ── 区块 1：基础信息 ───────────────────────────── */}
-            <ProjectFields key={project.id} projectId={project.id} onError={setError} />
+            <ProjectFields
+              key={project.id}
+              projectId={project.id}
+              onError={setError}
+              onDeleted={handleDeleted}
+            />
 
             <Separator />
 
@@ -138,12 +156,16 @@ function errMessage(e: unknown): string {
 function ProjectFields({
   projectId,
   onError,
+  onDeleted,
 }: {
   projectId: string
   onError: OnError
+  /** 删除成功后的回调（关抽屉 + 关项目） */
+  onDeleted: () => void
 }) {
   const projects = useBoardStore((s) => s.projects)
   const updateProject = useBoardStore((s) => s.updateProject)
+  const deleteProject = useBoardStore((s) => s.deleteProject)
   const project = projects.find((p) => p.id === projectId)
 
   // 本地草稿：编辑期间不直接改 store，保存/失焦时才写回
@@ -151,6 +173,10 @@ function ProjectFields({
   const [description, setDescription] = useState(project?.description ?? "")
   const [repoPath, setRepoPath] = useState(project?.repo_path ?? "")
   const archived = project?.archived ?? false
+  // AI 生成描述 / 删除确认
+  const [aiBusy, setAiBusy] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // 项目切换时同步草稿（key 已按 projectId 隔离，此处兜底 store 侧更新）
   useEffect(() => {
@@ -187,6 +213,59 @@ function ProjectFields({
     void patch({ [field]: v })
   }
 
+  // AI 分析生成项目描述：取项目文档 + 关联会话上下文 → AI 概括 → 填入并保存
+  async function generateDescription() {
+    if (!project || aiBusy) return
+    const cfg = useSettingsStore.getState().aiConfig
+    const isCli = cfg.provider === "claude-cli" || cfg.provider === "codex-cli"
+    if (!isCli && !cfg.api_key) {
+      onError("尚未配置 AI 服务（在设置页填 API Key，或改用本地 CLI provider）")
+      return
+    }
+    setAiBusy(true)
+    onError(undefined)
+    try {
+      const ctx = await buildProjectContext(projectId, project.repo_path, project.name)
+      const reply = await ipc.aiChat(
+        cfg,
+        [
+          {
+            role: "system",
+            content:
+              "你是项目分析助手。根据给定的项目资料（文档/关联会话），用一句简洁中文概括这个项目是做什么的（不超过 60 字），直接输出描述本身，不要任何解释、前缀或引号。",
+          },
+          { role: "user", content: ctx || `项目名：${project.name}` },
+        ],
+        project.repo_path,
+      )
+      const desc = reply.trim().replace(/^["「『]+|["」』]+$/g, "").slice(0, 300)
+      if (desc) {
+        setDescription(desc)
+        void patch({ description: desc })
+        toast.success("已由 AI 生成描述")
+      }
+    } catch (e) {
+      onError(`AI 生成失败：${errMessage(e)}`)
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  // 删除项目（仅归档后可见入口；二次确认后执行）
+  async function handleDelete() {
+    if (!project || deleting) return
+    setDeleting(true)
+    onError(undefined)
+    try {
+      await deleteProject(projectId)
+      setConfirmDelete(false)
+      onDeleted()
+    } catch (e) {
+      onError(errMessage(e))
+      setDeleting(false)
+    }
+  }
+
   return (
     <section className="flex flex-col gap-3">
       <Label className="text-sm font-semibold">基础信息</Label>
@@ -205,15 +284,29 @@ function ProjectFields({
         />
       </div>
 
-      {/* 描述 */}
+      {/* 描述（可 AI 分析生成） */}
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="ps-desc" className="text-xs text-muted-foreground">
-          描述
-        </Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="ps-desc" className="text-xs text-muted-foreground">
+            描述
+          </Label>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            disabled={aiBusy}
+            onClick={() => void generateDescription()}
+            className="gap-1 text-xs text-muted-foreground hover:text-primary"
+            title="根据项目文档与关联会话，AI 概括项目在做什么"
+          >
+            <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} className="size-3.5" />
+            {aiBusy ? "生成中…" : "AI 生成"}
+          </Button>
+        </div>
         <Textarea
           id="ps-desc"
           value={description}
-          placeholder="项目描述（可选）"
+          placeholder="项目描述（可选，可点「AI 生成」自动概括）"
           onChange={(e) => setDescription(e.target.value)}
           onBlur={() =>
             saveField("description", description, project.description ?? "")
@@ -248,6 +341,50 @@ function ProjectFields({
           （归档后项目将从看板列表隐藏）
         </span>
       </label>
+
+      {/* 删除项目：仅归档后可用（先归档再删，防误删）。级联删任务/状态列/标签，文档只断链保留 */}
+      {archived ? (
+        <div className="pt-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={deleting}
+            onClick={() => setConfirmDelete(true)}
+            className="text-destructive hover:text-destructive"
+          >
+            <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
+            删除项目
+          </Button>
+        </div>
+      ) : (
+        <p className="pt-1 text-xs text-muted-foreground/70">
+          需先「归档」项目，才能删除（防误删）。
+        </p>
+      )}
+
+      {/* 删除二次确认 */}
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除项目「{project.name}」？</AlertDialogTitle>
+            <AlertDialogDescription>
+              将永久删除该项目及其**任务、状态列、标签**，无法撤销。关联文档不会被删除，仅解除与本项目的链接。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault()
+                void handleDelete()
+              }}
+            >
+              {deleting ? "删除中…" : "删除项目"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }
