@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 
 /// 缓存格式版本；Session 结构或解析逻辑变动时应 +1，使旧缓存自动失效（退回全量）。
 /// v2：Session 新增 by_model；旧缓存失效 → 首启一次全量重扫补齐按模型归因。
-const CACHE_VERSION: u32 = 2;
+/// v3：过滤 <session>/subagents/agent-*.jsonl 子代理转录；旧缓存里混入的成百上千个
+///     agent-* 伪会话需靠版本失效一次性清除（全量 scan_all 只读顶层，天然干净）。
+const CACHE_VERSION: u32 = 3;
 
 #[derive(Serialize, Deserialize)]
 pub struct CacheData {
@@ -46,6 +48,11 @@ fn walk_jsonl(root: &Path, out: &mut Vec<PathBuf>) {
         for e in entries.flatten() {
             let p = e.path();
             if p.is_dir() {
+                // 跳过 Claude Code 的子代理转录目录 <session>/subagents/*.jsonl：
+                // 那是父会话内部的 Task 子代理，不应作为独立会话进入中枢。
+                if p.file_name().map(|n| n == "subagents").unwrap_or(false) {
+                    continue;
+                }
                 walk_jsonl(&p, out);
             } else if p.extension().map(|x| x == "jsonl").unwrap_or(false) {
                 out.push(p);

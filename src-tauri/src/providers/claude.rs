@@ -158,6 +158,11 @@ impl SessionProvider for ClaudeProvider {
         if path.starts_with(&projects)
             && path.extension().and_then(|e| e.to_str()) == Some("jsonl")
         {
+            // 排除子代理转录 <session>/subagents/agent-*.jsonl：属父会话内部的 Task 子代理，
+            // 不建独立会话（否则文件监听会把每个子代理增量当成新会话灌进中枢）。
+            if path.components().any(|c| c.as_os_str() == "subagents") {
+                return EventKind::Ignore;
+            }
             return EventKind::Incremental;
         }
         EventKind::Ignore
@@ -185,6 +190,10 @@ impl SessionProvider for ClaudeProvider {
 
 /// 实际的增量扫描逻辑，接受具体路径，方便测试注入 fixture
 pub fn scan_one_impl(path: &Path) -> Option<Session> {
+    // 防御：子代理转录（<session>/subagents/agent-*.jsonl）不作为独立会话解析。
+    if path.components().any(|c| c.as_os_str() == "subagents") {
+        return None;
+    }
     let session_id = path
         .file_stem()
         .unwrap_or_default()
@@ -665,6 +674,21 @@ mod tests {
             provider.classify_event(Path::new("/some/other/path.txt")),
             EventKind::Ignore
         );
+    }
+
+    /// 测试 classify_event：子代理转录 <session>/subagents/agent-*.jsonl → Ignore
+    /// （不应作为独立会话进入中枢）
+    #[test]
+    fn classify_event_subagent_transcript_is_ignore() {
+        let provider = ClaudeProvider;
+        let claude = AppPaths::detect().claude_dir();
+        let subagent = claude
+            .join("projects")
+            .join("D--workspace-foo")
+            .join("3b2d24c0-parent")
+            .join("subagents")
+            .join("agent-a835884d4300b6173.jsonl");
+        assert_eq!(provider.classify_event(&subagent), EventKind::Ignore);
     }
 
     /// 从 fixture 文件读取 Claude 时间轴消息列表（对标 Codex 的 read_timeline_from_codex_fixture）
