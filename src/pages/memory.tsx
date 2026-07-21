@@ -7,7 +7,8 @@ import { listMemories, updateMemoryRecord, deleteMemoryRecord } from "@/lib/pb/m
 import { MEMORY_KIND_LABEL, type Memory, type MemoryKind } from "@/types/memory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PromptDialog } from "@/components/prompt-dialog";
+import { Markdown } from "@/components/markdown";
+import { MemoryEditDialog } from "@/features/memory/MemoryEditDialog";
 import {
   Select,
   SelectContent,
@@ -185,10 +186,10 @@ export default function MemoryPage() {
                     />
                   )}
                   <div className="min-w-0 flex-1">
-                    {/* 内容整段多行显示（可能较长，换行 + 断词，不再单行截断） */}
-                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-                      {m.content}
-                    </p>
+                    {/* 内容按 markdown 渲染（可能是 markdown 数据；多行完整展示） */}
+                    <div className="break-words text-foreground">
+                      <Markdown content={m.content} />
+                    </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
                       <span className="rounded bg-muted px-1">{MEMORY_KIND_LABEL[m.kind]}</span>
                       <span className="rounded bg-muted px-1">{m.scope === "global" ? "全局" : "项目"}</span>
@@ -249,14 +250,10 @@ export default function MemoryPage() {
         </div>
       )}
 
-      {/* 编辑记忆（复用 PromptDialog） */}
-      <PromptDialog
+      {/* 编辑记忆（markdown 编辑器：源码 + 预览） */}
+      <MemoryEditDialog
         open={editing !== null}
-        title="编辑记忆"
-        label="记忆内容"
         defaultValue={editing?.content ?? ""}
-        confirmText="保存"
-        allowEmpty={false}
         onResult={saveEdit}
       />
     </div>
