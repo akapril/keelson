@@ -12,6 +12,7 @@ import { Markdown } from "@/components/markdown";
 import { useSettingsStore } from "@/store/settings";
 import { ipc } from "@/lib/tauri/ipc";
 import { cn } from "@/lib/utils";
+import { getCachedTimeline, setCachedTimeline } from "./timeline-cache";
 import type { AiChatMessage } from "@/types/ai";
 import type { Session } from "../../types/session";
 
@@ -100,15 +101,34 @@ export function SessionChat({
     } catch {
       setContinued([]);
     }
-    // 拉完整时间线（不截断），作为只读历史
+    // 先查前端缓存（键含 message_count，会话有新消息会自动失效）：命中则秒开、免读后端
+    const cached = getCachedTimeline(
+      session.provider,
+      session.session_id,
+      session.message_count,
+    );
+    if (cached) {
+      setHistory(cached);
+      setLoadingHistory(false);
+      scrollToBottom();
+      return () => {
+        cancelled = true;
+      };
+    }
+    // 未命中：拉完整时间线（不截断），作为只读历史，并写入缓存
     ipc
       .sessionTimeline(session.provider, session.session_id)
       .then((tl) => {
         if (cancelled) return;
-        setHistory(
-          tl
-            .filter((m) => m.role === "user" || m.role === "assistant")
-            .map((m) => ({ role: m.role, content: m.content })),
+        const msgs = tl
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({ role: m.role, content: m.content }));
+        setHistory(msgs);
+        setCachedTimeline(
+          session.provider,
+          session.session_id,
+          session.message_count,
+          msgs,
         );
         scrollToBottom();
       })
