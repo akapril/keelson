@@ -3,9 +3,11 @@ import { PromptDialog } from "@/components/prompt-dialog"
 
 import { LanguageDescription } from "@codemirror/language"
 import { CrepeBuilder } from "@milkdown/crepe/builder"
+import { blockEdit } from "@milkdown/crepe/feature/block-edit"
 import { codeMirror } from "@milkdown/crepe/feature/code-mirror"
 import { cursor } from "@milkdown/crepe/feature/cursor"
 import { imageBlock } from "@milkdown/crepe/feature/image-block"
+import { latex } from "@milkdown/crepe/feature/latex"
 import { linkTooltip } from "@milkdown/crepe/feature/link-tooltip"
 import { listItem } from "@milkdown/crepe/feature/list-item"
 import { placeholder } from "@milkdown/crepe/feature/placeholder"
@@ -19,6 +21,9 @@ import "@milkdown/crepe/theme/common/list-item.css"
 import "@milkdown/crepe/theme/common/table.css"
 import "@milkdown/crepe/theme/common/code-mirror.css"
 import "@milkdown/crepe/theme/common/placeholder.css"
+// 斜杠菜单(/ 唤出块菜单 + 拖拽块柄)与 KaTeX 数学公式样式（latex.css 内部已 @import katex.min.css）
+import "@milkdown/crepe/theme/common/block-edit.css"
+import "@milkdown/crepe/theme/common/latex.css"
 import {
   createCodeBlockCommand,
   insertHrCommand,
@@ -199,9 +204,13 @@ function MilkdownEditorBody({
       .addFeature(cursor)
       .addFeature(listItem)
       .addFeature(linkTooltip)
-      .addFeature(placeholder, { text: "Start writing…" })
+      .addFeature(placeholder, { text: "输入 / 唤出块菜单，或直接开始写…" })
       .addFeature(table)
       .addFeature(codeMirror, { languages: CODE_LANGUAGES })
+      // 斜杠菜单：/ 唤出「插入块」菜单 + 段落左侧拖拽块柄（专业写作核心交互）
+      .addFeature(blockEdit)
+      // KaTeX 数学公式：$...$ 行内、$$...$$ 块级
+      .addFeature(latex)
       // 图片：粘贴/拖拽即上传到 PB（doc_assets），正文只存稳定 URL，避免 base64 撑爆内容；
       // 受保护文件在渲染时经 proxyDomURL 追加新鲜文件 token。
       .addFeature(imageBlock, {

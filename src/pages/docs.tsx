@@ -1,6 +1,7 @@
 // 全局「文档」页 —— 跨项目汇总所有文档：搜索 + 分组（含「未归类」）+ 内嵌编辑。
 // 文档可属 0..N 个项目：无项目=未归类，仍可直接在本页编辑；编辑器内可随时改所属项目。
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { File01Icon, Add01Icon } from "@hugeicons/core-free-icons";
@@ -17,7 +18,6 @@ import {
 import { listAllDocs, createDocRecord, deleteDocRecord } from "@/lib/pb/docs";
 import { listProjects } from "@/lib/pb/board";
 import { currentUserId } from "@/lib/pb";
-import { DocEditorDialog } from "@/features/docs/DocEditorDialog";
 import type { BoardDoc } from "@/types/docs";
 import type { BoardProject } from "@/types/board";
 
@@ -34,11 +34,11 @@ function snippet(content: string, q: string): string {
 }
 
 export default function DocsPage() {
+  const navigate = useNavigate();
   const [docs, setDocs] = useState<BoardDoc[]>([]);
   const [projects, setProjects] = useState<BoardProject[]>([]);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
-  const [editingDoc, setEditingDoc] = useState<BoardDoc | null>(null);
 
   const reload = useCallback(() => {
     void listAllDocs().then(setDocs).catch(() => {});
@@ -83,11 +83,7 @@ export default function DocsPage() {
     );
   }, [filtered]);
 
-  // 本地 upsert（编辑器保存后即时反映到列表，无需整表 reload）
-  const upsertDoc = (updated: BoardDoc) =>
-    setDocs((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-
-  // 新建文档：默认无项目（未归类），直接进编辑器；之后可在编辑器里挂到项目
+  // 新建文档：默认无项目（未归类），创建后直接进全页编辑器；之后可在编辑器里挂到项目
   const createDoc = async () => {
     if (creating) return;
     setCreating(true);
@@ -98,8 +94,7 @@ export default function DocsPage() {
         title: "未命名文档",
         content: "",
       });
-      setDocs((prev) => [doc, ...prev]);
-      setEditingDoc(doc);
+      navigate(`/docs/${doc.id}`);
     } catch (e) {
       toast.error(`创建失败：${String(e)}`);
     } finally {
@@ -158,7 +153,7 @@ export default function DocsPage() {
                     <ContextMenuTrigger asChild>
                       <button
                         type="button"
-                        onClick={() => setEditingDoc(d)}
+                        onClick={() => navigate(`/docs/${d.id}`)}
                         className="flex items-start gap-2.5 rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-accent/40"
                       >
                         <HugeiconsIcon
@@ -179,7 +174,7 @@ export default function DocsPage() {
                       </button>
                     </ContextMenuTrigger>
                     <ContextMenuContent>
-                      <ContextMenuItem onSelect={() => setEditingDoc(d)}>
+                      <ContextMenuItem onSelect={() => navigate(`/docs/${d.id}`)}>
                         编辑
                       </ContextMenuItem>
                       <ContextMenuSeparator />
@@ -194,16 +189,6 @@ export default function DocsPage() {
           ))
         )}
       </div>
-
-      {/* 内嵌文档编辑器（任意文档，含未归类） */}
-      {editingDoc && (
-        <DocEditorDialog
-          doc={editingDoc}
-          projects={projects}
-          onClose={() => setEditingDoc(null)}
-          onSaved={upsertDoc}
-        />
-      )}
     </div>
   );
 }
