@@ -1,7 +1,6 @@
 // 应用头部 —— 移植自 workavera（Apache-2.0）的头部外壳，剥离通知/聊天/用户菜单耦合。
 // 保留：折叠触发器 + 面包屑 + 主题切换。用户菜单待 Phase⑤ 多用户再补。
 import { useLocation, useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Logout02Icon,
@@ -45,16 +44,7 @@ export function AppHeader() {
   const updateAvailable = useUpdaterStore((s) => s.available);
   const updateVersion = useUpdaterStore((s) => s.version);
   const installing = useUpdaterStore((s) => s.installing);
-
-  // 一键下载安装并重启（成功后应用会重启，故失败才会走到 toast.error）
-  const handleUpdate = async () => {
-    toast.loading("正在下载并安装更新…", { id: "app-update" });
-    await useUpdaterStore.getState().installAndRestart();
-    toast.error(
-      `更新失败：${useUpdaterStore.getState().error ?? "未知错误"}`,
-      { id: "app-update" },
-    );
-  };
+  const openUpdateDialog = useUpdaterStore((s) => s.openDialog);
   // 当前路由对应的导航标题（用于面包屑）
   const currentNav = flatNavItems.find(
     (item) => location.pathname === item.url,
@@ -98,9 +88,8 @@ export function AppHeader() {
           <Button
             variant="ghost"
             size="sm"
-            disabled={installing}
-            onClick={() => void handleUpdate()}
-            title={`发现新版本 v${updateVersion}，点击下载安装并重启`}
+            onClick={openUpdateDialog}
+            title={`发现新版本 v${updateVersion}，点击查看并升级`}
             className="relative gap-1.5 text-primary"
           >
             <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-red-500" />
