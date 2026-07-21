@@ -71,6 +71,7 @@ import {
   UndoIcon,
 } from "@hugeicons/core-free-icons"
 
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -79,12 +80,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
+} from "@/components/ui/context-menu"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { uploadDocAsset, resolveAssetURL } from "@/lib/pb/assets"
 import { useSettingsStore } from "@/store/settings"
 import { createDocAiProvider, aiConfigUsable } from "./doc-ai"
+import { parseHeadings } from "./toc"
 
 export type DocumentEditorMode = "rich-text" | "source" | "diff"
 
@@ -245,11 +257,18 @@ function MilkdownEditorBody({
         onToggleFullscreen={() => void toggleFullscreen()}
       />
       <MilkdownValueSync value={value} />
-      <div
-        className={cn("milkdown-rich-area", mode !== "rich-text" && "hidden")}
+      <EditorContextMenu
+        mode={mode}
+        fullscreen={fullscreen}
+        onModeChange={onModeChange}
+        onToggleFullscreen={() => void toggleFullscreen()}
       >
-        <Milkdown />
-      </div>
+        <div
+          className={cn("milkdown-rich-area", mode !== "rich-text" && "hidden")}
+        >
+          <Milkdown />
+        </div>
+      </EditorContextMenu>
       {mode === "source" && (
         <Textarea
           value={value}
@@ -477,6 +496,104 @@ function MilkdownToolbar({
         }}
       />
     </div>
+  )
+}
+
+// 编辑器画布右键菜单：AI 改写 / 插入块 / 视图切换 / 复制全文 / 导出 MD。
+// 仅富文本区启用（覆盖浏览器原生右键）；源码/Diff 区保留原生菜单。
+function EditorContextMenu({
+  children,
+  mode,
+  fullscreen,
+  onModeChange,
+  onToggleFullscreen,
+}: {
+  children: React.ReactNode
+  mode: DocumentEditorMode
+  fullscreen: boolean
+  onModeChange: (mode: DocumentEditorMode) => void
+  onToggleFullscreen: () => void
+}) {
+  const [loading, getEditor] = useInstance()
+  const aiUsable = useSettingsStore((s) => aiConfigUsable(s.aiConfig))
+  const [aiOpen, setAiOpen] = useState(false)
+
+  const run = (command: { key: unknown }, payload?: unknown) => {
+    if (loading) return
+    getEditor().action(callCommand(command.key as never, payload as never))
+  }
+  const getMd = () => (loading ? "" : getEditor().action(getMarkdown()))
+
+  const copyAll = () => {
+    const md = getMd()
+    void navigator.clipboard.writeText(md).then(
+      () => toast.success("已复制全文"),
+      () => toast.error("复制失败"),
+    )
+  }
+  const exportMd = () => {
+    const md = getMd()
+    // 文件名取首个标题，非法字符替换为 _；无标题回退 document
+    const first = parseHeadings(md)[0]?.text
+    const name = (first || "document").replace(/[\\/:*?"<>|]/g, "_").slice(0, 60)
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${name}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem disabled={!aiUsable || loading} onSelect={() => setAiOpen(true)}>
+          AI 改写 / 续写
+        </ContextMenuItem>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger disabled={loading}>插入</ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            <ContextMenuItem onSelect={() => run(wrapInHeadingCommand, 1)}>标题</ContextMenuItem>
+            <ContextMenuItem onSelect={() => run(wrapInBulletListCommand)}>无序列表</ContextMenuItem>
+            <ContextMenuItem onSelect={() => run(wrapInOrderedListCommand)}>有序列表</ContextMenuItem>
+            <ContextMenuItem onSelect={() => run(insertTableCommand, { row: 3, col: 3 })}>表格</ContextMenuItem>
+            <ContextMenuItem onSelect={() => run(createCodeBlockCommand)}>代码块</ContextMenuItem>
+            <ContextMenuItem onSelect={() => run(insertHrCommand)}>分割线</ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>视图</ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            <ContextMenuItem onSelect={() => onModeChange("rich-text")}>富文本</ContextMenuItem>
+            <ContextMenuItem onSelect={() => onModeChange("source")}>源码</ContextMenuItem>
+            <ContextMenuItem onSelect={() => onModeChange("diff")}>Diff</ContextMenuItem>
+            <ContextMenuItem onSelect={onToggleFullscreen}>
+              {fullscreen ? "退出全屏" : "全屏"}
+            </ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        <ContextMenuSeparator />
+        <ContextMenuItem disabled={loading} onSelect={copyAll}>复制全文</ContextMenuItem>
+        <ContextMenuItem disabled={loading} onSelect={exportMd}>导出 Markdown</ContextMenuItem>
+      </ContextMenuContent>
+
+      {/* AI 指令对话框（与工具栏 AI 同一 runAICmd 流程） */}
+      <PromptDialog
+        open={aiOpen}
+        title="AI 改写 / 续写"
+        label="告诉 AI 想怎么处理（基于选中内容 / 上下文）"
+        placeholder="如：润色这段 / 翻译成英文 / 基于上文续写一段"
+        confirmText="生成"
+        allowEmpty={false}
+        onResult={(value) => {
+          setAiOpen(false)
+          const instruction = value?.trim()
+          if (mode === "rich-text" && instruction) run(runAICmd, { instruction })
+        }}
+      />
+    </ContextMenu>
   )
 }
 

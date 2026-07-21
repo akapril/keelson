@@ -1,7 +1,7 @@
 // DocsPanel —— 项目工作台「文档」标签：本项目文档列表。点开即跳全页编辑器 /docs/:id
 // （与全局 /docs 统一同一套专业写作体验：斜杠菜单 / KaTeX / AI / 大纲 TOC）。
 // 保留：新建（挂当前项目）、从文档建任务、删除。标题/正文/所属项目编辑均在全页完成。
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, File01Icon } from "@hugeicons/core-free-icons";
@@ -15,8 +15,19 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useDocsStore } from "@/store/docs";
 import { useBoardStore } from "@/store/board";
+import { openDocWindow } from "@/lib/tauri/window";
 import type { BoardDoc } from "@/types/docs";
 
 export function DocsPanel({
@@ -30,6 +41,8 @@ export function DocsPanel({
   const navigate = useNavigate();
   const docs = useDocsStore((s) => s.docs);
   const loading = useDocsStore((s) => s.loading);
+  // 待确认删除的文档（受控 AlertDialog）
+  const [pendingDelete, setPendingDelete] = useState<BoardDoc | null>(null);
 
   // 打开项目文档：加载列表 + 订阅；卸载/切项目时清理。
   useEffect(() => {
@@ -128,11 +141,14 @@ export function DocsPanel({
                 <ContextMenuItem onSelect={() => navigate(`/docs/${doc.id}`)}>
                   打开
                 </ContextMenuItem>
+                <ContextMenuItem onSelect={() => void openDocWindow(doc.id, doc.title)}>
+                  在新窗口打开
+                </ContextMenuItem>
                 <ContextMenuItem onSelect={() => void handleCreateTask(doc)}>
                   从文档建任务
                 </ContextMenuItem>
                 <ContextMenuSeparator />
-                <ContextMenuItem variant="destructive" onSelect={() => void handleDelete(doc.id)}>
+                <ContextMenuItem variant="destructive" onSelect={() => setPendingDelete(doc)}>
                   删除
                 </ContextMenuItem>
               </ContextMenuContent>
@@ -140,6 +156,33 @@ export function DocsPanel({
           ))
         )}
       </div>
+
+      {/* 删除确认（受控） */}
+      <AlertDialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除此文档？</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{pendingDelete?.title || "未命名文档"}」将被永久删除，无法恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (pendingDelete) void handleDelete(pendingDelete.id);
+                setPendingDelete(null);
+              }}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

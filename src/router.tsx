@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { DashboardLayout } from "./components/dashboard-layout";
 
@@ -20,6 +20,15 @@ export function AppRouter() {
   return (
     <HashRouter>
       <Routes>
+        {/* 独立文档窗口：无侧栏/无布局的纯编辑器（openDocWindow 打开的新原生窗口加载此路由） */}
+        <Route
+          path="/doc-window/:id"
+          element={
+            <Suspense fallback={null}>
+              <DocPage windowMode />
+            </Suspense>
+          }
+        />
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/sessions" element={<Sessions />} />
