@@ -1,15 +1,19 @@
+import { lazy } from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { DashboardLayout } from "./components/dashboard-layout";
-import Dashboard from "./pages/dashboard";
-import Sessions from "./pages/sessions";
-import Settings from "./pages/settings";
-import Board from "./pages/board";
-import DocsPage from "./pages/docs";
-import ReadingPage from "./features/reading/ReadingPage";
-import CalendarPage from "./features/calendar/CalendarPage";
-import UsagePage from "./pages/usage";
-import InboxPage from "./pages/inbox";
-import MemoryPage from "./pages/memory";
+
+// 路由懒加载：重型页面（recharts/milkdown/codemirror 等）按需加载，加快首屏启动。
+// 布局(DashboardLayout)保持同步以立即渲染外壳；页面在 <Suspense> 下延迟加载。
+const Dashboard = lazy(() => import("./pages/dashboard"));
+const Sessions = lazy(() => import("./pages/sessions"));
+const Settings = lazy(() => import("./pages/settings"));
+const Board = lazy(() => import("./pages/board"));
+const DocsPage = lazy(() => import("./pages/docs"));
+const ReadingPage = lazy(() => import("./features/reading/ReadingPage"));
+const CalendarPage = lazy(() => import("./features/calendar/CalendarPage"));
+const UsagePage = lazy(() => import("./pages/usage"));
+const InboxPage = lazy(() => import("./pages/inbox"));
+const MemoryPage = lazy(() => import("./pages/memory"));
 
 export function AppRouter() {
   return (
