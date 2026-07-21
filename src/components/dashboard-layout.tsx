@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
 import { CommandPalette } from "@/components/command-palette";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { UpdateDialog } from "@/components/update-dialog";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { on } from "@/lib/tauri/events";
 import { useActivityStore } from "@/store/activity";
@@ -61,6 +62,8 @@ export function DashboardLayout() {
       </SidebarInset>
       {/* 全局命令面板（⌘K / Ctrl+K） */}
       <CommandPalette />
+      {/* 升级弹窗（发现新版本自动弹） */}
+      <UpdateDialog />
     </SidebarProvider>
   );
 }
