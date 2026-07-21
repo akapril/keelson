@@ -37,6 +37,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { Markdown } from "@/components/markdown";
 import { cn } from "@/lib/utils";
 import { PRIORITY_META, PRIORITY_ORDER } from "@/features/board/board-meta";
 import { useBoardStore } from "@/store/board";
@@ -77,12 +78,15 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
   const [confirmDelete, setConfirmDelete] = useState(false);
   // 控制「AI 拆解」对话框
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+  // 描述的「预览(markdown) / 编辑」切换
+  const [descPreview, setDescPreview] = useState(false);
 
   // ── 初始化 / 重置：随 open / task / mode 同步表单字段 ──────
   useEffect(() => {
     if (!open) return;
     setError(undefined);
     setConfirmDelete(false);
+    setDescPreview(false);
     if (mode === "edit" && task) {
       // 编辑模式：从目标任务回填受控输入
       setTitle(task.title);
@@ -204,17 +208,35 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
             />
           </div>
 
-          {/* 描述（可选） */}
+          {/* 描述（可选，支持 markdown；可切换预览） */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="ts-desc">描述</Label>
-            <Textarea
-              id="ts-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="补充任务细节"
-              rows={4}
-              disabled={saving}
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="ts-desc">描述</Label>
+              {description.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setDescPreview((v) => !v)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {descPreview ? "编辑" : "预览"}
+                </button>
+              )}
+            </div>
+            {descPreview ? (
+              // 预览：按 markdown 渲染（点「编辑」切回）
+              <div className="min-h-24 rounded-md border border-border bg-muted/30 px-3 py-2">
+                <Markdown content={description} />
+              </div>
+            ) : (
+              <Textarea
+                id="ts-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="补充任务细节（支持 markdown）"
+                rows={4}
+                disabled={saving}
+              />
+            )}
             {/* 编辑模式：AI 拆解为子任务 */}
             {mode === "edit" && task && (
               <Button
