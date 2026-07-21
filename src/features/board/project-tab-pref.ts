@@ -58,7 +58,7 @@ function lastProjectTab(id: string): string | null {
 // 打开项目时解析初始标签页：深链 ?tab= > 该项目上次停留 > 全局默认。
 export function resolveInitialTab(
   paramTab: string | null,
-  projectId: string | undefined,
+  projectId: string | null | undefined,
 ): string {
   return paramTab || (projectId && lastProjectTab(projectId)) || getDefaultTab();
 }

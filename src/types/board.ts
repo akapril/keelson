@@ -66,6 +66,17 @@ export interface TemplateLabelDef {
   name: string;
   color: string;
 }
+/** 模板初始任务：category 决定落在哪个状态列（该类别首个状态，缺省落首列）。 */
+export interface TemplateTaskDef {
+  title: string;
+  description?: string;
+  category?: StateCategory;
+}
+/** 模板起始文档：建项目时自动创建并链接到该项目（best-effort）。 */
+export interface TemplateDocDef {
+  title: string;
+  content: string;
+}
 export interface BoardTemplate {
   id: string;
   owner: string;
@@ -73,6 +84,10 @@ export interface BoardTemplate {
   description?: string;
   states: TemplateStateDef[];
   labels?: TemplateLabelDef[];
+  /** 初始任务（可选）：开箱即用的工作流步骤。 */
+  tasks?: TemplateTaskDef[];
+  /** 起始文档（可选）：如 spec 骨架 / 内容日历。 */
+  starter_docs?: TemplateDocDef[];
   created: string;
   updated: string;
 }
