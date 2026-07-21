@@ -156,11 +156,14 @@ function ProjectCard({
 }
 
 // ── 项目列表组件 ────────────────────────────────────────────────
-export function ProjectList() {
-  const projects = useBoardStore((s) => s.projects);
+export function ProjectList({ showArchived = false }: { showArchived?: boolean }) {
+  const allProjects = useBoardStore((s) => s.projects);
   const loading = useBoardStore((s) => s.loading);
   const error = useBoardStore((s) => s.error);
   const sessions = useSessionsStore((s) => s.sessions);
+
+  // 默认隐藏已归档项目（板面清爽）；「显示归档」开关打开时才展示
+  const projects = showArchived ? allProjects : allProjects.filter((p) => !p.archived);
 
   const [stats, setStats] = useState<Record<string, ProjectStat>>({});
 
@@ -236,10 +239,16 @@ export function ProjectList() {
     );
   }
   if (projects.length === 0) {
+    // 区分「真无项目」与「都被归档隐藏了」
+    const allArchived = allProjects.length > 0;
     return (
       <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
-        <span>暂无项目</span>
-        <span className="text-xs">点击“新建项目”创建第一个看板</span>
+        <span>{allArchived ? "当前无进行中的项目" : "暂无项目"}</span>
+        <span className="text-xs">
+          {allArchived
+            ? "已有项目均已归档，点右上「显示归档」查看"
+            : "点击“新建项目”创建第一个看板"}
+        </span>
       </div>
     );
   }
