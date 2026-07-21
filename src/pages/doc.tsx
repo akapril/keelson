@@ -204,14 +204,17 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
     <div className="flex h-full min-h-0 flex-col p-6">
       {/* 头部：返回 + 标题 + 所属项目 + 删除 */}
       <div className="mb-3 flex shrink-0 items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => (windowMode ? void closeThisWindow() : navigate(-1))}
-          aria-label={windowMode ? "关闭窗口" : "返回"}
-        >
-          <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
-        </Button>
+        {/* 独立窗口下窗口控制交给自建标题栏，这里不再重复返回/关闭按钮 */}
+        {!windowMode && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => navigate(-1)}
+            aria-label="返回"
+          >
+            <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
+          </Button>
+        )}
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
