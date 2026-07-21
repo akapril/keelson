@@ -119,7 +119,7 @@ describe("filterSessions", () => {
 const task = (id: string, title: string): BoardTask =>
   ({ id, title, project: "p1" }) as unknown as BoardTask;
 const doc = (id: string, title: string): BoardDoc =>
-  ({ id, title, project: "p2" }) as unknown as BoardDoc;
+  ({ id, title, projects: ["p2"] }) as unknown as BoardDoc;
 
 describe("taskToItem / docToItem", () => {
   it("任务→导航候选：kind=task，path 指向该项目看板", () => {
