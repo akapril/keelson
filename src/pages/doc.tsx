@@ -9,6 +9,7 @@ import {
   FolderOpenIcon,
   Delete02Icon,
   ListViewIcon,
+  LinkSquare02Icon,
 } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import {
   type DocumentEditorMode,
 } from "@/features/docs/MilkdownDocumentEditor";
 import { parseHeadings } from "@/features/docs/toc";
+import { openDocWindow, closeThisWindow } from "@/lib/tauri/window";
 import {
   getDocRecord,
   updateDocRecord,
@@ -46,7 +48,7 @@ import { listProjects } from "@/lib/pb/board";
 import type { BoardDoc } from "@/types/docs";
 import type { BoardProject } from "@/types/board";
 
-export default function DocPage() {
+export default function DocPage({ windowMode = false }: { windowMode?: boolean }) {
   const { id = "" } = useParams();
   const navigate = useNavigate();
 
@@ -114,7 +116,8 @@ export default function DocPage() {
   const handleDelete = async () => {
     try {
       await deleteDocRecord(id);
-      navigate("/docs");
+      if (windowMode) void closeThisWindow();
+      else navigate("/docs");
     } catch (e) {
       toast.error(`删除失败：${String(e)}`);
     }
@@ -159,8 +162,12 @@ export default function DocPage() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
         <span>文档不存在或已被删除。</span>
-        <Button variant="outline" size="sm" onClick={() => navigate("/docs")}>
-          返回文档列表
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => (windowMode ? void closeThisWindow() : navigate("/docs"))}
+        >
+          {windowMode ? "关闭窗口" : "返回文档列表"}
         </Button>
       </div>
     );
@@ -173,8 +180,8 @@ export default function DocPage() {
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={() => navigate(-1)}
-          aria-label="返回"
+          onClick={() => (windowMode ? void closeThisWindow() : navigate(-1))}
+          aria-label={windowMode ? "关闭窗口" : "返回"}
         >
           <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
         </Button>
@@ -184,6 +191,18 @@ export default function DocPage() {
           placeholder="文档标题"
           className="h-9 flex-1 border-0 bg-transparent px-1 text-base font-semibold shadow-none focus-visible:ring-0"
         />
+        {/* 新窗口打开（仅主窗口内；独立窗口里自身即窗口，不再显示） */}
+        {!windowMode && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="在新窗口打开"
+            title="在独立窗口打开"
+            onClick={() => void openDocWindow(id, title)}
+          >
+            <HugeiconsIcon icon={LinkSquare02Icon} strokeWidth={2} />
+          </Button>
+        )}
         {/* 所属项目（0..N） */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

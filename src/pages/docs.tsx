@@ -15,9 +15,20 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { listAllDocs, createDocRecord, deleteDocRecord } from "@/lib/pb/docs";
 import { listProjects } from "@/lib/pb/board";
 import { currentUserId } from "@/lib/pb";
+import { openDocWindow } from "@/lib/tauri/window";
 import type { BoardDoc } from "@/types/docs";
 import type { BoardProject } from "@/types/board";
 
@@ -39,6 +50,8 @@ export default function DocsPage() {
   const [projects, setProjects] = useState<BoardProject[]>([]);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
+  // 待确认删除的文档（受控 AlertDialog；避免 ContextMenu 内直接删的误触）
+  const [pendingDelete, setPendingDelete] = useState<BoardDoc | null>(null);
 
   const reload = useCallback(() => {
     void listAllDocs().then(setDocs).catch(() => {});
@@ -177,8 +190,11 @@ export default function DocsPage() {
                       <ContextMenuItem onSelect={() => navigate(`/docs/${d.id}`)}>
                         编辑
                       </ContextMenuItem>
+                      <ContextMenuItem onSelect={() => void openDocWindow(d.id, d.title)}>
+                        在新窗口打开
+                      </ContextMenuItem>
                       <ContextMenuSeparator />
-                      <ContextMenuItem variant="destructive" onSelect={() => void removeDoc(d)}>
+                      <ContextMenuItem variant="destructive" onSelect={() => setPendingDelete(d)}>
                         删除
                       </ContextMenuItem>
                     </ContextMenuContent>
@@ -189,6 +205,33 @@ export default function DocsPage() {
           ))
         )}
       </div>
+
+      {/* 删除确认（受控） */}
+      <AlertDialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除此文档？</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{pendingDelete?.title || "未命名文档"}」将被永久删除，无法恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (pendingDelete) void removeDoc(pendingDelete);
+                setPendingDelete(null);
+              }}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
