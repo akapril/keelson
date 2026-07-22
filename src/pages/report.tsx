@@ -17,6 +17,7 @@ import { currentUserId } from "@/lib/pb";
 import { createDocRecord } from "@/lib/pb/docs";
 import { listPrompts } from "@/lib/pb/prompts";
 import { promptType } from "@/features/prompts/prompt-utils";
+import { ensureDefaultPromptsSeeded } from "@/features/prompts/seed-defaults";
 import type { Prompt } from "@/types/prompt";
 
 // 记住上次选的报告模板 → 它就是你的「默认」（不选则用内置格式）
@@ -62,14 +63,19 @@ export default function ReportPage() {
   // 进页面拉项目列表（范围下拉）+ 指令库中「报告模板」类型（模板下拉）
   useEffect(() => {
     void useBoardStore.getState().loadProjects();
-    void listPrompts()
-      .then((list) => {
+    void (async () => {
+      // 先确保内置报告默认已种进库（幂等），再拉取，使它出现在模板下拉
+      await ensureDefaultPromptsSeeded();
+      try {
+        const list = await listPrompts();
         const reports = list.filter((p) => promptType(p) === "report");
         setTemplates(reports);
         // 记住的模板若已被删，回退到内置默认
         setTemplateId((id) => (id && reports.some((t) => t.id === id) ? id : ""));
-      })
-      .catch(() => {});
+      } catch {
+        /* 拉取失败：模板下拉留空，仍可用内置默认 */
+      }
+    })();
   }, []);
 
   // 选择模板即持久化（下次进来默认沿用）
