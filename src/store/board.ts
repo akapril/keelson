@@ -318,9 +318,10 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
   importPlanTasks: async (tasks, planName) => {
     const { states, tasks: existing, createTask, openedProjectId } = get();
     if (!openedProjectId) return { created: 0, skipped: 0 };
-    // 落入首个 pending 列（无则首个 state）
+    // 待办落首个 pending 列（无则首个 state）；已完成(- [x]/status:done)落首个 completed 列
     const pending = states.find((s) => s.category === "pending") ?? states[0];
     if (!pending) return { created: 0, skipped: 0 };
+    const completed = states.find((s) => s.category === "completed");
     let created = 0;
     let skipped = 0;
     for (const t of tasks) {
@@ -330,9 +331,11 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
         skipped++;
         continue;
       }
+      // 已完成任务尽量落完成列，缺完成列则退回 pending
+      const target = t.done && completed ? completed : pending;
       await createTask({
         project: openedProjectId,
-        state: pending.id,
+        state: target.id,
         title: t.title,
         description: t.body,
         source_anchor: anchor,

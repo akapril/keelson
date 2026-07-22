@@ -4,13 +4,15 @@ export interface PlanTask {
   n: number;
   title: string;
   body: string;
+  /** 已完成（- [x] 或 Taskmaster status:done）——导入时落到完成列而非待办列。 */
+  done?: boolean;
 }
 
 // 行首匹配「### Task 3: 名称」/「### Task 3：名称」（中英冒号皆可）
 const TASK_RE = /^###\s+Task\s+(\d+)\s*[:：]\s*(.+?)\s*$/;
-// 顶层复选框任务：行首无缩进，marker 为 - / * / 数字.，后接 [ ]/[x]。
-// 例：`- [ ] T001 建结构`、`- [ ] 1. 建模型`、`1. [ ] 配置`。缩进的复选框视为子项（并入 body）。
-const CHECKBOX_RE = /^(?:[-*]|\d+\.)\s+\[[ xX]\]\s+(.+?)\s*$/;
+// 顶层复选框任务：行首无缩进，marker 为 - / * / 数字.，后接 [ ]/[x]（捕获勾选态）。
+// 例：`- [ ] T001 建结构`、`- [x] 1. 建模型`、`1. [ ] 配置`。缩进的复选框视为子项（并入 body）。
+const CHECKBOX_RE = /^(?:[-*]|\d+\.)\s+\[([ xX])\]\s+(.+?)\s*$/;
 const INDENTED_CHECKBOX_RE = /^\s+(?:[-*]|\d+\.)\s+\[[ xX]\]/;
 
 /** 去掉任务文本里的编号/并行标记前缀：Spec Kit `T001`、通用 `1.`/`1.1`、`[P]`。 */
@@ -90,8 +92,9 @@ function parseCheckboxTasks(md: string): PlanTask[] {
       if (top) {
         flush();
         n += 1;
-        const title = stripTaskId(top[1]);
-        cur = { n, title: title || top[1].trim(), body: "" };
+        const done = top[1].toLowerCase() === "x";
+        const title = stripTaskId(top[2]);
+        cur = { n, title: title || top[2].trim(), body: "", done };
         continue;
       }
     }
@@ -115,6 +118,7 @@ interface TmTask {
   title?: unknown;
   description?: unknown;
   details?: unknown;
+  status?: unknown;
   subtasks?: unknown;
 }
 
@@ -166,6 +170,7 @@ export function parseTaskmasterTasks(jsonStr: string): PlanTask[] {
         n: typeof t.id === "number" ? t.id : seq,
         title,
         body: parts.join("\n\n"),
+        done: str(t.status) === "done",
       });
     }
   }

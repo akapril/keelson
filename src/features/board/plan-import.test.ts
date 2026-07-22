@@ -69,8 +69,10 @@ describe("parsePlanTasks — 通用复选框格式 (Spec Kit / Kiro)", () => {
     const ts = parsePlanTasks(md);
     expect(ts.length).toBe(3);
     expect(ts[0].title).toBe("建项目结构");
+    expect(ts[0].done).toBe(false);
     expect(ts[1].title).toBe("配置 lint"); // 去掉 T002 与 [P]
     expect(ts[2].title).toBe("已完成项"); // [x] 也算
+    expect(ts[2].done).toBe(true); // [x] → done
   });
 
   it("Kiro: - [ ] 1. …，子复选框并入 body 不另成卡", () => {
@@ -138,12 +140,19 @@ describe("parseTaskmasterTasks (claude-task-master tasks.json)", () => {
     expect(ts[1].title).toBe("实现登录");
   });
 
-  it("扁平结构 {tasks}", () => {
-    const json = JSON.stringify({ tasks: [{ id: 5, title: "任务A" }] });
+  it("扁平结构 {tasks} + status:done → done", () => {
+    const json = JSON.stringify({
+      tasks: [
+        { id: 5, title: "任务A", status: "pending" },
+        { id: 6, title: "任务B", status: "done" },
+      ],
+    });
     const ts = parseTaskmasterTasks(json);
-    expect(ts.length).toBe(1);
+    expect(ts.length).toBe(2);
     expect(ts[0].n).toBe(5);
     expect(ts[0].title).toBe("任务A");
+    expect(ts[0].done).toBe(false);
+    expect(ts[1].done).toBe(true); // status:done
   });
 
   it("坏 JSON / 无标题 → 稳健返回", () => {
