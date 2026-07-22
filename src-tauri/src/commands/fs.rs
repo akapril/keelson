@@ -79,19 +79,27 @@ pub fn read_text_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {e}"))
 }
 
-/// 列目录下的 .md 文件（非递归，按名排序）。目录不存在 → 空列表（非错误，便于前端空态）。
-#[tauri::command]
-pub fn list_markdown_files(dir: String) -> Result<Vec<MdFile>, String> {
-    let d = Path::new(&dir);
-    if !d.is_dir() {
-        return Ok(vec![]);
+/// 递归收集 .md 文件的最大深度（superpowers 计划常放 plans/<feature>/ 子目录）。
+const MD_MAX_DEPTH: usize = 6;
+
+/// 递归收集目录下的 .md（跳过隐藏目录与 node_modules/target/.git 等重目录）。
+fn collect_md(dir: &Path, depth: usize, out: &mut Vec<MdFile>) {
+    if depth > MD_MAX_DEPTH {
+        return;
     }
-    let mut out: Vec<MdFile> = vec![];
-    let rd = fs::read_dir(d).map_err(|e| format!("读取目录失败: {e}"))?;
+    let rd = match fs::read_dir(dir) {
+        Ok(r) => r,
+        Err(_) => return,
+    };
     for entry in rd.flatten() {
         let p = entry.path();
-        // 仅收 .md 文件
-        if p.extension().and_then(|s| s.to_str()) == Some("md") {
+        if p.is_dir() {
+            let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            if name.starts_with('.') || matches!(name, "node_modules" | "target") {
+                continue;
+            }
+            collect_md(&p, depth + 1, out);
+        } else if p.extension().and_then(|s| s.to_str()) == Some("md") {
             if let Some(name) = p.file_name().and_then(|s| s.to_str()) {
                 out.push(MdFile {
                     name: name.to_string(),
@@ -100,7 +108,19 @@ pub fn list_markdown_files(dir: String) -> Result<Vec<MdFile>, String> {
             }
         }
     }
-    out.sort_by(|a, b| a.name.cmp(&b.name));
+}
+
+/// 递归列目录下的 .md 文件（按路径排序）。目录不存在 → 空列表（非错误，便于前端空态）。
+/// 递归：计划常在 plans/<feature>/ 子目录，非递归会漏。name 仍为文件名（供 spec 按名匹配）。
+#[tauri::command]
+pub fn list_markdown_files(dir: String) -> Result<Vec<MdFile>, String> {
+    let d = Path::new(&dir);
+    if !d.is_dir() {
+        return Ok(vec![]);
+    }
+    let mut out: Vec<MdFile> = vec![];
+    collect_md(d, 0, &mut out);
+    out.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(out)
 }
 
@@ -118,5 +138,26 @@ mod tests {
     #[test]
     fn read_missing_file_errors() {
         assert!(read_text_file("Z:/no/such/file.md".into()).is_err());
+    }
+
+    #[test]
+    fn list_markdown_recurses_subdirs_and_skips_heavy() {
+        // 临时目录：顶层 + 子目录各放 .md，node_modules 里的应被跳过
+        let base = std::env::temp_dir().join(format!("rework-md-test-{}", std::process::id()));
+        let sub = base.join("feature");
+        let heavy = base.join("node_modules");
+        fs::create_dir_all(&sub).unwrap();
+        fs::create_dir_all(&heavy).unwrap();
+        fs::write(base.join("top.md"), "x").unwrap();
+        fs::write(sub.join("nested.md"), "x").unwrap();
+        fs::write(heavy.join("dep.md"), "x").unwrap();
+
+        let out = list_markdown_files(base.to_string_lossy().into_owned()).unwrap();
+        let names: Vec<&str> = out.iter().map(|m| m.name.as_str()).collect();
+        assert!(names.contains(&"top.md"), "应含顶层");
+        assert!(names.contains(&"nested.md"), "应含子目录(递归)");
+        assert!(!names.contains(&"dep.md"), "应跳过 node_modules");
+
+        let _ = fs::remove_dir_all(&base);
     }
 }
