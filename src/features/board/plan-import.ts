@@ -109,6 +109,69 @@ export function parsePlanTasks(md: string): PlanTask[] {
   return parseCheckboxTasks(md);
 }
 
+// Taskmaster 任务对象（宽松，字段皆可选）
+interface TmTask {
+  id?: unknown;
+  title?: unknown;
+  description?: unknown;
+  details?: unknown;
+  subtasks?: unknown;
+}
+
+/** 解析 claude-task-master 的 tasks.json → 卡片。
+ *  兼容「打标签」结构 {"master":{"tasks":[…]}}（多 tag 合并）与扁平 {"tasks":[…]}。
+ *  body = description + details + subtasks（转为 - [ ] 列表）。 */
+export function parseTaskmasterTasks(jsonStr: string): PlanTask[] {
+  let data: unknown;
+  try {
+    data = JSON.parse(jsonStr);
+  } catch {
+    return [];
+  }
+  if (!data || typeof data !== "object") return [];
+  const d = data as Record<string, unknown>;
+
+  // 收集所有任务数组：扁平取 d.tasks；否则取每个含 .tasks 的顶层对象（各 tag）
+  const arrays: TmTask[][] = [];
+  if (Array.isArray(d.tasks)) {
+    arrays.push(d.tasks as TmTask[]);
+  } else {
+    for (const v of Object.values(d)) {
+      if (v && typeof v === "object" && Array.isArray((v as Record<string, unknown>).tasks)) {
+        arrays.push((v as { tasks: TmTask[] }).tasks);
+      }
+    }
+  }
+
+  const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+  const out: PlanTask[] = [];
+  let seq = 0;
+  for (const arr of arrays) {
+    for (const t of arr) {
+      if (!t || typeof t !== "object") continue;
+      const title = str(t.title);
+      if (!title) continue;
+      seq += 1;
+      const parts: string[] = [];
+      if (str(t.description)) parts.push(str(t.description));
+      if (str(t.details)) parts.push(str(t.details));
+      if (Array.isArray(t.subtasks)) {
+        const subs = (t.subtasks as TmTask[])
+          .map((s) => str(s?.title))
+          .filter(Boolean)
+          .map((x) => `- [ ] ${x}`);
+        if (subs.length) parts.push(subs.join("\n"));
+      }
+      out.push({
+        n: typeof t.id === "number" ? t.id : seq,
+        title,
+        body: parts.join("\n\n"),
+      });
+    }
+  }
+  return out;
+}
+
 /** 首个 `# 标题`；无则空串。 */
 export function parseDocTitle(md: string): string {
   for (const line of md.split(/\r?\n/)) {

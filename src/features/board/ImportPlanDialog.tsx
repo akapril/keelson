@@ -19,10 +19,14 @@ import { createDocRecord } from "@/lib/pb/docs";
 import { currentUserId } from "@/lib/pb";
 import {
   parsePlanTasks,
+  parseTaskmasterTasks,
   parseDocTitle,
   specNameForPlan,
   type PlanTask,
 } from "./plan-import";
+
+// Taskmaster 的 tasks.json（JSON，目录扫描列不到，单独探测）
+const TASKMASTER_JSON = ".taskmaster/tasks/tasks.json";
 import type { BoardProject } from "@/types/board";
 
 // 全网主流规格驱动工具的计划/规格目录（相对仓库根）。递归由 Rust 侧负责，能进 <feature>/ 子目录。
@@ -91,12 +95,23 @@ export function ImportPlanDialog({
       : norm;
   };
 
-  // 打开时扫官方+旧版+常见计划目录（递归）
+  // 打开时扫计划目录（递归）+ 探测 Taskmaster 的 tasks.json（JSON，扫描列不到）
   useEffect(() => {
     if (!open || !repo) return;
     setSel(null);
     setTasks([]);
-    void scanDirs(repo, PLAN_DIRS).then(setFiles).catch(() => setFiles([]));
+    void (async () => {
+      const md = await scanDirs(repo, PLAN_DIRS).catch(() => [] as MdFile[]);
+      const tmPath = joinPath(repo, TASKMASTER_JSON);
+      let extra: MdFile[] = [];
+      try {
+        await ipc.readTextFile(tmPath); // 读成功=存在
+        extra = [{ name: "tasks.json", path: tmPath }];
+      } catch {
+        /* 无 Taskmaster */
+      }
+      setFiles(mergeFiles(md, extra));
+    })();
   }, [open, repo]);
 
   // 手选任意目录（其它 agent/plugin 的计划位置）
@@ -115,12 +130,17 @@ export function ImportPlanDialog({
     }
   };
 
-  // 选中计划 → 读+解析 + 探测同名 spec（跨所有 SPEC_DIRS，按文件名匹配）
+  // 选中计划 → 读+解析（.json 走 Taskmaster，.md 走通用）+ 探测同名 spec
   const pick = async (f: MdFile) => {
     setSel(f);
     try {
-      const md = await ipc.readTextFile(f.path);
-      setTasks(parsePlanTasks(md));
+      const text = await ipc.readTextFile(f.path);
+      const isJson = f.path.toLowerCase().endsWith(".json");
+      setTasks(isJson ? parseTaskmasterTasks(text) : parsePlanTasks(text));
+      if (isJson) {
+        setSpecFile(null); // Taskmaster JSON 无同名 spec 概念
+        return;
+      }
       const specFiles = await scanDirs(repo, SPEC_DIRS).catch(() => [] as MdFile[]);
       setSpecFile(specFiles.find((s) => s.name === specNameForPlan(f.name)) ?? null);
     } catch (e) {
