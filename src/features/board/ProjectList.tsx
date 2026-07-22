@@ -169,10 +169,14 @@ export function ProjectList({ showArchived = false }: { showArchived?: boolean }
 
   const [stats, setStats] = useState<Record<string, ProjectStat>>({});
 
-  // 拉全部任务/状态/文档，聚合每个项目的统计（一次性，非阻塞卡片渲染）
+  // 拉全部任务/状态/文档，聚合每个项目的统计（非阻塞卡片渲染）。
+  // 触发时机：挂载、项目增删（projects.length 变化）、以及窗口重新聚焦——
+  // 覆盖「在别处/别的窗口改了任务或文档（Spotlight 建任务 / ⌘K / 后台同步）后
+  // 回到已挂载的首页，卡片统计不刷新」的陈旧问题（sessionCount 走 store 实时，
+  // 只有 task/doc 计数需要在此主动重拉）。
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+    const loadStats = async () => {
       try {
         const [tasks, states, docs] = await Promise.all([
           listAllTasks(),
@@ -200,9 +204,14 @@ export function ProjectList({ showArchived = false }: { showArchived?: boolean }
       } catch {
         /* 统计失败不影响卡片基本展示 */
       }
-    })();
+    };
+    void loadStats();
+    // 窗口重新聚焦时重拉，保持首页统计新鲜（返回应用/切回主窗时触发）
+    const onFocus = () => void loadStats();
+    window.addEventListener("focus", onFocus);
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", onFocus);
     };
   }, [projects.length]);
 
