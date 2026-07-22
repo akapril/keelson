@@ -3,7 +3,7 @@
 // 所有命令均为薄包装层，不含任何业务逻辑。
 
 use crate::AppState;
-use crate::models::{Session, TimelineMessage};
+use crate::models::{FileChange, Session, TimelineMessage};
 use crate::search::SessionHit;
 use tauri::State;
 
@@ -64,6 +64,18 @@ pub fn sessions_timeline(
             eprintln!("[rework] sessions_timeline: 未知 provider '{provider}'");
             Vec::new()
         }
+    }
+}
+
+/// 返回指定会话改动的文件列表（从转录里的 Write/Edit/MultiEdit 还原，含未提交改动）。
+/// v1 仅 Claude（转录带结构化 tool_use）；其它 provider 返回空。
+#[tauri::command]
+pub fn session_file_changes(provider: String, session_id: String) -> Vec<FileChange> {
+    if provider == "claude" {
+        crate::providers::claude::read_claude_file_changes(&session_id)
+    } else {
+        // Codex 的文件改动走 apply_patch/shell，结构不同，v1 暂不支持
+        Vec::new()
     }
 }
 

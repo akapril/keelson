@@ -3,7 +3,7 @@
 // classify_event / read_timeline / resume_command 等四大职责。
 
 use super::{EventKind, SessionProvider, WatchRoot};
-use crate::models::{Session, TimelineMessage};
+use crate::models::{FileChange, FileEdit, Session, TimelineMessage};
 use crate::paths::AppPaths;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -390,6 +390,138 @@ fn read_claude_timeline(session_id: &str) -> Vec<TimelineMessage> {
     read_timeline_from_path(&path)
 }
 
+// ============================================================
+// 会话文件改动解析（从转录里的 Write/Edit/MultiEdit 工具调用还原）
+// 用途：展示「本会话改动了哪些文件、改了什么」——含未提交 git 的改动，
+// 补齐 commit 溯源看不到的部分。
+// ============================================================
+
+/// 单个字段截断上限（防止 Write 大文件把 payload 撑爆）。
+const FILE_EDIT_CAP: usize = 4000;
+/// 单会话最多返回的改动条目（跨所有文件），防极端会话。
+const MAX_EDITS: usize = 400;
+
+/// 截断长文本，超限追加省略标记。
+fn cap_text(s: &str) -> String {
+    if s.chars().count() <= FILE_EDIT_CAP {
+        s.to_string()
+    } else {
+        let mut t: String = s.chars().take(FILE_EDIT_CAP).collect();
+        t.push_str("\n…（已截断）");
+        t
+    }
+}
+
+/// 读取指定会话的文件改动列表（找不到会话 → 空）。
+pub fn read_claude_file_changes(session_id: &str) -> Vec<FileChange> {
+    let projects_dir = AppPaths::detect().claude_dir().join("projects");
+    let path = match find_session_file(&projects_dir, session_id) {
+        Some(p) => p,
+        None => return Vec::new(),
+    };
+    match fs::read_to_string(&path) {
+        Ok(content) => parse_claude_file_changes(&content),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// 纯解析：从会话 .jsonl 全文解析文件改动，按文件路径聚合（保持首次出现顺序）。可单测。
+pub fn parse_claude_file_changes(content: &str) -> Vec<FileChange> {
+    // 保持插入顺序：路径列表 + 路径→索引
+    let mut order: Vec<String> = Vec::new();
+    let mut by_path: std::collections::HashMap<String, Vec<FileEdit>> =
+        std::collections::HashMap::new();
+    let mut total = 0usize;
+
+    'lines: for line in content.lines() {
+        if total >= MAX_EDITS {
+            break;
+        }
+        let raw: serde_json::Value = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        // message.content 里的 tool_use 项
+        let items = match raw.get("message").and_then(|m| m.get("content")) {
+            Some(serde_json::Value::Array(a)) => a,
+            _ => continue,
+        };
+        for c in items {
+            if c.get("type").and_then(|v| v.as_str()) != Some("tool_use") {
+                continue;
+            }
+            let name = c.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let input = match c.get("input") {
+                Some(v) => v,
+                None => continue,
+            };
+            let path = input
+                .get("file_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if path.is_empty() && name != "MultiEdit" {
+                continue;
+            }
+            let mut push = |p: &str, edit: FileEdit, total: &mut usize| {
+                if !by_path.contains_key(p) {
+                    order.push(p.to_string());
+                    by_path.insert(p.to_string(), Vec::new());
+                }
+                by_path.get_mut(p).unwrap().push(edit);
+                *total += 1;
+            };
+            match name {
+                "Write" => {
+                    let new = input.get("content").and_then(|v| v.as_str()).unwrap_or("");
+                    push(
+                        &path,
+                        FileEdit { tool: "Write".into(), old: String::new(), new: cap_text(new) },
+                        &mut total,
+                    );
+                }
+                "Edit" => {
+                    let old = input.get("old_string").and_then(|v| v.as_str()).unwrap_or("");
+                    let new = input.get("new_string").and_then(|v| v.as_str()).unwrap_or("");
+                    push(
+                        &path,
+                        FileEdit { tool: "Edit".into(), old: cap_text(old), new: cap_text(new) },
+                        &mut total,
+                    );
+                }
+                "MultiEdit" => {
+                    if let Some(serde_json::Value::Array(edits)) = input.get("edits") {
+                        for e in edits {
+                            if total >= MAX_EDITS {
+                                break 'lines;
+                            }
+                            let old = e.get("old_string").and_then(|v| v.as_str()).unwrap_or("");
+                            let new = e.get("new_string").and_then(|v| v.as_str()).unwrap_or("");
+                            push(
+                                &path,
+                                FileEdit { tool: "MultiEdit".into(), old: cap_text(old), new: cap_text(new) },
+                                &mut total,
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+            if total >= MAX_EDITS {
+                break 'lines;
+            }
+        }
+    }
+
+    order
+        .into_iter()
+        .map(|p| {
+            let edits = by_path.remove(&p).unwrap_or_default();
+            FileChange { path: p, edits }
+        })
+        .collect()
+}
+
 /// 从给定路径读取时间轴（方便测试注入 fixture）
 pub fn read_timeline_from_path(path: &Path) -> Vec<TimelineMessage> {
     let file = match File::open(path) {
@@ -689,6 +821,39 @@ mod tests {
             .join("subagents")
             .join("agent-a835884d4300b6173.jsonl");
         assert_eq!(provider.classify_event(&subagent), EventKind::Ignore);
+    }
+
+    /// 测试 parse_claude_file_changes：Write/Edit/MultiEdit 按文件聚合、保持顺序。
+    #[test]
+    fn parse_file_changes_aggregates_by_path() {
+        let jsonl = [
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Write","input":{"file_path":"/a.txt","content":"hello"}}]}}"#,
+            r#"{"type":"user","message":{"role":"user","content":"ok"}}"#,
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Edit","input":{"file_path":"/a.txt","old_string":"hello","new_string":"world"}}]}}"#,
+            r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"MultiEdit","input":{"file_path":"/b.txt","edits":[{"old_string":"x","new_string":"y"},{"old_string":"p","new_string":"q"}]}}]}}"#,
+        ]
+        .join("\n");
+        let changes = parse_claude_file_changes(&jsonl);
+        assert_eq!(changes.len(), 2);
+        // 首次出现顺序：/a.txt 在前
+        assert_eq!(changes[0].path, "/a.txt");
+        assert_eq!(changes[0].edits.len(), 2);
+        assert_eq!(changes[0].edits[0].tool, "Write");
+        assert_eq!(changes[0].edits[0].new, "hello");
+        assert_eq!(changes[0].edits[1].tool, "Edit");
+        assert_eq!(changes[0].edits[1].old, "hello");
+        assert_eq!(changes[0].edits[1].new, "world");
+        // /b.txt 的 MultiEdit 展开为 2 条
+        assert_eq!(changes[1].path, "/b.txt");
+        assert_eq!(changes[1].edits.len(), 2);
+        assert_eq!(changes[1].edits[0].tool, "MultiEdit");
+    }
+
+    /// 非工具消息不产生改动。
+    #[test]
+    fn parse_file_changes_ignores_plain_messages() {
+        let jsonl = r#"{"type":"user","message":{"role":"user","content":"just text"}}"#;
+        assert!(parse_claude_file_changes(jsonl).is_empty());
     }
 
     /// 从 fixture 文件读取 Claude 时间轴消息列表（对标 Codex 的 read_timeline_from_codex_fixture）

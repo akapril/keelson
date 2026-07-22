@@ -3,6 +3,7 @@ import type { Session, SessionHit, TimelineMessage } from "../../types/session";
 import type { EmbedConfig, RagHit } from "@/types/rag";
 import type { CommitInfo, CorrelatedCommit, HookStatus } from "@/types/git";
 import type { MemFilesStatus } from "@/types/memory";
+import type { FileChange } from "@/types/file-change";
 import type {
   AiConfig,
   AiChatMessage,
@@ -94,6 +95,10 @@ export const ipc = {
   /** 返回与某会话关联的提交（trailer 精确 / 时间窗可能相关）。判据在 Rust 单点。 */
   sessionCommits: (sessionId: string, provider: string) =>
     invoke<CorrelatedCommit[]>("session_commits", { sessionId, provider }),
+
+  /** 返回会话改动的文件（从转录 Write/Edit/MultiEdit 还原，含未提交改动）。v1 仅 Claude。 */
+  sessionFileChanges: (provider: string, sessionId: string) =>
+    invoke<FileChange[]>("session_file_changes", { provider, sessionId }),
 
   // ── 会话溯源 git 钩子（Phase 2） ──────────────────────────
   /** 查询某仓库的会话溯源钩子状态 */
