@@ -372,8 +372,10 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
     try {
       await deleteRecord(COL.boardTasks, id);
     } catch (e) {
-      // 回滚
+      // 回滚并重抛：让调用方真实感知失败（批量删除/单卡删除据此报错，不再误报成功）。
+      // 三处调用点均已 try/catch 或 .catch 处理。
       set({ tasks, error: String(e) });
+      throw e;
     }
   },
 
