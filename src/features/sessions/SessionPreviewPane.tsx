@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
+import { listProjects } from "../../lib/pb/board";
+import { syncSessionTasks } from "../board/sync-session-tasks";
 import { Textarea } from "@/components/ui/textarea";
 import { RestoreDialog } from "./RestoreDialog";
 import { SessionProvenance } from "./SessionProvenance";
@@ -55,6 +58,35 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   const [linkedRefresh, setLinkedRefresh] = useState(0);
   const [distillOpen, setDistillOpen] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  // 同步会话「规划的任务」到其关联项目的看板（按 repo_path 匹配项目）
+  const syncTasks = async (s: Session) => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const projects = await listProjects();
+      const proj = projects.find(
+        (p) => p.repo_path && p.repo_path === s.project_path,
+      );
+      if (!proj) {
+        toast.error("该会话未关联看板项目——先在会话列表「提升为看板项目」");
+        return;
+      }
+      const r = await syncSessionTasks(s, proj.id);
+      if (r.total === 0) {
+        toast.message("该会话没有规划任务（未用 Task 工具）");
+      } else {
+        toast.success(
+          `已同步到「${proj.name}」：新建 ${r.created}，更新进度 ${r.updated}（共 ${r.total}）`,
+        );
+      }
+    } catch (e) {
+      toast.error(`同步失败：${String(e instanceof Error ? e.message : e)}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   if (!session) {
     return (
@@ -97,6 +129,14 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
                 title="从此会话创建看板任务"
               >
                 建任务
+              </button>
+              <button
+                onClick={() => void syncTasks(session)}
+                className={action}
+                disabled={syncing}
+                title="把此会话规划的任务(Claude Task 工具的状态)同步到其关联项目的看板，进度随之更新"
+              >
+                {syncing ? "同步中…" : "同步任务"}
               </button>
               <button
                 onClick={() => setRestoreTarget(session)}

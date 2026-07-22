@@ -3,7 +3,7 @@
 // 所有命令均为薄包装层，不含任何业务逻辑。
 
 use crate::AppState;
-use crate::models::{FileChange, Session, TimelineMessage};
+use crate::models::{FileChange, PlannedTask, Session, TimelineMessage};
 use crate::search::SessionHit;
 use tauri::State;
 
@@ -75,6 +75,17 @@ pub fn session_file_changes(provider: String, session_id: String) -> Vec<FileCha
         crate::providers::claude::read_claude_file_changes(&session_id)
     } else {
         // Codex 的文件改动走 apply_patch/shell，结构不同，v1 暂不支持
+        Vec::new()
+    }
+}
+
+/// 返回某会话「规划的任务」（Claude 的 TaskCreate/TaskUpdate 落盘状态），供同步到看板并跟随进度。
+/// v1 仅 Claude（`~/.claude/tasks/<session>/`）；其它 provider 返回空。
+#[tauri::command]
+pub fn session_tasks(provider: String, session_id: String) -> Vec<PlannedTask> {
+    if provider == "claude" {
+        crate::providers::claude::read_claude_session_tasks(&session_id)
+    } else {
         Vec::new()
     }
 }

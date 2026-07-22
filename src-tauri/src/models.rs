@@ -22,6 +22,20 @@ pub struct FileChange {
     pub edits: Vec<FileEdit>,
 }
 
+/// 会话「规划的任务」——Claude 的 TaskCreate/TaskUpdate 落盘状态
+/// （~/.claude/tasks/<组>/<n>.json）。用于同步到看板并跟随进度。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlannedTask {
+    /// 任务序号 id（"1"/"2"/…）
+    pub id: String,
+    /// 标题
+    pub subject: String,
+    /// 描述
+    pub description: String,
+    /// 状态：pending | in_progress | completed
+    pub status: String,
+}
+
 /// AI 编码工具会话（支持多 provider），从 retalk 移植
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
