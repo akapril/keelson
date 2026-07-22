@@ -1,5 +1,6 @@
-// 工作报告页 —— 选时间范围 + 项目范围 → AI 生成 Markdown 工作报告 → 复制 / 存为文档。
+// 工作报告页 —— 选时间范围 + 项目范围 + 模板 → 后台异步生成 → 复制 / 存为文档。
 // 数据源：Git 提交 + 完成任务 + AI 会话（见 features/report/generateReport.ts）。
+// 生成走 report-job store（后台任务，完成推通知），页面离开再回来仍能看到结果。
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -11,10 +12,13 @@ import { Markdown } from "@/components/markdown";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/store/board";
 import { useSettingsStore } from "@/store/settings";
+import { useReportJobStore } from "@/store/report-job";
 import { currentUserId } from "@/lib/pb";
 import { createDocRecord } from "@/lib/pb/docs";
+import { listPrompts } from "@/lib/pb/prompts";
+import type { Prompt } from "@/types/prompt";
 import { computeRange, type RangePreset } from "@/features/report/report-range";
-import { generateReport, type ReportScope } from "@/features/report/generateReport";
+import { type ReportScope } from "@/features/report/generateReport";
 
 // 时间范围预设（顺序即展示顺序）
 const PRESETS: { key: RangePreset; label: string }[] = [
@@ -28,19 +32,26 @@ const PRESETS: { key: RangePreset; label: string }[] = [
 export default function ReportPage() {
   const navigate = useNavigate();
   const projects = useBoardStore((s) => s.projects);
+  // 后台生成任务状态（离开页面再回来仍可见）
+  const status = useReportJobStore((s) => s.status);
+  const result = useReportJobStore((s) => s.result);
+  const runJob = useReportJobStore((s) => s.run);
 
   const [preset, setPreset] = useState<RangePreset>("this-week");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [scopeId, setScopeId] = useState<string>("all"); // "all" | projectId
-  const [generating, setGenerating] = useState(false);
+  const [templateId, setTemplateId] = useState<string>(""); // "" = 默认（无模板）
+  const [templates, setTemplates] = useState<Prompt[]>([]);
   const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
   const [needConfig, setNeedConfig] = useState(false);
 
-  // 进页面拉一次项目列表（范围下拉用）
+  const generating = status === "running";
+
+  // 进页面拉项目列表（范围下拉）+ 指令库（模板下拉）
   useEffect(() => {
     void useBoardStore.getState().loadProjects();
+    void listPrompts().then(setTemplates).catch(() => {});
   }, []);
 
   // 当前选择对应的时间范围（自定义时依赖两个日期输入）
@@ -49,7 +60,7 @@ export default function ReportPage() {
     [preset, customFrom, customTo],
   );
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     const cfg = useSettingsStore.getState().aiConfig;
     const isCli = cfg.provider === "claude-cli" || cfg.provider === "codex-cli";
     if (!isCli && !cfg.api_key) {
@@ -57,17 +68,10 @@ export default function ReportPage() {
       return;
     }
     setNeedConfig(false);
-    setGenerating(true);
-    setResult(null);
-    try {
-      const scope: ReportScope = scopeId === "all" ? "all" : { projectId: scopeId };
-      const md = await generateReport(range, scope, cfg);
-      setResult(md);
-    } catch (e) {
-      toast.error(`生成失败：${String(e instanceof Error ? e.message : e)}`);
-    } finally {
-      setGenerating(false);
-    }
+    const scope: ReportScope = scopeId === "all" ? "all" : { projectId: scopeId };
+    const systemPrompt = templates.find((t) => t.id === templateId)?.content;
+    // 后台启动（不阻塞）；完成时 store 推通知，页面响应式显示结果
+    runJob({ range, scope, cfg, systemPrompt });
   };
 
   const handleCopy = () => {
@@ -82,11 +86,13 @@ export default function ReportPage() {
     if (!result) return;
     setSaving(true);
     try {
+      // 标题用「生成时」的范围标签（离开页面再回来控件会重置，range.label 可能已变）
+      const label = useReportJobStore.getState().rangeLabel || range.label;
       const doc = await createDocRecord({
         owner: currentUserId(),
         // 单项目范围时挂到该项目；全部项目则不挂（跨项目文档）
         projects: scopeId === "all" ? [] : [scopeId],
-        title: `工作报告 ${range.label}`,
+        title: `工作报告 ${label}`,
         content: result,
       });
       toast.success("已存为文档");
@@ -152,13 +158,13 @@ export default function ReportPage() {
           )}
         </div>
 
-        {/* 项目范围 + 生成 */}
+        {/* 项目范围 + 模板 */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">项目范围</span>
           <select
             value={scopeId}
             onChange={(e) => setScopeId(e.target.value)}
-            className="min-w-40 rounded-md border border-border bg-background px-2 py-1 text-xs"
+            className="min-w-32 rounded-md border border-border bg-background px-2 py-1 text-xs"
           >
             <option value="all">全部项目</option>
             {projects.map((p) => (
@@ -167,15 +173,43 @@ export default function ReportPage() {
               </option>
             ))}
           </select>
-          <span className="text-xs text-muted-foreground">·  {range.label}</span>
+
+          <span className="ml-2 text-xs font-medium text-muted-foreground">模板</span>
+          <select
+            value={templateId}
+            onChange={(e) => setTemplateId(e.target.value)}
+            className="min-w-32 rounded-md border border-border bg-background px-2 py-1 text-xs"
+            title="模板来自「指令库」；缺省用内置报告格式"
+          >
+            <option value="">默认格式</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* 范围提示 + 生成 */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{range.label}</span>
+          {templates.length === 0 && (
+            <button
+              type="button"
+              onClick={() => navigate("/prompts")}
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              去指令库建报告模板
+            </button>
+          )}
           <Button
             size="sm"
             className="ml-auto"
-            onClick={() => void handleGenerate()}
+            onClick={handleGenerate}
             disabled={generating}
           >
             <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} />
-            {generating ? "生成中…" : "生成报告"}
+            {generating ? "后台生成中…" : "生成报告"}
           </Button>
         </div>
       </div>
@@ -196,14 +230,22 @@ export default function ReportPage() {
       {/* 结果区 */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {generating ? (
-          <p className="py-16 text-center text-sm text-muted-foreground">
-            正在采集素材并生成报告…
-          </p>
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+            <p className="text-sm">正在后台采集素材并生成报告…</p>
+            <p className="text-xs">可离开本页去做别的，生成完会有通知提醒。</p>
+          </div>
+        ) : status === "error" ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+            <p className="text-sm text-destructive">生成失败，请重试</p>
+            <Button variant="outline" size="sm" onClick={handleGenerate}>
+              重新生成
+            </Button>
+          </div>
         ) : result ? (
           <div className="mx-auto max-w-3xl">
             {/* 操作栏 */}
             <div className="mb-2 flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{range.label}</span>
+              <span className="text-xs text-muted-foreground">{useReportJobStore.getState().rangeLabel}</span>
               <div className="ml-auto flex items-center gap-1.5">
                 <Button variant="outline" size="xs" onClick={handleCopy}>
                   <HugeiconsIcon icon={Copy01Icon} strokeWidth={2} />
@@ -213,7 +255,7 @@ export default function ReportPage() {
                   <HugeiconsIcon icon={File01Icon} strokeWidth={2} />
                   {saving ? "保存中…" : "存为文档"}
                 </Button>
-                <Button variant="outline" size="xs" onClick={() => void handleGenerate()}>
+                <Button variant="outline" size="xs" onClick={handleGenerate}>
                   <HugeiconsIcon icon={Refresh01Icon} strokeWidth={2} />
                   重新生成
                 </Button>
