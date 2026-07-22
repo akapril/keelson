@@ -549,7 +549,13 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
     } catch {
       /* 断链失败不阻断删除（残留 id 在 UI 侧会被过滤忽略） */
     }
-    // 删项目：PB 对任务/状态列/标签/成员设了 cascadeDelete，自动一并删除
+    // 先删该项目的全部任务：board_tasks.state 是 required 关系且**未级联**，
+    // 若留到 PB 级联删 board_project_states 那一步，状态列仍被任务的 state 引用 →
+    // PB 报「required relation reference」挡住整个删除。先清空任务即可解开。
+    // 注意用 listTasks(id) 拉目标项目任务（store.tasks 只含当前打开项目）。
+    const tasks = await listTasks(id);
+    await Promise.all(tasks.map((t) => deleteRecord(COL.boardTasks, t.id)));
+    // 再删项目：PB 对状态列/标签/成员设了 cascadeDelete，自动一并删除
     await deleteRecord(COL.boardProjects, id);
     set((s) => ({
       projects: s.projects.filter((p) => p.id !== id),
