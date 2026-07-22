@@ -15,6 +15,7 @@ const CalendarPage = lazy(() => import("./features/calendar/CalendarPage"));
 const UsagePage = lazy(() => import("./pages/usage"));
 const InboxPage = lazy(() => import("./pages/inbox"));
 const MemoryPage = lazy(() => import("./pages/memory"));
+const PromptsPage = lazy(() => import("./pages/prompts"));
 
 export function AppRouter() {
   return (
@@ -42,6 +43,7 @@ export function AppRouter() {
           <Route path="/usage" element={<UsagePage />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/memory" element={<MemoryPage />} />
+          <Route path="/prompts" element={<PromptsPage />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

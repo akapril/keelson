@@ -8,6 +8,7 @@ import {
   BookOpen01Icon,
   Calendar03Icon,
   BrainIcon,
+  CommandIcon,
   Settings02Icon,
 } from "@hugeicons/core-free-icons";
 
@@ -68,6 +69,12 @@ export const navGroups: NavGroup[] = [
         url: "/memory",
         icon: BrainIcon,
         description: "跨厂商提炼的可复用记忆",
+      },
+      {
+        title: "指令库",
+        url: "/prompts",
+        icon: CommandIcon,
+        description: "可复用 prompt / 片段，支持变量与一键插入",
       },
     ],
   },
