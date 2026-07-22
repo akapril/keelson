@@ -83,9 +83,12 @@ export function ProjectWorkspace() {
   if (!project) return null;
   const repoPath = project.repo_path;
 
+  // 概览统计只算「活跃任务」（排除已归档）——与看板默认隐藏归档保持一致，避免计数对不上。
+  const activeTasks = tasks.filter((t) => !t.archived);
+
   // 任务按状态类别统计（概览用）
   const catCounts = { pending: 0, active: 0, completed: 0 };
-  for (const t of tasks) {
+  for (const t of activeTasks) {
     const st = states.find((s) => s.id === t.state);
     if (st) catCounts[st.category] += 1;
   }
@@ -93,8 +96,8 @@ export function ProjectWorkspace() {
     ? sessions.filter((s) => s.project_path === repoPath).length
     : 0;
 
-  // 近期截止任务（有 due_date，按日期升序，取前 6）
-  const upcomingTasks = [...tasks]
+  // 近期截止任务（有 due_date，按日期升序，取前 6；归档任务已完成，不算"近期截止"）
+  const upcomingTasks = [...activeTasks]
     .filter((t) => t.due_date)
     .sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""))
     .slice(0, 6);
@@ -192,7 +195,7 @@ export function ProjectWorkspace() {
           <div className="flex flex-col gap-4">
             {/* 统计卡片 */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCard label="任务总数" value={tasks.length} />
+              <StatCard label="任务总数" value={activeTasks.length} />
               <StatCard
                 label={STATE_CATEGORY_META.pending.label}
                 value={catCounts.pending}
@@ -243,7 +246,7 @@ export function ProjectWorkspace() {
                     </span>
                   )}
                 </InfoItem>
-                <InfoItem label="任务">{tasks.length} 个</InfoItem>
+                <InfoItem label="任务">{activeTasks.length} 个</InfoItem>
                 <InfoItem label="文档">{docCount} 篇</InfoItem>
                 <InfoItem label="关联会话">{linkedCount} 个</InfoItem>
                 <InfoItem label="状态列 / 标签">

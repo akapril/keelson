@@ -186,6 +186,8 @@ export function ProjectList({ showArchived = false }: { showArchived?: boolean }
         const ensure = (pid: string) =>
           (map[pid] ??= { total: 0, done: 0, docs: 0, sessions: 0 });
         for (const t of tasks) {
+          // 归档任务不计入项目卡片统计（与看板默认隐藏归档一致）
+          if (t.archived) continue;
           const st = ensure(t.project);
           st.total += 1;
           if (doneState.has(t.state)) st.done += 1;
