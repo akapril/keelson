@@ -47,22 +47,35 @@ function EditDiff({ edit }: { edit: FileEdit }) {
   );
 }
 
-export function SessionFileChanges({ session }: { session: Session }) {
+export function SessionFileChanges({
+  session,
+  open,
+  onCount,
+}: {
+  session: Session;
+  open: boolean;
+  onCount: (n: number) => void;
+}) {
   const [changes, setChanges] = useState<FileChange[]>([]);
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState<string | null>(null);
+  const [openFile, setOpenFile] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setOpen(null);
+    setOpenFile(null);
     ipc
       .sessionFileChanges(session.provider, session.session_id)
       .then((list) => {
-        if (!cancelled) setChanges(list);
+        if (cancelled) return;
+        setChanges(list);
+        onCount(list.length);
       })
       .catch(() => {
-        if (!cancelled) setChanges([]);
+        if (!cancelled) {
+          setChanges([]);
+          onCount(0);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -70,37 +83,33 @@ export function SessionFileChanges({ session }: { session: Session }) {
     return () => {
       cancelled = true;
     };
+    // onCount 是父级 setState 包装，排除以免刷新循环
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.session_id, session.provider]);
 
-  // 加载中：明确提示"正在读"，避免误以为无改动
+  if (!open) return null;
   if (loading) {
     return (
-      <div className="shrink-0 border-t border-border pt-3">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <HugeiconsIcon icon={File01Icon} strokeWidth={2} className="size-3.5 animate-pulse" />
-          正在读取本会话改动的文件…
-        </div>
-      </div>
+      <p className="mt-2 flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+        <HugeiconsIcon icon={File01Icon} strokeWidth={2} className="size-3.5 animate-pulse" />
+        正在读取本会话改动的文件…
+      </p>
     );
   }
-  // 无改动（或非 Claude）→ 不渲染
-  if (changes.length === 0) return null;
+  if (changes.length === 0) {
+    return <p className="mt-2 px-1 text-xs text-muted-foreground">无文件改动记录（或非 Claude 会话）。</p>;
+  }
 
   return (
-    <div className="shrink-0 border-t border-border pt-3">
-      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-        <HugeiconsIcon icon={File01Icon} strokeWidth={2} className="size-3.5" />
-        本会话改动的文件（{changes.length}）
-        <span className="font-normal text-muted-foreground/70">· 含未提交</span>
-      </div>
+    <div className="mt-2">
       <div className="flex max-h-56 flex-col gap-1 overflow-y-auto pr-1">
         {changes.map((fc) => {
-          const isOpen = open === fc.path;
+          const isOpen = openFile === fc.path;
           return (
             <div key={fc.path} className="rounded-lg border border-border bg-card">
               <button
                 type="button"
-                onClick={() => setOpen(isOpen ? null : fc.path)}
+                onClick={() => setOpenFile(isOpen ? null : fc.path)}
                 className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-xs"
                 title={fc.path}
               >

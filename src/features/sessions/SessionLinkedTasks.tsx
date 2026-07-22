@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowRight01Icon, DashboardSquare02Icon } from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 
 import { listTasksBySession } from "@/lib/pb/board";
 import { workspaceRecordUrl } from "@/lib/workspace-navigation";
@@ -14,14 +14,17 @@ interface SessionLinkedTasksProps {
   sessionId: string;
   /** 变化时重新拉取（如「建任务」对话框关闭后刷新） */
   refreshKey?: number;
+  /** 是否展开详情（受 SessionProvenance 折叠控制） */
+  open: boolean;
+  /** 上报任务数量（供摘要胶囊显示） */
+  onCount: (n: number) => void;
 }
 
 /**
- * 会话已衍生的看板任务列表。
- * - 无任务时不渲染任何内容（避免占位噪声）。
- * - 每项点击 → 跳转到该任务所在项目的看板（/board?open=<project>）。
+ * 会话已衍生的看板任务列表。始终拉取并上报数量；仅 open 时渲染详情。
+ * 每项点击 → 跳转到该任务所在项目的看板（/board?open=<project>）。
  */
-export function SessionLinkedTasks({ sessionId, refreshKey }: SessionLinkedTasksProps) {
+export function SessionLinkedTasks({ sessionId, refreshKey, open, onCount }: SessionLinkedTasksProps) {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<BoardTask[]>([]);
 
@@ -29,26 +32,31 @@ export function SessionLinkedTasks({ sessionId, refreshKey }: SessionLinkedTasks
     let cancelled = false;
     listTasksBySession(sessionId)
       .then((list) => {
-        if (!cancelled) setTasks(list);
+        if (cancelled) return;
+        setTasks(list);
+        onCount(list.length);
       })
       .catch(() => {
-        // 反查失败不阻断预览；静默留空
-        if (!cancelled) setTasks([]);
+        if (!cancelled) {
+          setTasks([]);
+          onCount(0);
+        }
       });
     return () => {
       cancelled = true;
     };
+    // onCount 是父级 setState 包装，排除以免刷新循环
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, refreshKey]);
 
-  if (tasks.length === 0) return null;
+  if (!open) return null;
+  if (tasks.length === 0) {
+    return <p className="mt-2 px-1 text-xs text-muted-foreground">无关联任务。</p>;
+  }
 
   return (
-    <div className="shrink-0 border-t border-border pt-3">
-      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-        <HugeiconsIcon icon={DashboardSquare02Icon} strokeWidth={2} className="size-3.5" />
-        关联任务（{tasks.length}）
-      </div>
-      <div className="flex flex-col gap-1.5">
+    <div className="mt-2">
+      <div className="flex max-h-52 flex-col gap-1.5 overflow-y-auto pr-1">
         {tasks.map((t) => {
           const priority = PRIORITY_META[t.priority];
           return (

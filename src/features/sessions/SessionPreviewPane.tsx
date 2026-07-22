@@ -3,9 +3,7 @@ import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
 import { Textarea } from "@/components/ui/textarea";
 import { RestoreDialog } from "./RestoreDialog";
-import { SessionLinkedTasks } from "./SessionLinkedTasks";
-import { SessionCommits } from "./SessionCommits";
-import { SessionFileChanges } from "./SessionFileChanges";
+import { SessionProvenance } from "./SessionProvenance";
 import { SessionChat } from "./SessionChat";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 import { DistillDialog } from "../chemistry/DistillDialog";
@@ -120,14 +118,12 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
             触发 React 重复 key 的"复制/遗漏"——切换时会叠出多个，故各自加唯一前缀。 */}
         <SessionNoteEditor key={`note-${session.session_id}`} sessionId={session.session_id} />
 
-        {/* 关联任务（本会话已衍生的看板任务，点击跳看板） */}
-        <SessionLinkedTasks sessionId={session.session_id} refreshKey={linkedRefresh} />
-
-        {/* 会话→Commit 溯源：此会话期间/关联的提交（精确 trailer / 时间窗可能相关） */}
-        <SessionCommits key={`commits-${session.session_id}`} session={session} />
-
-        {/* 会话→文件改动溯源：本会话改动的文件 + diff（含未提交，补 commit 看不到的部分） */}
-        <SessionFileChanges key={`files-${session.session_id}`} session={session} />
+        {/* 溯源摘要条：关联任务 / 提交 / 改动文件 收成一行胶囊，默认折叠，把空间还给对话 */}
+        <SessionProvenance
+          key={`prov-${session.session_id}`}
+          session={session}
+          tasksRefreshKey={linkedRefresh}
+        />
 
         {/* 内联聊天：历史气泡 + 底部续聊（切换会话时 key 重置） */}
         <SessionChat key={`chat-${session.session_id}`} session={session} className="flex-1" />
