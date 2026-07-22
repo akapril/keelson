@@ -30,6 +30,10 @@ import {
   setDefaultTab,
   type WorkspaceTab,
 } from "@/features/board/project-tab-pref";
+import {
+  getAutoArchiveDays,
+  setAutoArchiveDays,
+} from "@/features/board/task-archive";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
 /**
@@ -428,6 +432,50 @@ function ProjectDefaultTabSection() {
   );
 }
 
+/**
+ * 看板已完成任务自动归档阈值：完成超过 N 天的任务在打开项目时自动归档（保留溯源，不删除）。
+ * 0 = 关闭自动归档（仍可手动归档）。纯本地偏好。
+ */
+const AUTO_ARCHIVE_OPTIONS = [
+  { value: "0", label: "关闭（仅手动归档）" },
+  { value: "3", label: "完成 3 天后" },
+  { value: "7", label: "完成 7 天后" },
+  { value: "14", label: "完成 14 天后" },
+  { value: "30", label: "完成 30 天后" },
+];
+function AutoArchiveSection() {
+  const [days, setDays] = useState<string>(() => String(getAutoArchiveDays()));
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-sm font-medium">看板已完成任务自动归档</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          打开项目时，把「完成」列中停留超过所选天数的任务自动归档（软删除、保留会话/提交溯源，
+          默认从看板隐藏，可随时「显示归档」查看或取消归档）。不会删除任何数据。
+        </p>
+      </div>
+      <Select
+        value={days}
+        onValueChange={(v) => {
+          setDays(v);
+          setAutoArchiveDays(Number(v));
+        }}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="选择自动归档时机" />
+        </SelectTrigger>
+        <SelectContent>
+          {AUTO_ARCHIVE_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </section>
+  );
+}
+
 export default function Settings() {
   const { hotkey, workspacePath, loading, error, load, saveHotkey } =
     useSettingsStore();
@@ -664,6 +712,11 @@ export default function Settings() {
 
       {/* ── 项目默认打开标签页 ── */}
       <ProjectDefaultTabSection />
+
+      <div className="border-t border-border" />
+
+      {/* ── 看板已完成任务自动归档 ── */}
+      <AutoArchiveSection />
 
       <div className="border-t border-border" />
 

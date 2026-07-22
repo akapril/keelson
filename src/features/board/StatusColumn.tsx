@@ -2,7 +2,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon } from "@hugeicons/core-free-icons";
+import { Add01Icon, ArchiveArrowDownIcon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,8 @@ interface StatusColumnProps {
   onToggleSelect?: (taskId: string) => void;
   /** 进入多选模式（右键"选择"）。 */
   onEnterSelect?: (taskId: string) => void;
+  /** 一键归档本列全部（未归档）任务——仅完成类别列展示入口。 */
+  onArchiveColumn?: (stateId: string) => void;
 }
 
 /**
@@ -40,11 +42,18 @@ export function StatusColumn({
   selected,
   onToggleSelect,
   onEnterSelect,
+  onArchiveColumn,
 }: StatusColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `state:${state.id}`,
     data: { type: "state", stateId: state.id },
   });
+
+  // 完成类别列 + 当前有未归档任务 → 显示「一键归档已完成」入口
+  const canArchiveColumn =
+    state.category === "completed" &&
+    !!onArchiveColumn &&
+    tasks.some((t) => !t.archived);
 
   return (
     <div className="flex w-72 shrink-0 flex-col">
@@ -62,14 +71,27 @@ export function StatusColumn({
             {tasks.length}
           </span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => onAddTask(state.id)}
-          aria-label={`向「${state.name}」添加任务`}
-        >
-          <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-        </Button>
+        <div className="flex shrink-0 items-center">
+          {canArchiveColumn && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => onArchiveColumn!(state.id)}
+              title="归档本列全部已完成任务"
+              aria-label={`归档「${state.name}」全部任务`}
+            >
+              <HugeiconsIcon icon={ArchiveArrowDownIcon} strokeWidth={2} />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => onAddTask(state.id)}
+            aria-label={`向「${state.name}」添加任务`}
+          >
+            <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
+          </Button>
+        </div>
       </div>
 
       {/* 任务列表（可接收拖入） */}

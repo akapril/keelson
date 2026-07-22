@@ -1,5 +1,5 @@
 // KanbanBoard —— 已打开项目的拖拽看板（纯看板；git 状态/关联会话由 ProjectWorkspace 承载）。
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -18,6 +18,11 @@ import { StatusColumn } from "./StatusColumn";
 import { TaskCard } from "./TaskCard";
 import { TaskSheet } from "./TaskSheet";
 import { BatchActionBar } from "./BatchActionBar";
+import {
+  tasksToAutoArchive,
+  getAutoArchiveDays,
+  archivableInState,
+} from "./task-archive";
 
 // TaskSheet 的受控状态：新建（预填 state）或编辑（携带 task）。
 interface SheetState {
@@ -46,6 +51,23 @@ export function KanbanBoard() {
 
   // 当前正在拖拽的任务（用于 DragOverlay）
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
+  // 是否显示已归档任务（默认隐藏，保持看板清爽）
+  const [showArchived, setShowArchived] = useState(false);
+  // 自动归档只对每个项目跑一次（避免重复写库）
+  const autoArchivedFor = useRef<string | null>(null);
+
+  // 自动归档：进入项目、任务加载后，把「完成超过 N 天」的任务自动归档（阈值可在设置改，0=关）。
+  useEffect(() => {
+    if (!openedProjectId || tasks.length === 0 || states.length === 0) return;
+    if (autoArchivedFor.current === openedProjectId) return;
+    autoArchivedFor.current = openedProjectId;
+    const days = getAutoArchiveDays();
+    const ids = tasksToAutoArchive(tasks, states, days, Date.now());
+    if (ids.length === 0) return;
+    void Promise.allSettled(ids.map((id) => updateTask(id, { archived: true }))).then(
+      () => toast.message(`已自动归档 ${ids.length} 个完成超过 ${days} 天的任务`),
+    );
+  }, [openedProjectId, tasks, states, updateTask]);
 
   // TaskSheet 受控状态（新建/编辑任务）
   const [sheet, setSheet] = useState<SheetState>({
@@ -226,11 +248,36 @@ export function KanbanBoard() {
 
   const sortedStates = [...states].sort((a, b) => a.sort_order - b.sort_order);
   const grouped = tasksByState();
+  // 默认隐藏归档任务；开关打开时才显示。每列按此过滤。
+  const visibleOf = (stateId: string) =>
+    (grouped[stateId] ?? []).filter((t) => showArchived || !t.archived);
+  const archivedCount = tasks.filter((t) => t.archived).length;
+
+  // 一键归档某列全部未归档任务
+  const archiveColumn = (stateId: string) => {
+    const ids = archivableInState(tasks, stateId);
+    if (ids.length === 0) return;
+    void Promise.allSettled(ids.map((id) => updateTask(id, { archived: true }))).then(
+      () => toast.success(`已归档 ${ids.length} 个任务`),
+    );
+  };
 
   if (!openedProjectId) return null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {/* 工具条：显示/隐藏归档（仅当存在归档任务时出现） */}
+      {archivedCount > 0 && (
+        <div className="flex shrink-0 items-center justify-end pb-2">
+          <button
+            type="button"
+            onClick={() => setShowArchived((v) => !v)}
+            className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            {showArchived ? "隐藏归档" : `显示归档（${archivedCount}）`}
+          </button>
+        </div>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -245,7 +292,7 @@ export function KanbanBoard() {
             <StatusColumn
               key={state.id}
               state={state}
-              tasks={grouped[state.id] ?? []}
+              tasks={visibleOf(state.id)}
               onAddTask={(stateId) =>
                 setSheet({ open: true, mode: "create", stateId })
               }
@@ -254,6 +301,7 @@ export function KanbanBoard() {
               selected={selected}
               onToggleSelect={handleToggleSelect}
               onEnterSelect={handleEnterSelect}
+              onArchiveColumn={archiveColumn}
             />
           ))}
 

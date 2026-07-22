@@ -164,8 +164,16 @@ export function TaskCard({
         isDragging && "opacity-50 shadow-lg ring-2 ring-primary/20",
         // 多选模式选中态：蓝色描边高亮
         selectMode && selected && "border-primary/60 ring-1 ring-primary/30 bg-primary/5",
+        // 已归档：降饱和虚线框，与活跃任务区分
+        task.archived && "border-dashed opacity-60",
       )}
     >
+      {/* 已归档角标 */}
+      {task.archived && (
+        <span className="absolute right-2 top-2 z-10 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+          已归档
+        </span>
+      )}
       {/* 多选模式：左上角勾选图标 */}
       {selectMode && (
         <div className="absolute left-2 top-2 z-10">
@@ -318,6 +326,16 @@ export function TaskCard({
         )}
 
         <ContextMenuSeparator />
+        {/* 归档：完成任务软删除（保留溯源），默认从看板隐藏；可取消归档 */}
+        <ContextMenuItem
+          onSelect={() =>
+            void updateTask(task.id, { archived: !task.archived }).catch((e) =>
+              toast.error(`操作失败：${String(e)}`),
+            )
+          }
+        >
+          {task.archived ? "取消归档" : "归档"}
+        </ContextMenuItem>
         <ContextMenuItem variant="destructive" onSelect={remove}>
           删除
         </ContextMenuItem>

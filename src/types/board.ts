@@ -42,6 +42,8 @@ export interface BoardTask {
   due_date?: string;
   assignees?: string[];
   labels?: string[];
+  /** 已归档（完成任务软删除，默认隐藏；保留溯源）。 */
+  archived?: boolean;
   created_by: string;
   source_session_id?: string;
   source_provider?: string;
