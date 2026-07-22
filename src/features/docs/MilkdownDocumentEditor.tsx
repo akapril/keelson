@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import { PromptDialog } from "@/components/prompt-dialog"
 
 import { LanguageDescription } from "@codemirror/language"
@@ -98,7 +98,8 @@ import { uploadDocAsset, resolveAssetURL } from "@/lib/pb/assets"
 import { useSettingsStore } from "@/store/settings"
 import { createDocAiProvider, aiConfigUsable } from "./doc-ai"
 import { parseHeadings } from "./toc"
-import { DocPreview } from "./DocPreview"
+// 预览(含 mermaid)按需懒载：只有切到「预览」视图才加载，避免拖慢文档首次打开。
+const DocPreview = lazy(() => import("./DocPreview").then((m) => ({ default: m.DocPreview })))
 
 export type DocumentEditorMode = "rich-text" | "source" | "diff" | "preview"
 
@@ -281,7 +282,15 @@ function MilkdownEditorBody({
         />
       )}
       {mode === "diff" && <MarkdownDiff before={savedValue} after={value} />}
-      {mode === "preview" && <DocPreview content={value} />}
+      {mode === "preview" && (
+        <Suspense
+          fallback={
+            <p className="px-5 py-4 text-sm text-muted-foreground">加载预览…</p>
+          }
+        >
+          <DocPreview content={value} />
+        </Suspense>
+      )}
     </div>
   )
 }
