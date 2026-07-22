@@ -12,6 +12,8 @@ export interface Memory {
   content: string;
   kind: MemoryKind;
   scope: MemoryScope;
+  /** 审核状态：pending=外部 AI(MCP)写入待审；accepted/空=已入账。 */
+  status?: "pending" | "accepted";
   /** scope=project 时的关联项目 id（可空） */
   project: string;
   /** 置信度（多来源命中累加） */

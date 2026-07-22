@@ -24,6 +24,7 @@ export function MemoryFilesBar({ repoPath, projectId }: { repoPath: string; proj
         .filter(
           (m) =>
             !m.superseded_by &&
+            m.status !== "pending" && // 待审记忆未采纳，不注入 CLAUDE.md（否则绕过审核门禁）
             (m.scope === "global" || (m.scope === "project" && m.project === projectId)),
         )
         .map((m) => ({ content: m.content, kind: m.kind, scope: m.scope }));

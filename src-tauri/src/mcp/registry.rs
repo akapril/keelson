@@ -119,6 +119,20 @@ pub fn tool_schemas() -> Vec<ToolDef> {
                 }
             }),
         },
+        ToolDef {
+            name: "create_memory",
+            description: "把一条值得长期复用的经验写入用户的记忆账本（事实/偏好/决策/约定）。默认进「待审」，需用户在 rework 里采纳后才生效，不会污染账本。仅记一句话断言级别的长期知识，不要记临时上下文。",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "content": { "type": "string", "description": "一句话断言（长期可复用的事实/偏好/决策/约定）" },
+                    "kind": { "type": "string", "enum": ["fact", "preference", "decision", "convention"], "description": "粒度类别，默认 fact" },
+                    "scope": { "type": "string", "enum": ["global", "project"], "description": "global=全局；project=仅本项目（默认 project，需 project_id）" },
+                    "project_id": { "type": "string", "description": "scope=project 时必填，来自 list_projects" }
+                },
+                "required": ["content"]
+            }),
+        },
     ]
 }
 
@@ -133,10 +147,11 @@ mod tests {
         for expected in [
             "list_projects", "list_states", "list_tasks", "create_task",
             "update_task", "list_docs", "create_doc", "update_doc", "search_memory",
+            "create_memory",
         ] {
             assert!(names.contains(&expected), "缺少工具 {expected}");
         }
-        assert_eq!(tool_schemas().len(), 9);
+        assert_eq!(tool_schemas().len(), 10);
     }
 
     #[test]
