@@ -177,6 +177,8 @@ function ProjectFields({
   const [aiBusy, setAiBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // 删除时是否同时删除「仅属于本项目」的文档（默认否，只解除关联）
+  const [deleteDocs, setDeleteDocs] = useState(false)
 
   // 项目切换时同步草稿（key 已按 projectId 隔离，此处兜底 store 侧更新）
   useEffect(() => {
@@ -257,7 +259,7 @@ function ProjectFields({
     setDeleting(true)
     onError(undefined)
     try {
-      await deleteProject(projectId)
+      await deleteProject(projectId, { deleteDocs })
       setConfirmDelete(false)
       onDeleted()
     } catch (e) {
@@ -349,7 +351,10 @@ function ProjectFields({
             variant="ghost"
             size="sm"
             disabled={deleting}
-            onClick={() => setConfirmDelete(true)}
+            onClick={() => {
+              setDeleteDocs(false) // 每次打开默认不勾
+              setConfirmDelete(true)
+            }}
             className="text-destructive hover:text-destructive"
           >
             <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
@@ -371,12 +376,29 @@ function ProjectFields({
               <div className="space-y-1.5">
                 <p>将永久删除该项目及其任务、状态列、标签，无法撤销。</p>
                 <p className="text-foreground">
-                  不会删除本地仓库文件 / git / 会话记录，也不会删除关联文档（仅解除与本项目的链接）——
-                  只移除 rework 里的这个看板项目。
+                  不会删除本地仓库文件 / git / 会话记录。关联文档默认<strong>仅解除关联、保留</strong>。
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {/* 可选：同时删除仅属于本项目的文档（共享文档仍只解除关联） */}
+          <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm select-none">
+            <input
+              type="checkbox"
+              checked={deleteDocs}
+              onChange={(e) => setDeleteDocs(e.target.checked)}
+              disabled={deleting}
+              className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-input accent-destructive"
+            />
+            <span>
+              同时删除本项目的文档
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                仅删除<strong>只属于本项目</strong>的文档；与其他项目共享的文档仍只解除关联、不删除。
+              </span>
+            </span>
+          </label>
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
             <AlertDialogAction
