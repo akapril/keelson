@@ -297,6 +297,7 @@ pub fn run() {
             commands::sessions::sessions_project_paths,
             commands::sessions::session_commits,
             commands::sessions::session_file_changes,
+            commands::sessions::session_tasks,
             // 终端（Task 16 - terminal.rs）
             commands::terminal::terminal_resume,
             // 配置（Task 16 - config.rs）

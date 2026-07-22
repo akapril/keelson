@@ -44,6 +44,18 @@ export interface SessionHit {
   score: number;
 }
 
+/** 会话「规划的任务」（Claude TaskCreate/TaskUpdate 落盘状态，对应 Rust PlannedTask） */
+export interface PlannedTask {
+  /** 任务序号 id（"1"/"2"/…） */
+  id: string;
+  /** 标题 */
+  subject: string;
+  /** 描述 */
+  description: string;
+  /** 状态：pending | in_progress | completed */
+  status: string;
+}
+
 /** 会话时间线中的单条消息（对应 Rust TimelineMessage 结构体） */
 export interface TimelineMessage {
   /** 消息角色 */

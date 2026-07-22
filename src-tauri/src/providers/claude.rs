@@ -3,7 +3,7 @@
 // classify_event / read_timeline / resume_command 等四大职责。
 
 use super::{EventKind, SessionProvider, WatchRoot};
-use crate::models::{FileChange, FileEdit, Session, TimelineMessage};
+use crate::models::{FileChange, FileEdit, PlannedTask, Session, TimelineMessage};
 use crate::paths::AppPaths;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -423,6 +423,54 @@ pub fn read_claude_file_changes(session_id: &str) -> Vec<FileChange> {
         Ok(content) => parse_claude_file_changes(&content),
         Err(_) => Vec::new(),
     }
+}
+
+/// 读取某会话「规划的任务」——Claude 的 TaskCreate/TaskUpdate 会把任务落盘为
+/// `~/.claude/tasks/<组>/<n>.json`（每任务一个文件，含 id/subject/description/status）。
+/// 任务组目录通常以创建它的 session_id 命名；目录不存在 → 空。结果按数字 id 升序。
+pub fn read_claude_session_tasks(session_id: &str) -> Vec<PlannedTask> {
+    let dir = AppPaths::detect()
+        .claude_dir()
+        .join("tasks")
+        .join(session_id);
+    let rd = match fs::read_dir(&dir) {
+        Ok(r) => r,
+        Err(_) => return Vec::new(), // 该会话没有规划任务（或未用 Task 工具）
+    };
+    let mut tasks: Vec<PlannedTask> = Vec::new();
+    for entry in rd.flatten() {
+        let p = entry.path();
+        if p.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue; // 跳过 .lock 等非任务文件
+        }
+        let content = match fs::read_to_string(&p) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let v: serde_json::Value = match serde_json::from_str(&content) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let get = |k: &str| {
+            v.get(k)
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string()
+        };
+        let id = get("id");
+        if id.is_empty() {
+            continue;
+        }
+        tasks.push(PlannedTask {
+            id,
+            subject: get("subject"),
+            description: get("description"),
+            status: get("status"),
+        });
+    }
+    // 数字 id 升序（"2" 排在 "10" 前）
+    tasks.sort_by_key(|t| t.id.parse::<u64>().unwrap_or(u64::MAX));
+    tasks
 }
 
 /// 纯解析：从会话 .jsonl 全文解析文件改动，按文件路径聚合（保持首次出现顺序）。可单测。
