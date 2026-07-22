@@ -1,6 +1,27 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+/// 会话内一次文件改动（来自转录里的 Write/Edit/MultiEdit 工具调用）。
+/// old/new 为截断后的前后文本（Write 时 old 为空、new 为写入内容）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileEdit {
+    /// 工具名：Write / Edit / MultiEdit
+    pub tool: String,
+    /// 改动前文本（Write 为空串）
+    pub old: String,
+    /// 改动后文本
+    pub new: String,
+}
+
+/// 会话对某个文件的全部改动（按文件聚合，保持首次出现顺序）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileChange {
+    /// 文件绝对路径
+    pub path: String,
+    /// 该文件的改动序列
+    pub edits: Vec<FileEdit>,
+}
+
 /// AI 编码工具会话（支持多 provider），从 retalk 移植
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {

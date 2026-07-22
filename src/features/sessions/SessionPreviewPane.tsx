@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RestoreDialog } from "./RestoreDialog";
 import { SessionLinkedTasks } from "./SessionLinkedTasks";
 import { SessionCommits } from "./SessionCommits";
+import { SessionFileChanges } from "./SessionFileChanges";
 import { SessionChat } from "./SessionChat";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 import { DistillDialog } from "../chemistry/DistillDialog";
@@ -124,6 +125,9 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
 
         {/* 会话→Commit 溯源：此会话期间/关联的提交（精确 trailer / 时间窗可能相关） */}
         <SessionCommits key={`commits-${session.session_id}`} session={session} />
+
+        {/* 会话→文件改动溯源：本会话改动的文件 + diff（含未提交，补 commit 看不到的部分） */}
+        <SessionFileChanges key={`files-${session.session_id}`} session={session} />
 
         {/* 内联聊天：历史气泡 + 底部续聊（切换会话时 key 重置） */}
         <SessionChat key={`chat-${session.session_id}`} session={session} className="flex-1" />
