@@ -1,5 +1,5 @@
 // KanbanBoard —— 已打开项目的拖拽看板（纯看板；git 状态/关联会话由 ProjectWorkspace 承载）。
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, FilterIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
-import { useBoardStore } from "@/store/board";
+import { useBoardStore, groupTasksByState } from "@/store/board";
 import type { BoardTask, TaskPriority } from "@/types/board";
 import { Input } from "@/components/ui/input";
 import {
@@ -64,7 +64,6 @@ export function KanbanBoard() {
   const states = useBoardStore((s) => s.states);
   const tasks = useBoardStore((s) => s.tasks);
   const labels = useBoardStore((s) => s.labels);
-  const tasksByState = useBoardStore((s) => s.tasksByState);
   const moveTask = useBoardStore((s) => s.moveTask);
   const previewMove = useBoardStore((s) => s.previewMove);
   const updateTask = useBoardStore((s) => s.updateTask);
@@ -79,6 +78,23 @@ export function KanbanBoard() {
   const [filter, setFilter] = useState<TaskFilter>(EMPTY_FILTER);
   // 自动归档只对每个项目跑一次（避免重复写库）
   const autoArchivedFor = useRef<string | null>(null);
+
+  // 派生数据 memo 化：避免搜索框每次击键都全量重排/重分组/重过滤。
+  // sortedStates 随 states 变；grouped 随 tasks 变；visibleByState 再叠加归档可见性 + 筛选。
+  const sortedStates = useMemo(
+    () => [...states].sort((a, b) => a.sort_order - b.sort_order),
+    [states],
+  );
+  const grouped = useMemo(() => groupTasksByState(tasks), [tasks]);
+  const visibleByState = useMemo(() => {
+    const map: Record<string, BoardTask[]> = {};
+    for (const st of sortedStates) {
+      map[st.id] = (grouped[st.id] ?? []).filter(
+        (t) => (showArchived || !t.archived) && taskMatchesFilter(t, filter),
+      );
+    }
+    return map;
+  }, [sortedStates, grouped, showArchived, filter]);
 
   // 自动归档：进入项目、任务加载后，把「完成超过 N 天」的任务自动归档（阈值可在设置改，0=关）。
   useEffect(() => {
@@ -238,7 +254,7 @@ export function KanbanBoard() {
     if (!targetStateId) return null;
 
     // 目标列任务（排除被拖拽任务本身，保持排序）
-    const targetTasks = (tasksByState()[targetStateId] ?? []).filter(
+    const targetTasks = (grouped[targetStateId] ?? []).filter(
       (t) => t.id !== dragged.id,
     );
     let toIndex: number;
@@ -277,13 +293,6 @@ export function KanbanBoard() {
     void moveTask(r.dragged.id, r.targetStateId, r.toIndex).catch(() => {});
   };
 
-  const sortedStates = [...states].sort((a, b) => a.sort_order - b.sort_order);
-  const grouped = tasksByState();
-  // 每列过滤：归档可见性 + 任务筛选（文本/标签/优先级）。
-  const visibleOf = (stateId: string) =>
-    (grouped[stateId] ?? []).filter(
-      (t) => (showArchived || !t.archived) && taskMatchesFilter(t, filter),
-    );
   const archivedCount = tasks.filter((t) => t.archived).length;
   const filterOn = isFilterActive(filter);
 
@@ -432,7 +441,7 @@ export function KanbanBoard() {
             <StatusColumn
               key={state.id}
               state={state}
-              tasks={visibleOf(state.id)}
+              tasks={visibleByState[state.id] ?? []}
               onAddTask={(stateId) =>
                 setSheet({ open: true, mode: "create", stateId })
               }
