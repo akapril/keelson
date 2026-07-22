@@ -13,6 +13,7 @@ import { useSettingsStore } from "@/store/settings";
 import { ipc } from "@/lib/tauri/ipc";
 import { cn } from "@/lib/utils";
 import { getCachedTimeline, setCachedTimeline } from "./timeline-cache";
+import { usePromptInsert } from "@/features/prompts/usePromptInsert";
 import type { AiChatMessage } from "@/types/ai";
 import type { Session } from "../../types/session";
 
@@ -79,6 +80,13 @@ export function SessionChat({
   const [showAll, setShowAll] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const activeStreamId = useRef<string | null>(null);
+  // 指令库插入（按钮 + 斜杠 /名称）
+  const promptInsert = usePromptInsert({
+    input,
+    setInput,
+    ctx: { project: session.project_name, repoPath: session.project_path },
+    disabled: loading,
+  });
 
   // 用新 key，避免旧版（历史+续聊混存）数据被当作续聊重复展示
   const storeKey = `rework-ai-continue2-${session.session_id}`;
@@ -292,14 +300,21 @@ export function SessionChat({
 
       {/* 输入区（内联续聊） */}
       <div className="flex shrink-0 items-end gap-2 border-t border-border pt-3">
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="继续对话，Enter 发送，Shift+Enter 换行"
-          className="min-h-11 flex-1"
-          disabled={loading}
-        />
+        <div className="relative min-w-0 flex-1">
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (promptInsert.onKeyDown(e)) return;
+              onKeyDown(e);
+            }}
+            placeholder="继续对话，Enter 发送，/ 唤起指令库"
+            className="min-h-11 w-full"
+            disabled={loading}
+          />
+          {promptInsert.overlay}
+        </div>
+        {promptInsert.button}
         {loading ? (
           <Button variant="outline" onClick={handleStop}>
             停止

@@ -14,6 +14,7 @@ import { ipc } from "@/lib/tauri/ipc";
 import type { AiChatMessage, AiConfig, ToolChatMessage } from "@/types/ai";
 import { buildProjectContext } from "./project-context";
 import { runAgent } from "./agent-tools";
+import { usePromptInsert } from "@/features/prompts/usePromptInsert";
 
 // 工具调用参数的简短提示（气泡上展示，如 · 标题 / #id）
 function shortArgs(json: string): string {
@@ -98,6 +99,13 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [needConfig, setNeedConfig] = useState(false);
+  // 指令库插入（按钮 + 斜杠 /名称）
+  const promptInsert = usePromptInsert({
+    input,
+    setInput,
+    ctx: { project: projectName, repoPath },
+    disabled: loading,
+  });
   // 是否把项目文档+会话注入为上下文（RAG）
   const [includeContext, setIncludeContext] = useState(false);
   // 工具模式：允许 AI 调用工具建/改看板任务与文档
@@ -404,14 +412,21 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
 
       {/* 输入区 */}
       <div className="flex shrink-0 items-end gap-2 border-t border-border pt-3">
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="输入消息，Enter 发送，Shift+Enter 换行"
-          className="min-h-16 flex-1"
-          disabled={loading}
-        />
+        <div className="relative min-w-0 flex-1">
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (promptInsert.onKeyDown(e)) return;
+              onKeyDown(e);
+            }}
+            placeholder="输入消息，Enter 发送，/ 唤起指令库"
+            className="min-h-16 w-full"
+            disabled={loading}
+          />
+          {promptInsert.overlay}
+        </div>
+        {promptInsert.button}
         {loading ? (
           useTools ? (
             // 工具模式为非流式 agent loop，不可中途取消
