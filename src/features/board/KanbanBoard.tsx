@@ -85,7 +85,16 @@ export function KanbanBoard() {
     () => [...states].sort((a, b) => a.sort_order - b.sort_order),
     [states],
   );
-  const grouped = useMemo(() => groupTasksByState(tasks), [tasks]);
+  // 每列按 rank 升序：previewMove 只改 rank 不移动数组元素，若渲染沿用数组原序，
+  // 列内拖拽后卡片会「弹回原位」(rank 变了但显示顺序没变)。必须在此按 rank 排，
+  // 让显示顺序始终反映 rank —— 列内拖拽排序才生效。
+  const grouped = useMemo(() => {
+    const g = groupTasksByState(tasks);
+    for (const k of Object.keys(g)) {
+      g[k] = g[k].slice().sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+    }
+    return g;
+  }, [tasks]);
   const visibleByState = useMemo(() => {
     const map: Record<string, BoardTask[]> = {};
     for (const st of sortedStates) {
