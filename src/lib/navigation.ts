@@ -9,6 +9,7 @@ import {
   Calendar03Icon,
   BrainIcon,
   CommandIcon,
+  Analytics01Icon,
   Settings02Icon,
 } from "@hugeicons/core-free-icons";
 
@@ -75,6 +76,12 @@ export const navGroups: NavGroup[] = [
         url: "/prompts",
         icon: CommandIcon,
         description: "可复用 prompt / 片段，支持变量与一键插入",
+      },
+      {
+        title: "工作报告",
+        url: "/report",
+        icon: Analytics01Icon,
+        description: "汇总提交/完成任务/会话，AI 生成工作报告",
       },
     ],
   },
