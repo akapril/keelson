@@ -357,8 +357,10 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
         patch as Record<string, unknown>,
       );
     } catch (e) {
-      // 回滚
+      // 回滚本地乐观更新，并重抛：让调用方能真实感知失败（批量/归档/AI 工具据此报错，
+      // 不再误报成功）。所有调用点均已 try/catch 或 allSettled 处理拒绝。
       set({ tasks, error: String(e) });
+      throw e;
     }
   },
 
