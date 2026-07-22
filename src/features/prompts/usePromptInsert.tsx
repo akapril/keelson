@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { listPrompts } from "@/lib/pb/prompts";
 import { substituteVars, type PromptVarCtx } from "./substitute";
+import { promptType } from "./prompt-utils";
 import type { Prompt } from "@/types/prompt";
 
 export function usePromptInsert({
@@ -43,6 +44,9 @@ export function usePromptInsert({
     listPrompts().then(setPrompts).catch(() => setPrompts([]));
   };
 
+  // 插入用只取「片段」类型（报告模板不在会话/AI 面板插入）
+  const snippets = useMemo(() => prompts.filter((p) => promptType(p) === "snippet"), [prompts]);
+
   // 斜杠：input 恰为 /token（整段无空格/换行，token 可空=/）
   const slashToken = useMemo(() => {
     const m = input.match(/^\/(\S*)$/);
@@ -65,8 +69,8 @@ export function usePromptInsert({
   const slashMatches = useMemo(() => {
     if (slashToken === null) return [];
     const q = slashToken.toLowerCase();
-    return prompts.filter((p) => !q || p.title.toLowerCase().includes(q)).slice(0, 8);
-  }, [slashToken, prompts]);
+    return snippets.filter((p) => !q || p.title.toLowerCase().includes(q)).slice(0, 8);
+  }, [slashToken, snippets]);
 
   const slashActive = slashToken !== null && !slashDismissed && slashMatches.length > 0;
 
@@ -138,11 +142,11 @@ export function usePromptInsert({
 
   const filteredPicker = useMemo(() => {
     const q = pickerQuery.trim().toLowerCase();
-    return prompts.filter(
+    return snippets.filter(
       (p) =>
         !q || p.title.toLowerCase().includes(q) || p.content.toLowerCase().includes(q),
     );
-  }, [prompts, pickerQuery]);
+  }, [snippets, pickerQuery]);
 
   const button = (
     <>
