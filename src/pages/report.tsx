@@ -17,6 +17,7 @@ import { currentUserId } from "@/lib/pb";
 import { createDocRecord } from "@/lib/pb/docs";
 import { listPrompts } from "@/lib/pb/prompts";
 import { promptType } from "@/features/prompts/prompt-utils";
+import { getSystemPrompt } from "@/features/settings/system-prompts";
 import type { Prompt } from "@/types/prompt";
 import { computeRange, type RangePreset } from "@/features/report/report-range";
 import { type ReportScope } from "@/features/report/generateReport";
@@ -72,7 +73,9 @@ export default function ReportPage() {
     }
     setNeedConfig(false);
     const scope: ReportScope = scopeId === "all" ? "all" : { projectId: scopeId };
-    const systemPrompt = templates.find((t) => t.id === templateId)?.content;
+    // 选了模板用模板正文；否则用「默认格式」——它是可在设置里覆盖的系统提示
+    const systemPrompt =
+      templates.find((t) => t.id === templateId)?.content || getSystemPrompt("report");
     // 后台启动（不阻塞）；完成时 store 推通知，页面响应式显示结果
     runJob({ range, scope, cfg, systemPrompt });
   };
