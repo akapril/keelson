@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
-import { Virtualizer } from "virtua";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Virtualizer, type VirtualizerHandle } from "virtua";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { useSessionsStore } from "../../store/sessions";
@@ -121,6 +121,23 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
     }
     return out;
   }, [isSearching, shownResults, shownGroups, collapsed]);
+
+  // 虚拟列表句柄：外部选中会话（深链 ?session= / ⌘K / 任务「来源会话」徽章）时，
+  // 把列表滚动到该行并高亮定位——修复「跳转到会话后左侧列表没滚到那条」。
+  const vRef = useRef<VirtualizerHandle>(null);
+  useEffect(() => {
+    if (!selectedId) return;
+    const idx = rows.findIndex(
+      (r) => r.kind === "card" && r.session.session_id === selectedId,
+    );
+    if (idx < 0) return; // 被搜索/收藏筛选或分组折叠隐藏 → 无对应行可滚
+    // rAF 等 virtua 完成本轮布局后再滚；align:"nearest" 仅在目标不在可视区时才滚，
+    // 避免点击已可见的卡片时列表突兀地重新居中。
+    const raf = requestAnimationFrame(() =>
+      vRef.current?.scrollToIndex(idx, { align: "nearest" }),
+    );
+    return () => cancelAnimationFrame(raf);
+  }, [selectedId, rows]);
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -250,7 +267,7 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
                   : "正在扫描本地会话…"}
           </p>
         ) : (
-          <Virtualizer>
+          <Virtualizer ref={vRef}>
             {rows.map((row) =>
               row.kind === "header" ? (
                 // 分组标题行：sticky 吸顶；折叠开关 + 提升为看板项目
