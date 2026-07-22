@@ -56,11 +56,31 @@ export default function MemoryPage() {
     return memories.filter(
       (m) =>
         !m.superseded_by &&
+        m.status !== "pending" && // 待审记忆单独展示，不混入主账本
         (kind === "all" || m.kind === kind) &&
         (scope === "all" || m.scope === scope) &&
         (!q || m.content.toLowerCase().includes(q)),
     );
   }, [memories, kind, scope, query]);
+
+  // 待审记忆（外部 AI 经 MCP create_memory 写入，需采纳后才入账）
+  const pending = useMemo(
+    () => memories.filter((m) => m.status === "pending" && !m.superseded_by),
+    [memories],
+  );
+
+  // 采纳：置为 accepted，正式入账
+  const accept = async (m: Memory) => {
+    setMemories((prev) =>
+      prev.map((x) => (x.id === m.id ? { ...x, status: "accepted" } : x)),
+    );
+    try {
+      await updateMemoryRecord(m.id, { status: "accepted" });
+    } catch (e) {
+      toast.error(`采纳失败：${String(e)}`);
+      load();
+    }
+  };
 
   const remove = async (m: Memory) => {
     setMemories((prev) => prev.filter((x) => x.id !== m.id));
@@ -110,6 +130,54 @@ export default function MemoryPage() {
           从 claude / codex 会话提炼、去重的可复用记忆；喂回任一 CLI（外部经 MCP search_memory 查询）。
         </p>
       </header>
+
+      {/* 待审记忆（外部 AI 经 MCP 写入，采纳后才进主账本；防 AI 乱写污染） */}
+      {pending.length > 0 && (
+        <div className="mb-3 shrink-0 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+            待审记忆（{pending.length}）
+            <span className="font-normal text-muted-foreground">
+              — 外部 AI 经 MCP 写入，采纳后才进账本
+            </span>
+          </div>
+          <div className="flex max-h-52 flex-col gap-1.5 overflow-y-auto">
+            {pending.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-start gap-2 rounded-lg border border-border bg-card p-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="break-words text-sm text-foreground">
+                    <Markdown content={m.content} />
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <span className="rounded bg-muted px-1">{MEMORY_KIND_LABEL[m.kind]}</span>
+                    <span className="rounded bg-muted px-1">
+                      {m.scope === "global" ? "全局" : "项目"}
+                    </span>
+                    {m.source_provider && (
+                      <span className="rounded bg-muted px-1">来源：{m.source_provider}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button variant="ghost" size="xs" onClick={() => void accept(m)}>
+                    采纳
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => void remove(m)}
+                  >
+                    丢弃
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 筛选 */}
       <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">

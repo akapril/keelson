@@ -166,6 +166,11 @@ pub fn activity_summary(
             let q = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
             ("search".into(), format!("检索记忆：{q}"))
         }
+        "create_memory" => {
+            let c = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
+            let brief: String = c.chars().take(24).collect();
+            ("write".into(), format!("记忆待审：{brief}"))
+        }
         "list_sessions" => ("read".into(), "查询历史会话".to_string()),
         "search_sessions" => {
             let q = args.get("query").and_then(|v| v.as_str()).unwrap_or("");

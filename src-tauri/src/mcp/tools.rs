@@ -22,6 +22,7 @@ pub async fn dispatch(name: &str, args: Value, ctx: &McpCtx) -> Result<Value, St
         "create_doc" => create_doc(args, ctx).await,
         "update_doc" => update_doc(args, ctx).await,
         "search_memory" => search_memory(args, ctx).await,
+        "create_memory" => create_memory(args, ctx).await,
         other => Err(format!("未知工具：{other}")),
     }
 }
@@ -131,9 +132,44 @@ async fn update_doc(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     Ok(json!({ "ok": true, "id": id }))
 }
 
-/// 检索记忆账本（关键词/kind/scope 过滤，排除被合并的记忆）。Pull 注入的读侧。
+/// 记忆账本写入（外部 AI 沉淀经验）。默认 status=pending，需用户在 rework 采纳后才生效。
+/// owner=当前用户；带 source_provider=mcp 溯源；scope=project 时必须给 project_id。
+async fn create_memory(args: Value, ctx: &McpCtx) -> Result<Value, String> {
+    let content = require_str(&args, "content")?;
+    let kind = opt_str(&args, "kind").unwrap_or_else(|| "fact".into());
+    if !["fact", "preference", "decision", "convention"].contains(&kind.as_str()) {
+        return Err(format!("kind 非法：{kind}（应为 fact/preference/decision/convention）"));
+    }
+    let scope = opt_str(&args, "scope").unwrap_or_else(|| "project".into());
+    if !["global", "project"].contains(&scope.as_str()) {
+        return Err(format!("scope 非法：{scope}（应为 global/project）"));
+    }
+    let project = opt_str(&args, "project_id").unwrap_or_default();
+    if scope == "project" && project.is_empty() {
+        return Err("scope=project 时需提供 project_id".into());
+    }
+    let data = json!({
+        "owner": ctx.user_id,
+        "content": content,
+        "kind": kind,
+        "scope": scope,
+        "project": project,
+        "confidence": 1,
+        "status": "pending",
+        "source_provider": "mcp",
+        "source_session_id": "",
+        "source_anchor": "",
+        "superseded_by": "",
+    });
+    let rec = ctx.client.create("memories", &data).await.or_else(|e| err(e))?;
+    Ok(json!({ "ok": true, "id": rec["id"], "status": "pending" }))
+}
+
+/// 检索记忆账本（关键词/kind/scope 过滤，排除被合并的记忆与待审记忆）。Pull 注入的读侧。
 async fn search_memory(args: Value, ctx: &McpCtx) -> Result<Value, String> {
-    let mut clauses: Vec<String> = vec!["superseded_by = \"\"".to_string()];
+    // 只检索已采纳的记忆：排除待审(pending)——它们尚未被用户确认。空 status 为历史已采纳，保留。
+    let mut clauses: Vec<String> =
+        vec!["superseded_by = \"\"".to_string(), "status != \"pending\"".to_string()];
     if let Some(q) = opt_str(&args, "query") {
         if !q.trim().is_empty() {
             clauses.push(format!("content ~ \"{}\"", q.replace('"', "")));
@@ -188,5 +224,32 @@ mod tests {
         let r = dispatch("update_task", json!({ "title": "x" }), &ctx()).await;
         assert!(r.is_err());
         assert!(r.unwrap_err().contains("task_id"));
+    }
+
+    #[tokio::test]
+    async fn create_memory_requires_content() {
+        let r = dispatch("create_memory", json!({ "kind": "fact" }), &ctx()).await;
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("content"));
+    }
+
+    #[tokio::test]
+    async fn create_memory_project_scope_needs_project_id() {
+        // 有 content 但 scope=project(默认) 且无 project_id → 参数校验失败，不触达 PB
+        let r = dispatch("create_memory", json!({ "content": "x" }), &ctx()).await;
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("project_id"));
+    }
+
+    #[tokio::test]
+    async fn create_memory_rejects_bad_kind() {
+        let r = dispatch(
+            "create_memory",
+            json!({ "content": "x", "kind": "bogus", "scope": "global" }),
+            &ctx(),
+        )
+        .await;
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("kind"));
     }
 }
