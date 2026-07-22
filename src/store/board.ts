@@ -20,7 +20,7 @@ import {
   type CreateProjectInput,
 } from "../features/board/create-project";
 import { taskAnchor, type PlanTask } from "../features/board/plan-import";
-import { listAllDocs, updateDocRecord } from "../lib/pb/docs";
+import { listAllDocs, updateDocRecord, deleteDocRecord } from "../lib/pb/docs";
 import type {
   BoardTemplate,
   BoardProject,
@@ -188,8 +188,11 @@ interface BoardStoreState {
       archived: boolean;
     }>,
   ) => Promise<void>;
-  /** 删除项目（PB 级联删其任务/状态列/标签/成员；文档只断链保留）。 */
-  deleteProject: (id: string) => Promise<void>;
+  /**
+   * 删除项目（先删任务再删项目，PB 级联删其状态列/标签/成员）。
+   * @param opts.deleteDocs 为 true 时，删除**仅属于本项目**的文档；与其他项目共享的仍只解除关联。
+   */
+  deleteProject: (id: string, opts?: { deleteDocs?: boolean }) => Promise<void>;
 }
 
 // ── Store 实现 ─────────────────────────────────────────────
@@ -535,19 +538,23 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
   },
 
   // ── 删除项目 ─────────────────────────────────────────────
-  deleteProject: async (id) => {
-    // 文档多对多不级联：先从各文档的 projects 移除该项目（只断链、保留文档）
+  deleteProject: async (id, opts) => {
+    // 文档多对多不级联：逐个处理关联本项目的文档。
+    // - 勾选「删文档」且该文档**仅**属于本项目 → 删除文档；
+    // - 否则（未勾选，或该文档还关联着别的项目）→ 只解除与本项目的关联，保留文档。
     try {
       const docs = await listAllDocs();
       for (const d of docs) {
-        if (d.projects?.includes(id)) {
-          await updateDocRecord(d.id, {
-            projects: d.projects.filter((p) => p !== id),
-          });
+        if (!d.projects?.includes(id)) continue;
+        const others = d.projects.filter((p) => p !== id);
+        if (opts?.deleteDocs && others.length === 0) {
+          await deleteDocRecord(d.id);
+        } else {
+          await updateDocRecord(d.id, { projects: others });
         }
       }
     } catch {
-      /* 断链失败不阻断删除（残留 id 在 UI 侧会被过滤忽略） */
+      /* 断链/删文档失败不阻断项目删除（残留 id 在 UI 侧会被过滤忽略） */
     }
     // 先删该项目的全部任务：board_tasks.state 是 required 关系且**未级联**，
     // 若留到 PB 级联删 board_project_states 那一步，状态列仍被任务的 state 引用 →
