@@ -1,6 +1,9 @@
-// ImportPlanDialog —— 从 <repo>/docs/superpowers/plans 选计划 → 解析建卡；可选把同名 spec 存为文档。
+// ImportPlanDialog —— 从计划目录选计划 → 解析建卡；可选把同名 spec 存为文档。
+// 目录不写死：兼容 superpowers 官方(docs/superpowers/plans)+ 旧版(docs/plans)，递归子目录，
+// 还可手选任意目录（其它 agent/plugin 的计划位置）。
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Dialog,
   DialogContent,
@@ -22,10 +25,30 @@ import {
 } from "./plan-import";
 import type { BoardProject } from "@/types/board";
 
-const PLANS_SUBDIR = "docs/superpowers/plans";
-const SPECS_SUBDIR = "docs/superpowers/specs";
+// 官方 + 旧版 + 常见计划/规格目录（相对仓库根）。递归由 Rust 侧负责。
+const PLAN_DIRS = ["docs/superpowers/plans", "docs/plans", "plans"];
+const SPEC_DIRS = ["docs/superpowers/specs", "docs/specs", "specs"];
 // 拼接子路径（去掉尾部分隔符再补 /）
 const joinPath = (a: string, b: string) => `${a.replace(/[\\/]$/, "")}/${b}`;
+
+// 扫描一组子目录（相对 repo）下的所有 .md，聚合去重（按 path）。
+async function scanDirs(repo: string, subdirs: string[]): Promise<MdFile[]> {
+  const lists = await Promise.all(
+    subdirs.map((s) =>
+      ipc.listMarkdownFiles(joinPath(repo, s)).catch(() => [] as MdFile[]),
+    ),
+  );
+  const map = new Map<string, MdFile>();
+  for (const list of lists) for (const f of list) map.set(f.path, f);
+  return [...map.values()];
+}
+
+// 合并新文件到已有列表（按 path 去重）。
+function mergeFiles(prev: MdFile[], add: MdFile[]): MdFile[] {
+  const map = new Map(prev.map((f) => [f.path, f]));
+  for (const f of add) map.set(f.path, f);
+  return [...map.values()];
+}
 
 export function ImportPlanDialog({
   open,
@@ -42,30 +65,51 @@ export function ImportPlanDialog({
   const [sel, setSel] = useState<MdFile | null>(null);
   const [tasks, setTasks] = useState<PlanTask[]>([]);
   const [withSpec, setWithSpec] = useState(true);
-  const [specExists, setSpecExists] = useState(false);
+  // 匹配到的同名 spec 文件（存整条以拿 path，spec 可能在任意 SPEC_DIRS 里）
+  const [specFile, setSpecFile] = useState<MdFile | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // 打开时列计划文件
+  // 仓库根相对显示（区分不同目录/子目录里的同名文件）
+  const relLabel = (p: string) => {
+    const norm = p.replace(/\\/g, "/");
+    const r = repo.replace(/\\/g, "/").replace(/\/$/, "");
+    return r && norm.toLowerCase().startsWith(r.toLowerCase() + "/")
+      ? norm.slice(r.length + 1)
+      : norm;
+  };
+
+  // 打开时扫官方+旧版+常见计划目录（递归）
   useEffect(() => {
     if (!open || !repo) return;
     setSel(null);
     setTasks([]);
-    ipc
-      .listMarkdownFiles(joinPath(repo, PLANS_SUBDIR))
-      .then(setFiles)
-      .catch(() => setFiles([]));
+    void scanDirs(repo, PLAN_DIRS).then(setFiles).catch(() => setFiles([]));
   }, [open, repo]);
 
-  // 选中计划 → 读+解析 + 探测同名 spec
+  // 手选任意目录（其它 agent/plugin 的计划位置）
+  const pickDir = async () => {
+    try {
+      const dir = await openDialog({ directory: true, title: "选择计划目录" });
+      if (typeof dir !== "string") return;
+      const list = await ipc.listMarkdownFiles(dir).catch(() => [] as MdFile[]);
+      if (list.length === 0) {
+        toast.message("该目录下没有 .md 文件");
+        return;
+      }
+      setFiles((prev) => mergeFiles(prev, list));
+    } catch (e) {
+      toast.error(`选择目录失败：${String(e)}`);
+    }
+  };
+
+  // 选中计划 → 读+解析 + 探测同名 spec（跨所有 SPEC_DIRS，按文件名匹配）
   const pick = async (f: MdFile) => {
     setSel(f);
     try {
       const md = await ipc.readTextFile(f.path);
       setTasks(parsePlanTasks(md));
-      const specFiles = await ipc
-        .listMarkdownFiles(joinPath(repo, SPECS_SUBDIR))
-        .catch(() => [] as MdFile[]);
-      setSpecExists(specFiles.some((s) => s.name === specNameForPlan(f.name)));
+      const specFiles = await scanDirs(repo, SPEC_DIRS).catch(() => [] as MdFile[]);
+      setSpecFile(specFiles.find((s) => s.name === specNameForPlan(f.name)) ?? null);
     } catch (e) {
       toast.error(`读取失败：${String(e)}`);
       setTasks([]);
@@ -78,10 +122,9 @@ export function ImportPlanDialog({
     try {
       const { created, skipped } = await importPlanTasks(tasks, sel.name);
       let docMsg = "";
-      if (withSpec && specExists) {
+      if (withSpec && specFile) {
         try {
-          const specPath = joinPath(joinPath(repo, SPECS_SUBDIR), specNameForPlan(sel.name));
-          const md = await ipc.readTextFile(specPath);
+          const md = await ipc.readTextFile(specFile.path);
           await createDocRecord({
             owner: currentUserId(),
             projects: [project.id],
@@ -108,15 +151,24 @@ export function ImportPlanDialog({
         <DialogHeader>
           <DialogTitle>导入计划到看板</DialogTitle>
           <DialogDescription>
-            解析 <code className="font-mono">{PLANS_SUBDIR}</code> 下计划的 Task
-            段落为卡片（幂等，已存在跳过）。
+            扫描计划目录（superpowers 官方 + 旧版 + 常见位置，递归子目录），把计划里的
+            Task 段落解析为卡片（幂等，已存在跳过）。也可手选任意目录。
           </DialogDescription>
         </DialogHeader>
+
+        <div className="flex shrink-0 items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">
+            共 {files.length} 个计划文件
+          </span>
+          <Button variant="outline" size="xs" onClick={() => void pickDir()}>
+            选择其它目录…
+          </Button>
+        </div>
 
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto py-1">
           {files.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              未找到计划文件（{PLANS_SUBDIR}）。
+              未找到计划文件。试试右上「选择其它目录」指向你的计划位置。
             </p>
           ) : (
             files.map((f) => (
@@ -124,13 +176,14 @@ export function ImportPlanDialog({
                 key={f.path}
                 type="button"
                 onClick={() => void pick(f)}
+                title={f.path}
                 className={`block w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
                   sel?.path === f.path
                     ? "border-primary bg-accent"
                     : "border-border bg-card hover:bg-accent"
                 }`}
               >
-                <span className="font-mono text-foreground">{f.name}</span>
+                <span className="truncate font-mono text-foreground">{relLabel(f.path)}</span>
                 {sel?.path === f.path && (
                   <span className="ml-2 text-xs text-muted-foreground">
                     解析出 {tasks.length} 个任务
@@ -141,7 +194,7 @@ export function ImportPlanDialog({
           )}
         </div>
 
-        {sel && specExists && (
+        {sel && specFile && (
           <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-foreground">
             <input
               type="checkbox"
