@@ -4,7 +4,6 @@ import type { AiProvider } from "../types/ai";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -35,13 +34,6 @@ import {
   getAutoArchiveDays,
   setAutoArchiveDays,
 } from "@/features/board/task-archive";
-import {
-  SYSTEM_PROMPTS,
-  getSystemPrompt,
-  isSystemPromptOverridden,
-  setSystemPromptOverride,
-  type SystemPromptDef,
-} from "@/features/settings/system-prompts";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
 /**
@@ -484,71 +476,6 @@ function AutoArchiveSection() {
   );
 }
 
-/**
- * 系统提示词管理：把内置功能写死的系统提示做成可覆盖的默认值（仅本机保存）。
- * 目前仅纳入「工作报告默认格式」；摘要/提炼那类严格 JSON 输出的暂不开放（改坏会破坏解析）。
- */
-function SystemPromptEditor({ def }: { def: SystemPromptDef }) {
-  const [text, setText] = useState(() => getSystemPrompt(def.key));
-  const [overridden, setOverridden] = useState(() => isSystemPromptOverridden(def.key));
-
-  const save = () => {
-    setSystemPromptOverride(def.key, text);
-    setOverridden(isSystemPromptOverridden(def.key));
-    toast.success("已保存");
-  };
-  const reset = () => {
-    setSystemPromptOverride(def.key, "");
-    setText(def.def);
-    setOverridden(false);
-    toast.success("已恢复默认");
-  };
-
-  return (
-    <div className="space-y-2 rounded-md border border-border p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">{def.label}</span>
-        {overridden && (
-          <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
-            已自定义
-          </span>
-        )}
-      </div>
-      <p className="text-xs text-muted-foreground">{def.description}</p>
-      <Textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        className="min-h-32 text-xs"
-        spellCheck={false}
-      />
-      <div className="flex gap-2">
-        <Button size="sm" onClick={save}>
-          保存
-        </Button>
-        <Button size="sm" variant="outline" onClick={reset} disabled={!overridden}>
-          恢复默认
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function SystemPromptsSection() {
-  return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="text-sm font-medium">系统提示词</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          内置功能的默认提示词，可按需改写（仅本机保存）；「恢复默认」即用内置。
-        </p>
-      </div>
-      {SYSTEM_PROMPTS.map((d) => (
-        <SystemPromptEditor key={d.key} def={d} />
-      ))}
-    </section>
-  );
-}
-
 export default function Settings() {
   const { hotkey, workspacePath, loading, error, load, saveHotkey } =
     useSettingsStore();
@@ -922,11 +849,6 @@ export default function Settings() {
           );
         })()}
       </section>
-
-      <div className="border-t border-border" />
-
-      {/* ── 系统提示词（内置默认，可覆盖） ── */}
-      <SystemPromptsSection />
 
       <div className="border-t border-border" />
 
