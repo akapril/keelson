@@ -11,6 +11,7 @@ import { UpdateDialog } from "@/components/update-dialog";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { on } from "@/lib/tauri/events";
 import { useActivityStore } from "@/store/activity";
+import { maybeAutoSyncTasks } from "@/features/board/auto-sync-tasks";
 import type { ActivityEvent } from "@/types/activity";
 
 export function DashboardLayout() {
@@ -31,7 +32,10 @@ export function DashboardLayout() {
   // 挂在 DashboardLayout（仅主窗渲染、生命周期与主界面一致），全应用仅订阅一次。
   useEffect(() => {
     const p = on<ActivityEvent>("activity", (ev) => {
-      if (ev) useActivityStore.getState().push(ev);
+      if (!ev) return;
+      useActivityStore.getState().push(ev);
+      // Task 工具事件 → 自动把该会话规划任务同步进匹配看板项目（防抖，内部判定）
+      maybeAutoSyncTasks(ev);
     });
     return () => {
       void p.then((un) => un());
