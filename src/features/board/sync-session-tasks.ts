@@ -12,7 +12,6 @@ import { COL } from "@/lib/pb/collections";
 import { currentUserId } from "@/lib/pb";
 import { nextRank } from "@/store/board-rank";
 import type { BoardTask, BoardState, StateCategory } from "@/types/board";
-import type { Session } from "@/types/session";
 
 /** 会话任务状态 → 看板状态类别。 */
 function categoryOf(status: string): StateCategory {
@@ -36,14 +35,15 @@ export interface SyncResult {
 }
 
 /**
- * 把某会话规划的任务同步到指定项目的看板。
+ * 把某会话规划的任务同步到指定项目的看板（手动按钮 + 自动 hook 共用）。
  * @throws 项目无状态列时抛错（提示用户先建列）。
  */
 export async function syncSessionTasks(
-  session: Session,
+  sessionId: string,
+  provider: string,
   projectId: string,
 ): Promise<SyncResult> {
-  const tasks = await ipc.sessionTasks(session.provider, session.session_id);
+  const tasks = await ipc.sessionTasks(provider, sessionId);
   if (tasks.length === 0) return { total: 0, created: 0, updated: 0 };
 
   const [states, existing] = await Promise.all([
@@ -72,7 +72,7 @@ export async function syncSessionTasks(
   let created = 0;
   let updated = 0;
   for (const t of tasks) {
-    const anchor = sessionTaskAnchor(session.session_id, t.id);
+    const anchor = sessionTaskAnchor(sessionId, t.id);
     const target = stateOfCat(categoryOf(t.status));
     const card = byAnchor.get(anchor);
     if (card) {
@@ -92,8 +92,8 @@ export async function syncSessionTasks(
         priority: "none",
         rank,
         created_by: currentUserId(),
-        source_session_id: session.session_id,
-        source_provider: session.provider,
+        source_session_id: sessionId,
+        source_provider: provider,
         source_anchor: anchor,
       });
       created++;

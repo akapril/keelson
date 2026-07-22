@@ -73,7 +73,7 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
         toast.error("该会话未关联看板项目——先在会话列表「提升为看板项目」");
         return;
       }
-      const r = await syncSessionTasks(s, proj.id);
+      const r = await syncSessionTasks(s.session_id, s.provider, proj.id);
       if (r.total === 0) {
         toast.message("该会话没有规划任务（未用 Task 工具）");
       } else {
