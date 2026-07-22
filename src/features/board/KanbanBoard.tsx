@@ -65,7 +65,11 @@ export function KanbanBoard() {
     const ids = tasksToAutoArchive(tasks, states, days, Date.now());
     if (ids.length === 0) return;
     void Promise.allSettled(ids.map((id) => updateTask(id, { archived: true }))).then(
-      () => toast.message(`已自动归档 ${ids.length} 个完成超过 ${days} 天的任务`),
+      (rs) => {
+        // 只按实际成功的条数提示（写库失败时不误报，如迁移未应用/PB 不可用）
+        const ok = rs.filter((r) => r.status === "fulfilled").length;
+        if (ok > 0) toast.message(`已自动归档 ${ok} 个完成超过 ${days} 天的任务`);
+      },
     );
   }, [openedProjectId, tasks, states, updateTask]);
 
@@ -258,7 +262,11 @@ export function KanbanBoard() {
     const ids = archivableInState(tasks, stateId);
     if (ids.length === 0) return;
     void Promise.allSettled(ids.map((id) => updateTask(id, { archived: true }))).then(
-      () => toast.success(`已归档 ${ids.length} 个任务`),
+      (rs) => {
+        const ok = rs.filter((r) => r.status === "fulfilled").length;
+        if (ok > 0) toast.success(`已归档 ${ok} 个任务`);
+        if (ok < ids.length) toast.error(`${ids.length - ok} 个归档失败`);
+      },
     );
   };
 
