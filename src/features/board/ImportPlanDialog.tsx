@@ -25,9 +25,22 @@ import {
 } from "./plan-import";
 import type { BoardProject } from "@/types/board";
 
-// 官方 + 旧版 + 常见计划/规格目录（相对仓库根）。递归由 Rust 侧负责。
-const PLAN_DIRS = ["docs/superpowers/plans", "docs/plans", "plans"];
-const SPEC_DIRS = ["docs/superpowers/specs", "docs/specs", "specs"];
+// 全网主流规格驱动工具的计划/规格目录（相对仓库根）。递归由 Rust 侧负责，能进 <feature>/ 子目录。
+// superpowers(docs/superpowers|docs/plans) + GitHub Spec Kit(specs/) + Kiro(.kiro/specs/)。
+// Taskmaster(.taskmaster, JSON/.txt) 与 BMAD(docs/ 散文故事) 不适合卡片解析，靠「选择其它目录」兜底。
+const PLAN_DIRS = [
+  "docs/superpowers/plans",
+  "docs/plans",
+  "plans",
+  "specs", // GitHub Spec Kit: specs/<NNN-feature>/tasks.md
+  ".kiro/specs", // Kiro: .kiro/specs/<feature>/tasks.md
+];
+const SPEC_DIRS = [
+  "docs/superpowers/specs",
+  "docs/specs",
+  "specs",
+  ".kiro/specs",
+];
 // 拼接子路径（去掉尾部分隔符再补 /）
 const joinPath = (a: string, b: string) => `${a.replace(/[\\/]$/, "")}/${b}`;
 
@@ -151,8 +164,9 @@ export function ImportPlanDialog({
         <DialogHeader>
           <DialogTitle>导入计划到看板</DialogTitle>
           <DialogDescription>
-            扫描计划目录（superpowers 官方 + 旧版 + 常见位置，递归子目录），把计划里的
-            Task 段落解析为卡片（幂等，已存在跳过）。也可手选任意目录。
+            扫描主流规格驱动工具的计划目录（superpowers / Spec Kit / Kiro，递归子目录），
+            把 <code className="font-mono">### Task</code> 或 <code className="font-mono">- [ ]</code>
+            复选框任务解析为卡片（幂等，已存在跳过）。也可手选任意目录。
           </DialogDescription>
         </DialogHeader>
 

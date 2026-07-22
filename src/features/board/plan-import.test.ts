@@ -53,6 +53,59 @@ const md = \`
   });
 });
 
+describe("parsePlanTasks — 通用复选框格式 (Spec Kit / Kiro)", () => {
+  it("Spec Kit: - [ ] T001 …，去编号/[P] 标记", () => {
+    const md = `# Tasks
+
+- [ ] T001 建项目结构
+- [ ] T002 [P] 配置 lint
+- [x] T003 已完成项`;
+    const ts = parsePlanTasks(md);
+    expect(ts.length).toBe(3);
+    expect(ts[0].title).toBe("建项目结构");
+    expect(ts[1].title).toBe("配置 lint"); // 去掉 T002 与 [P]
+    expect(ts[2].title).toBe("已完成项"); // [x] 也算
+  });
+
+  it("Kiro: - [ ] 1. …，子复选框并入 body 不另成卡", () => {
+    const md = `# 实现计划
+
+- [ ] 1. 建模型
+  - 定义字段
+  - [ ] 1.1 校验规则
+- [ ] 2. 建接口`;
+    const ts = parsePlanTasks(md);
+    expect(ts.length).toBe(2); // 只有两个顶层任务
+    expect(ts[0].title).toBe("建模型");
+    expect(ts[0].body).toContain("定义字段");
+    expect(ts[0].body).toContain("1.1 校验规则"); // 子项在 body
+    expect(ts[1].title).toBe("建接口");
+  });
+
+  it("superpowers 计划里的 - [ ] 步骤不被当成独立卡（走 ### Task 路线）", () => {
+    const md = `### Task 1: 建命令
+
+- [ ] 写失败测试
+- [ ] 实现
+- [ ] 提交`;
+    const ts = parsePlanTasks(md);
+    expect(ts.length).toBe(1); // 一个 Task，步骤在 body
+    expect(ts[0].title).toBe("建命令");
+    expect(ts[0].body).toContain("写失败测试");
+  });
+
+  it("跳过围栏内的复选框样例", () => {
+    const md = `- [ ] 真任务
+
+\`\`\`md
+- [ ] 假任务示例
+\`\`\``;
+    const ts = parsePlanTasks(md);
+    expect(ts.length).toBe(1);
+    expect(ts[0].title).toBe("真任务");
+  });
+});
+
 describe("parseDocTitle", () => {
   it("取首个 #", () => expect(parseDocTitle("# 我的设计\n\n正文")).toBe("我的设计"));
   it("无标题空串", () => expect(parseDocTitle("正文无标题")).toBe(""));
