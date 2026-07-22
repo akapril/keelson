@@ -42,12 +42,14 @@ function repoTail(path: string): string {
 
 /**
  * 生成工作报告。
+ * @param systemPrompt 可选的模板系统提示（来自指令库）；缺省用内置 REPORT_SYSTEM。
  * @returns Markdown 正文；素材为空时返回占位说明。
  */
 export async function generateReport(
   range: DateRange,
   scope: ReportScope,
   cfg: AiConfig,
+  systemPrompt?: string,
 ): Promise<string> {
   const singleId = typeof scope === "object" ? scope.projectId : null;
 
@@ -145,7 +147,8 @@ export async function generateReport(
   if (!hasAnyMaterial(material)) return EMPTY_REPORT;
 
   const msgs: AiChatMessage[] = [
-    { role: "system", content: REPORT_SYSTEM },
+    // 模板（指令库 prompt）优先；缺省用内置提示
+    { role: "system", content: systemPrompt?.trim() || REPORT_SYSTEM },
     { role: "user", content: buildReportMaterial(material) },
   ];
   const reply = (await ipc.aiChat(cfg, msgs)).trim();

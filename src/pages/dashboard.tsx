@@ -1,7 +1,10 @@
 // 首页总览 Dashboard —— 把会话 / 看板 / 阅读 / 日历聚合到一处，各项可点跳转。
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Analytics01Icon } from "@hugeicons/core-free-icons";
 
+import { Button } from "@/components/ui/button";
 import { useSessionsStore } from "@/store/sessions";
 import { useBoardStore } from "@/store/board";
 import { listDueTasks } from "@/lib/pb/board";
@@ -77,11 +80,18 @@ export default function Dashboard() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
-      <header>
-        <h1 className="text-lg font-semibold">总览</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          会话、看板、阅读与日程一览。
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold">总览</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            会话、看板、阅读与日程一览。
+          </p>
+        </div>
+        {/* 工作报告入口（低频动作，不占侧栏，从这里进） */}
+        <Button variant="outline" size="sm" onClick={() => navigate("/report")}>
+          <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} />
+          生成工作报告
+        </Button>
       </header>
 
       {/* 统计卡片 */}

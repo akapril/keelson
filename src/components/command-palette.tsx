@@ -12,6 +12,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { Analytics01Icon } from "@hugeicons/core-free-icons";
 import { flatNavItems } from "@/lib/navigation";
 import { workspaceRecordUrl } from "@/lib/workspace-navigation";
 import { listProjects } from "@/lib/pb/board";
@@ -103,6 +104,13 @@ export function CommandPalette() {
       />
       <CommandList>
         <CommandEmpty>无结果</CommandEmpty>
+
+        <CommandGroup heading="操作">
+          <CommandItem value="操作 生成工作报告 周报 日报" onSelect={() => go("/report")}>
+            <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} className="size-4" />
+            生成工作报告
+          </CommandItem>
+        </CommandGroup>
 
         <CommandGroup heading="页面">
           {flatNavItems.map((it) => (
