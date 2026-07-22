@@ -1,6 +1,7 @@
 // 指令库 —— 可复用 prompt/片段的管理：搜索 + 标签筛选 + 增删改 + 复制。
 // 插入到会话/AI 面板由 PromptPicker（按钮）与斜杠补全负责（见 features/prompts）。
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon } from "@hugeicons/core-free-icons";
@@ -12,8 +13,10 @@ import {
   deletePromptRecord,
 } from "@/lib/pb/prompts";
 import { currentUserId } from "@/lib/pb";
-import { splitTags } from "@/features/prompts/prompt-utils";
+import { splitTags, promptType, PROMPT_TYPE_LABEL } from "@/features/prompts/prompt-utils";
 import { PromptEditDialog } from "@/features/prompts/PromptEditDialog";
+import { cn } from "@/lib/utils";
+import type { PromptType } from "@/types/prompt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,10 +32,19 @@ import {
 import type { Prompt } from "@/types/prompt";
 
 export default function PromptsPage() {
+  const [searchParams] = useSearchParams();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState<string | null>(null);
+  // 类型筛选："all" | snippet | report；初值取 ?type= （报告页跳来时为 report）
+  const [typeFilter, setTypeFilter] = useState<"all" | PromptType>(
+    searchParams.get("type") === "report"
+      ? "report"
+      : searchParams.get("type") === "snippet"
+        ? "snippet"
+        : "all",
+  );
   // undefined=不开；null=新建；Prompt=编辑
   const [editing, setEditing] = useState<Prompt | null | undefined>(undefined);
   const [pendingDelete, setPendingDelete] = useState<Prompt | null>(null);
@@ -56,14 +68,20 @@ export default function PromptsPage() {
     const q = query.trim().toLowerCase();
     return prompts.filter(
       (p) =>
+        (typeFilter === "all" || promptType(p) === typeFilter) &&
         (!tag || splitTags(p.tags).includes(tag)) &&
         (!q ||
           p.title.toLowerCase().includes(q) ||
           p.content.toLowerCase().includes(q)),
     );
-  }, [prompts, query, tag]);
+  }, [prompts, query, tag, typeFilter]);
 
-  const save = async (data: { title: string; content: string; tags: string }) => {
+  const save = async (data: {
+    title: string;
+    content: string;
+    tags: string;
+    type: PromptType;
+  }) => {
     if (editing) {
       const updated = await updatePromptRecord(editing.id, data);
       setPrompts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -95,7 +113,8 @@ export default function PromptsPage() {
         <div>
           <h1 className="text-lg font-semibold">指令库</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            可复用的 prompt / 片段；正文支持 {`{{project}}`} 等变量。会话/AI 面板可一键插入。
+            可复用 prompt：<b>片段</b>（会话/AI 面板插入，支持 {`{{project}}`} 变量）与
+            <b>报告模板</b>（工作报告的格式）。
           </p>
         </div>
         <Button size="sm" onClick={() => setEditing(null)}>
@@ -110,6 +129,27 @@ export default function PromptsPage() {
         placeholder="搜索指令（标题 + 正文）…"
         className="shrink-0"
       />
+
+      {/* 类型筛选：全部 / 片段 / 报告模板 */}
+      <div className="flex shrink-0 gap-1.5">
+        {([["all", "全部"], ["snippet", PROMPT_TYPE_LABEL.snippet], ["report", PROMPT_TYPE_LABEL.report]] as const).map(
+          ([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setTypeFilter(k)}
+              className={cn(
+                "rounded-lg border px-2.5 py-1 text-xs transition-colors",
+                typeFilter === k
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-accent",
+              )}
+            >
+              {label}
+            </button>
+          ),
+        )}
+      </div>
 
       {/* 标签筛选 */}
       {allTags.length > 0 && (
@@ -149,8 +189,21 @@ export default function PromptsPage() {
           visible.map((p) => (
             <div key={p.id} className="group rounded-xl border border-border bg-card p-3">
               <div className="flex items-start justify-between gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                  {p.title}
+                <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                  {/* 类型徽标：报告模板高亮，片段淡色 */}
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-1.5 py-0.5 text-[10px]",
+                      promptType(p) === "report"
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {PROMPT_TYPE_LABEL[promptType(p)]}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                    {p.title}
+                  </span>
                 </span>
                 <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   <Button size="xs" variant="ghost" onClick={() => copy(p)}>
@@ -189,6 +242,8 @@ export default function PromptsPage() {
       <PromptEditDialog
         prompt={editing ?? null}
         open={editing !== undefined}
+        // 新建时默认类型跟随当前筛选（报告页跳来 ?type=report 时即 report）
+        defaultType={typeFilter === "all" ? "snippet" : typeFilter}
         onClose={() => setEditing(undefined)}
         onSave={save}
       />

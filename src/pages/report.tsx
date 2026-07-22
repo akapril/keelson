@@ -16,6 +16,7 @@ import { useReportJobStore } from "@/store/report-job";
 import { currentUserId } from "@/lib/pb";
 import { createDocRecord } from "@/lib/pb/docs";
 import { listPrompts } from "@/lib/pb/prompts";
+import { promptType } from "@/features/prompts/prompt-utils";
 import type { Prompt } from "@/types/prompt";
 import { computeRange, type RangePreset } from "@/features/report/report-range";
 import { type ReportScope } from "@/features/report/generateReport";
@@ -48,10 +49,12 @@ export default function ReportPage() {
 
   const generating = status === "running";
 
-  // 进页面拉项目列表（范围下拉）+ 指令库（模板下拉）
+  // 进页面拉项目列表（范围下拉）+ 指令库中「报告模板」类型（模板下拉）
   useEffect(() => {
     void useBoardStore.getState().loadProjects();
-    void listPrompts().then(setTemplates).catch(() => {});
+    void listPrompts()
+      .then((list) => setTemplates(list.filter((p) => promptType(p) === "report")))
+      .catch(() => {});
   }, []);
 
   // 当前选择对应的时间范围（自定义时依赖两个日期输入）
@@ -196,7 +199,7 @@ export default function ReportPage() {
           {templates.length === 0 && (
             <button
               type="button"
-              onClick={() => navigate("/prompts")}
+              onClick={() => navigate("/prompts?type=report")}
               className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
               去指令库建报告模板
