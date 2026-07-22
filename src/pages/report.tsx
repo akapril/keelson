@@ -17,8 +17,10 @@ import { currentUserId } from "@/lib/pb";
 import { createDocRecord } from "@/lib/pb/docs";
 import { listPrompts } from "@/lib/pb/prompts";
 import { promptType } from "@/features/prompts/prompt-utils";
-import { getSystemPrompt } from "@/features/settings/system-prompts";
 import type { Prompt } from "@/types/prompt";
+
+// 记住上次选的报告模板 → 它就是你的「默认」（不选则用内置格式）
+const TEMPLATE_KEY = "rework-report-template";
 import { computeRange, type RangePreset } from "@/features/report/report-range";
 import { type ReportScope } from "@/features/report/generateReport";
 
@@ -43,7 +45,14 @@ export default function ReportPage() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [scopeId, setScopeId] = useState<string>("all"); // "all" | projectId
-  const [templateId, setTemplateId] = useState<string>(""); // "" = 默认（无模板）
+  // "" = 内置默认格式；否则为报告模板 id。初值取上次选择（记住即为默认）。
+  const [templateId, setTemplateId] = useState<string>(() => {
+    try {
+      return localStorage.getItem(TEMPLATE_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [templates, setTemplates] = useState<Prompt[]>([]);
   const [saving, setSaving] = useState(false);
   const [needConfig, setNeedConfig] = useState(false);
@@ -54,9 +63,24 @@ export default function ReportPage() {
   useEffect(() => {
     void useBoardStore.getState().loadProjects();
     void listPrompts()
-      .then((list) => setTemplates(list.filter((p) => promptType(p) === "report")))
+      .then((list) => {
+        const reports = list.filter((p) => promptType(p) === "report");
+        setTemplates(reports);
+        // 记住的模板若已被删，回退到内置默认
+        setTemplateId((id) => (id && reports.some((t) => t.id === id) ? id : ""));
+      })
       .catch(() => {});
   }, []);
+
+  // 选择模板即持久化（下次进来默认沿用）
+  const chooseTemplate = (id: string) => {
+    setTemplateId(id);
+    try {
+      localStorage.setItem(TEMPLATE_KEY, id);
+    } catch {
+      /* 忽略写入失败 */
+    }
+  };
 
   // 当前选择对应的时间范围（自定义时依赖两个日期输入）
   const range = useMemo(
@@ -73,9 +97,8 @@ export default function ReportPage() {
     }
     setNeedConfig(false);
     const scope: ReportScope = scopeId === "all" ? "all" : { projectId: scopeId };
-    // 选了模板用模板正文；否则用「默认格式」——它是可在设置里覆盖的系统提示
-    const systemPrompt =
-      templates.find((t) => t.id === templateId)?.content || getSystemPrompt("report");
+    // 选了模板用模板正文；否则传 undefined → generateReport 用内置默认格式
+    const systemPrompt = templates.find((t) => t.id === templateId)?.content;
     // 后台启动（不阻塞）；完成时 store 推通知，页面响应式显示结果
     runJob({ range, scope, cfg, systemPrompt });
   };
@@ -183,11 +206,11 @@ export default function ReportPage() {
           <span className="ml-2 text-xs font-medium text-muted-foreground">模板</span>
           <select
             value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
+            onChange={(e) => chooseTemplate(e.target.value)}
             className="min-w-32 rounded-md border border-border bg-background px-2 py-1 text-xs"
-            title="模板来自「指令库」；缺省用内置报告格式"
+            title="模板来自「指令库」的报告模板；会记住你的选择作为默认"
           >
-            <option value="">默认格式</option>
+            <option value="">内置默认格式</option>
             {templates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.title}
