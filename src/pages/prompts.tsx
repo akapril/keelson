@@ -14,6 +14,7 @@ import {
 } from "@/lib/pb/prompts";
 import { currentUserId } from "@/lib/pb";
 import { splitTags, promptType, PROMPT_TYPE_LABEL } from "@/features/prompts/prompt-utils";
+import { ensureDefaultPromptsSeeded } from "@/features/prompts/seed-defaults";
 import { PromptEditDialog } from "@/features/prompts/PromptEditDialog";
 import { cn } from "@/lib/utils";
 import type { PromptType } from "@/types/prompt";
@@ -51,10 +52,13 @@ export default function PromptsPage() {
 
   const load = () => {
     setLoading(true);
-    listPrompts()
-      .then(setPrompts)
-      .catch(() => setPrompts([]))
-      .finally(() => setLoading(false));
+    // 首次把内置报告默认种进库（幂等 + 自愈），再拉列表
+    void ensureDefaultPromptsSeeded().finally(() => {
+      listPrompts()
+        .then(setPrompts)
+        .catch(() => setPrompts([]))
+        .finally(() => setLoading(false));
+    });
   };
   useEffect(load, []);
 
