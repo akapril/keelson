@@ -4,6 +4,8 @@ export const thisWindowLabel = () => getCurrentWindow().label;
 export const hideThisWindow = () => getCurrentWindow().hide();
 export const showThisWindow = () => getCurrentWindow().show();
 export const closeThisWindow = () => getCurrentWindow().close();
+export const minimizeThisWindow = () => getCurrentWindow().minimize();
+export const toggleMaximizeThisWindow = () => getCurrentWindow().toggleMaximize();
 
 /**
  * 在独立原生窗口打开某篇文档（label=`doc-<id>`，与 capabilities 的 doc-* glob 对应）。
