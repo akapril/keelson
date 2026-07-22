@@ -50,6 +50,8 @@ export default function DocsPage() {
   const [projects, setProjects] = useState<BoardProject[]>([]);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
+  // 是否显示「仅属于已归档项目」的文档（默认隐藏，保持列表清爽；与看板「显示归档」一致）
+  const [showArchived, setShowArchived] = useState(false);
   // 待确认删除的文档（受控 AlertDialog；避免 ContextMenu 内直接删的误触）
   const [pendingDelete, setPendingDelete] = useState<BoardDoc | null>(null);
 
@@ -62,6 +64,19 @@ export default function DocsPage() {
   const projectName = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects],
+  );
+  // 已归档项目 id 集合
+  const archivedSet = useMemo(
+    () => new Set(projects.filter((p) => p.archived).map((p) => p.id)),
+    [projects],
+  );
+  // 会被「隐藏归档」影响的文档数（仅属于归档项目的），用于开关显示与计数
+  const hiddenCount = useMemo(
+    () =>
+      docs.filter(
+        (d) => d.projects?.length && d.projects.every((p) => archivedSet.has(p)),
+      ).length,
+    [docs, archivedSet],
   );
 
   const q = query.trim().toLowerCase();
@@ -81,7 +96,13 @@ export default function DocsPage() {
     const map = new Map<string, BoardDoc[]>();
     for (const d of filtered) {
       // 多对多：文档出现在其每个关联项目分组下；无项目 → 未归类（NONE）
-      const pids = d.projects?.length ? d.projects : [NONE];
+      let pids = d.projects?.length ? d.projects : [NONE];
+      if (!showArchived) {
+        // 隐藏归档：丢弃归档项目的分组；若文档仅属归档项目 → 整条隐藏
+        const kept = pids.filter((p) => p === NONE || !archivedSet.has(p));
+        if (kept.length === 0) continue;
+        pids = kept;
+      }
       for (const pid of pids) {
         const arr = map.get(pid) ?? [];
         arr.push(d);
@@ -94,7 +115,7 @@ export default function DocsPage() {
     return [...map.entries()].sort((a, b) =>
       a[0] === NONE ? 1 : b[0] === NONE ? -1 : 0,
     );
-  }, [filtered]);
+  }, [filtered, showArchived, archivedSet]);
 
   // 新建文档：默认无项目（未归类），创建后直接进全页编辑器；之后可在编辑器里挂到项目
   const createDoc = async () => {
@@ -133,10 +154,23 @@ export default function DocsPage() {
             跨项目汇总，搜索标题与正文。文档可不属任何项目（未归类），也可挂到一个或多个项目。
           </p>
         </div>
-        <Button size="sm" disabled={creating} onClick={() => void createDoc()}>
-          <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-          新建文档
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* 显示/隐藏「仅属于归档项目」的文档（有才出现） */}
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              aria-pressed={showArchived}
+              className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              {showArchived ? "隐藏归档项目文档" : `显示已归档项目文档（${hiddenCount}）`}
+            </button>
+          )}
+          <Button size="sm" disabled={creating} onClick={() => void createDoc()}>
+            <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
+            新建文档
+          </Button>
+        </div>
       </header>
 
       <Input
@@ -149,7 +183,11 @@ export default function DocsPage() {
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto">
         {groups.length === 0 ? (
           <p className="py-16 text-center text-sm text-muted-foreground">
-            {docs.length === 0 ? "暂无文档，点右上「新建文档」开始" : "没有匹配的文档"}
+            {docs.length === 0
+              ? "暂无文档，点右上「新建文档」开始"
+              : !q && !showArchived && hiddenCount > 0
+                ? `已隐藏 ${hiddenCount} 篇归档项目的文档，点右上「显示已归档项目文档」查看`
+                : "没有匹配的文档"}
           </p>
         ) : (
           groups.map(([projectId, list]) => (
