@@ -70,8 +70,11 @@ export default function ReportPage() {
         const list = await listPrompts();
         const reports = list.filter((p) => promptType(p) === "report");
         setTemplates(reports);
-        // 记住的模板若已被删，回退到内置默认
-        setTemplateId((id) => (id && reports.some((t) => t.id === id) ? id : ""));
+        // 记住的模板仍在则沿用；否则默认选第一个模板（库里通常至少有内置那条种子）；
+        // 一个模板都没有（如未重建/被删光）时留 ""，生成走内置默认兜底。
+        setTemplateId((id) =>
+          id && reports.some((t) => t.id === id) ? id : reports[0]?.id ?? "",
+        );
       } catch {
         /* 拉取失败：模板下拉留空，仍可用内置默认 */
       }
@@ -216,7 +219,9 @@ export default function ReportPage() {
             className="min-w-32 rounded-md border border-border bg-background px-2 py-1 text-xs"
             title="模板来自「指令库」的报告模板；会记住你的选择作为默认"
           >
-            <option value="">内置默认格式</option>
+            {/* 有模板时不再显示冗余的「内置默认」——库里那条种子即默认；
+                一个模板都没有时才给内置兜底选项 */}
+            {templates.length === 0 && <option value="">内置默认格式</option>}
             {templates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.title}
