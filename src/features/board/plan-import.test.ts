@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { parsePlanTasks, parseDocTitle, specNameForPlan, taskAnchor } from "./plan-import";
+import {
+  parsePlanTasks,
+  parseTaskmasterTasks,
+  parseDocTitle,
+  specNameForPlan,
+  taskAnchor,
+} from "./plan-import";
 
 describe("parsePlanTasks", () => {
   const md = `# 标题
@@ -103,6 +109,46 @@ describe("parsePlanTasks — 通用复选框格式 (Spec Kit / Kiro)", () => {
     const ts = parsePlanTasks(md);
     expect(ts.length).toBe(1);
     expect(ts[0].title).toBe("真任务");
+  });
+});
+
+describe("parseTaskmasterTasks (claude-task-master tasks.json)", () => {
+  it("打标签结构 {master:{tasks}}，subtasks 转 - [ ]", () => {
+    const json = JSON.stringify({
+      master: {
+        tasks: [
+          {
+            id: 1,
+            title: "初始化仓库",
+            description: "建库并搭结构",
+            details: "用 GitHub client",
+            subtasks: [{ id: 1, title: "配置 OAuth" }, { id: 2, title: "回调处理" }],
+          },
+          { id: 2, title: "实现登录" },
+        ],
+      },
+    });
+    const ts = parseTaskmasterTasks(json);
+    expect(ts.length).toBe(2);
+    expect(ts[0].n).toBe(1);
+    expect(ts[0].title).toBe("初始化仓库");
+    expect(ts[0].body).toContain("建库并搭结构");
+    expect(ts[0].body).toContain("用 GitHub client");
+    expect(ts[0].body).toContain("- [ ] 配置 OAuth");
+    expect(ts[1].title).toBe("实现登录");
+  });
+
+  it("扁平结构 {tasks}", () => {
+    const json = JSON.stringify({ tasks: [{ id: 5, title: "任务A" }] });
+    const ts = parseTaskmasterTasks(json);
+    expect(ts.length).toBe(1);
+    expect(ts[0].n).toBe(5);
+    expect(ts[0].title).toBe("任务A");
+  });
+
+  it("坏 JSON / 无标题 → 稳健返回", () => {
+    expect(parseTaskmasterTasks("not json")).toEqual([]);
+    expect(parseTaskmasterTasks(JSON.stringify({ tasks: [{ id: 1 }] }))).toEqual([]);
   });
 });
 
