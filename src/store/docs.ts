@@ -114,8 +114,9 @@ export const useDocsStore = create<DocsStoreState>((set, get) => ({
     try {
       await updateDocRecord(id, patch as Record<string, unknown>);
     } catch (e) {
-      // 回滚
+      // 回滚并重抛：让调用方真实感知失败（不再误报成功）。调用点均已 try/catch。
       set({ docs, error: String(e) });
+      throw e;
     }
   },
 
@@ -127,8 +128,9 @@ export const useDocsStore = create<DocsStoreState>((set, get) => ({
     try {
       await deleteDocRecord(id);
     } catch (e) {
-      // 回滚
+      // 回滚并重抛：让调用方真实感知失败。DocsPanel 删除已 try/catch。
       set({ docs, error: String(e) });
+      throw e;
     }
   },
 

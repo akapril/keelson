@@ -67,7 +67,11 @@ export function DocsPanel({
   }
 
   async function handleDelete(id: string) {
-    await useDocsStore.getState().deleteDoc(id);
+    try {
+      await useDocsStore.getState().deleteDoc(id);
+    } catch (e) {
+      toast.error(`删除失败：${String(e)}`);
+    }
   }
 
   // 从文档创建看板任务（同项目；工作台已打开该项目，状态列已加载）

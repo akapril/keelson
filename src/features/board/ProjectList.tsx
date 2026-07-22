@@ -145,7 +145,9 @@ function ProjectCard({
         <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={() =>
-            void updateProject(project.id, { archived: !project.archived })
+            void updateProject(project.id, { archived: !project.archived }).catch(
+              (e) => toast.error(`操作失败：${String(e)}`),
+            )
           }
         >
           {project.archived ? "取消归档" : "归档"}
