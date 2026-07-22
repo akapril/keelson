@@ -84,6 +84,8 @@ export interface BoardTemplate {
   owner: string;
   name: string;
   description?: string;
+  /** 领域分类（新建对话框按它分组，如 开发/职场管理/内容营销/个人生活/商业创业）；旧数据可空 */
+  category?: string;
   states: TemplateStateDef[];
   labels?: TemplateLabelDef[];
   /** 初始任务（可选）：开箱即用的工作流步骤。 */
