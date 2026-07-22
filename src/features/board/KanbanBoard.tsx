@@ -12,17 +12,38 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { toast } from "sonner";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Search01Icon, FilterIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { useBoardStore } from "@/store/board";
 import type { BoardTask, TaskPriority } from "@/types/board";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { StatusColumn } from "./StatusColumn";
 import { TaskCard } from "./TaskCard";
 import { TaskSheet } from "./TaskSheet";
 import { BatchActionBar } from "./BatchActionBar";
+import { PRIORITY_ORDER, PRIORITY_META } from "./board-meta";
 import {
   tasksToAutoArchive,
   getAutoArchiveDays,
   archivableInState,
 } from "./task-archive";
+import {
+  taskMatchesFilter,
+  isFilterActive,
+  EMPTY_FILTER,
+  type TaskFilter,
+} from "./task-filter";
 
 // TaskSheet 的受控状态：新建（预填 state）或编辑（携带 task）。
 interface SheetState {
@@ -42,6 +63,7 @@ interface SheetState {
 export function KanbanBoard() {
   const states = useBoardStore((s) => s.states);
   const tasks = useBoardStore((s) => s.tasks);
+  const labels = useBoardStore((s) => s.labels);
   const tasksByState = useBoardStore((s) => s.tasksByState);
   const moveTask = useBoardStore((s) => s.moveTask);
   const previewMove = useBoardStore((s) => s.previewMove);
@@ -53,6 +75,8 @@ export function KanbanBoard() {
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
   // 是否显示已归档任务（默认隐藏，保持看板清爽）
   const [showArchived, setShowArchived] = useState(false);
+  // 任务筛选：文本 + 标签 + 优先级
+  const [filter, setFilter] = useState<TaskFilter>(EMPTY_FILTER);
   // 自动归档只对每个项目跑一次（避免重复写库）
   const autoArchivedFor = useRef<string | null>(null);
 
@@ -231,6 +255,8 @@ export function KanbanBoard() {
   // 拖动中：跨列悬停时把卡片实时移入目标列（仅本地预览，不落库）。
   // 列内重排由 sortable 视觉呈现，故此处只处理跨列，避免同列 rank 抖动。
   const handleDragOver = (event: DragOverEvent) => {
+    // 筛选生效时列内为子集，拖拽落位会错乱 → 禁用重排（先清除筛选再拖）
+    if (isFilterActive(filter)) return;
     const { active, over } = event;
     if (!over) return;
     const r = resolveDrop(String(active.id), String(over.id));
@@ -243,6 +269,7 @@ export function KanbanBoard() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
+    if (isFilterActive(filter)) return; // 筛选态不落库重排
     if (!over) return;
     const r = resolveDrop(String(active.id), String(over.id));
     if (!r) return;
@@ -252,10 +279,13 @@ export function KanbanBoard() {
 
   const sortedStates = [...states].sort((a, b) => a.sort_order - b.sort_order);
   const grouped = tasksByState();
-  // 默认隐藏归档任务；开关打开时才显示。每列按此过滤。
+  // 每列过滤：归档可见性 + 任务筛选（文本/标签/优先级）。
   const visibleOf = (stateId: string) =>
-    (grouped[stateId] ?? []).filter((t) => showArchived || !t.archived);
+    (grouped[stateId] ?? []).filter(
+      (t) => (showArchived || !t.archived) && taskMatchesFilter(t, filter),
+    );
   const archivedCount = tasks.filter((t) => t.archived).length;
+  const filterOn = isFilterActive(filter);
 
   // 一键归档某列全部未归档任务
   const archiveColumn = (stateId: string) => {
@@ -274,18 +304,120 @@ export function KanbanBoard() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* 工具条：显示/隐藏归档（仅当存在归档任务时出现） */}
-      {archivedCount > 0 && (
-        <div className="flex shrink-0 items-center justify-end pb-2">
+      {/* 工具条：搜索 + 标签/优先级筛选 + 清除 + 显示归档 */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 pb-2">
+        <div className="relative min-w-40 flex-1 sm:max-w-xs">
+          <HugeiconsIcon
+            icon={Search01Icon}
+            strokeWidth={2}
+            className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            value={filter.query}
+            onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
+            placeholder="搜索任务（标题 + 描述）…"
+            className="h-8 pl-8 text-sm"
+          />
+        </div>
+
+        {/* 标签筛选 */}
+        {labels.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs transition-colors",
+                  filter.labels.length > 0
+                    ? "border-primary/50 bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:bg-accent",
+                )}
+              >
+                <HugeiconsIcon icon={FilterIcon} strokeWidth={2} className="size-3.5" />
+                标签{filter.labels.length > 0 ? `（${filter.labels.length}）` : ""}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-72 w-52 overflow-y-auto">
+              <DropdownMenuLabel>按标签筛选</DropdownMenuLabel>
+              {labels.map((l) => (
+                <DropdownMenuCheckboxItem
+                  key={l.id}
+                  checked={filter.labels.includes(l.id)}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={() =>
+                    setFilter((f) => ({
+                      ...f,
+                      labels: f.labels.includes(l.id)
+                        ? f.labels.filter((x) => x !== l.id)
+                        : [...f.labels, l.id],
+                    }))
+                  }
+                >
+                  <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: l.color }} />
+                  <span className="truncate">{l.name}</span>
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        {/* 优先级筛选 */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs transition-colors",
+                filter.priority
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-accent",
+              )}
+            >
+              {filter.priority ? PRIORITY_META[filter.priority].label : "优先级"}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-40">
+            <DropdownMenuRadioGroup
+              value={filter.priority ?? "__all"}
+              onValueChange={(v) =>
+                setFilter((f) => ({ ...f, priority: v === "__all" ? null : (v as TaskPriority) }))
+              }
+            >
+              <DropdownMenuRadioItem value="__all">全部优先级</DropdownMenuRadioItem>
+              <DropdownMenuSeparator />
+              {PRIORITY_ORDER.map((p) => (
+                <DropdownMenuRadioItem key={p} value={p}>
+                  <span className={cn("size-1.5 rounded-full", PRIORITY_META[p].dot)} />
+                  {PRIORITY_META[p].label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {filterOn && (
           <button
             type="button"
-            onClick={() => setShowArchived((v) => !v)}
-            className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            onClick={() => setFilter(EMPTY_FILTER)}
+            className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground"
           >
-            {showArchived ? "隐藏归档" : `显示归档（${archivedCount}）`}
+            <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-3.5" />
+            清除
           </button>
+        )}
+
+        <div className="ml-auto flex items-center gap-2">
+          {archivedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              {showArchived ? "隐藏归档" : `显示归档（${archivedCount}）`}
+            </button>
+          )}
         </div>
-      )}
+      </div>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
