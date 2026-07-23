@@ -61,6 +61,18 @@ pub trait SessionProvider: Send + Sync {
     /// 生成在终端中恢复指定会话的命令字符串
     fn resume_command(&self, project_path: &str, session_id: &str) -> String;
 
+    /// 生成在终端中「新建会话」的命令字符串（不带 session id，就地起一个全新 CLI 会话）。
+    /// 默认 = provider id（即 CLI 二进制名，如 claude / codex）；可选带初始提示。
+    fn start_command(&self, initial_prompt: Option<&str>) -> String {
+        match initial_prompt {
+            // 提示词用双引号包裹；内部双引号转义，避免破坏命令
+            Some(p) if !p.trim().is_empty() => {
+                format!("{} \"{}\"", self.id(), p.replace('"', "\\\""))
+            }
+            _ => self.id().to_string(),
+        }
+    }
+
     /// 读取指定会话的时间轴消息列表（用于详情页展示）
     fn read_timeline(&self, session_id: &str) -> Vec<TimelineMessage>;
 }

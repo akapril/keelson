@@ -300,6 +300,7 @@ pub fn run() {
             commands::sessions::session_tasks,
             // 终端（Task 16 - terminal.rs）
             commands::terminal::terminal_resume,
+            commands::terminal::terminal_start,
             // 配置（Task 16 - config.rs）
             commands::config::config_get_hotkey,
             commands::config::config_set_hotkey,

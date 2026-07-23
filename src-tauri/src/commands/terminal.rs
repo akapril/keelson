@@ -55,3 +55,32 @@ pub fn terminal_resume(
     // 5. 执行（薄 IO 层）
     execute(plan).map_err(|e| format!("启动终端失败: {e:#}"))
 }
+
+/// 在系统终端中「新建」一个 CLI 会话：cd 到 project_path 后就地起 claude / codex。
+/// 跑起来后会话写盘（cwd=project_path）→ 被扫描器捡到，出现在该项目会话 tab。
+///
+/// - `provider`：claude / codex
+/// - `project_path`：仓库目录（终端启动后 cd 到此）
+/// - `initial_prompt`：可选初始提示（空则纯起一个交互会话）
+#[tauri::command]
+pub fn terminal_start(
+    provider: String,
+    project_path: String,
+    initial_prompt: Option<String>,
+    state: State<AppState>,
+) -> Result<(), String> {
+    let p = state
+        .reg
+        .by_id(&provider)
+        .ok_or_else(|| format!("未知 provider: {provider}"))?;
+
+    let start_cmd = p.start_command(initial_prompt.as_deref());
+    let req = ResumeRequest {
+        project_path: project_path.clone(),
+        resume_cmd: start_cmd, // 复用恢复的终端启动路径（cd + 执行命令）
+    };
+    let term_pref = state.config.lock().terminal_pref.clone();
+    let kind = detect_terminal(&term_pref);
+    let plan = build_plan(&kind, &req);
+    execute(plan).map_err(|e| format!("启动终端失败: {e:#}"))
+}
