@@ -23,12 +23,21 @@ export async function runReadingSummarize(item: ReadingItem): Promise<boolean> {
   }
   try {
     const r = await summarizeReadingItem(item, cfg);
-    await useReadingStore.getState().updateItem(item.id, {
+    const patch: Record<string, unknown> = {
       summary: r.summary,
       key_points: JSON.stringify(r.key_points),
       content_text: r.content_text,
-    });
-    toast.success("已生成 AI 摘要");
+    };
+    // AI 推荐标签:仅当条目还没有标签时自动填(不覆盖用户已有标签)
+    if (r.tags.length > 0 && !item.tags?.trim()) {
+      patch.tags = r.tags.join(",");
+    }
+    await useReadingStore.getState().updateItem(item.id, patch);
+    toast.success(
+      r.tags.length > 0 && !item.tags?.trim()
+        ? `已生成 AI 摘要(含 ${r.tags.length} 个推荐标签)`
+        : "已生成 AI 摘要",
+    );
     return true;
   } catch (e) {
     toast.error(String(e instanceof Error ? e.message : e));

@@ -66,6 +66,27 @@ function urlHost(url: string): string {
   }
 }
 
+/** 站点 favicon URL（用站点自身 /favicon.ico，失败时 <img> onError 隐藏，不请求第三方） */
+function faviconUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return `${u.origin}/favicon.ico`;
+  } catch {
+    return null;
+  }
+}
+
+/** 阅读时长估算：按缓存正文字数 / 每分钟 ~350 字（中英混排折中）；无正文返回 null。 */
+function readingMinutes(contentText: string): number | null {
+  const text = (contentText || "").trim();
+  if (!text) return null;
+  // 中文按字符计、英文按空格词计，取二者估算的较大值更贴近
+  const cjk = (text.match(/[一-鿿]/g) || []).length;
+  const words = text.split(/\s+/).filter(Boolean).length;
+  const units = Math.max(cjk, words);
+  return Math.max(1, Math.round(units / 350));
+}
+
 // ── 单条阅读条目行 ─────────────────────────────────────────
 interface ReadingRowProps {
   item: ReadingItem;
@@ -129,11 +150,24 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
             )}
           </div>
 
-          {/* 链接主机名（小字） */}
+          {/* 站点 favicon + 域名 + 阅读时长（书签感） */}
           {item.url && (
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {urlHost(item.url)}
-            </p>
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+              {faviconUrl(item.url) && (
+                <img
+                  src={faviconUrl(item.url)!}
+                  alt=""
+                  className="size-3.5 shrink-0 rounded-sm"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none"; // 站点无 favicon 时隐藏，不占位
+                  }}
+                />
+              )}
+              <span className="truncate">{urlHost(item.url)}</span>
+              {readingMinutes(item.content_text) != null && (
+                <span className="shrink-0">· 约 {readingMinutes(item.content_text)} 分钟</span>
+              )}
+            </div>
           )}
 
           {/* 标签胶囊 */}
@@ -313,11 +347,15 @@ export default function ReadingPage() {
     );
   }, [items, filter, query]);
 
-  // 提交添加：标题必填，成功后清空输入
+  // 提交添加：标题或链接至少一个。书签式：只贴链接也能存，标题空则用域名兜底。
   const handleAdd = async () => {
     const t = title.trim();
-    if (!t) return;
-    await addItem({ title: t, url: url.trim() });
+    const u = url.trim();
+    if (!t && !u) return;
+    // 标题兜底：无标题但有链接 → 用域名当标题（书签感，随后可 AI 摘要补全）
+    const finalTitle = t || (u ? urlHost(u) : "");
+    if (!finalTitle) return;
+    await addItem({ title: finalTitle, url: u });
     setTitle("");
     setUrl("");
   };
@@ -343,20 +381,20 @@ export default function ReadingPage() {
         }}
       >
         <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="标题（必填）"
-          className="flex-1"
-          aria-label="标题"
-        />
-        <Input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="链接（可选）"
+          placeholder="粘贴链接（书签式，标题可留空）"
           className="flex-1"
           aria-label="链接"
         />
-        <Button type="submit" disabled={!title.trim()}>
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="标题（可选）"
+          className="flex-1"
+          aria-label="标题"
+        />
+        <Button type="submit" disabled={!title.trim() && !url.trim()}>
           <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
           添加
         </Button>

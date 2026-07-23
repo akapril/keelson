@@ -11,7 +11,7 @@ function asString(v: unknown): string | undefined {
  */
 export function parseSummary(
   reply: string,
-): { summary: string; key_points: string[] } | null {
+): { summary: string; key_points: string[]; tags: string[] } | null {
   if (!reply) return null;
   let s = reply.trim();
   const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -30,13 +30,16 @@ export function parseSummary(
   const rec = obj as Record<string, unknown>;
   const summary = asString(rec.summary)?.trim();
   if (!summary) return null;
-  const key_points = Array.isArray(rec.key_points)
-    ? rec.key_points
-        .map(asString)
-        .filter((x): x is string => !!x && !!x.trim())
-        .map((x) => x.trim())
-    : [];
-  return { summary, key_points };
+  // 字符串数组归一：去空/去空白（key_points 与 tags 共用）
+  const strArr = (v: unknown): string[] =>
+    Array.isArray(v)
+      ? v.map(asString).filter((x): x is string => !!x && !!x.trim()).map((x) => x.trim())
+      : [];
+  return {
+    summary,
+    key_points: strArr(rec.key_points),
+    tags: strArr(rec.tags),
+  };
 }
 
 /** 拆分逗号分隔标签:去空白、去空、去重(保序)。 */
