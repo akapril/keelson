@@ -16,6 +16,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, FilterIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { useBoardStore, groupTasksByState } from "@/store/board";
 import { ipc } from "@/lib/tauri/ipc";
+import { isCliSynced, getInjectSet } from "./cli-task-source";
 import type { BoardTask, TaskPriority } from "@/types/board";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,6 +24,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuLabel,
+  DropdownMenuItem,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -320,25 +322,43 @@ export function KanbanBoard() {
     );
   };
 
-  // 看板 → CLI：把本项目未归档任务写进 <repo>/CLAUDE.md+AGENTS.md 的受管块，
+  // 看板 → CLI：把任务写进 <repo>/CLAUDE.md+AGENTS.md 的受管块，
   // 让在该仓库起的 CLI 会话(Claude 读 CLAUDE.md / Codex 读 AGENTS.md)看到任务清单。
-  const injectToCli = async () => {
+  // 仅自建任务（排除 CLI 同步来的，避免注回自己）；scope="set" 只注入注入集，"all" 注入全部自建。
+  const injectToCli = async (scope: "set" | "all" | "clear") => {
     const project = projects.find((p) => p.id === openedProjectId);
     if (!project?.repo_path) {
       toast.error("本项目未绑定仓库路径，无法注入（先在项目设置里绑定仓库）");
       return;
     }
+    // 清空：写空列表 = 卸载受管块（块外内容保留）
+    if (scope === "clear") {
+      try {
+        await ipc.tasksWriteProjectFiles(project.repo_path, []);
+        toast.success("已清空 CLI 注入块（CLAUDE.md / AGENTS.md）");
+      } catch (e) {
+        toast.error(`清空失败：${String(e)}`);
+      }
+      return;
+    }
     const stateById = new Map(states.map((s) => [s.id, s]));
-    const lines = tasks
-      .filter((t) => !t.archived)
-      .map((t) => {
-        const st = stateById.get(t.state);
-        return {
-          title: t.title,
-          done: st?.category === "completed",
-          hint: st?.name ?? "",
-        };
-      });
+    const injectSet = getInjectSet(project.id);
+    const chosen = tasks.filter((t) => {
+      if (t.archived || isCliSynced(t)) return false; // 排除归档 + CLI 同步来的
+      return scope === "all" || injectSet.has(t.id);
+    });
+    if (chosen.length === 0) {
+      toast.message(
+        scope === "set"
+          ? "注入集为空——右键自建任务「加入 CLI 注入集」"
+          : "没有可注入的自建任务",
+      );
+      return;
+    }
+    const lines = chosen.map((t) => {
+      const st = stateById.get(t.state);
+      return { title: t.title, done: st?.category === "completed", hint: st?.name ?? "" };
+    });
     try {
       const written = await ipc.tasksWriteProjectFiles(project.repo_path, lines);
       toast.success(`已注入 ${lines.length} 个任务到 ${written.length} 个文件（CLAUDE.md / AGENTS.md）`);
@@ -454,15 +474,31 @@ export function KanbanBoard() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
-          {/* 看板→CLI：把本项目任务注入 repo 的 CLAUDE.md/AGENTS.md */}
-          <button
-            type="button"
-            onClick={() => void injectToCli()}
-            title="把本项目任务写进仓库 CLAUDE.md/AGENTS.md 的受管块，让 CLI 会话看到"
-            className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            注入到 CLI
-          </button>
+          {/* 看板→CLI：注入自建任务到 repo 的 CLAUDE.md/AGENTS.md（注入集 / 全部自建） */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                title="把自建任务写进仓库 CLAUDE.md/AGENTS.md 的受管块，让 CLI 会话看到（CLI 同步来的任务不注入）"
+                className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                注入到 CLI
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuLabel>注入自建任务到 CLI</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => void injectToCli("set")}>
+                注入选中（注入集）
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void injectToCli("all")}>
+                注入全部自建任务
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void injectToCli("clear")}>
+                清空注入块
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {archivedCount > 0 && (
             <button
               type="button"

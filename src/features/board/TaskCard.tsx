@@ -1,4 +1,5 @@
 // TaskCard —— 看板单任务卡片（视觉移植自 workavera todo-card，绑定我们的 store/类型）。
+import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "react-router-dom";
@@ -29,6 +30,7 @@ import { stripMarkdown } from "@/lib/markdown-preview";
 import { useBoardStore } from "@/store/board";
 import type { BoardTask } from "@/types/board";
 import { PRIORITY_META, PRIORITY_ORDER } from "./board-meta";
+import { isCliSynced, toggleInject, getInjectSet } from "./cli-task-source";
 
 // ── 日期格式化 ────────────────────────────────────────────────
 function formatDate(dateStr: string): string {
@@ -106,6 +108,15 @@ export function TaskCard({
     const params = new URLSearchParams({ session: task.source_session_id });
     if (task.source_provider) params.set("provider", task.source_provider);
     navigate(`/sessions?${params.toString()}`);
+  };
+
+  // 来源区分：CLI 同步来的任务不可注入 CLI（避免循环）；自建任务可加入「注入集」。
+  const cliSynced = isCliSynced(task);
+  const [inInjectSet, setInInjectSet] = useState(() =>
+    getInjectSet(task.project).has(task.id),
+  );
+  const toggleInjectSet = () => {
+    setInInjectSet(toggleInject(task.project, task.id));
   };
 
   const {
@@ -254,17 +265,26 @@ export function TaskCard({
           </span>
         )}
 
-        {/* 来源会话徽章（点击跳转会话中枢） */}
+        {/* 来源会话徽章（点击跳转会话中枢）。CLI 同步来的额外标「↻会话」以区分自建任务。 */}
         {task.source_session_id && (
           <button
             type="button"
             onClick={handleSourceClick}
             aria-label="跳转到来源会话"
-            title={`来源会话：${task.source_session_id}`}
-            className="ml-auto flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+            title={
+              cliSynced
+                ? `CLI 同步任务，来源会话：${task.source_session_id}`
+                : `来源会话：${task.source_session_id}`
+            }
+            className={cn(
+              "ml-auto flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] transition-colors focus:outline-none focus:ring-2 focus:ring-ring",
+              cliSynced
+                ? "bg-primary/10 text-primary hover:bg-primary/20"
+                : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary",
+            )}
           >
             <HugeiconsIcon icon={Message01Icon} strokeWidth={2} className="size-3" />
-            来源
+            {cliSynced ? "↻会话" : "来源"}
           </button>
         )}
       </div>
@@ -321,6 +341,16 @@ export function TaskCard({
             <ContextMenuSeparator />
             <ContextMenuItem onSelect={goSource}>
               跳转来源会话
+            </ContextMenuItem>
+          </>
+        )}
+
+        {/* 注入 CLI：仅自建任务可加入注入集（CLI 同步来的排除，避免注回自己） */}
+        {!cliSynced && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={toggleInjectSet}>
+              {inInjectSet ? "移出 CLI 注入集" : "加入 CLI 注入集"}
             </ContextMenuItem>
           </>
         )}
