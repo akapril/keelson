@@ -57,7 +57,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { expandRecurringEvents, REPEAT_OPTIONS } from "./recurrence";
+import {
+  expandRecurringEvents,
+  REPEAT_OPTIONS,
+  parseRepeat,
+  buildRepeat,
+} from "./recurrence";
 
 // 星期表头（周日起，与 startOfWeek 默认 weekStartsOn=0 对齐）
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"] as const;
@@ -81,7 +86,10 @@ interface FormState {
   color: string;
   description: string;
   project: string;
-  repeat: string;
+  /** 重复单位（""=不重复 / daily / weekly / monthly / yearly） */
+  repeatUnit: string;
+  /** 周期步长 N（每 N 个单位） */
+  repeatInterval: number;
 }
 
 // 拖拽载荷：事件带 start/end（改期时保留时长），任务只需 id
@@ -140,7 +148,8 @@ function initialForm(state: DialogState): FormState {
       color: ev.color || DEFAULT_COLOR,
       description: ev.description,
       project: ev.project || "",
-      repeat: ev.repeat || "",
+      repeatUnit: parseRepeat(ev.repeat)?.unit ?? "",
+      repeatInterval: parseRepeat(ev.repeat)?.interval ?? 1,
     };
   }
   // 新建：起始日预填为点击的日期（或今天）
@@ -153,7 +162,8 @@ function initialForm(state: DialogState): FormState {
     color: DEFAULT_COLOR,
     description: "",
     project: "",
-    repeat: "",
+    repeatUnit: "",
+    repeatInterval: 1,
   };
 }
 
@@ -252,7 +262,7 @@ export default function CalendarPage() {
       color: form.color,
       description: form.description.trim(),
       project: form.project, // 空串 = 不关联
-      repeat: form.repeat, // 空串 = 不重复
+      repeat: buildRepeat(form.repeatUnit, form.repeatInterval), // ""=不重复 / "daily" / "daily:N"
     };
     if (dialog.editing) {
       await updateEvent(dialog.editing.id, payload);
@@ -572,26 +582,56 @@ export default function CalendarPage() {
               </Label>
             </div>
 
-            {/* 重复（轻量循环，仅展开显示） */}
+            {/* 重复（轻量循环：单位 + 每 N 步长，仅展开显示） */}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="cal-repeat">重复</Label>
-              <Select
-                value={form.repeat || "none"}
-                onValueChange={(v) =>
-                  setForm((f) => ({ ...f, repeat: v === "none" ? "" : v }))
-                }
-              >
-                <SelectTrigger id="cal-repeat" className="w-full">
-                  <SelectValue placeholder="不重复" />
-                </SelectTrigger>
-                <SelectContent>
-                  {REPEAT_OPTIONS.map((o) => (
-                    <SelectItem key={o.value || "none"} value={o.value || "none"}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={form.repeatUnit || "none"}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, repeatUnit: v === "none" ? "" : v }))
+                  }
+                >
+                  <SelectTrigger id="cal-repeat" className="flex-1">
+                    <SelectValue placeholder="不重复" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPEAT_OPTIONS.map((o) => (
+                      <SelectItem key={o.value || "none"} value={o.value || "none"}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* 选了单位才显示「每 N」步长输入 */}
+                {form.repeatUnit && (
+                  <div className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
+                    <span>每</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={form.repeatInterval}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          repeatInterval: Math.max(1, Math.floor(Number(e.target.value) || 1)),
+                        }))
+                      }
+                      className="w-16"
+                      aria-label="重复步长"
+                    />
+                    <span>
+                      {form.repeatUnit === "daily"
+                        ? "天"
+                        : form.repeatUnit === "weekly"
+                          ? "周"
+                          : form.repeatUnit === "monthly"
+                            ? "月"
+                            : "年"}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 关联项目（可选） */}
