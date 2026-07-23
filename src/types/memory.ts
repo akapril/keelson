@@ -47,4 +47,6 @@ export interface FileMemory {
   description: string;
   kind_hint: string;
   body: string;
+  /** 所属项目仓库路径（从会话 cwd 取；空=未知）。前端据此匹配看板项目归属。 */
+  repo_path: string;
 }

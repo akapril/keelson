@@ -3,6 +3,7 @@
 // 幂等：锚点 file-memory:<name>，已导入则跳过。
 import { ipc } from "@/lib/tauri/ipc";
 import { listMemories, createMemoryRecord } from "@/lib/pb/memory";
+import { listProjects } from "@/lib/pb/board";
 import { currentUserId } from "@/lib/pb";
 import type { MemoryKind } from "@/types/memory";
 
@@ -24,8 +25,12 @@ export async function importFileMemories(): Promise<ImportResult> {
   const files = await ipc.scanFileMemories();
   if (files.length === 0) return { imported: 0, skipped: 0 };
 
-  const existing = await listMemories();
+  const [existing, projects] = await Promise.all([listMemories(), listProjects()]);
   const seen = new Set(existing.map((m) => m.source_anchor).filter(Boolean));
+  // repo_path → 看板项目 id：文件记忆能匹配上则归为项目记忆，否则全局
+  const projByRepo = new Map(
+    projects.filter((p) => p.repo_path).map((p) => [p.repo_path, p.id]),
+  );
 
   let imported = 0;
   let skipped = 0;
@@ -43,13 +48,15 @@ export async function importFileMemories(): Promise<ImportResult> {
     )
       .trim()
       .slice(0, 2000);
+    // 归属：文件记忆的 repo_path 匹配到看板项目 → scope=project；否则 global。
+    const projectId = f.repo_path ? projByRepo.get(f.repo_path) : undefined;
     await createMemoryRecord({
       owner: currentUserId(),
       content,
       kind: KIND_MAP[f.kind_hint] ?? "fact",
-      scope: "global", // 文件记忆不绑仓库；导入为全局，用户审核时可改 scope
+      scope: projectId ? "project" : "global",
       status: "pending", // 待审：收件箱采纳后才入账/注入
-      project: "",
+      project: projectId ?? "",
       confidence: 1,
       source_session_id: "",
       source_provider: "claude-file",

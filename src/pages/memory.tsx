@@ -4,7 +4,9 @@ import { Virtualizer } from "virtua";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { listMemories, updateMemoryRecord, deleteMemoryRecord } from "@/lib/pb/memory";
+import { listProjects } from "@/lib/pb/board";
 import { MEMORY_KIND_LABEL, type Memory, type MemoryKind } from "@/types/memory";
+import type { BoardProject } from "@/types/board";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Markdown } from "@/components/markdown";
@@ -23,9 +25,22 @@ const KINDS: (MemoryKind | "all")[] = ["all", "fact", "preference", "decision", 
 export default function MemoryPage() {
   const navigate = useNavigate();
   const [memories, setMemories] = useState<Memory[]>([]);
+  const [projects, setProjects] = useState<BoardProject[]>([]);
   const [loading, setLoading] = useState(true);
+  // project id → 名称（记忆卡片展示所属项目）
+  const projName = useMemo(
+    () => new Map(projects.map((p) => [p.id, p.name])),
+    [projects],
+  );
+  // 某记忆的项目名标签（scope=project 且能解析出名字才显示具体项目）
+  const scopeLabel = (m: Memory): string => {
+    if (m.scope !== "project") return "全局";
+    const n = m.project ? projName.get(m.project) : undefined;
+    return n ? `项目：${n}` : "项目";
+  };
   const [kind, setKind] = useState<MemoryKind | "all">("all");
-  const [scope, setScope] = useState<"all" | "global" | "project">("all");
+  // 作用域筛选："all" / "global" / "project:<id>"（具体项目）
+  const [scope, setScope] = useState<string>("all");
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Memory | null>(null);
   // 批量选择
@@ -53,6 +68,10 @@ export default function MemoryPage() {
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
+  // 项目列表（记忆卡片显示所属项目名）
+  useEffect(() => {
+    void listProjects().then(setProjects).catch(() => {});
+  }, []);
 
   // 记忆桥：把 Claude 文件记忆(*.md)导入账本(待审)，导入后进收件箱等采纳
   const handleImportFileMemories = async () => {
@@ -80,7 +99,10 @@ export default function MemoryPage() {
         !m.superseded_by &&
         m.status !== "pending" && // 待审记忆单独展示，不混入主账本
         (kind === "all" || m.kind === kind) &&
-        (scope === "all" || m.scope === scope) &&
+        // 作用域：all=全部 / global=全局 / project:<id>=指定项目
+        (scope === "all" ||
+          (scope === "global" && m.scope === "global") ||
+          (scope.startsWith("project:") && m.project === scope.slice("project:".length))) &&
         (!q || m.content.toLowerCase().includes(q)),
     );
   }, [memories, kind, scope, query]);
@@ -186,9 +208,7 @@ export default function MemoryPage() {
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
                     <span className="rounded bg-muted px-1">{MEMORY_KIND_LABEL[m.kind]}</span>
-                    <span className="rounded bg-muted px-1">
-                      {m.scope === "global" ? "全局" : "项目"}
-                    </span>
+                    <span className="rounded bg-muted px-1">{scopeLabel(m)}</span>
                     {m.source_provider && (
                       <span className="rounded bg-muted px-1">来源：{m.source_provider}</span>
                     )}
@@ -227,14 +247,21 @@ export default function MemoryPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={scope} onValueChange={(v) => setScope(v as "all" | "global" | "project")}>
-          <SelectTrigger size="sm" className="w-28">
+        <Select value={scope} onValueChange={setScope}>
+          <SelectTrigger size="sm" className="w-36">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部作用域</SelectItem>
             <SelectItem value="global">全局</SelectItem>
-            <SelectItem value="project">项目</SelectItem>
+            {/* 有记忆归属的项目逐个列出，直接按项目筛 */}
+            {projects
+              .filter((p) => memories.some((m) => m.project === p.id))
+              .map((p) => (
+                <SelectItem key={p.id} value={`project:${p.id}`}>
+                  项目：{p.name}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
         <Input
@@ -294,7 +321,7 @@ export default function MemoryPage() {
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
                       <span className="rounded bg-muted px-1">{MEMORY_KIND_LABEL[m.kind]}</span>
-                      <span className="rounded bg-muted px-1">{m.scope === "global" ? "全局" : "项目"}</span>
+                      <span className="rounded bg-muted px-1">{scopeLabel(m)}</span>
                       <span>把握 {m.confidence}</span>
                       {m.source_session_id && (
                         <button
