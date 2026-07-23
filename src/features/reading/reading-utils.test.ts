@@ -11,9 +11,9 @@ function item(p: Partial<ReadingItem>): ReadingItem {
 }
 
 describe("parseSummary", () => {
-  it("解析正常 JSON", () => {
-    const r = parseSummary('{"summary":"一句话","key_points":["a","b"]}');
-    expect(r).toEqual({ summary: "一句话", key_points: ["a", "b"] });
+  it("解析正常 JSON（含 tags）", () => {
+    const r = parseSummary('{"summary":"一句话","key_points":["a","b"],"tags":["t1","t2"]}');
+    expect(r).toEqual({ summary: "一句话", key_points: ["a", "b"], tags: ["t1", "t2"] });
   });
   it("剥离 ```json 围栏", () => {
     const r = parseSummary('```json\n{"summary":"s","key_points":["x"]}\n```');
@@ -23,9 +23,9 @@ describe("parseSummary", () => {
   it("非法 JSON 返回 null", () => {
     expect(parseSummary("not json")).toBeNull();
   });
-  it("缺 summary 字段返回 null；key_points 缺失则空数组", () => {
+  it("缺 summary 字段返回 null；key_points/tags 缺失则空数组", () => {
     expect(parseSummary('{"key_points":["a"]}')).toBeNull();
-    expect(parseSummary('{"summary":"s"}')).toEqual({ summary: "s", key_points: [] });
+    expect(parseSummary('{"summary":"s"}')).toEqual({ summary: "s", key_points: [], tags: [] });
   });
 });
 

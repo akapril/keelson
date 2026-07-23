@@ -5,13 +5,18 @@ import type { AiConfig, AiChatMessage } from "@/types/ai";
 import type { ReadingItem } from "@/types/reading";
 import { parseSummary } from "./reading-utils";
 
-/** 摘要系统提示:严格 JSON、中文。 */
-export const SUMMARY_SYSTEM = `你是阅读助手。根据给定网页正文,输出严格 JSON(不要解释、不要代码块围栏):
-{"summary":"一段简洁中文摘要","key_points":["要点1","要点2"]}
-summary 概括核心内容;key_points 列 3-6 个关键点。用中文。`;
+/** 摘要系统提示:严格 JSON、中文。要求"够用"——有信息量、能替代读全文的程度。 */
+export const SUMMARY_SYSTEM = `你是资深阅读助手。根据给定网页正文,产出一份"读完就大致掌握、能替代通读全文"的中文摘要。输出严格 JSON(不要解释、不要代码块围栏):
+{"summary":"markdown 摘要","key_points":["要点1","要点2"],"tags":["标签1","标签2"]}
 
-// 送入 AI 的正文上限(控成本;fetch_url_text 已截断,这里再兜底)
-const MAX_INPUT = 8000;
+要求:
+- summary 用 markdown,分三段:①一句话 TL;DR(黑体开头,直接给结论/核心观点);②2-4 句展开背景与主要内容;③「为什么值得读 / 适合谁」一句。信息要具体(带上关键数据、结论、方法名),不要空泛套话。
+- key_points 列 5-8 条**具体**要点:每条是一个可独立成立的事实/结论/步骤,而非泛泛而谈。有数据/名词就带上。
+- tags 给 2-4 个精炼主题标签(如"LLM""性能优化""创业"),便于归类。
+用简体中文。`;
+
+// 送入 AI 的正文上限(控成本;fetch_url_text 已截断,这里再兜底;放宽到 12000 与 Rust 抓取上限对齐)
+const MAX_INPUT = 12000;
 
 /**
  * 对阅读条目做 AI 摘要。抓取/AI/解析任一步失败即抛错(中文),由调用方 toast。
@@ -20,7 +25,7 @@ const MAX_INPUT = 8000;
 export async function summarizeReadingItem(
   item: ReadingItem,
   cfg: AiConfig,
-): Promise<{ summary: string; key_points: string[]; content_text: string }> {
+): Promise<{ summary: string; key_points: string[]; tags: string[]; content_text: string }> {
   if (!item.url) throw new Error("该条目无链接,无法摘要");
   const content_text = (await ipc.fetchUrlText(item.url)).trim();
   if (!content_text) throw new Error("未能抓取到网页正文");
@@ -35,5 +40,10 @@ export async function summarizeReadingItem(
   const parsed = parseSummary(reply);
   if (!parsed) throw new Error("AI 摘要解析失败(未返回有效 JSON)");
 
-  return { summary: parsed.summary, key_points: parsed.key_points, content_text };
+  return {
+    summary: parsed.summary,
+    key_points: parsed.key_points,
+    tags: parsed.tags,
+    content_text,
+  };
 }

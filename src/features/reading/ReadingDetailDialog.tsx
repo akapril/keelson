@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Markdown } from "@/components/markdown";
 import { useReadingStore } from "@/store/reading";
 import { runReadingSummarize } from "./summarize-action";
 import { splitTags, joinTags } from "./reading-utils";
@@ -168,15 +169,19 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto py-2">
           {item.summary ? (
             <div>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                {item.summary}
-              </p>
+              {/* 摘要为 markdown（TL;DR 黑体 + 分段），用 Markdown 组件渲染格式 */}
+              <Markdown content={item.summary} />
               {keyPoints.length > 0 && (
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                  {keyPoints.map((k, i) => (
-                    <li key={i}>{k}</li>
-                  ))}
-                </ul>
+                <div className="mt-3">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    关键要点
+                  </p>
+                  <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
+                    {keyPoints.map((k, i) => (
+                      <li key={i}>{k}</li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           ) : (
