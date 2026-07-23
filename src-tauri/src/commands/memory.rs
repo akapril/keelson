@@ -276,6 +276,58 @@ pub fn tasks_write_project_files(
     Ok(written)
 }
 
+/// 看板任务注入状态（供前端常驻显示"注了没/几条"）。
+#[derive(serde::Serialize)]
+pub struct TasksInjectStatus {
+    /// CLAUDE.md 是否含 rework-tasks 块
+    pub claude_md: bool,
+    /// AGENTS.md 是否含 rework-tasks 块
+    pub agents_md: bool,
+    /// 块内任务条数（取两文件的最大值，通常一致）
+    pub count: u32,
+}
+
+/// 取某文件 rework-tasks 块内的任务条数（`- [ ]` / `- [x]` 行数）；无块 → 0。
+fn count_task_lines(path: &Path) -> u32 {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return 0,
+    };
+    let mut inside = false;
+    let mut n = 0u32;
+    for line in content.lines() {
+        let t = line.trim();
+        if t == TASK_MARK_BEGIN {
+            inside = true;
+            continue;
+        }
+        if t == TASK_MARK_END {
+            break;
+        }
+        if inside && (t.starts_with("- [ ]") || t.starts_with("- [x]")) {
+            n += 1;
+        }
+    }
+    n
+}
+
+/// 查看板任务受管块状态：两文件是否含块 + 块内任务条数。
+#[tauri::command]
+pub fn tasks_project_files_status(repo_path: String) -> TasksInjectStatus {
+    let root = Path::new(&repo_path);
+    let has = |name: &str| {
+        std::fs::read_to_string(root.join(name))
+            .map(|c| c.contains(TASK_MARK_BEGIN))
+            .unwrap_or(false)
+    };
+    let count = count_task_lines(&root.join("CLAUDE.md")).max(count_task_lines(&root.join("AGENTS.md")));
+    TasksInjectStatus {
+        claude_md: has("CLAUDE.md"),
+        agents_md: has("AGENTS.md"),
+        count,
+    }
+}
+
 /// 把记忆写进 <repo>/CLAUDE.md 与 <repo>/AGENTS.md 的受管块。返回写入的路径。
 #[tauri::command]
 pub fn memory_write_project_files(repo_path: String, mems: Vec<MemLine>) -> Result<Vec<String>, String> {

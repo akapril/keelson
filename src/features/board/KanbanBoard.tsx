@@ -80,6 +80,8 @@ export function KanbanBoard() {
   const [showArchived, setShowArchived] = useState(false);
   // 任务筛选：文本 + 标签 + 优先级
   const [filter, setFilter] = useState<TaskFilter>(EMPTY_FILTER);
+  // CLI 注入状态（常驻显示"注了没/几条"）；null=未查/无仓库
+  const [injectStatus, setInjectStatus] = useState<{ count: number } | null>(null);
   // 自动归档只对每个项目跑一次（避免重复写库）
   const autoArchivedFor = useRef<string | null>(null);
 
@@ -322,6 +324,38 @@ export function KanbanBoard() {
     );
   };
 
+  // 当前项目的仓库路径（注入依据 + 状态查询）
+  const repoPath = projects.find((p) => p.id === openedProjectId)?.repo_path;
+
+  // 进项目 / 切项目时查一次注入状态（有仓库才查）
+  useEffect(() => {
+    if (!repoPath) {
+      setInjectStatus(null);
+      return;
+    }
+    let cancelled = false;
+    void ipc
+      .tasksProjectFilesStatus(repoPath)
+      .then((s) => {
+        if (!cancelled) setInjectStatus(s.claude_md || s.agents_md ? { count: s.count } : null);
+      })
+      .catch(() => {
+        if (!cancelled) setInjectStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [repoPath]);
+
+  // 注入/清空后刷新状态
+  const refreshInjectStatus = () => {
+    if (!repoPath) return;
+    void ipc
+      .tasksProjectFilesStatus(repoPath)
+      .then((s) => setInjectStatus(s.claude_md || s.agents_md ? { count: s.count } : null))
+      .catch(() => {});
+  };
+
   // 看板 → CLI：把任务写进 <repo>/CLAUDE.md+AGENTS.md 的受管块，
   // 让在该仓库起的 CLI 会话(Claude 读 CLAUDE.md / Codex 读 AGENTS.md)看到任务清单。
   // 仅自建任务（排除 CLI 同步来的，避免注回自己）；scope="set" 只注入注入集，"all" 注入全部自建。
@@ -336,6 +370,7 @@ export function KanbanBoard() {
       try {
         await ipc.tasksWriteProjectFiles(project.repo_path, []);
         toast.success("已清空 CLI 注入块（CLAUDE.md / AGENTS.md）");
+        refreshInjectStatus();
       } catch (e) {
         toast.error(`清空失败：${String(e)}`);
       }
@@ -362,6 +397,7 @@ export function KanbanBoard() {
     try {
       const written = await ipc.tasksWriteProjectFiles(project.repo_path, lines);
       toast.success(`已注入 ${lines.length} 个任务到 ${written.length} 个文件（CLAUDE.md / AGENTS.md）`);
+      refreshInjectStatus();
     } catch (e) {
       toast.error(`注入失败：${String(e)}`);
     }
@@ -480,9 +516,20 @@ export function KanbanBoard() {
               <button
                 type="button"
                 title="把自建任务写进仓库 CLAUDE.md/AGENTS.md 的受管块，让 CLI 会话看到（CLI 同步来的任务不注入）"
-                className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
+                  injectStatus
+                    ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                    : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
               >
                 注入到 CLI
+                {/* 常驻状态：已注入显示条数（含 ✓），未注入不显示——一眼知道注了没 */}
+                {injectStatus && (
+                  <span className="rounded-full bg-primary/20 px-1.5 text-[10px] tabular-nums">
+                    ✓{injectStatus.count}
+                  </span>
+                )}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
