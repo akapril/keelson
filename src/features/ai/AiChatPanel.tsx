@@ -2,6 +2,25 @@
 // 消息仅本地内存（不持久化，YAGNI）；流式经 ipc.aiChatStream 逐块渲染。
 // 「包含项目上下文」开启后，注入本项目的文档 + 关联会话作为参考资料。
 import { memo, useEffect, useRef, useState } from "react";
+
+// ── 对话历史本地持久化（按项目隔离；懒读避免挂载竞态删存档） ──
+const chatKey = (projectId: string) => `rework-ai-chat-${projectId}`;
+function loadChat(projectId: string): AiChatMessage[] {
+  try {
+    const raw = localStorage.getItem(chatKey(projectId));
+    return raw ? (JSON.parse(raw) as AiChatMessage[]) : [];
+  } catch {
+    return [];
+  }
+}
+function saveChat(projectId: string, messages: AiChatMessage[]): void {
+  try {
+    if (messages.length > 0) localStorage.setItem(chatKey(projectId), JSON.stringify(messages));
+    else localStorage.removeItem(chatKey(projectId));
+  } catch {
+    /* localStorage 不可用时忽略 */
+  }
+}
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SentIcon, AiChat02Icon, Delete02Icon } from "@hugeicons/core-free-icons";
@@ -95,7 +114,10 @@ interface AiChatPanelProps {
 
 export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelProps) {
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<AiChatMessage[]>([]);
+  // 懒初始化：首帧即从 localStorage 载入本项目历史（避免"空数组先删存档"的挂载竞态）
+  const [messages, setMessages] = useState<AiChatMessage[]>(() => loadChat(projectId));
+  // 记录当前 messages 属于哪个项目（切项目时按此保存/加载，避免串项目）
+  const msgProjectRef = useRef(projectId);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [needConfig, setNeedConfig] = useState(false);
@@ -123,43 +145,23 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
     if (id) void ipc.aiCancelStream(id);
   };
 
-  // 本地持久化 key（按项目隔离）
-  const storeKey = `rework-ai-chat-${projectId}`;
-
-  // 切换项目时载入该项目已保存的对话历史
+  // 切项目（不卸载而 projectId 变）时载入该项目历史；挂载时已由懒初始化覆盖，故跳过。
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storeKey);
-      setMessages(raw ? (JSON.parse(raw) as AiChatMessage[]) : []);
-    } catch {
-      setMessages([]);
-    }
-    // 仅在项目切换时载入
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (msgProjectRef.current === projectId) return; // 挂载首次：与懒初始化一致，无需重载
+    msgProjectRef.current = projectId;
+    setMessages(loadChat(projectId));
   }, [projectId]);
 
-  // 每轮对话结束后（非流式中）持久化历史；空则清除
+  // 每轮对话结束后（非流式中）持久化历史（按 messages 所属项目存，避免串项目）。
   useEffect(() => {
     if (loading) return;
-    try {
-      if (messages.length > 0) {
-        localStorage.setItem(storeKey, JSON.stringify(messages));
-      } else {
-        localStorage.removeItem(storeKey);
-      }
-    } catch {
-      /* localStorage 不可用时忽略 */
-    }
-  }, [loading, messages, storeKey]);
+    saveChat(msgProjectRef.current, messages);
+  }, [loading, messages]);
 
   // 清空当前项目对话
   const clearConversation = () => {
     setMessages([]);
-    try {
-      localStorage.removeItem(storeKey);
-    } catch {
-      /* ignore */
-    }
+    saveChat(projectId, []);
   };
 
   const scrollToBottom = () => {
