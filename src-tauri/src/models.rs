@@ -22,6 +22,20 @@ pub struct FileChange {
     pub edits: Vec<FileEdit>,
 }
 
+/// Claude 文件记忆（~/.claude/projects/<proj>/memory/*.md 的 frontmatter + 正文）。
+/// 用于「记忆桥」：扫描后由前端映射写入 rework 记忆账本（默认待审）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileMemory {
+    /// frontmatter name（唯一 slug，用作幂等锚点）
+    pub name: String,
+    /// frontmatter description（一句话摘要）
+    pub description: String,
+    /// frontmatter metadata.type（user/feedback/project/reference），供映射 kind
+    pub kind_hint: String,
+    /// 正文（frontmatter 之后）
+    pub body: String,
+}
+
 /// 会话「规划的任务」——Claude 的 TaskCreate/TaskUpdate 落盘状态
 /// （~/.claude/tasks/<组>/<n>.json）。用于同步到看板并跟随进度。
 #[derive(Debug, Clone, Serialize, Deserialize)]

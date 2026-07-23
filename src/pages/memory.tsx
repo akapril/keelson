@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Markdown } from "@/components/markdown";
 import { MemoryEditDialog } from "@/features/memory/MemoryEditDialog";
+import { importFileMemories } from "@/features/memory/import-file-memories";
 import {
   Select,
   SelectContent,
@@ -42,6 +43,8 @@ export default function MemoryPage() {
     setSelected(new Set());
   };
 
+  const [importing, setImporting] = useState(false);
+
   const load = () => {
     setLoading(true);
     listMemories()
@@ -50,6 +53,25 @@ export default function MemoryPage() {
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
+
+  // 记忆桥：把 Claude 文件记忆(*.md)导入账本(待审)，导入后进收件箱等采纳
+  const handleImportFileMemories = async () => {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const r = await importFileMemories();
+      if (r.imported === 0 && r.skipped === 0) {
+        toast.message("未发现可导入的文件记忆");
+      } else {
+        toast.success(`已导入 ${r.imported} 条到待审（跳过 ${r.skipped} 条已存在）`);
+        load();
+      }
+    } catch (e) {
+      toast.error(`导入失败：${String(e instanceof Error ? e.message : e)}`);
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -124,11 +146,23 @@ export default function MemoryPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
-      <header className="mb-4 shrink-0">
-        <h1 className="font-heading text-xl font-semibold text-foreground">记忆账本</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          从 claude / codex 会话提炼、去重的可复用记忆；喂回任一 CLI（外部经 MCP search_memory 查询）。
-        </p>
+      <header className="mb-4 flex shrink-0 items-start justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-xl font-semibold text-foreground">记忆账本</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            从 claude / codex 会话提炼、去重的可复用记忆；喂回任一 CLI（外部经 MCP search_memory 查询）。
+          </p>
+        </div>
+        {/* 记忆桥：导入 Claude 文件记忆(*.md) → 待审收件箱 */}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={importing}
+          onClick={() => void handleImportFileMemories()}
+          title="扫描 ~/.claude/projects/*/memory/*.md，导入为待审记忆"
+        >
+          {importing ? "导入中…" : "导入文件记忆"}
+        </Button>
       </header>
 
       {/* 待审记忆（外部 AI 经 MCP 写入，采纳后才进主账本；防 AI 乱写污染） */}
