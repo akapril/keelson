@@ -122,6 +122,35 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
     return out;
   }, [isSearching, shownResults, shownGroups, collapsed]);
 
+  // 外部选中会话但它被「分组折叠 / 收藏筛选 / 隐藏项」挡住时，自动放开以便定位。
+  // 放开后 rows 重建 → 下面的滚动 effect(依赖 rows) 会接着把它滚进视野。
+  // 搜索模式下结果由后端决定，不在此处理。
+  useEffect(() => {
+    if (!selectedId || isSearching) return;
+    let path: string | null = null;
+    for (const [p, list] of Object.entries(groups)) {
+      if (list.some((s) => s.session_id === selectedId)) {
+        path = p;
+        break;
+      }
+    }
+    if (!path) return; // 不在任何分组(可能非当前数据) → 无从展开
+    // 被「只看收藏」挡住(非收藏) → 关掉 favOnly
+    if (favOnly && !favorites.has(selectedId)) setFavOnly(false);
+    // 被「隐藏项」挡住(已隐藏且未显示隐藏) → 打开 showHidden
+    if (!showHidden && hidden.has(selectedId)) setShowHidden(true);
+    // 所属分组处于折叠 → 展开
+    if (collapsed.has(path)) {
+      setCollapsed((prev) => {
+        const next = new Set(prev);
+        next.delete(path!);
+        return next;
+      });
+    }
+    // setFav/Hidden/Collapsed 已覆盖会改 rows 的因素；无需把它们列入依赖触发自身
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, groups]);
+
   // 虚拟列表句柄：外部选中会话（深链 ?session= / ⌘K / 任务「来源会话」徽章）时，
   // 把列表滚动到该行并高亮定位——修复「跳转到会话后左侧列表没滚到那条」。
   const vRef = useRef<VirtualizerHandle>(null);
