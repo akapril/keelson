@@ -79,14 +79,15 @@ pub fn session_file_changes(provider: String, session_id: String) -> Vec<FileCha
     }
 }
 
-/// 返回某会话「规划的任务」（Claude 的 TaskCreate/TaskUpdate 落盘状态），供同步到看板并跟随进度。
-/// v1 仅 Claude（`~/.claude/tasks/<session>/`）；其它 provider 返回空。
+/// 返回某会话「规划的任务」，供同步到看板并跟随进度：
+/// - Claude：`~/.claude/tasks/<session>/` 的 TaskCreate/TaskUpdate 落盘状态；
+/// - Codex：转录里最后一次 `update_plan` 的 plan 步骤。
 #[tauri::command]
 pub fn session_tasks(provider: String, session_id: String) -> Vec<PlannedTask> {
-    if provider == "claude" {
-        crate::providers::claude::read_claude_session_tasks(&session_id)
-    } else {
-        Vec::new()
+    match provider.as_str() {
+        "claude" => crate::providers::claude::read_claude_session_tasks(&session_id),
+        "codex" => crate::providers::codex::read_codex_session_tasks(&session_id),
+        _ => Vec::new(),
     }
 }
 
