@@ -325,9 +325,9 @@ pub fn read_codex_timeline_from_path(path: &Path) -> Vec<TimelineMessage> {
         }
     }
 
-    // 限制最大消息数，防止超大 IPC 响应
+    // 限制最大消息数，防止超大 IPC 响应。保留**最近** 500 条（truncate 保留开头是 bug）。
     if messages.len() > 500 {
-        messages.truncate(500);
+        messages.drain(0..messages.len() - 500);
     }
     messages
 }
