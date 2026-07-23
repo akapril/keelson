@@ -5,7 +5,7 @@
 // - event_msg(token_count) → token 累计统计（取最后一条为总量）
 
 use super::{EventKind, SessionProvider, WatchRoot};
-use crate::models::{Session, TimelineMessage};
+use crate::models::{PlannedTask, Session, TimelineMessage};
 use crate::paths::AppPaths;
 use chrono::{DateTime, Utc};
 use std::fs::{self, File};
@@ -330,6 +330,90 @@ pub fn read_codex_timeline_from_path(path: &Path) -> Vec<TimelineMessage> {
         messages.truncate(500);
     }
     messages
+}
+
+/// 读取 Codex 会话「规划的任务」——取转录里**最后一次** `update_plan` 的 plan 数组
+/// （function_call，name=update_plan，arguments.plan=[{step,status}]）。找不到 → 空。
+pub fn read_codex_session_tasks(session_id: &str) -> Vec<PlannedTask> {
+    let sessions_dir = AppPaths::detect().codex_dir().join("sessions");
+    let path = match find_session_file_recursive(&sessions_dir, session_id) {
+        Some(p) => p,
+        None => return Vec::new(),
+    };
+    read_codex_tasks_from_path(&path)
+}
+
+/// 从给定路径解析 Codex 规划任务（方便测试注入 fixture）。
+pub fn read_codex_tasks_from_path(path: &Path) -> Vec<PlannedTask> {
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(_) => return Vec::new(),
+    };
+    let reader = BufReader::new(file);
+    let mut last_plan: Option<Vec<serde_json::Value>> = None;
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+        if !line.contains("update_plan") {
+            continue;
+        }
+        let raw: serde_json::Value = match serde_json::from_str(&line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if let Some(plan) = find_update_plan(&raw) {
+            last_plan = Some(plan); // 保留最后一次（=当前计划状态）
+        }
+    }
+    let plan = match last_plan {
+        Some(p) => p,
+        None => return Vec::new(),
+    };
+    plan.iter()
+        .enumerate()
+        .filter_map(|(i, step)| {
+            let text = step.get("step").and_then(|v| v.as_str())?;
+            if text.is_empty() {
+                return None;
+            }
+            let status = step
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("pending")
+                .to_string();
+            Some(PlannedTask {
+                id: (i + 1).to_string(), // Codex plan step 无稳定 id，用 1-based 序号
+                subject: text.to_string(),
+                description: String::new(),
+                status,
+            })
+        })
+        .collect()
+}
+
+/// 递归在一条 JSON 里找 name=="update_plan" 的对象，返回其 arguments.plan 数组。
+/// arguments 可能是对象、也可能是字符串化 JSON（function_call 常见）。
+fn find_update_plan(v: &serde_json::Value) -> Option<Vec<serde_json::Value>> {
+    match v {
+        serde_json::Value::Object(map) => {
+            if map.get("name").and_then(|n| n.as_str()) == Some("update_plan") {
+                if let Some(args) = map.get("arguments") {
+                    let parsed: serde_json::Value = match args {
+                        serde_json::Value::String(s) => serde_json::from_str(s).ok()?,
+                        other => other.clone(),
+                    };
+                    if let Some(plan) = parsed.get("plan").and_then(|p| p.as_array()) {
+                        return Some(plan.clone());
+                    }
+                }
+            }
+            map.values().find_map(find_update_plan)
+        }
+        serde_json::Value::Array(arr) => arr.iter().find_map(find_update_plan),
+        _ => None,
+    }
 }
 
 // ============================================================
