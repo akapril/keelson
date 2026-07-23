@@ -34,6 +34,8 @@ pub mod mcp;
 pub mod memory;
 // 实时活动 hook 命令（Phase 2：装/卸 ~/.claude/settings.json 的 PostToolUse 转发条目）
 pub mod hooks;
+// claude-runtime 进程管理接入（项目「进程」tab：连 daemon :19191 看进程/日志/控制）
+pub mod runtime;
 
 // 注意：generate_handler! 宏需要使用函数定义所在的原始路径（含辅助符号），
 // 故不做 re-export；lib.rs 中直接使用 commands::sessions::sessions_list 等完整路径。

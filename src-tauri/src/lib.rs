@@ -327,6 +327,9 @@ pub fn run() {
             commands::memory::scan_file_memories,
             commands::memory::tasks_write_project_files,
             commands::memory::tasks_project_files_status,
+            // claude-runtime 进程管理接入
+            commands::runtime::runtime_available,
+            commands::runtime::runtime_command,
             // MCP 一键接入 claude / codex
             commands::mcp::mcp_endpoint,
             commands::mcp::mcp_install_claude,

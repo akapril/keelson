@@ -3,6 +3,7 @@ import type { Session, SessionHit, TimelineMessage, PlannedTask } from "../../ty
 import type { EmbedConfig, RagHit } from "@/types/rag";
 import type { CommitInfo, CorrelatedCommit, HookStatus } from "@/types/git";
 import type { MemFilesStatus, FileMemory } from "@/types/memory";
+import type { RuntimeProcess, RuntimeLog } from "@/types/runtime";
 import type { FileChange } from "@/types/file-change";
 import type {
   AiConfig,
@@ -205,4 +206,22 @@ export const ipc = {
 
   /** 扫描 Claude 文件记忆（各项目 memory 目录下的 .md），供记忆桥导入记忆账本 */
   scanFileMemories: () => invoke<FileMemory[]>("scan_file_memories"),
+
+  // ── claude-runtime 进程管理（项目「进程」tab；连 daemon :19191） ──────
+  /** daemon 是否可连接（未运行则 tab 显示提示） */
+  runtimeAvailable: () => invoke<boolean>("runtime_available"),
+  /** 本项目的进程（按 cwd 含 project 过滤） */
+  runtimePs: (project: string) =>
+    invoke<RuntimeProcess[]>("runtime_command", { cmd: "ps", args: { project } }),
+  /** 某进程的日志（最近 limit 条） */
+  runtimeLogs: (name: string, limit: number) =>
+    invoke<RuntimeLog[]>("runtime_command", { cmd: "logs", args: { name, limit } }),
+  /** 在项目目录启动新进程 */
+  runtimeStart: (command: string, name: string, cwd: string) =>
+    invoke<unknown>("runtime_command", { cmd: "start", args: { command, name, cwd } }),
+  /** 停止 / 重启进程 */
+  runtimeStop: (name: string) =>
+    invoke<unknown>("runtime_command", { cmd: "stop", args: { name } }),
+  runtimeRestart: (name: string) =>
+    invoke<unknown>("runtime_command", { cmd: "restart", args: { name } }),
 };
