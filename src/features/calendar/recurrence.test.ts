@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { expandRecurringEvents, firstIndexInRange } from "./recurrence";
+import {
+  expandRecurringEvents,
+  firstIndexInRange,
+  parseRepeat,
+  buildRepeat,
+} from "./recurrence";
 import type { CalendarEvent } from "@/types/calendar";
 
 function ev(over: Partial<CalendarEvent>): CalendarEvent {
@@ -65,6 +70,40 @@ describe("expandRecurringEvents", () => {
     );
     const dur = new Date(out[5].end).getTime() - new Date(out[5].start).getTime();
     expect(dur).toBe(3_600_000); // 1h
+  });
+});
+
+describe("步长 interval（每 N）", () => {
+  it("parseRepeat：daily / daily:3 / 非法", () => {
+    expect(parseRepeat("daily")).toEqual({ unit: "daily", interval: 1 });
+    expect(parseRepeat("daily:3")).toEqual({ unit: "daily", interval: 3 });
+    expect(parseRepeat("")).toBeNull();
+    expect(parseRepeat("weekly:0")).toEqual({ unit: "weekly", interval: 1 }); // 兜底 >=1
+    expect(parseRepeat("xxx")).toBeNull();
+  });
+
+  it("buildRepeat：1 省略、N 拼接、空单位空串", () => {
+    expect(buildRepeat("daily", 1)).toBe("daily");
+    expect(buildRepeat("daily", 3)).toBe("daily:3");
+    expect(buildRepeat("", 5)).toBe("");
+  });
+
+  it("每 2 天：7 月内 16 次(7/1,7/3,…,7/31)", () => {
+    const out = expandRecurringEvents([ev({ repeat: "daily:2" })], R0, R1);
+    expect(out).toHaveLength(16);
+    // 相邻两次间隔 2 天
+    const d0 = new Date(out[0].start).getUTCDate();
+    const d1 = new Date(out[1].start).getUTCDate();
+    expect(d1 - d0).toBe(2);
+  });
+
+  it("每 2 周：母事件在更早、区间内对齐到偶数周", () => {
+    const out = expandRecurringEvents(
+      [ev({ start: "2026-06-03T09:00:00.000Z", repeat: "weekly:2" })],
+      R0,
+      R1,
+    );
+    expect(out.length).toBeGreaterThanOrEqual(2);
   });
 });
 
