@@ -27,6 +27,7 @@ import { GitStatusBar } from "./GitStatusBar";
 import { WorkspaceSessions } from "./WorkspaceSessions";
 import { WorkspaceCommits } from "./WorkspaceCommits";
 import { WorkspaceActivity } from "./WorkspaceActivity";
+import { WorkspaceProcesses } from "./WorkspaceProcesses";
 import { ImportPlanDialog } from "./ImportPlanDialog";
 import { DocsPanel } from "@/features/docs/DocsPanel";
 import { AiChatPanel } from "@/features/ai/AiChatPanel";
@@ -186,6 +187,8 @@ export function ProjectWorkspace() {
           {repoPath && <TabsTrigger value="commits">提交</TabsTrigger>}
           <TabsTrigger value="board">看板</TabsTrigger>
           <TabsTrigger value="docs">文档</TabsTrigger>
+          {/* 进程面仅在绑定仓库时有意义（按 repo_path 过滤 claude-runtime 进程） */}
+          {repoPath && <TabsTrigger value="processes">进程</TabsTrigger>}
           <TabsTrigger value="activity">活动</TabsTrigger>
           <TabsTrigger value="ai">AI</TabsTrigger>
         </TabsList>
@@ -372,6 +375,12 @@ export function ProjectWorkspace() {
         <TabsContent value="docs" className="mt-3 flex min-h-0 flex-1 flex-col">
           <DocsPanel projectId={project.id} initialDocId={focusDocId} />
         </TabsContent>
+        {/* 进程（claude-runtime 托管：本项目跑的进程 + 日志 + start/stop/restart） */}
+        {repoPath && (
+          <TabsContent value="processes" className="mt-3 flex min-h-0 flex-1 flex-col">
+            <WorkspaceProcesses repoPath={repoPath} />
+          </TabsContent>
+        )}
         {/* 活动（外部 AI 经 MCP 对本项目的操作：持久历史 + 实时流） */}
         <TabsContent value="activity" className="mt-3 flex min-h-0 flex-1 flex-col">
           <WorkspaceActivity projectId={project.id} />
