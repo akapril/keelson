@@ -207,11 +207,6 @@ pub fn replace_block(content: &str, begin: &str, end: &str, block: &str) -> Stri
     }
 }
 
-/// 兼容旧调用：记忆受管块（用记忆标记）。
-pub fn replace_managed_block(content: &str, block: &str) -> String {
-    replace_block(content, MARK_BEGIN, MARK_END, block)
-}
-
 fn write_block(path: &Path, begin: &str, end: &str, block: &str) -> Result<(), String> {
     let existing = std::fs::read_to_string(path).unwrap_or_default();
     let next = replace_block(&existing, begin, end, block);
@@ -413,21 +408,26 @@ mod tests {
         assert_eq!(render_tasks_block(&[]), ""); // 空 → 净卸载
     }
 
+    // 记忆块的便捷包装（测试用）
+    fn rm_block(content: &str, block: &str) -> String {
+        replace_block(content, MARK_BEGIN, MARK_END, block)
+    }
+
     #[test]
     fn replace_appends_then_idempotent() {
         let orig = "# 我的项目\n\n一些说明\n";
         let block = "（rework 生成）\n### 事实\n- x";
-        let once = replace_managed_block(orig, block);
+        let once = rm_block(orig, block);
         assert!(once.contains(MARK_BEGIN) && once.contains(MARK_END));
         assert!(once.contains("# 我的项目")); // 块外保留
-        let twice = replace_managed_block(&once, block);
+        let twice = rm_block(&once, block);
         assert_eq!(once, twice); // 幂等
     }
 
     #[test]
     fn replace_empty_block_uninstalls_keeps_foreign() {
-        let with = replace_managed_block("# 标题\n", "### 事实\n- x");
-        let cleaned = replace_managed_block(&with, "");
+        let with = rm_block("# 标题\n", "### 事实\n- x");
+        let cleaned = rm_block(&with, "");
         assert!(!cleaned.contains(MARK_BEGIN));
         assert!(cleaned.contains("# 标题")); // 块外保留
     }
