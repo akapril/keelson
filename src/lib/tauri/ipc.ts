@@ -76,6 +76,10 @@ export const ipc = {
       asTab,
     }),
 
+  /** 在项目目录新建一个 CLI 会话（就地起 claude/codex，跑后写盘即出现在会话 tab）。initialPrompt 可选 */
+  startSession: (provider: string, projectPath: string, initialPrompt?: string) =>
+    invoke<void>("terminal_start", { provider, projectPath, initialPrompt }),
+
   // ── 配置 ──────────────────────────────────────────────────
   /** 获取全局快捷键配置（Task 17） */
   getHotkey: () => invoke<string>("config_get_hotkey"),
