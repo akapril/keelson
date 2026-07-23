@@ -1,4 +1,6 @@
 //! 记忆注入命令：把选定记忆写进项目根 CLAUDE.md / AGENTS.md 的受管块（HTML 注释标记，块外内容零改动）。
+use crate::models::FileMemory;
+use crate::paths::AppPaths;
 use std::path::Path;
 
 const MARK_BEGIN: &str = "<!-- >>> rework-memories >>> -->";
@@ -15,6 +17,77 @@ pub struct MemLine {
 pub struct MemFilesStatus {
     pub claude_md: bool,
     pub agents_md: bool,
+}
+
+// ── 记忆桥：扫描 Claude 文件记忆（供前端映射写入记忆账本，待审） ──────────
+
+/// 扫描 `~/.claude/projects/*/memory/*.md` 的文件记忆，解析 frontmatter + 正文，返回候选。
+/// 跳过 MEMORY.md（索引文件）。目录不存在 → 空。
+#[tauri::command]
+pub fn scan_file_memories() -> Vec<FileMemory> {
+    let projects = AppPaths::detect().claude_dir().join("projects");
+    let mut out = Vec::new();
+    let entries = match std::fs::read_dir(&projects) {
+        Ok(e) => e,
+        Err(_) => return out,
+    };
+    for proj in entries.flatten() {
+        let mem_dir = proj.path().join("memory");
+        let files = match std::fs::read_dir(&mem_dir) {
+            Ok(f) => f,
+            Err(_) => continue, // 该项目无 memory 目录
+        };
+        for f in files.flatten() {
+            let p = f.path();
+            if p.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            if p.file_name().and_then(|n| n.to_str()) == Some("MEMORY.md") {
+                continue; // 索引文件，非单条记忆
+            }
+            if let Ok(content) = std::fs::read_to_string(&p) {
+                if let Some(fm) = parse_file_memory(&content) {
+                    out.push(fm);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// 解析文件记忆：取第一个 `---` 到下一个 `---` 之间为 frontmatter，其后为正文。
+/// 抽 name / description / metadata.type；无 frontmatter 或无 name → None。
+fn parse_file_memory(content: &str) -> Option<FileMemory> {
+    let trimmed = content.trim_start();
+    let rest = trimmed.strip_prefix("---")?;
+    let end = rest.find("\n---")?;
+    let fm = &rest[..end];
+    let body = rest[end + 4..].trim_start().to_string();
+
+    let clean = |v: &str| v.trim().trim_matches('"').trim_matches('\'').trim().to_string();
+    let mut name = String::new();
+    let mut description = String::new();
+    let mut kind_hint = String::new();
+    for line in fm.lines() {
+        let t = line.trim();
+        if let Some(v) = t.strip_prefix("name:") {
+            name = clean(v);
+        } else if let Some(v) = t.strip_prefix("description:") {
+            description = clean(v);
+        } else if let Some(v) = t.strip_prefix("type:") {
+            // metadata.type（注意 node_type: 不以 "type:" 开头，不会误匹配）
+            kind_hint = clean(v);
+        }
+    }
+    if name.is_empty() {
+        return None;
+    }
+    Some(FileMemory {
+        name,
+        description,
+        kind_hint,
+        body,
+    })
 }
 
 /// kind → 中文小节标题；顺序固定（fact/preference/decision/convention）。

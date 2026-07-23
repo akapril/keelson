@@ -40,3 +40,11 @@ export interface MemFilesStatus {
   claude_md: boolean;
   agents_md: boolean;
 }
+
+/** Claude 文件记忆（对应 Rust FileMemory）——记忆桥导入用。 */
+export interface FileMemory {
+  name: string;
+  description: string;
+  kind_hint: string;
+  body: string;
+}
