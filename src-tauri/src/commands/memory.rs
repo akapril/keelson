@@ -41,6 +41,8 @@ pub fn scan_file_memories() -> Vec<FileMemory> {
             Ok(f) => f,
             Err(_) => continue, // 该项目无 memory 目录
         };
+        // 该项目的真实仓库路径：从同目录任一会话 jsonl 的 cwd 取（编码目录名有损不可反解）
+        let repo_path = repo_path_of_project_dir(&proj.path());
         for f in files.flatten() {
             let p = f.path();
             if p.extension().and_then(|e| e.to_str()) != Some("md") {
@@ -50,13 +52,41 @@ pub fn scan_file_memories() -> Vec<FileMemory> {
                 continue; // 索引文件，非单条记忆
             }
             if let Ok(content) = std::fs::read_to_string(&p) {
-                if let Some(fm) = parse_file_memory(&content) {
+                if let Some(mut fm) = parse_file_memory(&content) {
+                    fm.repo_path = repo_path.clone();
                     out.push(fm);
                 }
             }
         }
     }
     out
+}
+
+/// 取项目目录下任一会话 jsonl 首个含 cwd 的值（精确仓库路径）；取不到 → 空串。
+fn repo_path_of_project_dir(proj_dir: &Path) -> String {
+    let rd = match std::fs::read_dir(proj_dir) {
+        Ok(r) => r,
+        Err(_) => return String::new(),
+    };
+    for e in rd.flatten() {
+        let p = e.path();
+        if p.extension().and_then(|x| x.to_str()) != Some("jsonl") {
+            continue;
+        }
+        if let Ok(content) = std::fs::read_to_string(&p) {
+            for line in content.lines().take(50) {
+                // cwd 通常在头几行；限量避免读满大文件
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+                    if let Some(cwd) = v.get("cwd").and_then(|c| c.as_str()) {
+                        if !cwd.is_empty() {
+                            return cwd.to_string();
+                        }
+                    }
+                }
+            }
+        }
+    }
+    String::new()
 }
 
 /// 解析文件记忆：取第一个 `---` 到下一个 `---` 之间为 frontmatter，其后为正文。
@@ -91,6 +121,7 @@ fn parse_file_memory(content: &str) -> Option<FileMemory> {
         description,
         kind_hint,
         body,
+        repo_path: String::new(), // 由 scan_file_memories 按项目目录填充
     })
 }
 

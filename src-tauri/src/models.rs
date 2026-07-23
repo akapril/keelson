@@ -34,6 +34,9 @@ pub struct FileMemory {
     pub kind_hint: String,
     /// 正文（frontmatter 之后）
     pub body: String,
+    /// 该记忆所属项目的仓库路径（从同目录会话 jsonl 的 cwd 取；取不到为空）。
+    /// 前端据此匹配看板项目 → scope=project。编码目录名有损不可反解，故用 cwd。
+    pub repo_path: String,
 }
 
 /// 会话「规划的任务」——Claude 的 TaskCreate/TaskUpdate 落盘状态
