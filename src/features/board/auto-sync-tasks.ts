@@ -4,6 +4,7 @@
 import { toast } from "sonner";
 import { listProjects } from "@/lib/pb/board";
 import { syncSessionTasks } from "./sync-session-tasks";
+import { getAutoSyncTasks } from "./auto-sync-pref";
 import type { ActivityEvent } from "@/types/activity";
 
 // 触发同步的工具（大小写不敏感匹配，防后端归一化差异）
@@ -17,6 +18,7 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>();
  * 非 Task 事件 / 非 Claude / 无 session 直接忽略；无匹配项目静默跳过。
  */
 export function maybeAutoSyncTasks(ev: ActivityEvent): void {
+  if (!getAutoSyncTasks()) return; // 设置里关了自动同步 → 只走手动按钮
   if (!ev.tool || !TASK_TOOLS.has(ev.tool.toLowerCase())) return;
   if (ev.provider && ev.provider !== "claude") return; // v1 仅 Claude
   const sid = ev.session_id;

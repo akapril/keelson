@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, FilterIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { useBoardStore, groupTasksByState } from "@/store/board";
+import { ipc } from "@/lib/tauri/ipc";
 import type { BoardTask, TaskPriority } from "@/types/board";
 import { Input } from "@/components/ui/input";
 import {
@@ -64,6 +65,7 @@ export function KanbanBoard() {
   const states = useBoardStore((s) => s.states);
   const tasks = useBoardStore((s) => s.tasks);
   const labels = useBoardStore((s) => s.labels);
+  const projects = useBoardStore((s) => s.projects);
   const moveTask = useBoardStore((s) => s.moveTask);
   const previewMove = useBoardStore((s) => s.previewMove);
   const updateTask = useBoardStore((s) => s.updateTask);
@@ -318,6 +320,33 @@ export function KanbanBoard() {
     );
   };
 
+  // 看板 → CLI：把本项目未归档任务写进 <repo>/CLAUDE.md+AGENTS.md 的受管块，
+  // 让在该仓库起的 CLI 会话(Claude 读 CLAUDE.md / Codex 读 AGENTS.md)看到任务清单。
+  const injectToCli = async () => {
+    const project = projects.find((p) => p.id === openedProjectId);
+    if (!project?.repo_path) {
+      toast.error("本项目未绑定仓库路径，无法注入（先在项目设置里绑定仓库）");
+      return;
+    }
+    const stateById = new Map(states.map((s) => [s.id, s]));
+    const lines = tasks
+      .filter((t) => !t.archived)
+      .map((t) => {
+        const st = stateById.get(t.state);
+        return {
+          title: t.title,
+          done: st?.category === "completed",
+          hint: st?.name ?? "",
+        };
+      });
+    try {
+      const written = await ipc.tasksWriteProjectFiles(project.repo_path, lines);
+      toast.success(`已注入 ${lines.length} 个任务到 ${written.length} 个文件（CLAUDE.md / AGENTS.md）`);
+    } catch (e) {
+      toast.error(`注入失败：${String(e)}`);
+    }
+  };
+
   if (!openedProjectId) return null;
 
   return (
@@ -425,6 +454,15 @@ export function KanbanBoard() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          {/* 看板→CLI：把本项目任务注入 repo 的 CLAUDE.md/AGENTS.md */}
+          <button
+            type="button"
+            onClick={() => void injectToCli()}
+            title="把本项目任务写进仓库 CLAUDE.md/AGENTS.md 的受管块，让 CLI 会话看到"
+            className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            注入到 CLI
+          </button>
           {archivedCount > 0 && (
             <button
               type="button"
