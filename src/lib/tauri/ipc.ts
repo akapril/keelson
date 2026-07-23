@@ -186,6 +186,12 @@ export const ipc = {
   memoryProjectFilesStatus: (repoPath: string) =>
     invoke<MemFilesStatus>("memory_project_files_status", { repoPath }),
 
+  /** 把看板任务写进 <repo>/CLAUDE.md+AGENTS.md 的 rework-tasks 受管块（看板→CLI 注入）。空 tasks=卸载 */
+  tasksWriteProjectFiles: (
+    repoPath: string,
+    tasks: { title: string; done: boolean; hint: string }[],
+  ) => invoke<string[]>("tasks_write_project_files", { repoPath, tasks }),
+
   /** 扫描 Claude 文件记忆（各项目 memory 目录下的 .md），供记忆桥导入记忆账本 */
   scanFileMemories: () => invoke<FileMemory[]>("scan_file_memories"),
 };

@@ -6,6 +6,10 @@ use std::path::Path;
 const MARK_BEGIN: &str = "<!-- >>> rework-memories >>> -->";
 const MARK_END: &str = "<!-- <<< rework-memories <<< -->";
 
+// 看板任务受管块标记（与记忆块分开，同一文件里两块互不干扰）。
+const TASK_MARK_BEGIN: &str = "<!-- >>> rework-tasks >>> -->";
+const TASK_MARK_END: &str = "<!-- <<< rework-tasks <<< -->";
+
 #[derive(serde::Deserialize)]
 pub struct MemLine {
     pub content: String,
@@ -131,18 +135,19 @@ pub fn render_memories_block(mems: &[MemLine]) -> String {
     out.trim_end().to_string()
 }
 
-/// 幂等替换受管块：移除既有 BEGIN..END（含标记行），block 非空则末尾追加，空则净卸载。块外逐字保留。
-pub fn replace_managed_block(content: &str, block: &str) -> String {
+/// 幂等替换指定标记的受管块：移除既有 begin..end（含标记行），block 非空则末尾追加，空则净卸载。
+/// 块外内容逐字保留。通用——memory / tasks 各传自己的标记，同一文件里互不干扰。
+pub fn replace_block(content: &str, begin: &str, end: &str, block: &str) -> String {
     // 先剥离既有块
     let mut kept: Vec<&str> = Vec::new();
     let mut skip = false;
     for line in content.lines() {
         let t = line.trim();
-        if t == MARK_BEGIN {
+        if t == begin {
             skip = true;
             continue;
         }
-        if t == MARK_END {
+        if t == end {
             skip = false;
             continue;
         }
@@ -163,7 +168,7 @@ pub fn replace_managed_block(content: &str, block: &str) -> String {
         base.push('\n');
         return base;
     }
-    let managed = format!("{MARK_BEGIN}\n{block}\n{MARK_END}\n");
+    let managed = format!("{begin}\n{block}\n{end}\n");
     if base.is_empty() {
         managed
     } else {
@@ -171,11 +176,73 @@ pub fn replace_managed_block(content: &str, block: &str) -> String {
     }
 }
 
-fn write_one(path: &Path, block: &str) -> Result<bool, String> {
+/// 兼容旧调用：记忆受管块（用记忆标记）。
+pub fn replace_managed_block(content: &str, block: &str) -> String {
+    replace_block(content, MARK_BEGIN, MARK_END, block)
+}
+
+fn write_block(path: &Path, begin: &str, end: &str, block: &str) -> Result<(), String> {
     let existing = std::fs::read_to_string(path).unwrap_or_default();
-    let next = replace_managed_block(&existing, block);
+    let next = replace_block(&existing, begin, end, block);
     std::fs::write(path, next).map_err(|e| format!("写入 {} 失败：{e}", path.display()))?;
+    Ok(())
+}
+
+fn write_one(path: &Path, block: &str) -> Result<bool, String> {
+    write_block(path, MARK_BEGIN, MARK_END, block)?;
     Ok(true)
+}
+
+/// 看板任务受管块的一行（前端传入：标题 + 是否完成 + 状态提示）。
+#[derive(serde::Deserialize)]
+pub struct TaskLine {
+    pub title: String,
+    pub done: bool,
+    pub hint: String,
+}
+
+/// 渲染任务受管块：`- [ ] 标题（状态）` 清单。空 → 空串（净卸载）。
+fn render_tasks_block(tasks: &[TaskLine]) -> String {
+    if tasks.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("## rework 看板任务（本项目，rework 生成，请勿手改此块）\n");
+    for t in tasks {
+        let title = t.title.trim();
+        if title.is_empty() {
+            continue;
+        }
+        let checkbox = if t.done { "x" } else { " " };
+        let hint = t.hint.trim();
+        let suffix = if hint.is_empty() {
+            String::new()
+        } else {
+            format!("（{hint}）")
+        };
+        out.push_str(&format!("- [{checkbox}] {title}{suffix}\n"));
+    }
+    out.trim_end().to_string()
+}
+
+/// 把看板任务写进 <repo>/CLAUDE.md 与 <repo>/AGENTS.md 的 rework-tasks 受管块。返回写入的路径。
+/// 传空 tasks = 净卸载该块。与记忆块分开，块外内容零改动。
+#[tauri::command]
+pub fn tasks_write_project_files(
+    repo_path: String,
+    tasks: Vec<TaskLine>,
+) -> Result<Vec<String>, String> {
+    let root = Path::new(&repo_path);
+    if !root.is_dir() {
+        return Err(format!("仓库路径不是目录：{repo_path}"));
+    }
+    let block = render_tasks_block(&tasks);
+    let mut written = Vec::new();
+    for name in ["CLAUDE.md", "AGENTS.md"] {
+        let p = root.join(name);
+        write_block(&p, TASK_MARK_BEGIN, TASK_MARK_END, &block)?;
+        written.push(p.display().to_string());
+    }
+    Ok(written)
 }
 
 /// 把记忆写进 <repo>/CLAUDE.md 与 <repo>/AGENTS.md 的受管块。返回写入的路径。
@@ -233,6 +300,34 @@ mod tests {
         assert!(fi < pi);
         assert!(out.contains("- 事实B"));
         assert!(out.contains("- 偏好A"));
+    }
+
+    #[test]
+    fn memory_and_task_blocks_coexist() {
+        let content = "# 项目\n用户内容\n";
+        let with_mem = replace_block(content, MARK_BEGIN, MARK_END, "记忆块内容");
+        // 写任务块不应动记忆块
+        let with_both = replace_block(&with_mem, TASK_MARK_BEGIN, TASK_MARK_END, "任务块内容");
+        assert!(with_both.contains("记忆块内容"));
+        assert!(with_both.contains("任务块内容"));
+        assert!(with_both.contains("用户内容"));
+        // 更新任务块不动记忆块
+        let updated = replace_block(&with_both, TASK_MARK_BEGIN, TASK_MARK_END, "新任务块");
+        assert!(updated.contains("记忆块内容"));
+        assert!(updated.contains("新任务块"));
+        assert!(!updated.contains("任务块内容"));
+    }
+
+    #[test]
+    fn render_tasks_block_checkbox_and_hint() {
+        let tasks = vec![
+            TaskLine { title: "A".into(), done: false, hint: "待办".into() },
+            TaskLine { title: "B".into(), done: true, hint: "".into() },
+        ];
+        let out = render_tasks_block(&tasks);
+        assert!(out.contains("- [ ] A（待办）"));
+        assert!(out.contains("- [x] B"));
+        assert_eq!(render_tasks_block(&[]), ""); // 空 → 净卸载
     }
 
     #[test]

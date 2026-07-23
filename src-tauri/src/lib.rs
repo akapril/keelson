@@ -324,6 +324,7 @@ pub fn run() {
             commands::memory::memory_write_project_files,
             commands::memory::memory_project_files_status,
             commands::memory::scan_file_memories,
+            commands::memory::tasks_write_project_files,
             // MCP 一键接入 claude / codex
             commands::mcp::mcp_endpoint,
             commands::mcp::mcp_install_claude,
