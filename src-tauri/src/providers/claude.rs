@@ -401,6 +401,10 @@ const FILE_EDIT_CAP: usize = 4000;
 /// 单会话最多返回的改动条目（跨所有文件），防极端会话。
 const MAX_EDITS: usize = 400;
 
+/// 时间轴单条消息字符上限：对真实消息等于"不截断"（正常消息远小于此），
+/// 仅对病态巨型粘贴（贴整个文件）保留兜底，避免 IPC 一次传十几 MB。用于阅读全文。
+const TIMELINE_MSG_CHARS: usize = 20000;
+
 /// 截断长文本，超限追加省略标记。
 fn cap_text(s: &str) -> String {
     if s.chars().count() <= FILE_EDIT_CAP {
@@ -604,7 +608,7 @@ pub fn read_timeline_from_path(path: &Path) -> Vec<TimelineMessage> {
                     if !content.is_empty() {
                         messages.push(TimelineMessage {
                             role: "user".to_string(),
-                            content: truncate(&content, 500),
+                            content: truncate(&content, TIMELINE_MSG_CHARS),
                             timestamp: format_timestamp(&timestamp),
                         });
                     }
@@ -623,7 +627,7 @@ pub fn read_timeline_from_path(path: &Path) -> Vec<TimelineMessage> {
                                 if !text.is_empty() {
                                     messages.push(TimelineMessage {
                                         role: "assistant".to_string(),
-                                        content: truncate(text, 500),
+                                        content: truncate(text, TIMELINE_MSG_CHARS),
                                         timestamp: format_timestamp(&timestamp),
                                     });
                                 }
