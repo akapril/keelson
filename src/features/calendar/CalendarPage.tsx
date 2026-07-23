@@ -57,6 +57,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { expandRecurringEvents, REPEAT_OPTIONS } from "./recurrence";
 
 // 星期表头（周日起，与 startOfWeek 默认 weekStartsOn=0 对齐）
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"] as const;
@@ -80,6 +81,7 @@ interface FormState {
   color: string;
   description: string;
   project: string;
+  repeat: string;
 }
 
 // 拖拽载荷：事件带 start/end（改期时保留时长），任务只需 id
@@ -138,6 +140,7 @@ function initialForm(state: DialogState): FormState {
       color: ev.color || DEFAULT_COLOR,
       description: ev.description,
       project: ev.project || "",
+      repeat: ev.repeat || "",
     };
   }
   // 新建：起始日预填为点击的日期（或今天）
@@ -150,6 +153,7 @@ function initialForm(state: DialogState): FormState {
     color: DEFAULT_COLOR,
     description: "",
     project: "",
+    repeat: "",
   };
 }
 
@@ -208,6 +212,15 @@ export default function CalendarPage() {
     return eachDayOfInterval({ start: gridStart, end: gridEnd });
   }, [viewDate]);
 
+  // 把重复事件在网格可视区间展开成 occurrence（只读）；非重复事件原样。occurrence 携带母 id。
+  const expandedEvents = useMemo(
+    () =>
+      days.length > 0
+        ? expandRecurringEvents(events, days[0], days[days.length - 1])
+        : events,
+    [events, days],
+  );
+
   // 打开新建弹窗（可携带预填日期）
   const openAdd = (dateStr?: string) => {
     const next: DialogState = { open: true, dateStr };
@@ -215,9 +228,11 @@ export default function CalendarPage() {
     setDialog(next);
   };
 
-  // 打开编辑弹窗（回填该事件）
+  // 打开编辑弹窗（回填该事件）。occurrence 携带母 id → 取回真实母事件编辑（作用于全部），
+  // 避免用平移后的 occurrence 日期覆盖母事件。
   const openEdit = (ev: CalendarEvent) => {
-    const next: DialogState = { open: true, editing: ev };
+    const master = events.find((e) => e.id === ev.id) ?? ev;
+    const next: DialogState = { open: true, editing: master };
     setForm(initialForm(next));
     setDialog(next);
   };
@@ -237,6 +252,7 @@ export default function CalendarPage() {
       color: form.color,
       description: form.description.trim(),
       project: form.project, // 空串 = 不关联
+      repeat: form.repeat, // 空串 = 不重复
     };
     if (dialog.editing) {
       await updateEvent(dialog.editing.id, payload);
@@ -351,7 +367,7 @@ export default function CalendarPage() {
           const outside = !isSameMonth(day, viewDate); // 非本月的补充日
           const today = isToday(day);
           // 该天覆盖的事件（跳过非法日期）
-          const dayEvents = events.filter((ev) => eventCoversDay(ev, day));
+          const dayEvents = expandedEvents.filter((ev) => eventCoversDay(ev, day));
           const dayTasks = dueTasks.filter((t) => taskOnDay(t, day));
 
           const dayKey = format(day, "yyyy-MM-dd");
@@ -554,6 +570,28 @@ export default function CalendarPage() {
                   className="size-8 cursor-pointer rounded border border-input bg-transparent"
                 />
               </Label>
+            </div>
+
+            {/* 重复（轻量循环，仅展开显示） */}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="cal-repeat">重复</Label>
+              <Select
+                value={form.repeat || "none"}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, repeat: v === "none" ? "" : v }))
+                }
+              >
+                <SelectTrigger id="cal-repeat" className="w-full">
+                  <SelectValue placeholder="不重复" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REPEAT_OPTIONS.map((o) => (
+                    <SelectItem key={o.value || "none"} value={o.value || "none"}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* 关联项目（可选） */}
