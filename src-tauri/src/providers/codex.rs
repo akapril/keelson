@@ -12,6 +12,9 @@ use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
+/// 时间轴单条消息字符上限：对真实消息等于"不截断"，仅对病态巨型粘贴保留兜底（同 claude）。
+const TIMELINE_MSG_CHARS: usize = 20000;
+
 // ============================================================
 // 内部模型：用于反序列化 Codex JSONL 行
 // ============================================================
@@ -304,7 +307,7 @@ pub fn read_codex_timeline_from_path(path: &Path) -> Vec<TimelineMessage> {
                         if !text.is_empty() {
                             messages.push(TimelineMessage {
                                 role: "user".to_string(),
-                                content: truncate(text, 500),
+                                content: truncate(text, TIMELINE_MSG_CHARS),
                                 timestamp: format_timestamp(&timestamp),
                             });
                         }
@@ -314,7 +317,7 @@ pub fn read_codex_timeline_from_path(path: &Path) -> Vec<TimelineMessage> {
                         if !text.is_empty() {
                             messages.push(TimelineMessage {
                                 role: "assistant".to_string(),
-                                content: truncate(text, 500),
+                                content: truncate(text, TIMELINE_MSG_CHARS),
                                 timestamp: format_timestamp(&timestamp),
                             });
                         }
