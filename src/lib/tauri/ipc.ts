@@ -115,8 +115,9 @@ export const ipc = {
     invoke<void>("uninstall_session_trailer_hook", { path }),
 
   // ── 实时活动 hook（Phase 2：Claude Code PostToolUse 全量工具流） ──────
-  /** 查询 ~/.claude/settings.json 是否已装 rework 的实时活动 hook */
-  activityHookStatus: () => invoke<{ installed: boolean }>("activity_hook_status"),
+  /** 查询 rework 实时活动 hook 状态（是否安装 + 是否当前版本；up_to_date=false 表示装了但过期需升级） */
+  activityHookStatus: () =>
+    invoke<{ installed: boolean; up_to_date: boolean }>("activity_hook_status"),
   /** 安装实时活动 hook（写 ~/.claude/settings.json 的 PostToolUse，幂等、保留用户其它设置） */
   installActivityHook: () => invoke<void>("install_activity_hook"),
   /** 卸载实时活动 hook（只移除 rework 自己那一条） */

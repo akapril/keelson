@@ -262,28 +262,29 @@ function McpSection() {
  * 仿溯源 HookBar：装/卸/状态 + toast。只增删 rework 自己那一条，用户其它 hooks/设置不动。
  */
 function ActivityHookSection() {
-  const [installed, setInstalled] = useState<boolean | null>(null);
+  // null=读取中；否则 { installed, up_to_date }
+  const [status, setStatus] = useState<{ installed: boolean; up_to_date: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = () => {
     void ipc
       .activityHookStatus()
-      .then((s) => setInstalled(s.installed))
-      .catch(() => setInstalled(null));
+      .then(setStatus)
+      .catch(() => setStatus(null));
   };
   useEffect(refresh, []);
 
-  const toggle = async () => {
-    if (installed === null || busy) return;
+  // 安装/升级都调 install（幂等，就地替换成当前版本命令）
+  const install = async (isUpgrade: boolean) => {
+    if (busy) return;
     setBusy(true);
     try {
-      if (installed) {
-        await ipc.uninstallActivityHook();
-        toast.success("已停用实时活动 hook");
-      } else {
-        await ipc.installActivityHook();
-        toast.success("已启用：Claude Code 的工具操作将实时出现在活动流（需重启会话生效）");
-      }
+      await ipc.installActivityHook();
+      toast.success(
+        isUpgrade
+          ? "hook 已升级到最新版本（需重启 Claude 会话生效）"
+          : "已启用：Claude Code 的工具操作将实时上报（需重启会话生效）",
+      );
       refresh();
     } catch (e) {
       toast.error(`操作失败：${String(e)}`);
@@ -291,6 +292,22 @@ function ActivityHookSection() {
       setBusy(false);
     }
   };
+  const uninstall = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await ipc.uninstallActivityHook();
+      toast.success("已停用实时活动 hook");
+      refresh();
+    } catch (e) {
+      toast.error(`操作失败：${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const installed = status?.installed ?? false;
+  const stale = installed && !status?.up_to_date; // 装了但过期，需升级
 
   return (
     <section className="space-y-3">
@@ -303,20 +320,31 @@ function ActivityHookSection() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        {installed === null ? (
+        {status === null ? (
           <span className="text-xs text-muted-foreground">读取状态中…</span>
+        ) : stale ? (
+          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+            已启用（有更新，建议升级）
+          </span>
         ) : installed ? (
           <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
-            实时活动 hook 已启用
+            实时活动 hook 已启用（最新）
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">未启用</span>
         )}
+
+        {/* 过期 → 升级；否则 启用/停用 */}
+        {stale && (
+          <Button variant="default" size="sm" disabled={busy} onClick={() => void install(true)}>
+            {busy ? "处理中…" : "一键升级 hook"}
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
-          disabled={installed === null || busy}
-          onClick={() => void toggle()}
+          disabled={status === null || busy}
+          onClick={() => void (installed ? uninstall() : install(false))}
         >
           {busy ? "处理中…" : installed ? "停用" : "启用实时活动 hook"}
         </Button>
@@ -324,6 +352,7 @@ function ActivityHookSection() {
 
       <p className="text-xs text-muted-foreground">
         说明：Codex 无逐工具 hook，仅通过 MCP（上方）上报看板/文档操作；实时全量工具流仅 Claude Code 支持。
+        {stale && " · 检测到已装的是旧版命令，点「升级」就地替换（不影响你其它 hook）。"}
       </p>
     </section>
   );

@@ -12,6 +12,10 @@ use tauri::Manager;
 /// 又能被 `is_rework_hook` 稳定识别，且用户其它 hook 命令不会误含此串。
 const HOOK_MARKER: &str = "rework-activity";
 
+/// hook 命令版本：命令结构/端点逻辑变更时 +1。
+/// 已装 hook 的命令里带 `rework-activity/<版本>`，据此检测是否过期需升级。
+const HOOK_VERSION: u32 = 1;
+
 // ——————————————————————————————————————————————————————————————————————
 // 纯逻辑：settings.json 的 hooks.PostToolUse 受管条目增删（可测，无 IO）
 // ——————————————————————————————————————————————————————————————————————
@@ -131,9 +135,31 @@ fn read_activity_endpoint(app: &tauri::AppHandle) -> Result<(String, String), St
 /// - `--user-agent rework-activity` 携带标记便于识别本条 hook；
 /// - Windows 10+/mac/linux 均自带 curl(.exe)。
 fn build_hook_command(activity_url: &str, secret: &str) -> String {
+    // user-agent 带版本（rework-activity/<n>）：既是识别标记，又供 installed_hook_version 判过期。
     format!(
-        "curl -s -m 2 -X POST -H \"Authorization: Bearer {secret}\" -H \"Content-Type: application/json\" --user-agent {HOOK_MARKER} --data-binary @- {activity_url}"
+        "curl -s -m 2 -X POST -H \"Authorization: Bearer {secret}\" -H \"Content-Type: application/json\" --user-agent {HOOK_MARKER}/{HOOK_VERSION} --data-binary @- {activity_url}"
     )
+}
+
+/// 解析已装 rework hook 命令里的版本号（`rework-activity/<n>`）。
+/// 有 rework 条目但无版本 token（旧版）→ Some(0)；根本没装 → None。
+fn installed_hook_version(root: &Value) -> Option<u32> {
+    let arr = root.get("hooks")?.get("PostToolUse")?.as_array()?;
+    let group = arr.iter().find(|g| is_rework_group(g))?;
+    let cmd = group
+        .get("hooks")?
+        .as_array()?
+        .iter()
+        .find_map(|h| h.get("command").and_then(|v| v.as_str()))?;
+    let tag = format!("{HOOK_MARKER}/");
+    match cmd.find(&tag) {
+        Some(idx) => {
+            let rest = &cmd[idx + tag.len()..];
+            let num: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+            Some(num.parse::<u32>().unwrap_or(0))
+        }
+        None => Some(0), // 有 rework 条目但无版本 = 旧版
+    }
 }
 
 /// 读 ~/.claude/settings.json（不存在则空对象）。
@@ -168,16 +194,29 @@ fn write_claude_settings(path: &std::path::Path, root: &Value) -> Result<(), Str
 #[derive(serde::Serialize)]
 pub struct ActivityHookStatus {
     pub installed: bool,
+    /// 已装且为当前版本。installed 但 up_to_date=false 表示装了但过期，需升级（一键重装即可）。
+    pub up_to_date: bool,
 }
 
-/// 查询 ~/.claude/settings.json 是否已装 rework 的实时活动 hook。
+/// 查询 ~/.claude/settings.json 的 rework 实时活动 hook 状态（是否安装 + 是否当前版本）。
 #[tauri::command]
 pub fn activity_hook_status() -> ActivityHookStatus {
-    // 读失败（无文件/解析错）一律视作未安装
-    let installed = read_claude_settings()
-        .map(|(_, root)| has_activity_hook(&root))
-        .unwrap_or(false);
-    ActivityHookStatus { installed }
+    match read_claude_settings() {
+        Ok((_, root)) => {
+            let installed = has_activity_hook(&root);
+            // 已装且版本号等于当前 = 最新；旧版本/无版本 = 过期需升级
+            let up_to_date = installed && installed_hook_version(&root) == Some(HOOK_VERSION);
+            ActivityHookStatus {
+                installed,
+                up_to_date,
+            }
+        }
+        // 读失败（无文件/解析错）一律视作未安装
+        Err(_) => ActivityHookStatus {
+            installed: false,
+            up_to_date: false,
+        },
+    }
 }
 
 /// 安装：把 rework 的 PostToolUse 条目写入 ~/.claude/settings.json（幂等、保留用户其它设置）。
@@ -295,6 +334,20 @@ mod tests {
         let arr = root2["hooks"]["PostToolUse"].as_array().unwrap();
         assert_eq!(arr.len(), 1);
         assert_eq!(arr[0]["hooks"][0]["command"], new_cmd);
+    }
+
+    #[test]
+    fn version_detects_drift() {
+        // 当前版本命令 → 版本号等于 HOOK_VERSION
+        let cur = build_hook_command("http://127.0.0.1:47600/activity", "s");
+        let root = add_activity_hook(json!({}), &cur);
+        assert_eq!(installed_hook_version(&root), Some(HOOK_VERSION));
+        // 无版本 token 的旧命令 → Some(0)（过期）
+        let old = "curl -s --user-agent rework-activity http://OLD/activity";
+        let root2 = add_activity_hook(json!({}), old);
+        assert_eq!(installed_hook_version(&root2), Some(0));
+        // 没装 → None
+        assert_eq!(installed_hook_version(&json!({})), None);
     }
 
     #[test]
