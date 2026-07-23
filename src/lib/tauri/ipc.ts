@@ -192,6 +192,13 @@ export const ipc = {
     tasks: { title: string; done: boolean; hint: string }[],
   ) => invoke<string[]>("tasks_write_project_files", { repoPath, tasks }),
 
+  /** 查任务注入状态（两文件是否含块 + 块内任务条数），供看板常驻显示 */
+  tasksProjectFilesStatus: (repoPath: string) =>
+    invoke<{ claude_md: boolean; agents_md: boolean; count: number }>(
+      "tasks_project_files_status",
+      { repoPath },
+    ),
+
   /** 扫描 Claude 文件记忆（各项目 memory 目录下的 .md），供记忆桥导入记忆账本 */
   scanFileMemories: () => invoke<FileMemory[]>("scan_file_memories"),
 };
