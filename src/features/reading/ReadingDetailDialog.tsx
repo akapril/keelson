@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Markdown } from "@/components/markdown";
 import { useReadingStore } from "@/store/reading";
-import { runReadingSummarize } from "./summarize-action";
+import { useReadingSummaryJob } from "./reading-summary-job";
 import { splitTags, joinTags } from "./reading-utils";
 import type { ReadingItem, ReadingStatus } from "@/types/reading";
 
@@ -36,7 +36,9 @@ interface ReadingDetailDialogProps {
 
 export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps) {
   const updateItem = useReadingStore((s) => s.updateItem);
-  const [summarizing, setSummarizing] = useState(false);
+  // AI 摘要后台任务：进行中态取自模块级 store（详情弹窗关了再开仍正确）
+  const summarizing = useReadingSummaryJob((s) => (item ? s.pending.has(item.id) : false));
+  const startSummarize = useReadingSummaryJob((s) => s.start);
   const [tagInput, setTagInput] = useState("");
 
   // 切换条目时清空标签输入
@@ -72,16 +74,8 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
     }
   })();
 
-  // AI 摘要:抓正文 → AI → 写回（共享 action，含门禁/toast）
-  const runSummarize = async () => {
-    if (summarizing) return;
-    setSummarizing(true);
-    try {
-      await runReadingSummarize(item);
-    } finally {
-      setSummarizing(false);
-    }
-  };
+  // AI 摘要:后台发起，立即返回（不阻塞详情弹窗；完成写回后列表/详情自动刷新）
+  const runSummarize = () => startSummarize(item);
 
   const addTag = () => {
     const next = splitTags(joinTags([...tags, tagInput]));
@@ -130,7 +124,7 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
               {item.pinned ? "已置顶" : "置顶"}
             </Button>
             {item.url && (
-              <Button variant="ghost" size="sm" disabled={summarizing} onClick={() => void runSummarize()}>
+              <Button variant="ghost" size="sm" disabled={summarizing} onClick={runSummarize}>
                 <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} />
                 {summarizing ? "摘要中…" : item.summary ? "重新摘要" : "AI 摘要"}
               </Button>

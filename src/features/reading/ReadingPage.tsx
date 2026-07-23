@@ -15,7 +15,7 @@ import { useReadingStore } from "@/store/reading";
 import type { ReadingItem, ReadingStatus } from "@/types/reading";
 import { CreateTaskFromReadingDialog } from "./CreateTaskFromReadingDialog";
 import { ReadingDetailDialog } from "./ReadingDetailDialog";
-import { runReadingSummarize } from "./summarize-action";
+import { useReadingSummaryJob } from "./reading-summary-job";
 import { groupReading, splitTags } from "@/features/reading/reading-utils";
 import {
   ContextMenu,
@@ -99,24 +99,17 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
   const removeItem = useReadingStore((s) => s.removeItem);
   // 详情对话框（完整查看备注 / AI 摘要）
   const [detailOpen, setDetailOpen] = useState(false);
-  // 卡片内 AI 摘要进行中状态（一键摘要，无需进详情）
-  const [summarizing, setSummarizing] = useState(false);
+  // AI 摘要后台任务：进行中状态取自模块级 store（切页面/重挂载仍正确）
+  const summarizing = useReadingSummaryJob((s) => s.pending.has(item.id));
+  const startSummarize = useReadingSummaryJob((s) => s.start);
 
   // 点开原文即视为开始阅读：未读 → 在读（不动已归档/在读）
   const markReading = () => {
     if (item.status === "unread") void updateItem(item.id, { status: "reading" });
   };
 
-  // 卡片一键 AI 摘要：复用共享 action（含无 key 门禁 + toast）
-  const handleSummarize = async () => {
-    if (summarizing) return;
-    setSummarizing(true);
-    try {
-      await runReadingSummarize(item);
-    } finally {
-      setSummarizing(false);
-    }
-  };
+  // 卡片一键 AI 摘要：后台发起，立即返回（不阻塞，可继续操作其它条目）
+  const handleSummarize = () => startSummarize(item);
 
   return (
     <ContextMenu>
@@ -207,7 +200,7 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
               aria-label="AI 摘要"
               className="text-muted-foreground hover:text-foreground"
               disabled={summarizing}
-              onClick={() => void handleSummarize()}
+              onClick={handleSummarize}
             >
               <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} />
               {summarizing ? "摘要中…" : item.summary ? "重新摘要" : "AI 摘要"}
@@ -275,7 +268,7 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
         )}
         <ContextMenuItem onSelect={() => setDetailOpen(true)}>详情</ContextMenuItem>
         {item.url && (
-          <ContextMenuItem disabled={summarizing} onSelect={() => void handleSummarize()}>
+          <ContextMenuItem disabled={summarizing} onSelect={handleSummarize}>
             {item.summary ? "重新 AI 摘要" : "AI 摘要"}
           </ContextMenuItem>
         )}
