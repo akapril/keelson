@@ -14,6 +14,9 @@ import { ipc } from "@/lib/tauri/ipc";
 import { cn } from "@/lib/utils";
 import { getCachedTimeline, setCachedTimeline } from "./timeline-cache";
 import { usePromptInsert } from "@/features/prompts/usePromptInsert";
+import { getContinueMode, setContinueMode, type ContinueMode } from "./continue-mode";
+import { useRestoreStore } from "@/store/restore";
+import { toast } from "sonner";
 import type { AiChatMessage } from "@/types/ai";
 import type { Session } from "../../types/session";
 
@@ -78,6 +81,19 @@ export function SessionChat({
   const [loadingHistory, setLoadingHistory] = useState(true);
   // 是否展开更早的消息（长会话默认只显示最近 VISIBLE_LIMIT 条）
   const [showAll, setShowAll] = useState(false);
+  // 续聊模式：应用内(分叉重放) / 终端续接(真 resume 写回原会话)
+  const [mode, setMode] = useState<ContinueMode>(() => getContinueMode());
+  const restore = useRestoreStore((s) => s.restore);
+  const chooseMode = (m: ContinueMode) => {
+    setMode(m);
+    setContinueMode(m);
+  };
+  // 终端续接：用 claude/codex --resume 在终端真正接着原会话（写回磁盘、真同步）
+  const resumeInTerminal = () => {
+    void restore(session, false).catch((e) =>
+      toast.error(`恢复到终端失败：${String(e)}`),
+    );
+  };
   const listRef = useRef<HTMLDivElement>(null);
   const activeStreamId = useRef<string | null>(null);
   // 指令库插入（按钮 + 斜杠 /名称）
@@ -298,34 +314,75 @@ export function SessionChat({
         </div>
       )}
 
-      {/* 输入区（内联续聊） */}
-      <div className="flex shrink-0 items-end gap-2 border-t border-border pt-3">
-        <div className="relative min-w-0 flex-1">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (promptInsert.onKeyDown(e)) return;
-              onKeyDown(e);
-            }}
-            placeholder="继续对话，Enter 发送，/ 唤起指令库"
-            className="min-h-11 w-full"
-            disabled={loading}
-          />
-          {promptInsert.overlay}
+      {/* 续聊模式开关：应用内(分叉,快) / 终端续接(真接原会话,写回磁盘) */}
+      <div className="mt-2 flex shrink-0 items-center gap-1.5 border-t border-border pt-2 text-xs">
+        <span className="text-muted-foreground">续聊方式</span>
+        <div className="inline-flex rounded-lg border border-border p-0.5">
+          <button
+            type="button"
+            onClick={() => chooseMode("inapp")}
+            className={cn(
+              "rounded-md px-2 py-0.5 transition-colors",
+              mode === "inapp" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            应用内
+          </button>
+          <button
+            type="button"
+            onClick={() => chooseMode("terminal")}
+            className={cn(
+              "rounded-md px-2 py-0.5 transition-colors",
+              mode === "terminal" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            终端续接
+          </button>
         </div>
-        {promptInsert.button}
-        {loading ? (
-          <Button variant="outline" onClick={handleStop}>
-            停止
-          </Button>
-        ) : (
-          <Button onClick={() => void send()} disabled={!input.trim()}>
-            <HugeiconsIcon icon={SentIcon} strokeWidth={2} />
-            发送
-          </Button>
-        )}
+        <span className="ml-1 truncate text-[11px] text-muted-foreground/70">
+          {mode === "inapp"
+            ? "在应用内续聊（重放上下文，不写回原会话）"
+            : "用 CLI --resume 真接原会话（写回磁盘、真同步）"}
+        </span>
       </div>
+
+      {/* 输入区：应用内=内联续聊；终端续接=一键在终端恢复 */}
+      {mode === "terminal" ? (
+        <div className="flex shrink-0 items-center justify-between gap-2 pt-3">
+          <p className="text-xs text-muted-foreground">
+            在终端里真正接着这个 {session.provider} 会话继续，消息写回磁盘、rework 重扫后同步。
+          </p>
+          <Button onClick={resumeInTerminal}>在终端续接</Button>
+        </div>
+      ) : (
+        <div className="flex shrink-0 items-end gap-2 pt-3">
+          <div className="relative min-w-0 flex-1">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (promptInsert.onKeyDown(e)) return;
+                onKeyDown(e);
+              }}
+              placeholder="继续对话，Enter 发送，/ 唤起指令库"
+              className="min-h-11 w-full"
+              disabled={loading}
+            />
+            {promptInsert.overlay}
+          </div>
+          {promptInsert.button}
+          {loading ? (
+            <Button variant="outline" onClick={handleStop}>
+              停止
+            </Button>
+          ) : (
+            <Button onClick={() => void send()} disabled={!input.trim()}>
+              <HugeiconsIcon icon={SentIcon} strokeWidth={2} />
+              发送
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
