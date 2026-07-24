@@ -9,6 +9,16 @@ pub mod codex;
 use std::path::{Path, PathBuf};
 use crate::models::{Session, TimelineMessage};
 
+/// 截断字符串到指定字符数（超出部分用 "..." 替代）。
+/// 各 provider 时间线渲染共用（原 claude.rs/codex.rs 各有一份，已收敛到此）。
+pub(crate) fn truncate(s: &str, max: usize) -> String {
+    if s.chars().count() > max {
+        s.chars().take(max).collect::<String>() + "..."
+    } else {
+        s.to_string()
+    }
+}
+
 /// 文件系统监听根节点
 pub struct WatchRoot {
     /// 要监听的目录路径
