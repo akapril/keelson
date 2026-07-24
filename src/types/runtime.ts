@@ -17,7 +17,7 @@ export interface RuntimeProcess {
   resources?: Record<string, unknown> | null;
 }
 
-/** 一条日志（daemon logs 返回）。字段随 claude-runtime 版本，按存在取用。 */
+/** 一条日志（进程管理内核 logs 返回）。字段按存在取用。 */
 export interface RuntimeLog {
   timestamp?: string;
   level?: string;

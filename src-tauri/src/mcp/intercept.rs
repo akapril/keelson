@@ -1,5 +1,5 @@
 //! mcp/intercept.rs —— 「透明自动托管」：Claude Code 的 PreToolUse(Bash) hook 经内联 curl
-//! POST 到 /intercept 端点。后端判断命令是否长驻进程，是则连进程内 daemon(:19191) 把它
+//! POST 到 /intercept 端点。后端判断命令是否长驻进程，是则进程内直调内核把它
 //! 托管起来，并返回 PreToolUse `deny` 决策挡回原 Bash（避免 Claude 又直接跑一遍未托管的）。
 //!
 //! 与 /activity 同架构：内联 curl + HTTP 端点 + Bearer 鉴权，零外部脚本、零二进制。

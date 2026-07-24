@@ -9,8 +9,8 @@ export default function ProcessesPage() {
       <div className="mb-3 shrink-0">
         <h1 className="text-lg font-semibold">进程</h1>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          rework 进程内进程管理器托管的全部进程（跨项目）。与终端{" "}
-          <code className="rounded bg-muted px-1">claude-runtime</code> 共享同一批进程。
+          rework 进程内进程管理器托管的全部进程（跨项目）：Claude Code 拦截自动托管的长驻进程，
+          以及项目「进程」标签手动启动的进程。
         </p>
       </div>
       <div className="min-h-0 flex-1">
