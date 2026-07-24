@@ -24,6 +24,9 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
   // 启动新进程的输入
   const [cmd, setCmd] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 日志滚动容器 + 是否「跟随到底部」（用户往上翻看历史时暂停跟随，滚回底部恢复）
+  const logScrollRef = useRef<HTMLDivElement>(null);
+  const followRef = useRef(true);
 
   const refresh = async () => {
     const ok = await ipc.runtimeAvailable().catch(() => false);
@@ -108,6 +111,19 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
     () => logs.map(logText).filter(Boolean),
     [logs],
   );
+
+  // 切换进程：重置为「跟随」（回到看最新日志）
+  useEffect(() => {
+    followRef.current = true;
+  }, [selected]);
+
+  // 日志更新后：若处于跟随态则滚到底部（新日志进来自动跟到最新）
+  useEffect(() => {
+    const el = logScrollRef.current;
+    if (el && followRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [selectedLogs, selected]);
 
   // 立即修复：拉起 daemon 后复检（与设置页「立即修复」同一入口）
   const fixDaemon = async () => {
@@ -275,7 +291,17 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
               <div className="shrink-0 border-b border-border px-3 py-1.5 text-xs font-medium text-muted-foreground">
                 {selected} · 最近 {selectedLogs.length} 条日志
               </div>
-              <div className="min-h-0 flex-1 overflow-auto p-3">
+              <div
+                ref={logScrollRef}
+                onScroll={() => {
+                  const el = logScrollRef.current;
+                  if (!el) return;
+                  // 距底部 <40px 视为「在底部」→ 跟随；往上翻则暂停跟随
+                  followRef.current =
+                    el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+                }}
+                className="min-h-0 flex-1 overflow-auto p-3"
+              >
                 {selectedLogs.length === 0 ? (
                   <p className="text-xs text-muted-foreground">暂无日志。</p>
                 ) : (
