@@ -53,8 +53,10 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
     void refresh();
     // 实时：进程表变更事件 → 即时刷新（一有数据就显示，同活动流机制）
     const un = on("runtime-processes-changed", () => void refresh());
-    // 兜底：降到 8s（防漏事件 / 外部 daemon 场景），主要即时性来自事件
-    timer.current = setInterval(() => void refresh(), 8000);
+    // 兜底：降到 8s（防漏事件），主要即时性来自事件。页面不可见时跳过。
+    timer.current = setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 8000);
     return () => {
       if (timer.current) clearInterval(timer.current);
       void un.then((f) => f());
@@ -74,10 +76,18 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
     load();
     // 日志轮询提速到 1s：选中进程时才轮询，接近实时（比每行 emit 更稳，
     // 高频输出的进程不会刷爆前端——拉最近 N 行天然合批）。
-    const t = setInterval(load, 1000);
+    // 页面不可见（切到别的 app/最小化）时跳过轮询省 IPC/CPU，切回来立即补拉一次。
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 1000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelled = true;
       clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [selected]);
 
