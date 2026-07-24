@@ -19,12 +19,11 @@ function logText(l: RuntimeLog): string {
 // 无值=全局模式（侧边栏「进程」页：显示所有托管进程，不过滤，不提供启动，附清理入口）。
 export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
   const global = !repoPath;
-  const [available, setAvailable] = useState<boolean | null>(null); // null=检测中
   const [procs, setProcs] = useState<RuntimeProcess[]>([]);
+  const [loaded, setLoaded] = useState(false); // 首次加载完成前不显示"空"文案
   const [selected, setSelected] = useState<string | null>(null); // 选中查看日志的进程 name
   const [logs, setLogs] = useState<RuntimeLog[]>([]);
   const [busy, setBusy] = useState(false);
-  const [fixing, setFixing] = useState(false); // 「立即修复」拉起 daemon 中
   // 启动新进程的输入
   const [cmd, setCmd] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -32,19 +31,16 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
   const logScrollRef = useRef<HTMLDivElement>(null);
   const followRef = useRef(true);
 
+  // 进程管理为 rework 进程内模块，恒可用（无 TCP/daemon 未运行态）——直接拉进程表。
   const refresh = async () => {
-    const ok = await ipc.runtimeAvailable().catch(() => false);
-    setAvailable(ok);
-    if (!ok) {
-      setProcs([]);
-      return;
-    }
     try {
-      // 全局模式传空串 = 不过滤（daemon 侧 !project.is_empty() 守卫）
+      // 全局模式传空串 = 不过滤（后端 !project.is_empty() 守卫）
       const list = await ipc.runtimePs(repoPath ?? "");
       setProcs(Array.isArray(list) ? list : []);
     } catch {
       setProcs([]);
+    } finally {
+      setLoaded(true);
     }
   };
 
@@ -151,44 +147,6 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
     }
   }, [selectedLogs, selected]);
 
-  // 立即修复：拉起 daemon 后复检（与设置页「立即修复」同一入口）
-  const fixDaemon = async () => {
-    setFixing(true);
-    try {
-      const up = await ipc.runtimeEnsureDaemon();
-      if (up) {
-        toast.success("daemon 已启动");
-        await refresh();
-      } else {
-        toast.error("拉起后仍未连通（:19191 可能被占用）");
-      }
-    } catch (e) {
-      toast.error(`修复失败：${String(e)}`);
-    } finally {
-      setFixing(false);
-    }
-  };
-
-  // ── daemon 未运行 ──
-  if (available === false) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
-        <p>进程管理 daemon 未运行。</p>
-        <p className="text-xs">
-          进程管理已内置于 rework、随应用在进程内启动，无需任何外部程序。
-          若这里显示未运行，点「立即修复」即可在进程内拉起。
-        </p>
-        <div className="flex gap-2">
-          <Button variant="default" size="sm" disabled={fixing} onClick={() => void fixDaemon()}>
-            {fixing ? "启动中…" : "立即修复"}
-          </Button>
-          <Button variant="outline" size="sm" disabled={fixing} onClick={() => void refresh()}>
-            重新检测
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -242,8 +200,8 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
       <div className="flex min-h-0 flex-1 gap-3">
         {/* 进程列表 */}
         <div className="flex w-72 shrink-0 flex-col gap-1.5 overflow-y-auto">
-          {available === null ? (
-            <p className="py-8 text-center text-xs text-muted-foreground">检测中…</p>
+          {!loaded ? (
+            <p className="py-8 text-center text-xs text-muted-foreground">加载中…</p>
           ) : procs.length === 0 ? (
             <p className="py-8 text-center text-xs text-muted-foreground">
               {global

@@ -13,16 +13,6 @@ export interface RuntimeProcess {
   resources?: Record<string, unknown> | null;
 }
 
-/** 进程管理 daemon 一次性体检结果（对应 Rust RuntimeDiag）。 */
-export interface RuntimeDiag {
-  /** daemon(:19191) 是否可连接 */
-  daemon_running: boolean;
-  /** 运行中的 daemon 是否为 rework 进程内那个（否则为外部 claude-runtime CLI 的） */
-  embedded: boolean;
-  /** 当前托管的进程数 */
-  process_count: number;
-}
-
 /** 一条日志（daemon logs 返回）。字段随 claude-runtime 版本，按存在取用。 */
 export interface RuntimeLog {
   timestamp?: string;
