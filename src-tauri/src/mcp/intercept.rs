@@ -128,27 +128,20 @@ pub async fn handle_intercept(payload: Value) -> Value {
         .to_string();
     let name = derive_process_name(&command);
 
-    // 连 daemon(:19191) 托管（同步 TCP → spawn_blocking，避免阻塞 tokio worker）
-    let cmd_for_start = command.clone();
-    let name_for_start = name.clone();
-    let res = tokio::task::spawn_blocking(move || {
-        crate::commands::runtime::daemon_start(&cmd_for_start, &name_for_start, &cwd)
-    })
-    .await;
-
-    match res {
+    // 直接调进程内进程管理托管（无 TCP）。返回 JSON：成功含 id/pid，失败含 error。
+    let result = crate::commands::runtime::daemon_start(&command, &name, &cwd).await;
+    match result.get("error").and_then(|v| v.as_str()) {
         // 托管成功 → 挡回原 Bash，告知 Claude 进程已起
-        Ok(Ok(_)) => deny(format!(
-            "长驻进程已由 rework 托管为「{name}」（后台运行，端口/日志见 rework「进程」标签，\
-             或 `claude-runtime logs {name}`）。请勿再直接运行；如需停止用「进程」标签或 \
-             `claude-runtime stop {name}`。"
+        None => deny(format!(
+            "长驻进程已由 rework 托管为「{name}」（后台运行，端口/日志见 rework「进程」标签）。\
+             请勿再直接运行；如需停止/查看请到「进程」标签。"
         )),
         // 已存在同名 → 视为已在托管，同样挡回
-        Ok(Err(e)) if e.contains("已存在") => deny(format!(
+        Some(e) if e.contains("已存在") => deny(format!(
             "进程「{name}」已在 rework 托管中，无需重复启动（日志见「进程」标签）。"
         )),
-        // daemon 未运行 / 其它错误 → 放行（不阻塞：进程会直接跑，只是不被托管）
-        Ok(Err(_)) | Err(_) => allow(),
+        // 其它错误 → 放行（不阻塞：进程直接跑，只是不被托管）
+        Some(_) => allow(),
     }
 }
 
