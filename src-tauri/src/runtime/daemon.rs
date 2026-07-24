@@ -467,9 +467,15 @@ pub(crate) async fn handle_ps(args: &Value) -> Value {
 
     let mut entries = store::load_processes();
 
-    // 按项目目录过滤
+    // 按项目目录过滤：归一斜杠方向 + 忽略大小写后再比较。
+    // 修 bug：cwd 与 repo_path 斜杠方向常不一致（D:\ vs D:/），字面 contains 会漏显
+    // 属于该项目的进程。空字符串 project = 不过滤（供全局「进程」页用）。
     if let Some(project) = args.get("project").and_then(|v| v.as_str()) {
-        entries.retain(|e| e.cwd.contains(project));
+        if !project.is_empty() {
+            let norm = |s: &str| s.replace('\\', "/").to_lowercase();
+            let np = norm(project);
+            entries.retain(|e| norm(&e.cwd).contains(&np));
+        }
     }
 
     // 只显示有端口的进程

@@ -10,6 +10,7 @@ import {
   BrainIcon,
   CommandIcon,
   Settings02Icon,
+  TerminalIcon,
 } from "@hugeicons/core-free-icons";
 
 export type NavItem = {
@@ -81,6 +82,12 @@ export const navGroups: NavGroup[] = [
   {
     label: "系统",
     items: [
+      {
+        title: "进程",
+        url: "/processes",
+        icon: TerminalIcon,
+        description: "跨项目托管进程一览：日志 · 停止 · 删除 · 清理",
+      },
       {
         title: "设置",
         url: "/settings",
