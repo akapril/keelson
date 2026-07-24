@@ -59,6 +59,17 @@ pub fn anthropic_body(model: &str, messages: &[ChatMessage]) -> Value {
     body
 }
 
+/// 按 provider 给请求加鉴权头（anthropic: x-api-key + 版本头；其它: Bearer）。
+/// ai_chat / list_models / ai_chat_tools / ai_stream_run 四处共用（原各写一遍，已收敛）。
+fn apply_auth(rb: reqwest::RequestBuilder, config: &AiConfig) -> reqwest::RequestBuilder {
+    if config.provider == "anthropic" {
+        rb.header("x-api-key", &config.api_key)
+            .header("anthropic-version", "2023-06-01")
+    } else {
+        rb.header("authorization", format!("Bearer {}", config.api_key))
+    }
+}
+
 /// 解析 OpenAI 响应中的助手文本。
 pub fn parse_openai(v: &Value) -> Option<String> {
     v.get("choices")?
@@ -116,14 +127,7 @@ pub async fn ai_chat(
     };
 
     let client = reqwest::Client::new();
-    let mut rb = client.post(&url).json(&body);
-    if is_anthropic {
-        rb = rb
-            .header("x-api-key", &config.api_key)
-            .header("anthropic-version", "2023-06-01");
-    } else {
-        rb = rb.header("authorization", format!("Bearer {}", config.api_key));
-    }
+    let rb = apply_auth(client.post(&url).json(&body), &config);
 
     let resp = rb.send().await.map_err(|e| format!("请求失败: {e}"))?;
     let status = resp.status();
@@ -156,14 +160,7 @@ pub async fn list_models(config: AiConfig) -> Result<Vec<String>, String> {
     };
 
     let client = reqwest::Client::new();
-    let mut rb = client.get(&url);
-    if is_anthropic {
-        rb = rb
-            .header("x-api-key", &config.api_key)
-            .header("anthropic-version", "2023-06-01");
-    } else {
-        rb = rb.header("authorization", format!("Bearer {}", config.api_key));
-    }
+    let rb = apply_auth(client.get(&url), &config);
 
     let resp = rb.send().await.map_err(|e| format!("请求失败: {e}"))?;
     let status = resp.status();
@@ -408,14 +405,7 @@ pub async fn ai_chat_tools(
     };
 
     let client = reqwest::Client::new();
-    let mut rb = client.post(&url).json(&body);
-    if is_anthropic {
-        rb = rb
-            .header("x-api-key", &config.api_key)
-            .header("anthropic-version", "2023-06-01");
-    } else {
-        rb = rb.header("authorization", format!("Bearer {}", config.api_key));
-    }
+    let rb = apply_auth(client.post(&url).json(&body), &config);
 
     let resp = rb.send().await.map_err(|e| format!("请求失败: {e}"))?;
     let status = resp.status();
@@ -551,14 +541,7 @@ async fn ai_stream_run(
     body["stream"] = json!(true);
 
     let client = reqwest::Client::new();
-    let mut rb = client.post(&url).json(&body);
-    if is_anthropic {
-        rb = rb
-            .header("x-api-key", &config.api_key)
-            .header("anthropic-version", "2023-06-01");
-    } else {
-        rb = rb.header("authorization", format!("Bearer {}", config.api_key));
-    }
+    let rb = apply_auth(client.post(&url).json(&body), &config);
 
     let resp = rb.send().await.map_err(|e| format!("请求失败: {e}"))?;
     let status = resp.status();
