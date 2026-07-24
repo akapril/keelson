@@ -72,7 +72,7 @@ export function MemoryEditDialog({
               onChange={(e) => setValue(e.target.value)}
               placeholder="记忆内容（支持 markdown）"
               className="min-h-48 font-mono text-sm"
-              // eslint-disable-next-line jsx-a11y/no-autofocus
+              // 有意 autofocus：编辑弹窗打开即聚焦正文输入（jsx-a11y 规则暂未启用）
               autoFocus
             />
           ) : value.trim() ? (

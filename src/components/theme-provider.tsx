@@ -1,4 +1,5 @@
-/* eslint-disable react-refresh/only-export-components */
+// 注：本文件同时导出 ThemeProvider 与 useTheme hook（fast-refresh 场景需注意；
+// react-refresh 规则暂未启用，故移除失效的 eslint-disable directive）。
 // 主题 Provider —— 移植自 workavera（Apache-2.0），已剥离其后端持久化耦合。
 // 纯 localStorage + class-based `.dark`；支持 system 跟随、`d` 键快捷切换、跨标签页同步、切换时抑制过渡。
 import * as React from "react";
