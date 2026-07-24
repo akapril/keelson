@@ -1,14 +1,10 @@
-//! runtime —— 从 claude-runtime 融入的进程管理内核（vendored，headless）。
+//! runtime —— rework 进程内的进程管理内核（源自 claude-runtime，已去 TCP 层）。
 //!
-//! 由 claude-runtime/crates/cli 的进程管理模块搬入 rework 进程内运行：
-//! 去掉独立系统托盘与 HTTP Dashboard，只保留 daemon 的进程管理内核
-//! （store/process/port/health/parser/logs/resources/clean/errors/daemon）。
-//!
-//! 运行模型：
-//! - rework 启动时在进程内起 headless daemon（TCP 127.0.0.1:19191 + ~/.claude-runtime store）；
-//! - 与终端 `claude-runtime` CLI 共享同一端口与 store，双方看同一批进程；
-//! - 若外部 daemon 已在跑，daemon::run 的 is_daemon_running 守卫会自动让路，
-//!   rework 转而当客户端连外部 daemon（零端口冲突，无第二托盘）。
+//! 进程管理模块（store/process/port/health/parser/logs/resources/clean/errors/daemon）
+//! 搬入 rework 进程内。**去掉了独立 TCP daemon（:19191）、pid 文件、多实例守卫**：
+//! 前端命令经 commands/runtime.rs 直接调用 daemon::dispatch/handle_*（同进程内，无端口、
+//! 无序列化往返）。数据仍在 ~/.claude-runtime（processes.json + stdout/<id>.log）。
+//! 不再与外部 claude-runtime CLI 通信（该外部工具已弃用）。
 pub mod clean;
 pub mod daemon;
 pub mod errors;
@@ -20,13 +16,10 @@ pub mod process;
 pub mod resources;
 pub mod store;
 
-/// 在 rework 进程内以 headless 方式启动进程管理 daemon（幂等）。
-/// 已有 daemon（本进程或外部）在运行则内部守卫直接返回。
-/// 在 Tauri 的 async runtime 中 spawn，长驻直到 rework 退出。
-pub fn start_embedded() {
-    tauri::async_runtime::spawn(async {
-        daemon::run().await;
-    });
+/// 启动进程管理的后台任务（health 检查 / 旧日志清理）。
+/// 去 TCP 后进程管理为纯进程内模块——前端命令直调 daemon::dispatch，无需起 daemon server。
+pub fn start_background_tasks() {
+    daemon::start_background_tasks();
 }
 
 /// 起后台任务：进程表一有变更就 emit "runtime-processes-changed" 给前端，

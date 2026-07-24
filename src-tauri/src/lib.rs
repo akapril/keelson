@@ -254,9 +254,9 @@ pub fn run() {
                 eprintln!("[rework] 托盘初始化失败（非致命）: {e:#}");
             }
 
-            // ── 进程管理 daemon（融入 claude-runtime，headless，进程内起）──
-            // 幂等：外部 claude-runtime daemon 已在跑则内部守卫自动让路。
-            runtime::start_embedded();
+            // ── 进程管理（进程内模块，已去 TCP）──
+            // 起后台任务（health 检查 / 旧日志清理）；命令层直接调 daemon::dispatch。
+            runtime::start_background_tasks();
             // 进程表变更 → emit 给前端，「进程」tab 实时刷新（一有数据就显示）。
             runtime::start_change_emitter(app.handle().clone());
 

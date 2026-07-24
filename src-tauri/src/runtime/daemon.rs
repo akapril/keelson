@@ -1,18 +1,13 @@
-/// daemon.rs — claude-runtime 守护进程模块
+/// daemon.rs — 进程管理内核（从 claude-runtime 融入，去 TCP 后为 rework 进程内纯模块）。
 ///
-/// 在 127.0.0.1:19191 上运行 TCP 服务器，接受 JSON 命令并管理子进程。
-/// 支持 start / stop / restart / ps / logs / ping 命令。
-use std::net::{SocketAddr, TcpListener as StdTcpListener};
-use std::path::PathBuf;
+/// 不再是独立 TCP daemon：前端命令直接调 dispatch()/handle_*，无端口、无 pid、无多实例守卫。
+/// 提供 start / stop / restart / ps / logs / remove / clean，以及后台 health/清理任务。
+use std::collections::HashMap;
 use std::process::Command;
 use std::time::Duration;
 
 use chrono::Utc;
-use serde::Deserialize;
 use serde_json::{json, Value};
-use socket2::{Domain, Protocol, Socket, Type};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::TcpListener;
 use uuid::Uuid;
 
 use super::parser;
@@ -20,98 +15,19 @@ use super::port;
 use super::process as proc_util;
 use super::store;
 
-use std::collections::HashMap;
+// ─────────────────────────── 后台任务 ────────────────────────────
 
-// ─────────────────────────── 公共工具函数 ────────────────────────────
-
-/// 返回 PID 文件路径：~/.claude-runtime/daemon.pid
-pub fn pid_file_path() -> PathBuf {
-    store::runtime_dir().join("daemon.pid")
-}
-
-/// 检查守护进程是否正在运行（PID 文件存在 + 进程存活）
-pub fn is_daemon_running() -> bool {
-    let path = pid_file_path();
-    if !path.exists() {
-        return false;
-    }
-    let content = match std::fs::read_to_string(&path) {
-        Ok(c) => c,
-        Err(_) => return false,
-    };
-    let pid: u32 = match content.trim().parse() {
-        Ok(p) => p,
-        Err(_) => return false,
-    };
-    proc_util::is_pid_alive(pid)
-}
-
-// ─────────────────────────── 协议结构体 ────────────────────────────
-
-/// 客户端发来的命令报文
-#[derive(Debug, Deserialize)]
-struct DaemonRequest {
-    cmd: String,
-    #[serde(default)]
-    args: Value,
-}
-
-// ─────────────────────────── 主入口 ────────────────────────────
-
-/// 守护进程主循环：绑定 TCP 端口，持续接受连接
-pub async fn run() {
-    // 防止多实例：检查是否已有 daemon 在运行
-    if is_daemon_running() {
-        eprintln!("[daemon] 已有 daemon 实例在运行，跳过启动");
-        return;
-    }
-
-    let pid = std::process::id();
-    let pid_path = pid_file_path();
-
-    // 使用 socket2 以 SO_REUSEADDR 方式绑定，避免 TIME_WAIT 状态导致启动失败。
-    // 融入 rework 进程内：绑定失败（端口被占等）时优雅返回、不 panic，
-    // 以免中断 rework 启动流程；前端会显示「未运行」，可手动重试。
-    let bind = || -> std::io::Result<TcpListener> {
-        let addr: SocketAddr = "127.0.0.1:19191".parse().map_err(|_| {
-            std::io::Error::new(std::io::ErrorKind::InvalidInput, "地址解析失败")
-        })?;
-        let sock = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))?;
-        sock.set_reuse_address(true)?;
-        sock.set_nonblocking(true)?;
-        sock.bind(&addr.into())?;
-        sock.listen(128)?;
-        let std_listener: StdTcpListener = sock.into();
-        TcpListener::from_std(std_listener)
-    };
-    let listener = match bind() {
-        Ok(l) => l,
-        Err(e) => {
-            eprintln!("[daemon] 绑定 127.0.0.1:19191 失败（端口被占？）：{e}");
-            return;
-        }
-    };
-
-    // 绑定成功后写入 PID 文件并打印启动消息
-    if let Err(e) = std::fs::write(&pid_path, pid.to_string()) {
-        eprintln!("[daemon] 写入 PID 文件失败：{e}");
-    }
-    eprintln!("[daemon] 启动成功（进程内），PID={}，监听 127.0.0.1:19191", pid);
-
-    // 注：已融入 rework 进程内（headless）——不再起独立 HTTP 控制台（:19192 Dashboard）
-    // 与独立系统托盘；进程管理 UI 由 rework 的「进程」tab 承担，托盘复用 rework 自身。
-
-    // 启动每 24 小时自动清理旧日志的后台任务
+/// 起进程管理的后台任务（health 检查 10s / 旧日志清理 24h）。
+/// 原本在 daemon::run 的 TCP 循环里起，去 TCP 后由 rework setup 直接调用。
+pub fn start_background_tasks() {
+    // 每 24h 清理旧日志
     tokio::spawn(async {
         loop {
-            // 首次等待 24 小时后执行，避免启动时立即清理
             tokio::time::sleep(std::time::Duration::from_secs(86400)).await;
-            eprintln!("[daemon] 自动清理旧日志...");
             super::clean::execute(7);
         }
     });
-
-    // 启动每 10 秒执行一次的后台健康检查任务
+    // 每 10s 健康检查（有端口 / health_url 的运行中进程）
     tokio::spawn(async {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
@@ -127,74 +43,26 @@ pub async fn run() {
                         store::update_process(&id, |e| {
                             e.health = health_clone;
                         });
-                        if health == "unhealthy" {
-                            eprintln!("[health] 进程 '{}' 健康检查失败", entry.name);
-                        }
                     }
                 }
             }
         }
     });
-
-    // 主接受循环
-    loop {
-        match listener.accept().await {
-            Ok((stream, addr)) => {
-                eprintln!("[daemon] 接受连接来自 {}", addr);
-                tokio::spawn(async move {
-                    handle_connection(stream).await;
-                });
-            }
-            Err(e) => {
-                eprintln!("[daemon] 接受连接失败: {}", e);
-            }
-        }
-    }
-
-    // 注意：此处永不到达，PID 文件在 ctrl_c 处理器中清理
 }
 
-// ─────────────────────────── 连接处理 ────────────────────────────
+// ─────────────────────── 命令分发（前端直调，无 TCP） ───────────────────────
 
-/// 处理单个 TCP 连接：读取一行 JSON，分发命令，写回响应
-async fn handle_connection(stream: tokio::net::TcpStream) {
-    let (reader, mut writer) = stream.into_split();
-    let mut buf_reader = BufReader::new(reader);
-    let mut line = String::new();
-
-    // 读取一行 JSON 请求
-    match buf_reader.read_line(&mut line).await {
-        Ok(0) | Err(_) => return, // 连接已关闭或读取错误
-        Ok(_) => {}
-    }
-
-    let response = match serde_json::from_str::<DaemonRequest>(line.trim()) {
-        Ok(req) => dispatch(req).await,
-        Err(e) => {
-            json!({"error": format!("JSON 解析失败: {}", e)})
-        }
-    };
-
-    // 写回 JSON 响应（以换行结尾）
-    let mut response_str = response.to_string();
-    response_str.push('\n');
-    let _ = writer.write_all(response_str.as_bytes()).await;
-}
-
-// ─────────────────────────── 命令分发 ────────────────────────────
-
-/// 根据 cmd 字段分发到对应处理函数
-async fn dispatch(req: DaemonRequest) -> Value {
-    match req.cmd.as_str() {
-        "ping" => json!({"pong": true, "ts": Utc::now().to_rfc3339()}),
-        "start" => handle_start(&req.args).await,
-        "stop" => handle_stop(&req.args).await,
-        "restart" => handle_restart(&req.args).await,
-        "ps" => handle_ps(&req.args).await,
-        "logs" => handle_logs(&req.args).await,
-        "remove" => handle_remove(&req.args).await,
-        "errors" => handle_errors(&req.args).await,
-        "clean" => handle_clean(&req.args).await,
+/// 分发进程管理命令到对应 handler。前端 runtime_command 直接调用（同进程内，无 TCP/序列化）。
+pub(crate) async fn dispatch(cmd: &str, args: &Value) -> Value {
+    match cmd {
+        "start" => handle_start(args).await,
+        "stop" => handle_stop(args).await,
+        "restart" => handle_restart(args).await,
+        "ps" => handle_ps(args).await,
+        "logs" => handle_logs(args).await,
+        "remove" => handle_remove(args).await,
+        "errors" => handle_errors(args).await,
+        "clean" => handle_clean(args).await,
         other => json!({"error": format!("未知命令: {}", other)}),
     }
 }
