@@ -2,7 +2,6 @@
 ///
 /// 在 127.0.0.1:19191 上运行 TCP 服务器，接受 JSON 命令并管理子进程。
 /// 支持 start / stop / restart / ps / logs / ping 命令。
-use std::io::BufRead as _;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::path::PathBuf;
 use std::process::Command;
@@ -193,6 +192,7 @@ async fn dispatch(req: DaemonRequest) -> Value {
         "restart" => handle_restart(&req.args).await,
         "ps" => handle_ps(&req.args).await,
         "logs" => handle_logs(&req.args).await,
+        "remove" => handle_remove(&req.args).await,
         "errors" => handle_errors(&req.args).await,
         "clean" => handle_clean(&req.args).await,
         other => json!({"error": format!("未知命令: {}", other)}),
@@ -326,14 +326,9 @@ pub(crate) async fn handle_start(args: &Value) -> Value {
     };
     store::add_process(entry);
 
-    // 启动日志捕获异步任务
-    {
-        let task_id = id.clone();
-        let task_log_path = log_path.clone();
-        tokio::spawn(async move {
-            daemon_log_capture(task_id, task_log_path).await;
-        });
-    }
+    // 纯文件日志：子进程 stdout/stderr 已直接重定向到 <id>.log，无需捕获中转任务。
+    // handle_logs 读该文件尾部即可（去掉了原 SQLite 双写）。
+    let _ = &log_path;
 
     // 启动端口检测异步任务
     {
@@ -522,71 +517,53 @@ pub(crate) async fn handle_logs(args: &Value) -> Value {
         .and_then(|v| v.as_u64())
         .unwrap_or(50) as usize;
 
-    // 解析 since 参数（如 "5m" → 300 秒）
-    let since_secs: Option<i64> = args.get("since").and_then(|v| v.as_str()).and_then(|s| parse_duration(s));
+    // 纯文件：直接读 <id>.log 的尾部最后 limit 行（反向按块读，不整读，
+    // 大日志也不爆内存）。注：since(按时间) 依赖每行时间戳，纯文件下不再支持（前端未用）。
+    let log_path = store::stdout_dir().join(format!("{}.log", entry.id));
+    let lines = read_tail_lines(&log_path, limit.max(1));
 
-    // 从 SQLite 查询日志
-    let conn = match std::panic::catch_unwind(|| store::init_log_db()) {
-        Ok(c) => c,
-        Err(_) => return json!({"error": "无法打开日志数据库"}),
-    };
-
-    // 构建 SQL 查询
-    let mut sql = format!(
-        "SELECT timestamp, level, raw, structured FROM logs WHERE process_id = '{}'",
-        entry.id.replace('\'', "''") // 简单 SQL 注入防护
-    );
-
-    if let Some(lvl) = &level_filter {
-        sql.push_str(&format!(" AND level = '{}'", lvl.replace('\'', "''")));
-    }
-
-    if let Some(secs) = since_secs {
-        sql.push_str(&format!(
-            " AND timestamp >= datetime('now', '-{} seconds')",
-            secs
-        ));
-    }
-
-    if let Some(pat) = &grep_filter {
-        sql.push_str(&format!(
-            " AND raw LIKE '%{}%'",
-            pat.replace('\'', "''").replace('%', "\\%").replace('_', "\\_")
-        ));
-    }
-
-    sql.push_str(&format!(" ORDER BY timestamp DESC LIMIT {}", limit));
-
-    let mut stmt = match conn.prepare(&sql) {
-        Ok(s) => s,
-        Err(e) => return json!({"error": format!("SQL 准备失败: {}", e)}),
-    };
-
-    let rows: Vec<Value> = stmt
-        .query_map([], |row| {
-            let timestamp: String = row.get(0)?;
-            let level: Option<String> = row.get(1)?;
-            let raw: String = row.get(2)?;
-            let structured: Option<String> = row.get(3)?;
-            Ok(json!({
-                "timestamp": timestamp,
-                "level": level,
-                "raw": raw,
-                "structured": structured
-            }))
+    // 逐行解析级别 + 可选 grep/level 过滤，正序返回
+    let rows: Vec<Value> = lines
+        .into_iter()
+        .filter(|raw| !raw.is_empty())
+        .filter(|raw| grep_filter.as_ref().map(|g| raw.contains(g)).unwrap_or(true))
+        .map(|raw| {
+            let parsed = parser::parse_line(&raw);
+            json!({ "timestamp": null, "level": parsed.level, "raw": raw })
         })
-        .map(|mapped| {
-            mapped
-                .filter_map(|r| r.ok())
-                .collect()
+        .filter(|row| {
+            level_filter
+                .as_ref()
+                .map(|lvl| row["level"].as_str() == Some(lvl.as_str()))
+                .unwrap_or(true)
         })
-        .unwrap_or_default();
-
-    // 日志以时间正序返回（反转 DESC 结果）
-    let mut rows = rows;
-    rows.reverse();
+        .collect();
 
     json!(rows)
+}
+
+// ─────────────────────────── handle_remove ────────────────────────────
+
+/// 从进程表移除一个「已退出/已停止」的进程记录并删其日志文件（不 kill）。
+/// 用于清理死条目；running 的请先 stop。
+pub(crate) async fn handle_remove(args: &Value) -> Value {
+    let name_or_id = match args.get("name").and_then(|v| v.as_str()) {
+        Some(n) => n.to_string(),
+        None => return json!({"error": "缺少 'name' 参数"}),
+    };
+    let entry = match store::find_process(&name_or_id) {
+        Some(e) => e,
+        None => return json!({"error": format!("找不到进程 '{}'", name_or_id)}),
+    };
+    // running 且 PID 仍存活 → 拒绝，避免留下孤儿进程
+    if entry.status == "running" && proc_util::is_pid_alive(entry.pid) {
+        return json!({"error": "进程仍在运行，请先停止再删除"});
+    }
+    store::remove_process(&entry.id);
+    // 删日志文件（失败无所谓）
+    let log_path = store::stdout_dir().join(format!("{}.log", entry.id));
+    let _ = std::fs::remove_file(&log_path);
+    json!({ "id": entry.id, "name": entry.name, "removed": true })
 }
 
 // ─────────────────────────── handle_errors ────────────────────────────
@@ -619,92 +596,6 @@ pub(crate) async fn handle_clean(args: &Value) -> Value {
     serde_json::to_value(&result).unwrap_or(json!({"error": "序列化失败"}))
 }
 
-// ─────────────────────────── 日志捕获任务 ────────────────────────────
-
-/// 持续从日志文件读取新行，解析后写入 SQLite
-/// 在 tokio::spawn 中运行，每个进程一个独立任务
-async fn daemon_log_capture(process_id: String, log_file_path: PathBuf) {
-    // 在阻塞上下文中执行文件读取，避免阻塞 tokio 运行时
-    let pid_id = process_id.clone();
-    let path = log_file_path.clone();
-
-    tokio::task::spawn_blocking(move || {
-        // 为此任务独立打开一个 SQLite 连接
-        let conn = match std::panic::catch_unwind(|| store::init_log_db()) {
-            Ok(c) => c,
-            Err(_) => {
-                eprintln!("[daemon_log_capture] 无法打开 SQLite 数据库");
-                return;
-            }
-        };
-
-        // 等待日志文件创建完成
-        let mut retries = 0;
-        let file = loop {
-            match std::fs::File::open(&path) {
-                Ok(f) => break f,
-                Err(_) => {
-                    retries += 1;
-                    if retries > 20 {
-                        eprintln!("[daemon_log_capture] 等待日志文件超时: {:?}", path);
-                        return;
-                    }
-                    std::thread::sleep(Duration::from_millis(200));
-                }
-            }
-        };
-
-        // 使用字节读取以兼容非 UTF-8 编码输出（如 Windows ping 命令）
-        let mut reader = std::io::BufReader::new(file);
-        let mut byte_buf = Vec::new();
-
-        loop {
-            byte_buf.clear();
-            match reader.read_until(b'\n', &mut byte_buf) {
-                Ok(0) => {
-                    // 没有新数据，检查进程是否仍在运行
-                    match store::find_process(&pid_id) {
-                        Some(e) if e.status == "running" => {
-                            // 进程仍在运行，等待新日志
-                            std::thread::sleep(Duration::from_millis(200));
-                            continue;
-                        }
-                        _ => {
-                            // 进程已停止，退出日志捕获
-                            eprintln!("[daemon_log_capture] 进程 {} 已停止，日志捕获结束", pid_id);
-                            break;
-                        }
-                    }
-                }
-                Ok(_) => {
-                    // 智能解码：优先严格 UTF-8，失败回退 GB18030（GBK 超集）。
-                    // 修 Windows 中文子进程（npm/python 等）按系统 ANSI(GBK) 输出时
-                    // 被 from_utf8_lossy 当 UTF-8 解成 � 乱码的问题。
-                    let decoded = decode_log_bytes(&byte_buf);
-                    let raw = decoded.trim_end_matches('\n').trim_end_matches('\r');
-                    if raw.is_empty() {
-                        continue;
-                    }
-                    let parsed = parser::parse_line(raw);
-                    store::insert_log(
-                        &conn,
-                        &pid_id,
-                        "stdout",
-                        parsed.level.as_deref(),
-                        raw,
-                        parsed.structured.as_deref(),
-                    );
-                }
-                Err(e) => {
-                    eprintln!("[daemon_log_capture] 读取日志文件错误: {}", e);
-                    break;
-                }
-            }
-        }
-    })
-    .await
-    .ok();
-}
 
 // ─────────────────────────── 进程看门狗 ────────────────────────────
 
@@ -871,19 +762,43 @@ fn decode_log_bytes(bytes: &[u8]) -> String {
     }
 }
 
-/// 解析持续时间字符串，如 "5m" → 300，"1h" → 3600，"30s" → 30
-fn parse_duration(s: &str) -> Option<i64> {
-    let s = s.trim();
-    if let Some(num_str) = s.strip_suffix('m') {
-        num_str.parse::<i64>().ok().map(|n| n * 60)
-    } else if let Some(num_str) = s.strip_suffix('h') {
-        num_str.parse::<i64>().ok().map(|n| n * 3600)
-    } else if let Some(num_str) = s.strip_suffix('s') {
-        num_str.parse::<i64>().ok()
-    } else {
-        // 无单位时视为秒
-        s.parse::<i64>().ok()
+/// 读文件尾部最后 max_lines 行：从文件末尾反向按 64KB 块读，最多回读 4MB，
+/// 避免大日志整读爆内存。用 decode_log_bytes 智能解码(UTF-8/GBK)，返回时间正序的行。
+fn read_tail_lines(path: &std::path::Path, max_lines: usize) -> Vec<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    const CHUNK: u64 = 64 * 1024;
+    const MAX_TAIL_BYTES: u64 = 4 * 1024 * 1024; // 尾部最多回读 4MB
+
+    let mut file = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return Vec::new(),
+    };
+    let size = file.metadata().map(|m| m.len()).unwrap_or(0);
+    if size == 0 {
+        return Vec::new();
     }
+    let mut buf: Vec<u8> = Vec::new();
+    let mut pos = size;
+    let mut newlines = 0usize;
+    // 回读直到攒够行数 / 到文件头 / 达到回读上限
+    while pos > 0 && newlines <= max_lines && (size - pos) < MAX_TAIL_BYTES {
+        let read = CHUNK.min(pos);
+        pos -= read;
+        if file.seek(SeekFrom::Start(pos)).is_err() {
+            break;
+        }
+        let mut tmp = vec![0u8; read as usize];
+        if file.read_exact(&mut tmp).is_err() {
+            break;
+        }
+        tmp.extend_from_slice(&buf);
+        buf = tmp;
+        newlines = buf.iter().filter(|&&b| b == b'\n').count();
+    }
+    let text = decode_log_bytes(&buf);
+    let all: Vec<&str> = text.lines().collect();
+    let start = all.len().saturating_sub(max_lines);
+    all[start..].iter().map(|s| s.to_string()).collect()
 }
 
 #[cfg(test)]

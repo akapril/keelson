@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -106,42 +105,5 @@ where
     }
     save_processes(&entries);
 }
-
-/// 初始化 SQLite 日志数据库（保留以备将来扩展）
-#[allow(dead_code)]
-pub fn init_log_db() -> Connection {
-    let db_path = runtime_dir().join("logs.db");
-    let conn = Connection::open(&db_path).expect("无法打开日志数据库");
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS logs (
-            id INTEGER PRIMARY KEY,
-            process_id TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            stream TEXT NOT NULL,
-            level TEXT,
-            raw TEXT NOT NULL,
-            structured TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_process_time ON logs(process_id, timestamp);
-        CREATE INDEX IF NOT EXISTS idx_level ON logs(level);",
-    )
-    .expect("无法初始化日志表");
-    conn
-}
-
-/// 插入一条日志（保留以备将来扩展）
-#[allow(dead_code)]
-pub fn insert_log(
-    conn: &Connection,
-    process_id: &str,
-    stream: &str,
-    level: Option<&str>,
-    raw: &str,
-    structured: Option<&str>,
-) {
-    conn.execute(
-        "INSERT INTO logs (process_id, stream, level, raw, structured) VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![process_id, stream, level, raw, structured],
-    )
-    .expect("无法插入日志");
-}
+// 日志改纯文件方案：不再用 SQLite。init_log_db/insert_log 已移除，
+// 日志读取见 daemon::read_tail_lines（读 <id>.log 尾部）。

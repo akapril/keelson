@@ -69,12 +69,15 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
     };
   }, [selected]);
 
-  const control = async (action: "stop" | "restart", name: string) => {
+  const control = async (action: "stop" | "restart" | "remove", name: string) => {
     setBusy(true);
     try {
       if (action === "stop") await ipc.runtimeStop(name);
-      else await ipc.runtimeRestart(name);
-      toast.success(`已${action === "stop" ? "停止" : "重启"} ${name}`);
+      else if (action === "restart") await ipc.runtimeRestart(name);
+      else await ipc.runtimeRemove(name);
+      const verb = action === "stop" ? "停止" : action === "restart" ? "重启" : "删除";
+      toast.success(`已${verb} ${name}`);
+      if (selected === name && action === "remove") setSelected(null);
       await refresh();
     } catch (e) {
       toast.error(`操作失败：${String(e)}`);
@@ -227,7 +230,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
                       >
                         重启
                       </span>
-                      {running && (
+                      {running ? (
                         <span
                           role="button"
                           tabIndex={0}
@@ -238,6 +241,19 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
                           className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         >
                           停止
+                        </span>
+                      ) : (
+                        // 已退出/停止：允许删除记录（连同日志文件）
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void control("remove", p.name);
+                          }}
+                          className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          删除
                         </span>
                       )}
                     </span>
