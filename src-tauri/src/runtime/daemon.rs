@@ -346,47 +346,59 @@ pub(crate) async fn handle_restart(args: &Value) -> Value {
 // ─────────────────────────── handle_ps ────────────────────────────
 
 pub(crate) async fn handle_ps(args: &Value) -> Value {
-    // 同步所有进程状态
-    proc_util::sync_process_status();
+    // 先提参数（借用不能跨 spawn_blocking 的 'static 边界）
+    let project = args
+        .get("project")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let ports_only = args.get("ports").and_then(|v| v.as_bool()).unwrap_or(false);
 
-    let mut entries = store::load_processes();
+    // handle_ps 全程同步阻塞采集：tasklist（判活）、文件读、资源采集、健康 TCP（2s 超时）。
+    // 整体移入阻塞线程池，避免占用 async worker（进程多时会拖累 MCP 与其它命令响应）。
+    tokio::task::spawn_blocking(move || {
+        // 同步所有进程状态
+        proc_util::sync_process_status();
 
-    // 按项目目录过滤：归一斜杠方向 + 忽略大小写后再比较。
-    // 修 bug：cwd 与 repo_path 斜杠方向常不一致（D:\ vs D:/），字面 contains 会漏显
-    // 属于该项目的进程。空字符串 project = 不过滤（供全局「进程」页用）。
-    if let Some(project) = args.get("project").and_then(|v| v.as_str()) {
-        if !project.is_empty() {
-            let norm = |s: &str| s.replace('\\', "/").to_lowercase();
-            let np = norm(project);
-            entries.retain(|e| norm(&e.cwd).contains(&np));
-        }
-    }
+        let mut entries = store::load_processes();
 
-    // 只显示有端口的进程
-    let ports_only = args
-        .get("ports")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    if ports_only {
-        entries.retain(|e| !e.port.is_empty());
-    }
-
-    // 为每个运行中的进程附加实时资源使用数据和健康状态（不持久化）
-    let enriched: Vec<Value> = entries.iter().map(|e| {
-        let mut val = serde_json::to_value(e).unwrap_or(json!({}));
-        if e.status == "running" {
-            let usage = super::resources::get_usage(e.pid);
-            val["resources"] = serde_json::to_value(&usage).unwrap_or(json!(null));
-            // 实时健康检查（仅在有端口或配置了 health_url 时执行）
-            if !e.port.is_empty() || e.health_url.is_some() {
-                let health = super::health::check(&e.health_url, &e.port);
-                val["health"] = json!(health);
+        // 按项目目录过滤：归一斜杠方向 + 忽略大小写后再比较。
+        // 修 bug：cwd 与 repo_path 斜杠方向常不一致（D:\ vs D:/），字面 contains 会漏显
+        // 属于该项目的进程。空字符串 project = 不过滤（供全局「进程」页用）。
+        if let Some(project) = project {
+            if !project.is_empty() {
+                let norm = |s: &str| s.replace('\\', "/").to_lowercase();
+                let np = norm(&project);
+                entries.retain(|e| norm(&e.cwd).contains(&np));
             }
         }
-        val
-    }).collect();
 
-    json!(enriched)
+        // 只显示有端口的进程
+        if ports_only {
+            entries.retain(|e| !e.port.is_empty());
+        }
+
+        // 为每个运行中的进程附加实时资源使用数据和健康状态（不持久化）
+        let enriched: Vec<Value> = entries
+            .iter()
+            .map(|e| {
+                let mut val = serde_json::to_value(e).unwrap_or(json!({}));
+                if e.status == "running" {
+                    let usage = super::resources::get_usage(e.pid);
+                    val["resources"] = serde_json::to_value(&usage).unwrap_or(json!(null));
+                    // 实时健康检查（仅在有端口或配置了 health_url 时执行）
+                    if !e.port.is_empty() || e.health_url.is_some() {
+                        let health = super::health::check(&e.health_url, &e.port);
+                        val["health"] = json!(health);
+                    }
+                }
+                val
+            })
+            .collect();
+
+        json!(enriched)
+    })
+    .await
+    .unwrap_or_else(|e| json!({"error": format!("进程列表采集失败: {}", e)}))
 }
 
 // ─────────────────────────── handle_logs ────────────────────────────
