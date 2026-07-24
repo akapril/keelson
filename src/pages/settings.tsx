@@ -261,33 +261,33 @@ function McpSection() {
 }
 
 /**
- * 实时活动 hook 区（Phase 2）：一键在 ~/.claude/settings.json 装/卸 rework 的 PostToolUse
- * 转发条目，让 Claude Code 的全量工具流（Edit/Write/Bash/Read/…）实时出现在 rework 活动流。
- * 仿溯源 HookBar：装/卸/状态 + toast。只增删 rework 自己那一条，用户其它 hooks/设置不动。
+ * Claude Code 集成（一键）：把 rework 需要的所有 Claude hook 合成一个开关一次装/卸——
+ * ① 活动 hook(PostToolUse *)：工具流实时上报活动流 + 看板同步；
+ * ② 拦截 hook(PreToolUse Bash)：长驻进程自动托管进「进程」页。
+ * 只增删 rework 自己那两条，用户其它 hooks/设置逐字保留。有更新时提示一键升级。
+ * 以后新增 hook：加进 enable() 的 Promise.all + 版本 +1，走同一个"升级"入口。
  */
-function ActivityHookSection() {
-  // null=读取中；否则 { installed, up_to_date }
-  const [status, setStatus] = useState<{ installed: boolean; up_to_date: boolean } | null>(null);
+function ClaudeIntegrationSection() {
+  const [activity, setActivity] = useState<{ installed: boolean; up_to_date: boolean } | null>(null);
+  const [intercept, setIntercept] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = () => {
-    void ipc
-      .activityHookStatus()
-      .then(setStatus)
-      .catch(() => setStatus(null));
+    void ipc.activityHookStatus().then(setActivity).catch(() => setActivity(null));
+    void ipc.interceptHookStatus().then(setIntercept).catch(() => setIntercept(false));
   };
   useEffect(refresh, []);
 
-  // 安装/升级都调 install（幂等，就地替换成当前版本命令）
-  const install = async (isUpgrade: boolean) => {
+  // 一键启用/升级：幂等装全部 hook（就地替换成当前版本命令）
+  const enable = async (isUpgrade: boolean) => {
     if (busy) return;
     setBusy(true);
     try {
-      await ipc.installActivityHook();
+      await Promise.all([ipc.installActivityHook(), ipc.installInterceptHook()]);
       toast.success(
         isUpgrade
-          ? "hook 已升级到最新版本（需重启 Claude 会话生效）"
-          : "已启用：Claude Code 的工具操作将实时上报（需重启会话生效）",
+          ? "已升级到最新（需重启 Claude 会话生效）"
+          : "已启用 Claude Code 集成：工具流上报 + 长驻进程自动托管（需重启会话生效）",
       );
       refresh();
     } catch (e) {
@@ -296,12 +296,12 @@ function ActivityHookSection() {
       setBusy(false);
     }
   };
-  const uninstall = async () => {
+  const disable = async () => {
     if (busy) return;
     setBusy(true);
     try {
-      await ipc.uninstallActivityHook();
-      toast.success("已停用实时活动 hook");
+      await Promise.all([ipc.uninstallActivityHook(), ipc.uninstallInterceptHook()]);
+      toast.success("已停用 Claude Code 集成");
       refresh();
     } catch (e) {
       toast.error(`操作失败：${String(e)}`);
@@ -310,53 +310,54 @@ function ActivityHookSection() {
     }
   };
 
-  const installed = status?.installed ?? false;
-  const stale = installed && !status?.up_to_date; // 装了但过期，需升级
+  const loading = activity === null || intercept === null;
+  const enabled = (activity?.installed ?? false) && intercept === true;
+  // 活动 hook 带版本；已启用但活动 hook 过期 → 提示升级（升级会重装全部到最新）
+  const stale = enabled && !(activity?.up_to_date ?? true);
 
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-sm font-medium">实时活动 hook（Claude Code）</h2>
+        <h2 className="text-sm font-medium">Claude Code 集成</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          启用后，Claude Code 每次工具操作（编辑/写入/执行/读取…）都会实时上报到 rework 活动流。
-          仅改动 ~/.claude/settings.json 里 rework 自己那一条，其它设置逐字保留。需重启会话生效。
+          一键启用 rework 与 Claude Code 的联动：① 每次工具操作实时上报<strong>活动流</strong>（看板同步依赖它）；
+          ② Claude 起 <code className="rounded bg-muted px-1">npm run dev</code> 等长驻进程时<strong>自动托管</strong>进「进程」页。
+          只增删 rework 自己那两条 hook，其它设置逐字保留。需重启 Claude 会话生效。
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        {status === null ? (
+        {loading ? (
           <span className="text-xs text-muted-foreground">读取状态中…</span>
         ) : stale ? (
           <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
             已启用（有更新，建议升级）
           </span>
-        ) : installed ? (
+        ) : enabled ? (
           <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
-            实时活动 hook 已启用（最新）
+            已启用（最新）
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">未启用</span>
         )}
 
-        {/* 过期 → 升级；否则 启用/停用 */}
         {stale && (
-          <Button variant="default" size="sm" disabled={busy} onClick={() => void install(true)}>
-            {busy ? "处理中…" : "一键升级 hook"}
+          <Button variant="default" size="sm" disabled={busy} onClick={() => void enable(true)}>
+            {busy ? "处理中…" : "一键升级"}
           </Button>
         )}
         <Button
-          variant="outline"
+          variant={enabled ? "outline" : "default"}
           size="sm"
-          disabled={status === null || busy}
-          onClick={() => void (installed ? uninstall() : install(false))}
+          disabled={loading || busy}
+          onClick={() => void (enabled ? disable() : enable(false))}
         >
-          {busy ? "处理中…" : installed ? "停用" : "启用实时活动 hook"}
+          {busy ? "处理中…" : enabled ? "停用" : "一键启用"}
         </Button>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        说明：Codex 无逐工具 hook，仅通过 MCP（上方）上报看板/文档操作；实时全量工具流仅 Claude Code 支持。
-        {stale && " · 检测到已装的是旧版命令，点「升级」就地替换（不影响你其它 hook）。"}
+        说明：Codex 无逐工具 hook，仅通过 MCP（上方）上报看板/文档操作；实时全量工具流与进程拦截仅 Claude Code 支持。
       </p>
     </section>
   );
@@ -545,34 +546,6 @@ function AutoSyncTasksSection() {
  * 全部进程一览与管理见侧边栏「进程」页。此处仅保留「自动托管 Claude 起的长驻进程」开关。
  */
 function RuntimeSection() {
-  // 进程拦截 hook：null=读取中
-  const [intercept, setIntercept] = useState<boolean | null>(null);
-  const [interceptBusy, setInterceptBusy] = useState(false);
-
-  // 挂载时读拦截 hook 状态
-  useEffect(() => {
-    void ipc.interceptHookStatus().then(setIntercept).catch(() => setIntercept(false));
-  }, []);
-
-  // 装/卸进程拦截 hook
-  const toggleIntercept = async (on: boolean) => {
-    setInterceptBusy(true);
-    try {
-      if (on) await ipc.installInterceptHook();
-      else await ipc.uninstallInterceptHook();
-      setIntercept(on);
-      toast.success(
-        on
-          ? "已启用：Claude Code 起长驻进程时自动托管（需重启会话生效）"
-          : "已停用进程拦截",
-      );
-    } catch (e) {
-      toast.error(`操作失败：${String(e)}`);
-    } finally {
-      setInterceptBusy(false);
-    }
-  };
-
   return (
     <section className="space-y-3">
       <div>
@@ -580,27 +553,7 @@ function RuntimeSection() {
         <p className="mt-0.5 text-xs text-muted-foreground">
           进程管理已内置于 rework 进程内、随应用启动，<strong>无需任何外部程序或端口</strong>。
           全部托管进程一览与管理见侧边栏 <strong>「进程」</strong> 页；也可在项目「进程」标签管本项目的。
-        </p>
-      </div>
-
-      {/* 进程拦截 hook：自动托管 Claude Code 起的长驻进程 */}
-      <div className="space-y-1.5">
-        <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
-          <input
-            type="checkbox"
-            checked={intercept === true}
-            disabled={intercept === null || interceptBusy}
-            onChange={(e) => void toggleIntercept(e.target.checked)}
-            className="size-4 cursor-pointer rounded border-input accent-primary"
-          />
-          <span>自动托管 Claude Code 起的长驻进程</span>
-        </label>
-        <p className="text-xs text-muted-foreground">
-          启用后，Claude Code 用 Bash 跑 <code className="rounded bg-muted px-1">npm run dev</code>、
-          <code className="rounded bg-muted px-1">uvicorn</code> 等长驻命令时，会被自动挡下并交给
-          rework 后台托管（进程/日志在「进程」标签查看），避免占住会话、日志丢失。
-          仅拦长驻服务，build/test/install 等一次性命令照常执行。改动 ~/.claude/settings.json
-          的 PreToolUse(Bash)，只增删 rework 自己那条，需重启 Claude 会话生效。
+          让 Claude 起的长驻进程自动进来，请在下方「Claude Code 集成」一键启用。
         </p>
       </div>
     </section>
@@ -1106,13 +1059,13 @@ export default function Settings() {
 
       <div className="border-t border-border" />
 
-      {/* ── 运行时（claude-runtime daemon 自检/自动启动/修复） ── */}
+      {/* ── 运行时（进程管理，进程内模块） ── */}
       <RuntimeSection />
 
       <div className="border-t border-border" />
 
-      {/* ── 实时活动 hook（Claude Code 全量工具流，Phase 2） ── */}
-      <ActivityHookSection />
+      {/* ── Claude Code 集成（一键装活动 hook + 进程拦截 hook） ── */}
+      <ClaudeIntegrationSection />
 
       <div className="border-t border-border" />
 
