@@ -134,7 +134,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
         toast.success("daemon 已启动");
         await refresh();
       } else {
-        toast.error("拉起后仍未连通，请确认已安装 claude-runtime");
+        toast.error("拉起后仍未连通（:19191 可能被占用）");
       }
     } catch (e) {
       toast.error(`修复失败：${String(e)}`);
@@ -193,7 +193,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
             <p className="py-8 text-center text-xs text-muted-foreground">检测中…</p>
           ) : procs.length === 0 ? (
             <p className="py-8 text-center text-xs text-muted-foreground">
-              本项目暂无由 claude-runtime 托管的进程。
+              本项目暂无正在托管的进程。在上方输入框启动一个，或让 Claude Code 起长驻进程自动托管。
             </p>
           ) : (
             procs.map((p) => {
