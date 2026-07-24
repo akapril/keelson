@@ -346,6 +346,10 @@ pub fn run() {
             commands::hooks::activity_hook_status,
             commands::hooks::install_activity_hook,
             commands::hooks::uninstall_activity_hook,
+            // 进程拦截 hook（PreToolUse(Bash) 长驻进程自动托管）
+            commands::hooks::intercept_hook_status,
+            commands::hooks::install_intercept_hook,
+            commands::hooks::uninstall_intercept_hook,
             // 文件写入（导出「另存为」）
             commands::fs::write_text_file,
             // 在系统文件管理器打开路径（会话中枢 / 项目工作台「打开位置」）

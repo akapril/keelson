@@ -108,6 +108,95 @@ pub fn has_activity_hook(root: &Value) -> bool {
 }
 
 // ——————————————————————————————————————————————————————————————————————
+// 进程拦截 hook：PreToolUse(Bash) 自动托管长驻进程（标记 rework-intercept）
+// ——————————————————————————————————————————————————————————————————————
+
+/// 拦截 hook 命令里的固定标记（识别「哪条是我们的」）。
+const INTERCEPT_MARKER: &str = "rework-intercept";
+
+/// 判断一个 PreToolUse 分组是否是 rework 装的拦截 hook。
+fn is_intercept_group(group: &Value) -> bool {
+    group
+        .get("hooks")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter().any(|h| {
+                h.get("command")
+                    .and_then(|v| v.as_str())
+                    .map(|c| c.contains(INTERCEPT_MARKER))
+                    .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false)
+}
+
+/// 构造 rework 拦截分组：matcher="Bash" + 一条带标记的 command hook。
+fn intercept_group(command: &str) -> Value {
+    json!({
+        "matcher": "Bash",
+        "hooks": [ { "type": "command", "command": command } ]
+    })
+}
+
+/// 在 settings JSON 中加入/更新 rework 的 PreToolUse(Bash) 拦截条目（幂等，保留用户其它一切）。
+pub fn add_intercept_hook(mut root: Value, command: &str) -> Value {
+    if !root.is_object() {
+        root = json!({});
+    }
+    if !root.get("hooks").map(|v| v.is_object()).unwrap_or(false) {
+        root["hooks"] = json!({});
+    }
+    if !root["hooks"]
+        .get("PreToolUse")
+        .map(|v| v.is_array())
+        .unwrap_or(false)
+    {
+        root["hooks"]["PreToolUse"] = json!([]);
+    }
+    let arr = root["hooks"]["PreToolUse"].as_array_mut().unwrap();
+    arr.retain(|g| !is_intercept_group(g));
+    arr.push(intercept_group(command));
+    root
+}
+
+/// 从 settings JSON 移除 rework 拦截条目（保留用户其它一切；清空则删键）。
+pub fn remove_intercept_hook(mut root: Value) -> Value {
+    if !root.is_object() {
+        return root;
+    }
+    let Some(hooks) = root.get_mut("hooks").filter(|v| v.is_object()) else {
+        return root;
+    };
+    if let Some(arr) = hooks.get_mut("PreToolUse").and_then(|v| v.as_array_mut()) {
+        arr.retain(|g| !is_intercept_group(g));
+        if arr.is_empty() {
+            hooks.as_object_mut().unwrap().remove("PreToolUse");
+        }
+    }
+    if root["hooks"].as_object().map(|o| o.is_empty()).unwrap_or(false) {
+        root.as_object_mut().unwrap().remove("hooks");
+    }
+    root
+}
+
+/// settings JSON 中是否已装 rework 拦截 hook。
+pub fn has_intercept_hook(root: &Value) -> bool {
+    root.get("hooks")
+        .and_then(|h| h.get("PreToolUse"))
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().any(is_intercept_group))
+        .unwrap_or(false)
+}
+
+/// 组装拦截 hook 命令：curl 从 stdin 转发 hook JSON 到 /intercept，把决策 JSON 打回 stdout。
+/// -m 8：托管进程可能需数秒，给足超时；--user-agent 携带标记便于识别。
+fn build_intercept_command(intercept_url: &str, secret: &str) -> String {
+    format!(
+        "curl -s -m 8 -X POST -H \"Authorization: Bearer {secret}\" -H \"Content-Type: application/json\" --user-agent {INTERCEPT_MARKER}/1 --data-binary @- {intercept_url}"
+    )
+}
+
+// ——————————————————————————————————————————————————————————————————————
 // IO：读端点 + 组命令 + 读写 ~/.claude/settings.json
 // ——————————————————————————————————————————————————————————————————————
 
@@ -128,6 +217,23 @@ fn read_activity_endpoint(app: &tauri::AppHandle) -> Result<(String, String), St
         format!("{}/activity", url.trim_end_matches('/'))
     };
     Ok((activity_url, secret))
+}
+
+/// 读端点并拼出 /intercept 的完整 url（+ secret），供拦截 hook 命令使用。
+fn read_intercept_endpoint(app: &tauri::AppHandle) -> Result<(String, String), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let path = dir.join("mcp-endpoint.json");
+    let body = std::fs::read_to_string(&path)
+        .map_err(|_| "MCP 端点未就绪（应用可能刚启动，请稍候重试）".to_string())?;
+    let v: Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+    let url = v["url"].as_str().ok_or("端点缺 url")?.to_string();
+    let secret = v["secret"].as_str().ok_or("端点缺 secret")?.to_string();
+    let intercept_url = if let Some(base) = url.strip_suffix("/mcp") {
+        format!("{base}/intercept")
+    } else {
+        format!("{}/intercept", url.trim_end_matches('/'))
+    };
+    Ok((intercept_url, secret))
 }
 
 /// 组装 rework 的 hook 命令：用 curl 从 stdin 转发 hook JSON 到 /activity 端点。
@@ -239,6 +345,35 @@ pub fn uninstall_activity_hook() -> Result<(), String> {
         return Ok(());
     }
     let next = remove_activity_hook(root);
+    write_claude_settings(&path, &next)
+}
+
+/// 查询 ~/.claude/settings.json 的进程拦截 hook 是否已安装。
+#[tauri::command]
+pub fn intercept_hook_status() -> bool {
+    read_claude_settings()
+        .map(|(_, root)| has_intercept_hook(&root))
+        .unwrap_or(false)
+}
+
+/// 安装：把 PreToolUse(Bash) 拦截条目写入 ~/.claude/settings.json（幂等、保留用户其它设置）。
+#[tauri::command]
+pub fn install_intercept_hook(app: tauri::AppHandle) -> Result<(), String> {
+    let (intercept_url, secret) = read_intercept_endpoint(&app)?;
+    let command = build_intercept_command(&intercept_url, &secret);
+    let (path, root) = read_claude_settings()?;
+    let next = add_intercept_hook(root, &command);
+    write_claude_settings(&path, &next)
+}
+
+/// 卸载：只移除 rework 自己那一条 PreToolUse 拦截条目，用户其它设置逐字保留。
+#[tauri::command]
+pub fn uninstall_intercept_hook() -> Result<(), String> {
+    let (path, root) = read_claude_settings()?;
+    if !has_intercept_hook(&root) {
+        return Ok(());
+    }
+    let next = remove_intercept_hook(root);
     write_claude_settings(&path, &next)
 }
 
@@ -358,5 +493,47 @@ mod tests {
         assert!(cmd.contains("--data-binary @-"));
         assert!(cmd.contains(HOOK_MARKER));
         assert!(cmd.ends_with("http://127.0.0.1:47600/activity"));
+    }
+
+    const ICMD: &str = "curl -s --user-agent rework-intercept http://x/intercept";
+
+    #[test]
+    fn intercept_and_activity_coexist_independently() {
+        // 先装 activity(PostToolUse)，再装 intercept(PreToolUse)：两者共存、互不干扰
+        let root = add_activity_hook(json!({}), CMD);
+        let root = add_intercept_hook(root, ICMD);
+        assert!(has_activity_hook(&root));
+        assert!(has_intercept_hook(&root));
+        assert_eq!(root["hooks"]["PostToolUse"].as_array().unwrap().len(), 1);
+        assert_eq!(root["hooks"]["PreToolUse"].as_array().unwrap().len(), 1);
+        assert_eq!(root["hooks"]["PreToolUse"][0]["matcher"], "Bash");
+
+        // 幂等：重复装 intercept 不产生重复
+        let root = add_intercept_hook(root, ICMD);
+        assert_eq!(root["hooks"]["PreToolUse"].as_array().unwrap().len(), 1);
+
+        // 只卸 intercept：activity 保留
+        let root = remove_intercept_hook(root);
+        assert!(!has_intercept_hook(&root));
+        assert!(has_activity_hook(&root), "卸拦截不应影响 activity");
+    }
+
+    #[test]
+    fn intercept_preserves_user_pretooluse() {
+        // 用户已有一个 PreToolUse(Bash) hook：装 intercept 后应保留用户那条
+        let user = json!({
+            "hooks": {
+                "PreToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "echo user-pre" } ] } ]
+            }
+        });
+        let root = add_intercept_hook(user, ICMD);
+        let arr = root["hooks"]["PreToolUse"].as_array().unwrap();
+        assert_eq!(arr.len(), 2, "用户既有 PreToolUse + rework 拦截");
+        assert!(arr.iter().any(|g| g["hooks"][0]["command"] == "echo user-pre"));
+        // 卸载后用户那条仍在
+        let root = remove_intercept_hook(root);
+        let arr = root["hooks"]["PreToolUse"].as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["hooks"][0]["command"], "echo user-pre");
     }
 }

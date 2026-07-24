@@ -598,6 +598,18 @@ async fn spawn_rmcp_service(
                 }
             }),
         )
+        // POST /intercept：Claude Code PreToolUse(Bash) hook。判断长驻命令→连 daemon 托管，
+        // 返回 PreToolUse 决策 JSON（作为响应体=curl stdout=hook 输出）。解析失败则放行。
+        .route(
+            "/intercept",
+            axum::routing::post(move |body: axum::body::Bytes| async move {
+                let decision = match serde_json::from_slice::<serde_json::Value>(&body) {
+                    Ok(payload) => crate::mcp::intercept::handle_intercept(payload).await,
+                    Err(_) => serde_json::json!({}), // 解析失败=放行
+                };
+                axum::Json(decision)
+            }),
+        )
         .layer(axum::middleware::from_fn(
             move |req: axum::extract::Request, next: axum::middleware::Next| {
                 let secret = secret.clone();

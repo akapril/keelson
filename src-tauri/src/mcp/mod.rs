@@ -5,6 +5,8 @@ pub mod rank;
 pub mod tools;
 pub mod session_tools;
 pub mod server;
+// PreToolUse(Bash) 拦截：长驻进程自动托管到进程内 daemon
+pub mod intercept;
 
 /// MCP handler 的上下文：以 local-user 身份打 PB。
 pub struct McpCtx {
