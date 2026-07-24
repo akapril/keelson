@@ -8,6 +8,11 @@ const MAX_TEXT_CHARS: usize = 12000;
 /// 抓取 URL 并返回粗提取的可读正文文本。
 #[tauri::command]
 pub async fn fetch_url_text(url: String) -> Result<String, String> {
+    // 仅允许 http/https，拒绝 file:// 等（防本地文件读取 / SSRF）
+    let lower = url.trim().to_ascii_lowercase();
+    if !(lower.starts_with("http://") || lower.starts_with("https://")) {
+        return Err("仅支持 http/https 链接".into());
+    }
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .user_agent("Mozilla/5.0 (rework reader)")
@@ -129,6 +134,13 @@ mod tests {
         let html = "<p>a&nbsp;&amp;&nbsp;b\n\n   c</p>";
         let text = html_to_text(html);
         assert_eq!(text, "a & b c");
+    }
+
+    #[tokio::test]
+    async fn rejects_non_http_scheme() {
+        // file:// 与裸路径一律拒绝（防本地文件读取）
+        assert!(fetch_url_text("file:///etc/passwd".into()).await.is_err());
+        assert!(fetch_url_text("C:/Windows/win.ini".into()).await.is_err());
     }
 
     #[test]
