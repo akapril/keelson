@@ -443,14 +443,7 @@ fn find_session_file_recursive(dir: &Path, session_id: &str) -> Option<PathBuf> 
     None
 }
 
-/// 截断字符串到指定字符数（超出部分用 "..." 替代）
-fn truncate(s: &str, max: usize) -> String {
-    if s.chars().count() > max {
-        s.chars().take(max).collect::<String>() + "..."
-    } else {
-        s.to_string()
-    }
-}
+use super::truncate; // 截断工具已收敛到 providers/mod.rs
 
 /// 格式化时间戳为 HH:MM:SS（支持 ISO 8601 解析）
 fn format_timestamp(ts: &str) -> String {
