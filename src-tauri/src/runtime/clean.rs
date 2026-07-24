@@ -15,21 +15,19 @@ pub struct CleanResult {
     pub processes_removed: usize,
     pub log_files_deleted: usize,
     pub bytes_freed: u64,
-    pub sqlite_rows_deleted: usize,
     pub retention_days: u32,
 }
 
-/// 执行清理并返回结构化结果（供 daemon 和自动清理使用）
+/// 执行清理并返回结构化结果（供 daemon 和自动清理使用）。
+/// 纯文件方案：清死进程记录 + 删过期 .log 文件（不再有 SQLite）。
 pub fn execute(days: u32) -> CleanResult {
     let processes_removed = clean_exited_processes();
     let (log_files_deleted, bytes_freed) = clean_old_log_files(days);
-    let sqlite_rows_deleted = clean_sqlite_logs(days);
 
     CleanResult {
         processes_removed,
         log_files_deleted,
         bytes_freed,
-        sqlite_rows_deleted,
         retention_days: days,
     }
 }
@@ -54,11 +52,6 @@ pub fn run(days: u32, json_output: bool) {
         println!(
             "✓ 已删除 {} 个日志文件（释放 {}）",
             result.log_files_deleted, size_str
-        );
-
-        println!(
-            "✓ 已清理 SQLite 日志 {} 条记录",
-            format_number(result.sqlite_rows_deleted)
         );
 
         println!("\n保留策略: 最近 {} 天", result.retention_days);
@@ -128,36 +121,6 @@ fn clean_old_log_files(days: u32) -> (usize, u64) {
     (deleted_count, freed_bytes)
 }
 
-/// 删除 SQLite 中超过指定天数的日志记录，返回删除行数
-fn clean_sqlite_logs(days: u32) -> usize {
-    // 尝试打开数据库（不存在时直接返回 0）
-    let db_path = store::runtime_dir().join("logs.db");
-    if !db_path.exists() {
-        return 0;
-    }
-
-    let conn = match std::panic::catch_unwind(|| store::init_log_db()) {
-        Ok(c) => c,
-        Err(_) => return 0,
-    };
-
-    // 删除过期记录
-    let rows_deleted = conn
-        .execute(
-            &format!(
-                "DELETE FROM logs WHERE timestamp < datetime('now', '-{} days')",
-                days
-            ),
-            [],
-        )
-        .unwrap_or(0);
-
-    // 回收磁盘空间
-    let _ = conn.execute_batch("VACUUM");
-
-    rows_deleted
-}
-
 // ─────────────────────────── 格式化工具 ────────────────────────────
 
 /// 将字节数格式化为可读字符串（如 "12.3 MB"）
@@ -175,19 +138,4 @@ fn format_bytes(bytes: u64) -> String {
     } else {
         format!("{} B", bytes)
     }
-}
-
-/// 将数字格式化为带千位分隔符的字符串（如 "1,234"）
-fn format_number(n: usize) -> String {
-    let s = n.to_string();
-    let mut result = String::new();
-    let chars: Vec<char> = s.chars().collect();
-    let len = chars.len();
-    for (i, c) in chars.iter().enumerate() {
-        if i > 0 && (len - i) % 3 == 0 {
-            result.push(',');
-        }
-        result.push(*c);
-    }
-    result
 }
