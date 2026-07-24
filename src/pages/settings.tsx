@@ -541,25 +541,6 @@ function AutoSyncTasksSection() {
   );
 }
 
-/**
- * 运行时区：进程管理已内置于 rework 进程内（去 TCP，随应用恒在），无独立 daemon/端口。
- * 全部进程一览与管理见侧边栏「进程」页。此处仅保留「自动托管 Claude 起的长驻进程」开关。
- */
-function RuntimeSection() {
-  return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-sm font-medium">运行时（进程管理）</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          进程管理已内置于 rework 进程内、随应用启动，<strong>无需任何外部程序或端口</strong>。
-          全部托管进程一览与管理见侧边栏 <strong>「进程」</strong> 页；也可在项目「进程」标签管本项目的。
-          让 Claude 起的长驻进程自动进来，请在下方「Claude Code 集成」一键启用。
-        </p>
-      </div>
-    </section>
-  );
-}
-
 export default function Settings() {
   const { hotkey, workspacePath, loading, error, load, saveHotkey } =
     useSettingsStore();
@@ -1056,11 +1037,6 @@ export default function Settings() {
 
       {/* ── MCP 接入（让 claude / codex 操作看板与文档） ── */}
       <McpSection />
-
-      <div className="border-t border-border" />
-
-      {/* ── 运行时（进程管理，进程内模块） ── */}
-      <RuntimeSection />
 
       <div className="border-t border-border" />
 
