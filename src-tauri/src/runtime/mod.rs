@@ -18,8 +18,13 @@ pub mod store;
 
 /// 启动进程管理的后台任务（health 检查 / 旧日志清理）。
 /// 去 TCP 后进程管理为纯进程内模块——前端命令直调 daemon::dispatch，无需起 daemon server。
+/// 注：从 tauri setup（非 async）调用，故包一层 tauri::async_runtime::spawn，
+/// 使 daemon::start_background_tasks 内部的 tokio::spawn 在 tokio runtime 上下文里执行
+/// （否则报 "there is no reactor running"）。
 pub fn start_background_tasks() {
-    daemon::start_background_tasks();
+    tauri::async_runtime::spawn(async {
+        daemon::start_background_tasks();
+    });
 }
 
 /// 起后台任务：进程表一有变更就 emit "runtime-processes-changed" 给前端，
