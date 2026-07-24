@@ -589,9 +589,10 @@ function RuntimeSection() {
       <div>
         <h2 className="text-sm font-medium">运行时（进程管理）</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          进程管理内核已融入 rework 进程内，随应用启动，无需安装任何外部二进制。项目「进程」
-          标签由它驱动；与终端 <code className="rounded bg-muted px-1">claude-runtime</code> CLI
-          共享同一批进程（:19191 + ~/.claude-runtime）。
+          进程管理内核已内置于 rework、随应用在进程内启动，<strong>无需安装或运行任何外部程序</strong>。
+          在项目「进程」标签里直接启动/停止/看日志即可。（可选）若你还保留了终端
+          <code className="mx-1 rounded bg-muted px-1">claude-runtime</code> CLI，它与 rework
+          共享同一端口与存储（:19191 + ~/.claude-runtime）、看同一批进程，二者自动共存。
         </p>
       </div>
 
