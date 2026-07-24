@@ -13,6 +13,20 @@ export interface RuntimeProcess {
   resources?: Record<string, unknown> | null;
 }
 
+/** claude-runtime 一次性体检结果（对应 Rust RuntimeDiag）。 */
+export interface RuntimeDiag {
+  /** PATH 中能否找到 claude-runtime 二进制 */
+  binary_found: boolean;
+  /** 二进制绝对路径（找不到则空） */
+  binary_path: string;
+  /** claude-runtime --version 输出（找不到则空） */
+  version: string;
+  /** daemon(:19191) 是否可连接 */
+  daemon_running: boolean;
+  /** Dashboard(:19192) 是否可连接 */
+  dashboard_reachable: boolean;
+}
+
 /** 一条日志（daemon logs 返回）。字段随 claude-runtime 版本，按存在取用。 */
 export interface RuntimeLog {
   timestamp?: string;

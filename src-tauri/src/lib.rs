@@ -330,6 +330,9 @@ pub fn run() {
             // claude-runtime 进程管理接入
             commands::runtime::runtime_available,
             commands::runtime::runtime_command,
+            commands::runtime::runtime_diagnose,
+            commands::runtime::runtime_ensure_daemon,
+            commands::runtime::runtime_open_dashboard,
             // MCP 一键接入 claude / codex
             commands::mcp::mcp_endpoint,
             commands::mcp::mcp_install_claude,

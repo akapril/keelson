@@ -38,6 +38,11 @@ import {
   getAutoSyncTasks,
   setAutoSyncTasks,
 } from "@/features/board/auto-sync-pref";
+import {
+  getAutoStartRuntime,
+  setAutoStartRuntime,
+} from "@/features/board/runtime-daemon";
+import type { RuntimeDiag } from "@/types/runtime";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
 /**
@@ -540,6 +545,146 @@ function AutoSyncTasksSection() {
   );
 }
 
+/**
+ * claude-runtime 运行时区：融入的进程管理器（daemon）的自检 / 自动启动 / 修复入口。
+ * 「进程」tab 依赖 daemon 在 :19191 运行；此处集中管理其生命周期，让「未运行」基本不再出现。
+ * 自动启动为纯本地偏好（默认开），App 启动时按此拉起；「立即修复」手动补救。
+ */
+function RuntimeSection() {
+  // null=尚未体检；否则为最近一次 diagnose 结果
+  const [diag, setDiag] = useState<RuntimeDiag | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [fixing, setFixing] = useState(false);
+  const [autoStart, setAutoStartState] = useState<boolean>(() => getAutoStartRuntime());
+
+  // 拉取一次体检结果
+  const check = async () => {
+    setChecking(true);
+    try {
+      setDiag(await ipc.runtimeDiagnose());
+    } catch {
+      setDiag(null);
+    } finally {
+      setChecking(false);
+    }
+  };
+  // 挂载时体检一次
+  useEffect(() => {
+    void check();
+  }, []);
+
+  // 立即修复：确保 daemon 运行，再复检
+  const fix = async () => {
+    setFixing(true);
+    try {
+      const up = await ipc.runtimeEnsureDaemon();
+      toast[up ? "success" : "error"](
+        up ? "claude-runtime daemon 已就绪" : "拉起后仍未连通，请查看是否已安装二进制",
+      );
+      await check();
+    } catch (e) {
+      toast.error(`修复失败：${String(e)}`);
+    } finally {
+      setFixing(false);
+    }
+  };
+
+  const toggleAuto = (on: boolean) => {
+    setAutoStartState(on);
+    setAutoStartRuntime(on);
+  };
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-sm font-medium">运行时（claude-runtime）</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          融入的进程管理器。项目「进程」标签依赖它的 daemon 在后台运行。开启自动启动后，
+          rework 启动时会静默拉起 daemon（幂等安全），「未运行」基本不再出现。
+        </p>
+      </div>
+
+      {/* 自动启动开关 */}
+      <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
+        <input
+          type="checkbox"
+          checked={autoStart}
+          onChange={(e) => toggleAuto(e.target.checked)}
+          className="size-4 cursor-pointer rounded border-input accent-primary"
+        />
+        <span>随 rework 自动启动 daemon</span>
+      </label>
+
+      {/* 体检状态 */}
+      <div className="space-y-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+        {diag === null ? (
+          <span className="text-muted-foreground">{checking ? "体检中…" : "未体检"}</span>
+        ) : !diag.binary_found ? (
+          <div className="space-y-1 text-amber-600 dark:text-amber-400">
+            <div>未检测到 claude-runtime 二进制（不在 PATH 中）。</div>
+            <div className="text-muted-foreground">
+              安装后即可使用：
+              <code className="ml-1 rounded bg-muted px-1 text-foreground">
+                cargo install --path D:\workspace\claude-runtime\crates\cli
+              </code>
+            </div>
+          </div>
+        ) : (
+          <>
+            <StatusRow ok label="二进制" value={diag.version || diag.binary_path || "已安装"} />
+            <StatusRow
+              ok={diag.daemon_running}
+              label="daemon (:19191)"
+              value={diag.daemon_running ? "运行中" : "未运行"}
+            />
+            <StatusRow
+              ok={diag.dashboard_reachable}
+              label="Dashboard (:19192)"
+              value={diag.dashboard_reachable ? "可访问" : "未就绪"}
+            />
+          </>
+        )}
+      </div>
+
+      {/* 操作按钮 */}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" disabled={checking} onClick={() => void check()}>
+          {checking ? "体检中…" : "自检"}
+        </Button>
+        {diag && diag.binary_found && !diag.daemon_running && (
+          <Button variant="default" size="sm" disabled={fixing} onClick={() => void fix()}>
+            {fixing ? "启动中…" : "立即修复（启动 daemon）"}
+          </Button>
+        )}
+        {diag?.dashboard_reachable && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void ipc.runtimeOpenDashboard().catch(() => {})}
+          >
+            打开 Dashboard
+          </Button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** 体检状态一行：绿点/灰点 + 标签 + 值。 */
+function StatusRow({ ok, label, value }: { ok: boolean; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className={
+          "size-2 shrink-0 rounded-full " + (ok ? "bg-green-500" : "bg-muted-foreground/40")
+        }
+      />
+      <span className="text-muted-foreground">{label}</span>
+      <span className="ml-auto truncate font-mono text-foreground">{value}</span>
+    </div>
+  );
+}
+
 export default function Settings() {
   const { hotkey, workspacePath, loading, error, load, saveHotkey } =
     useSettingsStore();
@@ -1036,6 +1181,11 @@ export default function Settings() {
 
       {/* ── MCP 接入（让 claude / codex 操作看板与文档） ── */}
       <McpSection />
+
+      <div className="border-t border-border" />
+
+      {/* ── 运行时（claude-runtime daemon 自检/自动启动/修复） ── */}
+      <RuntimeSection />
 
       <div className="border-t border-border" />
 
