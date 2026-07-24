@@ -128,9 +128,10 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
   if (available === false) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
-        <p>claude-runtime daemon 未运行。</p>
+        <p>进程管理 daemon 未运行。</p>
         <p className="text-xs">
-          点「立即修复」即可后台拉起（默认随 rework 自动启动，可在设置里调整）。
+          进程管理已内置于 rework、随应用在进程内启动，无需任何外部程序。
+          若这里显示未运行，点「立即修复」即可在进程内拉起。
         </p>
         <div className="flex gap-2">
           <Button variant="default" size="sm" disabled={fixing} onClick={() => void fixDaemon()}>
