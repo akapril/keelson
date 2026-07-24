@@ -399,8 +399,11 @@ pub(crate) async fn handle_stop(args: &Value) -> Value {
             .output();
     }
 
-    // 从进程表移除
-    store::remove_process(&entry.id);
+    // 停止 ≠ 删除：杀掉进程但保留记录（标记 stopped），日志文件也保留，
+    // 用户仍能查看日志、事后再决定「删除」（handle_remove 才真正清记录+日志）。
+    store::update_process(&entry.id, |e| {
+        e.status = "stopped".to_string();
+    });
 
     json!({
         "id": entry.id,
