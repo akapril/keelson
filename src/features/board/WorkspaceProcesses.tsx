@@ -20,6 +20,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
   const [selected, setSelected] = useState<string | null>(null); // 选中查看日志的进程 name
   const [logs, setLogs] = useState<RuntimeLog[]>([]);
   const [busy, setBusy] = useState(false);
+  const [fixing, setFixing] = useState(false); // 「立即修复」拉起 daemon 中
   // 启动新进程的输入
   const [cmd, setCmd] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -105,18 +106,40 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
     [logs],
   );
 
+  // 立即修复：拉起 daemon 后复检（与设置页「立即修复」同一入口）
+  const fixDaemon = async () => {
+    setFixing(true);
+    try {
+      const up = await ipc.runtimeEnsureDaemon();
+      if (up) {
+        toast.success("daemon 已启动");
+        await refresh();
+      } else {
+        toast.error("拉起后仍未连通，请确认已安装 claude-runtime");
+      }
+    } catch (e) {
+      toast.error(`修复失败：${String(e)}`);
+    } finally {
+      setFixing(false);
+    }
+  };
+
   // ── daemon 未运行 ──
   if (available === false) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
         <p>claude-runtime daemon 未运行。</p>
         <p className="text-xs">
-          在终端运行 <code className="rounded bg-muted px-1">claude-runtime daemon start</code>{" "}
-          后即可在此看本项目的进程与日志。
+          点「立即修复」即可后台拉起（默认随 rework 自动启动，可在设置里调整）。
         </p>
-        <Button variant="outline" size="sm" onClick={() => void refresh()}>
-          重新检测
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="default" size="sm" disabled={fixing} onClick={() => void fixDaemon()}>
+            {fixing ? "启动中…" : "立即修复"}
+          </Button>
+          <Button variant="outline" size="sm" disabled={fixing} onClick={() => void refresh()}>
+            重新检测
+          </Button>
+        </div>
       </div>
     );
   }
