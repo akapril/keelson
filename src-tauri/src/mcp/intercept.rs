@@ -51,6 +51,15 @@ pub fn is_long_running_command(cmd: &str) -> bool {
     positive_patterns().iter().any(|re| re.is_match(cmd))
 }
 
+/// 检测命令是否含 shell 注入常用元字符。含则不托管（放行让用户/Claude 自行处理），
+/// 避免把不可信命令（intercept 路径的 command 来自 Claude hook payload）喂进
+/// cmd /C / sh -c 造成注入，如 `npm run dev; curl evil`。纯函数，便于单测。
+pub fn has_shell_metachars(cmd: &str) -> bool {
+    // ; && || | 管道/串联；$( 与 ` 命令替换；> < 重定向；& 后台
+    const META: &[&str] = &[";", "&&", "||", "|", "$(", "`", ">", "<", "&"];
+    META.iter().any(|m| cmd.contains(m))
+}
+
 /// 从命令派生一个可读、稳定的进程名：runner + 首个内容词，清洗为 [a-z0-9_-]。
 /// 例："npm run dev"→"npm-dev"；"python main.py"→"python-main-py"；"vite"→"vite"。
 /// 纯函数，便于单测。
@@ -119,6 +128,10 @@ pub async fn handle_intercept(payload: Value) -> Value {
         .unwrap_or("")
         .to_string();
     if !is_long_running_command(&command) {
+        return allow();
+    }
+    // 含 shell 元字符 → 不托管（防注入），放行原命令由 Claude/用户自行处理
+    if has_shell_metachars(&command) {
         return allow();
     }
     let cwd = payload
@@ -197,6 +210,21 @@ mod tests {
         assert_eq!(derive_process_name("vite"), "vite");
         assert_eq!(derive_process_name("next dev"), "next-dev");
         assert_eq!(derive_process_name(""), "proc");
+    }
+
+    #[test]
+    fn rejects_shell_metachars() {
+        // 含元字符 → 视为不可托管（防注入）
+        assert!(has_shell_metachars("npm run dev; curl evil"));
+        assert!(has_shell_metachars("npm run dev && rm -rf x"));
+        assert!(has_shell_metachars("npm run dev | tee x"));
+        assert!(has_shell_metachars("vite $(whoami)"));
+        assert!(has_shell_metachars("vite `id`"));
+        assert!(has_shell_metachars("node server.js > /tmp/x"));
+        // 干净的长驻命令 → 不含元字符
+        assert!(!has_shell_metachars("npm run dev"));
+        assert!(!has_shell_metachars("python main.py --port 8000"));
+        assert!(!has_shell_metachars("uvicorn app:app --reload"));
     }
 
     #[test]
