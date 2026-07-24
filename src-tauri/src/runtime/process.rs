@@ -1,6 +1,6 @@
 use chrono::Utc;
 use serde_json::json;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::process::Command;
 use uuid::Uuid;
@@ -34,14 +34,72 @@ pub fn is_pid_alive(pid: u32) -> bool {
     }
 }
 
-/// 同步所有进程状态：将 PID 已死的 "running" 进程标记为 "exited"
+/// 一次性取当前所有存活进程的 PID 集合（Windows 单次 tasklist / Unix 单次 ps）。
+/// 避免对每个受管进程各 spawn 一个子进程——21 个进程=21 次 tasklist，耗时近 1s，
+/// 是「进程」tab 每 4s 卡顿的元凶。取不到快照返回 None（调用方回退逐个判活）。
+fn alive_pid_set() -> Option<HashSet<u32>> {
+    #[cfg(windows)]
+    let output = Command::new("tasklist").args(["/FO", "CSV", "/NH"]).output();
+    #[cfg(unix)]
+    let output = Command::new("ps").args(["-A", "-o", "pid="]).output();
+
+    let out = output.ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut set = HashSet::new();
+    #[cfg(windows)]
+    {
+        // CSV 行形如 "name","pid","session","session#","memusage"，取第 2 字段
+        for line in text.lines() {
+            let fields: Vec<&str> = line.split("\",\"").collect();
+            if fields.len() >= 2 {
+                if let Ok(pid) = fields[1].trim_matches('"').trim().parse::<u32>() {
+                    set.insert(pid);
+                }
+            }
+        }
+    }
+    #[cfg(unix)]
+    {
+        for line in text.lines() {
+            if let Ok(pid) = line.trim().parse::<u32>() {
+                set.insert(pid);
+            }
+        }
+    }
+    Some(set)
+}
+
+/// 同步所有进程状态：将 PID 已死的 "running" 进程标记为 "exited"。
+/// 用一次进程快照批量判活（而非每个 PID 各 spawn 一次 tasklist）。
 pub fn sync_process_status() {
     let entries = store::load_processes();
-    for entry in &entries {
-        if entry.status == "running" && !is_pid_alive(entry.pid) {
-            store::update_process(&entry.id, |e| {
-                e.status = "exited".to_string();
-            });
+    let running: Vec<&ProcessEntry> = entries.iter().filter(|e| e.status == "running").collect();
+    if running.is_empty() {
+        return;
+    }
+    match alive_pid_set() {
+        // 快照可用：O(1) 集合查，一次子进程搞定全部
+        Some(alive) => {
+            for entry in running {
+                if !alive.contains(&entry.pid) {
+                    store::update_process(&entry.id, |e| {
+                        e.status = "exited".to_string();
+                    });
+                }
+            }
+        }
+        // 取快照失败：回退逐个判活（保持正确性）
+        None => {
+            for entry in running {
+                if !is_pid_alive(entry.pid) {
+                    store::update_process(&entry.id, |e| {
+                        e.status = "exited".to_string();
+                    });
+                }
+            }
         }
     }
 }
