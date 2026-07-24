@@ -1,7 +1,7 @@
 // 项目设置侧边抽屉：编辑当前打开项目的基础字段、状态列、标签。
 // 移植自 workavera 的 edit-mode 交互（草稿式行内编辑 + 保存/删除），
 // 但完全走本仓库的 useBoardStore，本组件不直接访问 PB / invoke。
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -422,8 +422,11 @@ function StatesSection({ onError }: { onError: OnError }) {
   const states = useBoardStore((s) => s.states)
   const createState = useBoardStore((s) => s.createState)
 
-  // 按 sort_order 排序，作为本区块的稳定顺序
-  const ordered = [...states].sort((a, b) => a.sort_order - b.sort_order)
+  // 按 sort_order 排序，作为本区块的稳定顺序（useMemo：states 变才重排，稳定引用）
+  const ordered = useMemo(
+    () => [...states].sort((a, b) => a.sort_order - b.sort_order),
+    [states],
+  )
 
   return (
     <section className="flex flex-col gap-3">

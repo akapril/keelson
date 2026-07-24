@@ -1,7 +1,7 @@
 // ProjectWorkspace —— 打开一个项目后的「工作台」：
 // 头部(返回 / 名称 / git 状态 / 项目设置) + 标签页(概览 / 会话 / 看板 / 文档 / AI)。
 // 会话 tab 通过 repo_path == session.project_path 关联本地 CLI 会话（两级项目模型）。
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -81,40 +81,54 @@ export function ProjectWorkspace() {
   }, [openedProjectId]);
 
   const project = projects.find((p) => p.id === openedProjectId);
-  if (!project) return null;
-  const repoPath = project.repo_path;
+  const repoPath = project?.repo_path;
 
   // 概览统计只算「活跃任务」（排除已归档）——与看板默认隐藏归档保持一致，避免计数对不上。
-  const activeTasks = tasks.filter((t) => !t.archived);
+  // 以下派生量全部 useMemo：tasks/sessions/events 任一变动才重算，避免每次 render 全跑一遍。
+  const activeTasks = useMemo(() => tasks.filter((t) => !t.archived), [tasks]);
 
   // 任务按状态类别统计（概览用）
-  const catCounts = { pending: 0, active: 0, completed: 0 };
-  for (const t of activeTasks) {
-    const st = states.find((s) => s.id === t.state);
-    if (st) catCounts[st.category] += 1;
-  }
-  const linkedCount = repoPath
-    ? sessions.filter((s) => s.project_path === repoPath).length
-    : 0;
+  const catCounts = useMemo(() => {
+    const c = { pending: 0, active: 0, completed: 0 };
+    for (const t of activeTasks) {
+      const st = states.find((s) => s.id === t.state);
+      if (st) c[st.category] += 1;
+    }
+    return c;
+  }, [activeTasks, states]);
+
+  const linkedCount = useMemo(
+    () =>
+      repoPath ? sessions.filter((s) => s.project_path === repoPath).length : 0,
+    [repoPath, sessions],
+  );
 
   // 近期截止任务（有 due_date，按日期升序，取前 6；归档任务已完成，不算"近期截止"）
-  const upcomingTasks = [...activeTasks]
-    .filter((t) => t.due_date)
-    .sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""))
-    .slice(0, 6);
+  const upcomingTasks = useMemo(
+    () =>
+      [...activeTasks]
+        .filter((t) => t.due_date)
+        .sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""))
+        .slice(0, 6),
+    [activeTasks],
+  );
 
   // 近期事件（本项目关联，结束日 >= 今天，取前 6）
-  const eventNow = new Date();
-  eventNow.setHours(0, 0, 0, 0);
-  const upcomingEvents = projectEvents
-    .filter((e) => {
-      try {
-        return new Date(e.end || e.start) >= eventNow;
-      } catch {
-        return false;
-      }
-    })
-    .slice(0, 6);
+  const upcomingEvents = useMemo(() => {
+    const eventNow = new Date();
+    eventNow.setHours(0, 0, 0, 0);
+    return projectEvents
+      .filter((e) => {
+        try {
+          return new Date(e.end || e.start) >= eventNow;
+        } catch {
+          return false;
+        }
+      })
+      .slice(0, 6);
+  }, [projectEvents]);
+
+  if (!project) return null;
 
   return (
     <div className="flex h-full min-h-0 flex-col p-6">
