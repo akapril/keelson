@@ -37,6 +37,15 @@ pub fn runtime_available() -> bool {
     TcpStream::connect(DAEMON_ADDR).is_ok()
 }
 
+/// 供内部（如 /intercept 端点）托管一个进程：向 daemon 发 start。
+/// 同步 TCP 调用，调用方若在 async 上下文应放到 spawn_blocking。
+pub(crate) fn daemon_start(command: &str, name: &str, cwd: &str) -> Result<serde_json::Value, String> {
+    daemon_call(
+        "start",
+        serde_json::json!({ "command": command, "name": name, "cwd": cwd }),
+    )
+}
+
 /// 通用透传：把 cmd + args 转发给 daemon，返回其 JSON 响应。
 /// 前端用它封装 ps/logs/start/stop/restart（见 ipc.ts）；集中一处，Rust 无需随命令增删。
 #[tauri::command]

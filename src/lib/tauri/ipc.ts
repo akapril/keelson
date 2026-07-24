@@ -128,6 +128,14 @@ export const ipc = {
   /** 卸载实时活动 hook（只移除 rework 自己那一条） */
   uninstallActivityHook: () => invoke<void>("uninstall_activity_hook"),
 
+  // ── 进程拦截 hook（PreToolUse(Bash) 长驻进程自动托管） ──────
+  /** 查询进程拦截 hook 是否已安装 */
+  interceptHookStatus: () => invoke<boolean>("intercept_hook_status"),
+  /** 安装拦截 hook（写 ~/.claude/settings.json 的 PreToolUse(Bash)，幂等、保留用户其它设置） */
+  installInterceptHook: () => invoke<void>("install_intercept_hook"),
+  /** 卸载拦截 hook（只移除 rework 自己那一条） */
+  uninstallInterceptHook: () => invoke<void>("uninstall_intercept_hook"),
+
   // ── AI 对话（provider 可切；包装 ai_chat 命令） ────────────
   /** 非流式对话：返回助手回复文本。cwd=项目仓库路径（可选），CLI provider 在该目录下运行。 */
   aiChat: (config: AiConfig, messages: AiChatMessage[], cwd?: string) =>

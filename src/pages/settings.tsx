@@ -551,6 +551,9 @@ function RuntimeSection() {
   const [diag, setDiag] = useState<RuntimeDiag | null>(null);
   const [checking, setChecking] = useState(false);
   const [fixing, setFixing] = useState(false);
+  // 进程拦截 hook：null=读取中
+  const [intercept, setIntercept] = useState<boolean | null>(null);
+  const [interceptBusy, setInterceptBusy] = useState(false);
 
   // 拉取一次体检结果
   const check = async () => {
@@ -563,10 +566,30 @@ function RuntimeSection() {
       setChecking(false);
     }
   };
-  // 挂载时体检一次
+  // 挂载时体检一次 + 读拦截 hook 状态
   useEffect(() => {
     void check();
+    void ipc.interceptHookStatus().then(setIntercept).catch(() => setIntercept(false));
   }, []);
+
+  // 装/卸进程拦截 hook
+  const toggleIntercept = async (on: boolean) => {
+    setInterceptBusy(true);
+    try {
+      if (on) await ipc.installInterceptHook();
+      else await ipc.uninstallInterceptHook();
+      setIntercept(on);
+      toast.success(
+        on
+          ? "已启用：Claude Code 起长驻进程时自动托管（需重启会话生效）"
+          : "已停用进程拦截",
+      );
+    } catch (e) {
+      toast.error(`操作失败：${String(e)}`);
+    } finally {
+      setInterceptBusy(false);
+    }
+  };
 
   // 立即修复：确保 daemon 运行，再复检
   const fix = async () => {
@@ -633,6 +656,27 @@ function RuntimeSection() {
             {fixing ? "启动中…" : "立即修复（进程内启动）"}
           </Button>
         )}
+      </div>
+
+      {/* 进程拦截 hook：自动托管 Claude Code 起的长驻进程 */}
+      <div className="space-y-1.5 border-t border-border pt-3">
+        <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
+          <input
+            type="checkbox"
+            checked={intercept === true}
+            disabled={intercept === null || interceptBusy}
+            onChange={(e) => void toggleIntercept(e.target.checked)}
+            className="size-4 cursor-pointer rounded border-input accent-primary"
+          />
+          <span>自动托管 Claude Code 起的长驻进程</span>
+        </label>
+        <p className="text-xs text-muted-foreground">
+          启用后，Claude Code 用 Bash 跑 <code className="rounded bg-muted px-1">npm run dev</code>、
+          <code className="rounded bg-muted px-1">uvicorn</code> 等长驻命令时，会被自动挡下并交给
+          rework 后台托管（进程/日志在「进程」标签查看），避免占住会话、日志丢失。
+          仅拦长驻服务，build/test/install 等一次性命令照常执行。改动 ~/.claude/settings.json
+          的 PreToolUse(Bash)，只增删 rework 自己那条，需重启 Claude 会话生效。
+        </p>
       </div>
     </section>
   );
