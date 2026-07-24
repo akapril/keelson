@@ -32,9 +32,12 @@ fn daemon_call(cmd: &str, args: serde_json::Value) -> Result<serde_json::Value, 
 }
 
 /// daemon 是否可连接（前端据此显示"未运行"状态）。
+/// async + spawn_blocking：阻塞 TCP connect 移出主线程，避免冻结 UI（Tauri 同步命令跑主线程）。
 #[tauri::command]
-pub fn runtime_available() -> bool {
-    TcpStream::connect(DAEMON_ADDR).is_ok()
+pub async fn runtime_available() -> bool {
+    tokio::task::spawn_blocking(|| TcpStream::connect(DAEMON_ADDR).is_ok())
+        .await
+        .unwrap_or(false)
 }
 
 /// 供内部（如 /intercept 端点）托管一个进程：向 daemon 发 start。
@@ -48,9 +51,16 @@ pub(crate) fn daemon_start(command: &str, name: &str, cwd: &str) -> Result<serde
 
 /// 通用透传：把 cmd + args 转发给 daemon，返回其 JSON 响应。
 /// 前端用它封装 ps/logs/start/stop/restart（见 ipc.ts）；集中一处，Rust 无需随命令增删。
+/// async + spawn_blocking：daemon_call 是阻塞 TCP（且 ps 在 daemon 侧可能耗时近 1s），
+/// 移出主线程，避免每次轮询/切 tab 时冻结 UI。
 #[tauri::command]
-pub fn runtime_command(cmd: String, args: serde_json::Value) -> Result<serde_json::Value, String> {
-    daemon_call(&cmd, args)
+pub async fn runtime_command(
+    cmd: String,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || daemon_call(&cmd, args))
+        .await
+        .map_err(|e| format!("运行时任务失败：{e}"))?
 }
 
 // ─────────────────────── 自检 / 自动启动 / 修复 ───────────────────────
@@ -76,9 +86,8 @@ fn is_embedded_daemon() -> bool {
         .unwrap_or(false)
 }
 
-/// 体检：daemon 是否在跑 / 是进程内还是外部 / 托管进程数。
-#[tauri::command]
-pub fn runtime_diagnose() -> RuntimeDiag {
+/// 体检的阻塞实现（TCP + ps + 读 pid 文件），供 spawn_blocking 调用。
+fn diagnose_blocking() -> RuntimeDiag {
     let daemon_running = TcpStream::connect(DAEMON_ADDR).is_ok();
     let process_count = if daemon_running {
         daemon_call("ps", serde_json::json!({}))
@@ -95,20 +104,39 @@ pub fn runtime_diagnose() -> RuntimeDiag {
     }
 }
 
+/// 体检：daemon 是否在跑 / 是进程内还是外部 / 托管进程数。
+/// async + spawn_blocking：阻塞 IO 移出主线程。
+#[tauri::command]
+pub async fn runtime_diagnose() -> RuntimeDiag {
+    tokio::task::spawn_blocking(diagnose_blocking)
+        .await
+        .unwrap_or(RuntimeDiag {
+            daemon_running: false,
+            embedded: false,
+            process_count: 0,
+        })
+}
+
 /// 确保 daemon 在运行：已运行直接返回 true；否则在 rework 进程内起 headless daemon
 /// 并轮询复检。既作前端"自动启动"入口，也作手动"立即修复"入口。
 /// 幂等：外部 claude-runtime daemon 已在跑则内部守卫自动让路。
 #[tauri::command]
-pub fn runtime_ensure_daemon() -> Result<bool, String> {
-    if TcpStream::connect(DAEMON_ADDR).is_ok() {
+pub async fn runtime_ensure_daemon() -> Result<bool, String> {
+    // 阻塞 TCP connect 放 spawn_blocking；等待用 async sleep，全程不占主线程。
+    let connectable = || async {
+        tokio::task::spawn_blocking(|| TcpStream::connect(DAEMON_ADDR).is_ok())
+            .await
+            .unwrap_or(false)
+    };
+    if connectable().await {
         return Ok(true);
     }
     // 进程内起（不再依赖任何外部二进制/独立进程/第二托盘）。
     crate::runtime::start_embedded();
     // 轮询等待 daemon 绑定端口（进程内起很快，给足 ~2s 兜底）。
     for _ in 0..10 {
-        std::thread::sleep(Duration::from_millis(200));
-        if TcpStream::connect(DAEMON_ADDR).is_ok() {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        if connectable().await {
             return Ok(true);
         }
     }
