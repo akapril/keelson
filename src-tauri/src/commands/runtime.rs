@@ -1,42 +1,20 @@
-//! commands/runtime.rs —— 接入 claude-runtime 的 daemon（进程管理器），
-//! 让项目工作台「进程」tab 能看本项目跑的进程 + 日志、start/stop/restart。
+//! commands/runtime.rs —— 进程管理「进程」tab 的前端命令层。
 //!
-//! claude-runtime 是独立二进制 + daemon（TCP 127.0.0.1:19191，行分隔 JSON）：
+//! 进程管理内核已从 claude-runtime 融入 rework 进程内（见 crate::runtime，headless）：
+//! rework 启动时在进程内起 daemon（TCP 127.0.0.1:19191 + ~/.claude-runtime store），
+//! 与终端 `claude-runtime` CLI 共享同一端口与 store。这里仍以 TCP 客户端方式
+//! 与之通信（自连或连外部 daemon 均可），协议：
 //! 请求 `{"cmd":"ps"|"logs"|"start"|"stop"|"restart","args":{...}}\n`，响应一行 JSON。
-//! rework 不改 claude-runtime，只当它的客户端；daemon 未运行则返回友好提示。
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
-use std::path::Path;
-use std::process::Command;
 use std::time::Duration;
 
 const DAEMON_ADDR: &str = "127.0.0.1:19191";
-/// Dashboard（HTTP 控制台）地址，daemon 启动时在此监听。
-const DASHBOARD_ADDR: &str = "127.0.0.1:19192";
-/// PATH 兜底时用的裸命令名。
-const BINARY: &str = "claude-runtime";
-
-/// 解析 claude-runtime 可执行文件路径：
-/// 优先随包 sidecar——Tauri 打包/`tauri dev` 都会把 externalBin 拷到主程序同目录
-/// 并去掉 target triple 后缀（即 主exe同目录/claude-runtime[.exe]），实现最终用户零安装。
-/// 找不到再回退 PATH 中的裸命令名（开发者本地 `cargo install` 的场景）。
-fn runtime_binary() -> String {
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let name = if cfg!(windows) { "claude-runtime.exe" } else { "claude-runtime" };
-            let sidecar = dir.join(name);
-            if sidecar.exists() {
-                return sidecar.to_string_lossy().into_owned();
-            }
-        }
-    }
-    BINARY.to_string()
-}
 
 /// 向 daemon 发一条命令，读回一行 JSON。连接失败（daemon 未运行）→ 友好错误。
 fn daemon_call(cmd: &str, args: serde_json::Value) -> Result<serde_json::Value, String> {
     let mut stream = TcpStream::connect(DAEMON_ADDR)
-        .map_err(|_| "claude-runtime daemon 未运行（用 `claude-runtime daemon start` 启动）".to_string())?;
+        .map_err(|_| "进程管理 daemon 未运行（点「立即修复」在进程内拉起）".to_string())?;
     stream.set_read_timeout(Some(Duration::from_secs(10))).ok();
     stream.set_write_timeout(Some(Duration::from_secs(5))).ok();
 
@@ -71,131 +49,59 @@ pub fn runtime_command(cmd: String, args: serde_json::Value) -> Result<serde_jso
 /// 一次性体检结果：给设置页与「进程」tab 展示 + 判断是否需修复。
 #[derive(serde::Serialize)]
 pub struct RuntimeDiag {
-    /// PATH 中能否找到 claude-runtime 二进制
-    binary_found: bool,
-    /// 二进制解析到的绝对路径（找不到则空）
-    binary_path: String,
-    /// `claude-runtime --version` 输出（找不到则空）
-    version: String,
     /// daemon（:19191）是否可连接
     daemon_running: bool,
-    /// Dashboard（:19192）是否可连接
-    dashboard_reachable: bool,
+    /// 运行中的 daemon 是否为 rework 进程内那个（否则为外部 claude-runtime CLI 的）
+    embedded: bool,
+    /// 当前托管的进程数
+    process_count: usize,
 }
 
-/// 解析二进制绝对路径（仅用于展示“装没装、在哪”）：
-/// 随包 sidecar 命中则直接返回其绝对路径；否则 PATH 用 where/which 定位。
-fn resolve_binary_path() -> Option<String> {
-    let b = runtime_binary();
-    // 随包 sidecar：runtime_binary 已返回存在的绝对路径。
-    if Path::new(&b).is_absolute() {
-        return Some(b);
-    }
-    #[cfg(windows)]
-    let locate = Command::new("where").arg(BINARY).output();
-    #[cfg(not(windows))]
-    let locate = Command::new("which").arg(BINARY).output();
-
-    let out = locate.ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let text = String::from_utf8_lossy(&out.stdout);
-    text.lines().next().map(|l| l.trim().to_string()).filter(|s| !s.is_empty())
+/// 运行中的 daemon 是否为 rework 进程内那个：对比 PID 文件与本进程 PID。
+fn is_embedded_daemon() -> bool {
+    let path = crate::runtime::daemon::pid_file_path();
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        .map(|pid| pid == std::process::id())
+        .unwrap_or(false)
 }
 
-/// 读取版本号（顺带确认二进制真的可执行）。找不到/执行失败 → None。
-fn read_version() -> Option<String> {
-    let out = Command::new(runtime_binary()).arg("--version").output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let v = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if v.is_empty() { None } else { Some(v) }
-}
-
-/// 体检 claude-runtime：二进制 / 版本 / daemon / dashboard 四项状态一次返回。
+/// 体检：daemon 是否在跑 / 是进程内还是外部 / 托管进程数。
 #[tauri::command]
 pub fn runtime_diagnose() -> RuntimeDiag {
-    let binary_path = resolve_binary_path().unwrap_or_default();
-    let version = read_version().unwrap_or_default();
-    // 能读到版本 或 能定位路径，都算“装了”
-    let binary_found = !version.is_empty() || !binary_path.is_empty();
+    let daemon_running = TcpStream::connect(DAEMON_ADDR).is_ok();
+    let process_count = if daemon_running {
+        daemon_call("ps", serde_json::json!({}))
+            .ok()
+            .and_then(|v| v.as_array().map(|a| a.len()))
+            .unwrap_or(0)
+    } else {
+        0
+    };
     RuntimeDiag {
-        binary_found,
-        binary_path,
-        version,
-        daemon_running: TcpStream::connect(DAEMON_ADDR).is_ok(),
-        dashboard_reachable: TcpStream::connect(DASHBOARD_ADDR).is_ok(),
+        daemon_running,
+        embedded: is_embedded_daemon(),
+        process_count,
     }
 }
 
-/// 以“分离子进程”方式拉起 daemon：`claude-runtime daemon start`。
-/// 关键点：daemon start 是前台阻塞进程（主线程跑托盘消息循环），必须 detached
-/// 且不 wait，才能让它独立于 rework 存活；子进程句柄丢弃不影响其运行。
-fn spawn_daemon_detached() -> Result<(), String> {
-    let mut cmd = Command::new(runtime_binary());
-    cmd.args(["daemon", "start"]);
-
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        // DETACHED_PROCESS(0x8) 脱离控制台（无黑窗）；
-        // CREATE_NEW_PROCESS_GROUP(0x200) 独立进程组，rework 退出不牵连 daemon。
-        cmd.creation_flags(0x0000_0008 | 0x0000_0200);
-    }
-
-    let child = cmd
-        .spawn()
-        .map_err(|e| format!("启动 claude-runtime 失败（PATH 中未找到二进制？）：{e}"))?;
-    // 丢弃句柄使其独立运行；不 wait，避免阻塞。
-    std::mem::forget(child);
-    Ok(())
-}
-
-/// 确保 daemon 在运行：已运行直接返回 true；否则 detached 拉起并轮询 ~3s 复检。
-/// 既作前端“自动启动”入口，也作手动“立即修复”入口。二进制缺失则 Err（前端提示安装）。
+/// 确保 daemon 在运行：已运行直接返回 true；否则在 rework 进程内起 headless daemon
+/// 并轮询复检。既作前端"自动启动"入口，也作手动"立即修复"入口。
+/// 幂等：外部 claude-runtime daemon 已在跑则内部守卫自动让路。
 #[tauri::command]
 pub fn runtime_ensure_daemon() -> Result<bool, String> {
-    // 已在运行：幂等直接返回（避免重复 spawn 出第二个托盘）。
     if TcpStream::connect(DAEMON_ADDR).is_ok() {
         return Ok(true);
     }
-    spawn_daemon_detached()?;
-    // 轮询等待 daemon 绑定端口（daemon start 主线程先 sleep 2s 再跑托盘，故给足 ~4s）。
-    for _ in 0..20 {
+    // 进程内起（不再依赖任何外部二进制/独立进程/第二托盘）。
+    crate::runtime::start_embedded();
+    // 轮询等待 daemon 绑定端口（进程内起很快，给足 ~2s 兜底）。
+    for _ in 0..10 {
         std::thread::sleep(Duration::from_millis(200));
         if TcpStream::connect(DAEMON_ADDR).is_ok() {
             return Ok(true);
         }
     }
     Ok(false)
-}
-
-/// 在系统默认浏览器打开 claude-runtime Dashboard（:19192）。
-#[tauri::command]
-pub fn runtime_open_dashboard() -> Result<(), String> {
-    let url = format!("http://{DASHBOARD_ADDR}");
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        // explorer 可直接打开 URL，交给系统默认浏览器。
-        let mut c = Command::new("explorer");
-        c.arg(&url);
-        c
-    };
-    #[cfg(target_os = "macos")]
-    let mut cmd = {
-        let mut c = Command::new("open");
-        c.arg(&url);
-        c
-    };
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let mut cmd = {
-        let mut c = Command::new("xdg-open");
-        c.arg(&url);
-        c
-    };
-    // explorer 打开 URL 成功时也可能返回非零码，故 spawn 不判状态。
-    cmd.spawn().map_err(|e| format!("打开 Dashboard 失败：{e}"))?;
-    Ok(())
 }

@@ -44,6 +44,11 @@ tantivy = "0.22"
 jieba-rs = "0.7"
 toml = "0.8"
 bincode = "1" # RAG 向量文件序列化
+# ── 进程管理内核（从 claude-runtime 融入）所需 ──
+uuid = { version = "1", features = ["v4"] } # 进程短 ID
+socket2 = { version = "0.5", features = ["all"] } # daemon SO_REUSEADDR 绑定
+rusqlite = { version = "0.31", features = ["bundled"] } # 进程日志 SQLite 存储
+regex = "1" # 日志解析
 fastembed = { version = "4", optional = true } # 本地嵌入（ONNX），仅 local-embed feature
 rmcp = { version = "0.16", features = ["server", "transport-streamable-http-server"] }
 axum = "0.8"
