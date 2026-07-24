@@ -30,21 +30,29 @@ fn git(path: &str, args: &[&str]) -> Option<String> {
     Some(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
-/// 返回给定目录的 git 状态：当前分支 + 未提交变更数；非仓库时 is_repo=false。
-#[tauri::command]
-pub fn git_info(path: String) -> GitInfo {
+/// git 状态的阻塞实现（多次 git 子进程）。供 async 命令 spawn_blocking 调用。
+fn git_info_impl(path: &str) -> GitInfo {
     // 探测是否处于 git 工作树内
-    let is_repo = git(&path, &["rev-parse", "--is-inside-work-tree"])
+    let is_repo = git(path, &["rev-parse", "--is-inside-work-tree"])
         .map(|s| s.trim() == "true")
         .unwrap_or(false);
     if !is_repo {
         return GitInfo { branch: None, dirty_count: 0, is_repo: false };
     }
-    let branch = git(&path, &["symbolic-ref", "HEAD"]).and_then(|s| parse_branch(&s));
-    let dirty_count = git(&path, &["status", "--porcelain"])
+    let branch = git(path, &["symbolic-ref", "HEAD"]).and_then(|s| parse_branch(&s));
+    let dirty_count = git(path, &["status", "--porcelain"])
         .map(|s| count_dirty(&s))
         .unwrap_or(0);
     GitInfo { branch, dirty_count, is_repo: true }
+}
+
+/// 返回给定目录的 git 状态：当前分支 + 未提交变更数；非仓库时 is_repo=false。
+/// async + spawn_blocking：git 子进程移出主线程，避免冻结 UI（Tauri 同步命令跑主线程）。
+#[tauri::command]
+pub async fn git_info(path: String) -> GitInfo {
+    tokio::task::spawn_blocking(move || git_info_impl(&path))
+        .await
+        .unwrap_or(GitInfo { branch: None, dirty_count: 0, is_repo: false })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -137,9 +145,9 @@ pub fn correlate_session_commits(
 
 /// 读取仓库在 [since, until] 内的提交（ISO 时间；None 则不限）。limit 钳 ≤500。
 /// 非仓库 / git 失败 → 空 Vec（非致命，与 git_info 一致）。
-#[tauri::command]
-pub fn git_log(
-    path: String,
+/// git log 的阻塞实现（git 子进程）。供 async 命令与 session_commits 共用，避免主线程阻塞。
+pub(crate) fn git_log_impl(
+    path: &str,
     since: Option<String>,
     until: Option<String>,
     limit: u32,
@@ -157,10 +165,24 @@ pub fn git_log(
         args.push("--until");
         args.push(u);
     }
-    match git(&path, &args) {
+    match git(path, &args) {
         Some(out) => parse_git_log(&out),
         None => Vec::new(),
     }
+}
+
+/// 读取会话溯源提交列表（含 Rework-Session trailer 解析）。
+/// async + spawn_blocking：git 子进程移出主线程。
+#[tauri::command]
+pub async fn git_log(
+    path: String,
+    since: Option<String>,
+    until: Option<String>,
+    limit: u32,
+) -> Vec<CommitInfo> {
+    tokio::task::spawn_blocking(move || git_log_impl(&path, since, until, limit))
+        .await
+        .unwrap_or_default()
 }
 
 // ─────────────────────────────────────────────────────────────
