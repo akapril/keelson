@@ -1,7 +1,7 @@
 // SessionChat —— 会话中枢右侧内联聊天：展示会话历史(气泡) + 底部直接续聊(流式)。
 // codex-gui 风格:用户右、助手左，等宽友好，滚动到底。续聊用配置的 AI（非重开 CLI 会话），
 // 历史按会话持久化到 localStorage。
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SentIcon } from "@hugeicons/core-free-icons";
@@ -107,8 +107,11 @@ export function SessionChat({
   // 用新 key，避免旧版（历史+续聊混存）数据被当作续聊重复展示
   const storeKey = `rework-ai-continue2-${session.session_id}`;
 
-  // 展示 = 完整历史 + 续聊
-  const messages = [...history, ...continued];
+  // 展示 = 完整历史 + 续聊（useMemo：history/continued 变才重建，避免每次输入击键重展开）
+  const messages = useMemo(
+    () => [...history, ...continued],
+    [history, continued],
+  );
 
   // 切换会话：读完整时间线为历史 + 载入已存续聊。
   useEffect(() => {
