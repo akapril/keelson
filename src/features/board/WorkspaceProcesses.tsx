@@ -184,6 +184,16 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
         <Button type="submit" disabled={busy || !cmd.trim()}>
           启动
         </Button>
+        {/* 手动刷新：每 4s 已自动刷新，此处即时刷新（不必等一轮轮询） */}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy}
+          title="立即刷新进程列表（每 4s 自动刷新）"
+          onClick={() => void refresh()}
+        >
+          刷新
+        </Button>
       </form>
 
       <div className="flex min-h-0 flex-1 gap-3">
