@@ -621,12 +621,11 @@ function RuntimeSection() {
           <span className="text-muted-foreground">{checking ? "体检中…" : "未体检"}</span>
         ) : !diag.binary_found ? (
           <div className="space-y-1 text-amber-600 dark:text-amber-400">
-            <div>未检测到 claude-runtime 二进制（不在 PATH 中）。</div>
+            <div>未检测到 claude-runtime 二进制。</div>
             <div className="text-muted-foreground">
-              安装后即可使用：
-              <code className="ml-1 rounded bg-muted px-1 text-foreground">
-                cargo install --path D:\workspace\claude-runtime\crates\cli
-              </code>
+              正常随 rework 安装包内置，无需手动安装；若从源码运行且缺失，构建前执行
+              <code className="mx-1 rounded bg-muted px-1 text-foreground">pnpm fetch:cr</code>
+              把二进制放入 binaries/ 即可。
             </div>
           </div>
         ) : (

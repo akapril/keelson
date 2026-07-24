@@ -6,14 +6,32 @@
 //! rework 不改 claude-runtime，只当它的客户端；daemon 未运行则返回友好提示。
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
+use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
 const DAEMON_ADDR: &str = "127.0.0.1:19191";
 /// Dashboard（HTTP 控制台）地址，daemon 启动时在此监听。
 const DASHBOARD_ADDR: &str = "127.0.0.1:19192";
-/// claude-runtime 可执行文件名（依赖 PATH 解析，用户已 `cargo install` 到 ~/.cargo/bin）。
+/// PATH 兜底时用的裸命令名。
 const BINARY: &str = "claude-runtime";
+
+/// 解析 claude-runtime 可执行文件路径：
+/// 优先随包 sidecar——Tauri 打包/`tauri dev` 都会把 externalBin 拷到主程序同目录
+/// 并去掉 target triple 后缀（即 主exe同目录/claude-runtime[.exe]），实现最终用户零安装。
+/// 找不到再回退 PATH 中的裸命令名（开发者本地 `cargo install` 的场景）。
+fn runtime_binary() -> String {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let name = if cfg!(windows) { "claude-runtime.exe" } else { "claude-runtime" };
+            let sidecar = dir.join(name);
+            if sidecar.exists() {
+                return sidecar.to_string_lossy().into_owned();
+            }
+        }
+    }
+    BINARY.to_string()
+}
 
 /// 向 daemon 发一条命令，读回一行 JSON。连接失败（daemon 未运行）→ 友好错误。
 fn daemon_call(cmd: &str, args: serde_json::Value) -> Result<serde_json::Value, String> {
@@ -65,9 +83,14 @@ pub struct RuntimeDiag {
     dashboard_reachable: bool,
 }
 
-/// 解析二进制绝对路径：Windows 用 `where`，类 Unix 用 `which`，取首行。
-/// 仅用于展示（诊断“装没装、在哪”），实际启动仍走 PATH 直接 spawn。
+/// 解析二进制绝对路径（仅用于展示“装没装、在哪”）：
+/// 随包 sidecar 命中则直接返回其绝对路径；否则 PATH 用 where/which 定位。
 fn resolve_binary_path() -> Option<String> {
+    let b = runtime_binary();
+    // 随包 sidecar：runtime_binary 已返回存在的绝对路径。
+    if Path::new(&b).is_absolute() {
+        return Some(b);
+    }
     #[cfg(windows)]
     let locate = Command::new("where").arg(BINARY).output();
     #[cfg(not(windows))]
@@ -83,7 +106,7 @@ fn resolve_binary_path() -> Option<String> {
 
 /// 读取版本号（顺带确认二进制真的可执行）。找不到/执行失败 → None。
 fn read_version() -> Option<String> {
-    let out = Command::new(BINARY).arg("--version").output().ok()?;
+    let out = Command::new(runtime_binary()).arg("--version").output().ok()?;
     if !out.status.success() {
         return None;
     }
@@ -111,7 +134,7 @@ pub fn runtime_diagnose() -> RuntimeDiag {
 /// 关键点：daemon start 是前台阻塞进程（主线程跑托盘消息循环），必须 detached
 /// 且不 wait，才能让它独立于 rework 存活；子进程句柄丢弃不影响其运行。
 fn spawn_daemon_detached() -> Result<(), String> {
-    let mut cmd = Command::new(BINARY);
+    let mut cmd = Command::new(runtime_binary());
     cmd.args(["daemon", "start"]);
 
     #[cfg(windows)]
