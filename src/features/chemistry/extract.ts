@@ -2,6 +2,7 @@
 // prompt 构造 + AI 回复解析为纯函数（可单测）；写入与 UI 在别处。
 import type { TaskPriority } from "@/types/board";
 import type { TimelineMessage } from "@/types/session";
+import { parseJsonReply, asString, asRecord } from "@/lib/ai-json-parse";
 
 export interface TaskCandidate {
   title: string;
@@ -36,36 +37,12 @@ export function buildContext(timeline: TimelineMessage[]): string {
     : joined;
 }
 
-/** 安全读取对象字段。 */
-function asRecord(v: unknown): Record<string, unknown> | null {
-  return v && typeof v === "object" && !Array.isArray(v)
-    ? (v as Record<string, unknown>)
-    : null;
-}
-function asString(v: unknown): string | undefined {
-  return typeof v === "string" ? v : undefined;
-}
-
 /**
- * 解析 AI 回复为候选。容错：去除 ```json 围栏、截取首个 { 到末个 }；失败返回空。
+ * 解析 AI 回复为候选。容错解析（去围栏/截取/parse）复用 lib/ai-json-parse；失败返回空。
  */
 export function parseCandidates(reply: string): Candidates {
   const empty: Candidates = { tasks: [], docs: [] };
-  if (!reply) return empty;
-
-  let s = reply.trim();
-  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) s = fence[1].trim();
-  const start = s.indexOf("{");
-  const end = s.lastIndexOf("}");
-  if (start >= 0 && end > start) s = s.slice(start, end + 1);
-
-  let obj: Record<string, unknown> | null;
-  try {
-    obj = asRecord(JSON.parse(s));
-  } catch {
-    return empty;
-  }
+  const obj = asRecord(parseJsonReply(reply));
   if (!obj) return empty;
 
   const tasks: TaskCandidate[] = Array.isArray(obj.tasks)

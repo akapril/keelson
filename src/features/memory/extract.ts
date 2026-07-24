@@ -1,6 +1,7 @@
 // 记忆抽取：从会话时间线 AI 出候选记忆 + 字符级去重（MVP，不依赖向量）。
 // prompt 构造与解析、去重均为纯函数（可单测）；写入与 UI 在别处。
 import type { MemoryKind, MemoryScope, Memory } from "@/types/memory";
+import { parseJsonReply } from "@/lib/ai-json-parse";
 
 export interface MemoryCandidate {
   content: string;
@@ -21,20 +22,8 @@ export const MEMORY_EXTRACT_SYSTEM = `你是知识沉淀助手。从给定的编
 
 /** 从 AI 回复解析候选记忆。容错：去围栏、截首个 { 到末个 }、字段校验；失败返回空。 */
 export function parseMemories(reply: string): MemoryCandidate[] {
-  if (!reply) return [];
-  let s = reply.trim();
-  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) s = fence[1].trim();
-  const start = s.indexOf("{");
-  const end = s.lastIndexOf("}");
-  if (start >= 0 && end > start) s = s.slice(start, end + 1);
-
-  let obj: unknown;
-  try {
-    obj = JSON.parse(s);
-  } catch {
-    return [];
-  }
+  const obj = parseJsonReply(reply);
+  if (obj === null) return [];
   const arr =
     obj && typeof obj === "object" && Array.isArray((obj as { memories?: unknown }).memories)
       ? (obj as { memories: unknown[] }).memories
