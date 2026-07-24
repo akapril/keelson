@@ -30,14 +30,27 @@ export function DashboardLayout() {
 
   // 监听后端活动流事件（MCP 工具调用）：推入内存环形缓冲，供顶栏指示 + 项目 tab 实时渲染。
   // 挂在 DashboardLayout（仅主窗渲染、生命周期与主界面一致），全应用仅订阅一次。
+  // 性能：Claude 爆发式调工具时事件高频到达，逐条 push 会造成渲染风暴（每条一次数组拷贝+
+  // 全量排序+整列表重渲）。故在此按 120ms 窗口合批，一批只触发一次重渲。
   useEffect(() => {
+    let buffer: ActivityEvent[] = [];
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => {
+      timer = null;
+      if (buffer.length === 0) return;
+      const batch = buffer;
+      buffer = [];
+      useActivityStore.getState().pushMany(batch);
+    };
     const p = on<ActivityEvent>("activity", (ev) => {
       if (!ev) return;
-      useActivityStore.getState().push(ev);
-      // Task 工具事件 → 自动把该会话规划任务同步进匹配看板项目（防抖，内部判定）
+      buffer.push(ev);
+      if (!timer) timer = setTimeout(flush, 120);
+      // Task 工具事件 → 自动把该会话规划任务同步进匹配看板项目（自身已防抖）
       maybeAutoSyncTasks(ev);
     });
     return () => {
+      if (timer) clearTimeout(timer);
       void p.then((un) => un());
     };
   }, []);
