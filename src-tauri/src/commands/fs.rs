@@ -9,6 +9,16 @@ use std::process::Command;
 #[tauri::command]
 pub fn write_text_file(path: String, content: String) -> Result<(), String> {
     let p = Path::new(&path);
+    // 防写入已知敏感文件（WebView XSS/注入企图持久化后门）
+    let fname = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+    const BLOCKED: &[&str] = &[
+        ".bashrc", ".zshrc", ".bash_profile", ".profile",
+        "id_rsa", "id_ed25519", "authorized_keys", "known_hosts",
+        "settings.json", "hosts",
+    ];
+    if BLOCKED.iter().any(|b| fname.eq_ignore_ascii_case(b)) {
+        return Err(format!("拒绝写入敏感文件: {fname}"));
+    }
     if let Some(parent) = p.parent() {
         if !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {e}"))?;
@@ -76,6 +86,15 @@ pub struct MdFile {
 /// 读文本文件（导入计划 / 规格用）。不存在或非 UTF-8 → Err。
 #[tauri::command]
 pub fn read_text_file(path: String) -> Result<String, String> {
+    // 仅允许读 .md / .json（当前用途：导入计划 .md、Taskmaster tasks.json）。
+    // 防任意文件读取（如 ~/.ssh/id_rsa、.env）。
+    let ext = Path::new(&path)
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase());
+    if !matches!(ext.as_deref(), Some("md") | Some("json")) {
+        return Err("仅支持读取 .md / .json 文件".into());
+    }
     fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {e}"))
 }
 
@@ -138,6 +157,20 @@ mod tests {
     #[test]
     fn read_missing_file_errors() {
         assert!(read_text_file("Z:/no/such/file.md".into()).is_err());
+    }
+
+    #[test]
+    fn read_rejects_non_md() {
+        // 非 .md 一律拒绝（防任意文件读取）
+        assert!(read_text_file("C:/Windows/System32/drivers/etc/hosts".into()).is_err());
+        assert!(read_text_file("Z:/secret.txt".into()).is_err());
+    }
+
+    #[test]
+    fn write_rejects_sensitive() {
+        // 敏感文件名一律拒绝写入
+        assert!(write_text_file("Z:/tmp/.bashrc".into(), "x".into()).is_err());
+        assert!(write_text_file("Z:/home/user/id_rsa".into(), "x".into()).is_err());
     }
 
     #[test]
