@@ -5,10 +5,8 @@
   "type": "module",
   "scripts": {
     "fetch:pb": "node scripts/fetch-pocketbase.mjs",
-    "fetch:cr": "node scripts/fetch-claude-runtime.mjs",
-    "fetch:bin": "node scripts/fetch-pocketbase.mjs && node scripts/fetch-claude-runtime.mjs",
-    "predev": "node scripts/fetch-pocketbase.mjs && node scripts/fetch-claude-runtime.mjs",
-    "prebuild": "node scripts/fetch-pocketbase.mjs && node scripts/fetch-claude-runtime.mjs",
+    "predev": "node scripts/fetch-pocketbase.mjs",
+    "prebuild": "node scripts/fetch-pocketbase.mjs",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",

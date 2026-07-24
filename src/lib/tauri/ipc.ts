@@ -226,8 +226,6 @@ export const ipc = {
     invoke<unknown>("runtime_command", { cmd: "restart", args: { name } }),
   /** 一次性体检：二进制/版本/daemon/dashboard 状态 */
   runtimeDiagnose: () => invoke<RuntimeDiag>("runtime_diagnose"),
-  /** 确保 daemon 运行：已运行返回 true，否则拉起并轮询复检（自动启动/手动修复共用） */
+  /** 确保 daemon 运行：已运行返回 true，否则在进程内拉起并轮询复检（自动启动/手动修复共用） */
   runtimeEnsureDaemon: () => invoke<boolean>("runtime_ensure_daemon"),
-  /** 在默认浏览器打开 Dashboard(:19192) */
-  runtimeOpenDashboard: () => invoke<void>("runtime_open_dashboard"),
 };

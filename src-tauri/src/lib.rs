@@ -30,6 +30,8 @@ pub mod scan_cache;
 pub mod rag;
 // 应用内 MCP server
 mod mcp;
+// 进程管理内核（从 claude-runtime 融入，headless，进程内起 daemon）
+pub mod runtime;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
@@ -252,6 +254,10 @@ pub fn run() {
                 eprintln!("[rework] 托盘初始化失败（非致命）: {e:#}");
             }
 
+            // ── 进程管理 daemon（融入 claude-runtime，headless，进程内起）──
+            // 幂等：外部 claude-runtime daemon 已在跑则内部守卫自动让路。
+            runtime::start_embedded();
+
             // 确定 PB 数据目录和迁移文件目录
             let data_dir = app.path().app_data_dir()?.join("pb_data");
             let mig_dir = resolve_migrations_dir(&handle);
@@ -332,7 +338,6 @@ pub fn run() {
             commands::runtime::runtime_command,
             commands::runtime::runtime_diagnose,
             commands::runtime::runtime_ensure_daemon,
-            commands::runtime::runtime_open_dashboard,
             // MCP 一键接入 claude / codex
             commands::mcp::mcp_endpoint,
             commands::mcp::mcp_install_claude,

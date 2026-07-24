@@ -38,10 +38,6 @@ import {
   getAutoSyncTasks,
   setAutoSyncTasks,
 } from "@/features/board/auto-sync-pref";
-import {
-  getAutoStartRuntime,
-  setAutoStartRuntime,
-} from "@/features/board/runtime-daemon";
 import type { RuntimeDiag } from "@/types/runtime";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
@@ -546,16 +542,15 @@ function AutoSyncTasksSection() {
 }
 
 /**
- * claude-runtime 运行时区：融入的进程管理器（daemon）的自检 / 自动启动 / 修复入口。
- * 「进程」tab 依赖 daemon 在 :19191 运行；此处集中管理其生命周期，让「未运行」基本不再出现。
- * 自动启动为纯本地偏好（默认开），App 启动时按此拉起；「立即修复」手动补救。
+ * 运行时区：进程管理 daemon（已从 claude-runtime 融入 rework 进程内）的自检 / 修复。
+ * daemon 随 rework 启动恒定在进程内起（headless，:19191 + ~/.claude-runtime store），
+ * 与终端 claude-runtime CLI 共享同一批进程。「立即修复」在极少数没起来时手动补起。
  */
 function RuntimeSection() {
   // null=尚未体检；否则为最近一次 diagnose 结果
   const [diag, setDiag] = useState<RuntimeDiag | null>(null);
   const [checking, setChecking] = useState(false);
   const [fixing, setFixing] = useState(false);
-  const [autoStart, setAutoStartState] = useState<boolean>(() => getAutoStartRuntime());
 
   // 拉取一次体检结果
   const check = async () => {
@@ -579,7 +574,7 @@ function RuntimeSection() {
     try {
       const up = await ipc.runtimeEnsureDaemon();
       toast[up ? "success" : "error"](
-        up ? "claude-runtime daemon 已就绪" : "拉起后仍未连通，请查看是否已安装二进制",
+        up ? "进程管理 daemon 已就绪" : "拉起后仍未连通（:19191 可能被占用）",
       );
       await check();
     } catch (e) {
@@ -589,58 +584,40 @@ function RuntimeSection() {
     }
   };
 
-  const toggleAuto = (on: boolean) => {
-    setAutoStartState(on);
-    setAutoStartRuntime(on);
-  };
-
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-sm font-medium">运行时（claude-runtime）</h2>
+        <h2 className="text-sm font-medium">运行时（进程管理）</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          融入的进程管理器。项目「进程」标签依赖它的 daemon 在后台运行。开启自动启动后，
-          rework 启动时会静默拉起 daemon（幂等安全），「未运行」基本不再出现。
+          进程管理内核已融入 rework 进程内，随应用启动，无需安装任何外部二进制。项目「进程」
+          标签由它驱动；与终端 <code className="rounded bg-muted px-1">claude-runtime</code> CLI
+          共享同一批进程（:19191 + ~/.claude-runtime）。
         </p>
       </div>
-
-      {/* 自动启动开关 */}
-      <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
-        <input
-          type="checkbox"
-          checked={autoStart}
-          onChange={(e) => toggleAuto(e.target.checked)}
-          className="size-4 cursor-pointer rounded border-input accent-primary"
-        />
-        <span>随 rework 自动启动 daemon</span>
-      </label>
 
       {/* 体检状态 */}
       <div className="space-y-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
         {diag === null ? (
           <span className="text-muted-foreground">{checking ? "体检中…" : "未体检"}</span>
-        ) : !diag.binary_found ? (
-          <div className="space-y-1 text-amber-600 dark:text-amber-400">
-            <div>未检测到 claude-runtime 二进制。</div>
-            <div className="text-muted-foreground">
-              正常随 rework 安装包内置，无需手动安装；若从源码运行且缺失，构建前执行
-              <code className="mx-1 rounded bg-muted px-1 text-foreground">pnpm fetch:cr</code>
-              把二进制放入 binaries/ 即可。
-            </div>
-          </div>
         ) : (
           <>
-            <StatusRow ok label="二进制" value={diag.version || diag.binary_path || "已安装"} />
             <StatusRow
               ok={diag.daemon_running}
               label="daemon (:19191)"
               value={diag.daemon_running ? "运行中" : "未运行"}
             />
             <StatusRow
-              ok={diag.dashboard_reachable}
-              label="Dashboard (:19192)"
-              value={diag.dashboard_reachable ? "可访问" : "未就绪"}
+              ok
+              label="运行方式"
+              value={
+                !diag.daemon_running
+                  ? "—"
+                  : diag.embedded
+                    ? "rework 进程内"
+                    : "外部 claude-runtime CLI"
+              }
             />
+            <StatusRow ok label="托管进程" value={`${diag.process_count} 个`} />
           </>
         )}
       </div>
@@ -650,18 +627,9 @@ function RuntimeSection() {
         <Button variant="outline" size="sm" disabled={checking} onClick={() => void check()}>
           {checking ? "体检中…" : "自检"}
         </Button>
-        {diag && diag.binary_found && !diag.daemon_running && (
+        {diag && !diag.daemon_running && (
           <Button variant="default" size="sm" disabled={fixing} onClick={() => void fix()}>
-            {fixing ? "启动中…" : "立即修复（启动 daemon）"}
-          </Button>
-        )}
-        {diag?.dashboard_reachable && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void ipc.runtimeOpenDashboard().catch(() => {})}
-          >
-            打开 Dashboard
+            {fixing ? "启动中…" : "立即修复（进程内启动）"}
           </Button>
         )}
       </div>
