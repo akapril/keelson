@@ -188,7 +188,7 @@ function HotkeyCapture({ value, onCapture, disabled }: HotkeyCaptureProps) {
  * 一键把 rework 写入客户端配置（~/.claude.json / ~/.codex/config.toml），无需手动 claude mcp add。
  */
 function McpSection() {
-  const [endpoint, setEndpoint] = useState<{ url: string; secret: string } | null>(null);
+  const [endpoint, setEndpoint] = useState<{ url: string } | null>(null);
   const [busy, setBusy] = useState<"claude" | "codex" | null>(null);
 
   useEffect(() => {

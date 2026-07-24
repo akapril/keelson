@@ -16,11 +16,13 @@ fn read_endpoint(app: &tauri::AppHandle) -> Result<(String, String), String> {
     Ok((url, secret))
 }
 
-/// 返回当前 MCP 端点（供设置页展示 / 手动配置）。
+/// 返回当前 MCP 端点 url（供设置页展示）。
+/// 不返回 secret：前端只展示 url，secret 仅后端 hooks/mcp 安装时从端点文件读，
+/// 避免 secret 暴露到 WebView JS 运行时（XSS 可读）。
 #[tauri::command]
 pub fn mcp_endpoint(app: tauri::AppHandle) -> Result<Value, String> {
-    let (url, secret) = read_endpoint(&app)?;
-    Ok(json!({ "url": url, "secret": secret }))
+    let (url, _secret) = read_endpoint(&app)?;
+    Ok(json!({ "url": url }))
 }
 
 /// 一键接入 Claude Code：把 rework 写入 ~/.claude.json 的 mcpServers（HTTP + Bearer）。
