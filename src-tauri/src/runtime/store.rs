@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use tokio::sync::Notify;
 
 /// 进程表变更通知：save_processes 后唤醒等待者。
@@ -11,6 +11,15 @@ use tokio::sync::Notify;
 pub fn change_notify() -> &'static Notify {
     static N: OnceLock<Notify> = OnceLock::new();
     N.get_or_init(Notify::new)
+}
+
+/// 进程表读-改-写串行锁：防止健康检查(10s)/看门狗(2s)/端口检测(1s) 并发写
+/// processes.json 互相覆盖导致数据损坏。锁粒度=「整个 load+modify+save 序列」，
+/// 进程表极小（几十条），串行代价可忽略。只在公开修改函数入口取锁，
+/// save/load 内部不再取锁（避免重入死锁）。
+fn table_lock() -> &'static Mutex<()> {
+    static L: OnceLock<Mutex<()>> = OnceLock::new();
+    L.get_or_init(|| Mutex::new(()))
 }
 
 /// 进程表条目
@@ -51,18 +60,20 @@ fn default_health() -> String {
     "unknown".to_string()
 }
 
-/// 获取 runtime 数据目录 (~/.claude-runtime/)
+/// 获取 runtime 数据目录 (~/.claude-runtime/)。
+/// 失败（无 home / 无法建目录）时回退系统临时目录，绝不 panic（跑在主进程）。
 pub fn runtime_dir() -> PathBuf {
-    let home = dirs::home_dir().expect("无法获取 home 目录");
-    let dir = home.join(".claude-runtime");
-    fs::create_dir_all(&dir).expect("无法创建 runtime 目录");
+    let base = dirs::home_dir().unwrap_or_else(std::env::temp_dir);
+    let dir = base.join(".claude-runtime");
+    // 建目录失败不致命：后续读写各自处理错误
+    let _ = fs::create_dir_all(&dir);
     dir
 }
 
-/// 获取 stdout 日志目录
+/// 获取 stdout 日志目录。建目录失败不 panic。
 pub fn stdout_dir() -> PathBuf {
     let dir = runtime_dir().join("stdout");
-    fs::create_dir_all(&dir).expect("无法创建 stdout 目录");
+    let _ = fs::create_dir_all(&dir);
     dir
 }
 
@@ -71,21 +82,35 @@ fn process_table_path() -> PathBuf {
     runtime_dir().join("processes.json")
 }
 
-/// 读取进程表
+/// 读取进程表。读失败或解析失败均返回空表（进程表不可读时不该崩 app）。
 pub fn load_processes() -> Vec<ProcessEntry> {
     let path = process_table_path();
     if !path.exists() {
         return Vec::new();
     }
-    let data = fs::read_to_string(&path).expect("无法读取进程表");
-    serde_json::from_str(&data).unwrap_or_default()
+    match fs::read_to_string(&path) {
+        Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
+        Err(e) => {
+            eprintln!("[runtime] 读取进程表失败（返回空表）: {e}");
+            Vec::new()
+        }
+    }
 }
 
-/// 写入进程表。写完唤醒变更通知，供前端实时刷新。
+/// 写入进程表。序列化/写盘失败时记日志但不 panic；成功后唤醒变更通知，供前端实时刷新。
 pub fn save_processes(entries: &[ProcessEntry]) {
     let path = process_table_path();
-    let data = serde_json::to_string_pretty(entries).expect("无法序列化进程表");
-    fs::write(&path, data).expect("无法写入进程表");
+    let data = match serde_json::to_string_pretty(entries) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("[runtime] 序列化进程表失败: {e}");
+            return;
+        }
+    };
+    if let Err(e) = fs::write(&path, data) {
+        eprintln!("[runtime] 写入进程表失败: {e}");
+        return;
+    }
     // 进程表已变更 → 唤醒订阅者（rework 主进程会 emit 给前端）
     change_notify().notify_waiters();
 }
@@ -98,25 +123,29 @@ pub fn find_process(name_or_id: &str) -> Option<ProcessEntry> {
         .find(|e| e.name == name_or_id || e.id == name_or_id)
 }
 
-/// 添加一个进程条目
+/// 添加一个进程条目（读改写全序列持锁）
 pub fn add_process(entry: ProcessEntry) {
+    // 中毒锁也继续（into_inner），避免一次 panic 后所有进程操作永久死锁
+    let _guard = table_lock().lock().unwrap_or_else(|e| e.into_inner());
     let mut entries = load_processes();
     entries.push(entry);
     save_processes(&entries);
 }
 
-/// 移除一个进程条目（按 ID）
+/// 移除一个进程条目（按 ID，读改写全序列持锁）
 pub fn remove_process(id: &str) {
+    let _guard = table_lock().lock().unwrap_or_else(|e| e.into_inner());
     let mut entries = load_processes();
     entries.retain(|e| e.id != id);
     save_processes(&entries);
 }
 
-/// 更新一个进程条目的字段
+/// 更新一个进程条目的字段（读改写全序列持锁）
 pub fn update_process<F>(id: &str, updater: F)
 where
     F: FnOnce(&mut ProcessEntry),
 {
+    let _guard = table_lock().lock().unwrap_or_else(|e| e.into_inner());
     let mut entries = load_processes();
     if let Some(entry) = entries.iter_mut().find(|e| e.id == id) {
         updater(entry);
