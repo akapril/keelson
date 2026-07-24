@@ -1,5 +1,5 @@
 // TaskCard —— 看板单任务卡片（视觉移植自 workavera todo-card，绑定我们的 store/类型）。
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "react-router-dom";
@@ -65,7 +65,7 @@ interface TaskCardProps {
  * inline style 仅用于用户数据颜色（label.color）与 dnd transform。
  * 多选模式：左上角勾选框 + 点击切换勾选（不打开编辑）；拖拽禁用。
  */
-export function TaskCard({
+function TaskCardInner({
   task,
   onEdit,
   selectMode = false,
@@ -75,7 +75,6 @@ export function TaskCard({
 }: TaskCardProps) {
   const labels = useBoardStore((s) => s.labels);
   const states = useBoardStore((s) => s.states);
-  const tasks = useBoardStore((s) => s.tasks);
   const updateTask = useBoardStore((s) => s.updateTask);
   const deleteTask = useBoardStore((s) => s.deleteTask);
   const moveTask = useBoardStore((s) => s.moveTask);
@@ -91,7 +90,11 @@ export function TaskCard({
   // 右键菜单：移动到目标状态列（追加到末尾）
   const moveTo = (stateId: string) => {
     if (stateId === task.state) return;
-    const toIndex = tasks.filter((t) => t.state === stateId).length;
+    // 点击时按需读一次 tasks（getState 非订阅），避免每张卡订阅整个 tasks 数组
+    // 导致任一任务变动全体卡片重渲。
+    const toIndex = useBoardStore
+      .getState()
+      .tasks.filter((t) => t.state === stateId).length;
     void moveTask(task.id, stateId, toIndex).catch((e) =>
       toast.error(`移动失败：${String(e)}`),
     );
@@ -373,3 +376,8 @@ export function TaskCard({
     </ContextMenu>
   );
 }
+
+// memo：仅当自身 props（task/选中态/回调）变化才重渲。
+// 关键前提——已去掉组件内对整个 tasks 数组的订阅，否则 memo 会被 store 订阅击穿。
+// 父层需传稳定回调（KanbanBoard 已 useCallback），否则 memo 失效。
+export const TaskCard = memo(TaskCardInner);

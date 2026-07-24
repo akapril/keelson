@@ -1,4 +1,5 @@
 // StatusColumn —— 看板列（视觉移植自 workavera status-column，绑定我们的类型）。
+import { memo } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -33,7 +34,7 @@ interface StatusColumnProps {
  * 列头：颜色点 + 名称 + 计数 + 加号按钮；空列显示"添加任务"占位按钮。
  * 多选模式：将 selectMode/selected/onToggleSelect/onEnterSelect 透传给 TaskCard。
  */
-export function StatusColumn({
+function StatusColumnInner({
   state,
   tasks,
   onAddTask,
@@ -133,3 +134,8 @@ export function StatusColumn({
     </div>
   );
 }
+
+// memo：仅当列的 state/tasks/选中态/回调变化才重渲。
+// 拖拽(activeTask)、注入状态、面板开关等 KanbanBoard 局部状态变化不再级联到未变的列。
+// 依赖父层传稳定回调（KanbanBoard 已用 useCallback + getState）。
+export const StatusColumn = memo(StatusColumnInner);
