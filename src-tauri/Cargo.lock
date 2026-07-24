@@ -4744,6 +4744,7 @@ dependencies = [
  "bincode",
  "chrono",
  "dirs 5.0.1",
+ "encoding_rs",
  "fastembed",
  "futures-util",
  "hex",

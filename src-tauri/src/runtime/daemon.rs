@@ -677,9 +677,11 @@ async fn daemon_log_capture(process_id: String, log_file_path: PathBuf) {
                     }
                 }
                 Ok(_) => {
-                    // 使用 lossy 转换以处理非 UTF-8 字符（如 Windows 系统命令的输出）
-                    let raw_cow = String::from_utf8_lossy(&byte_buf);
-                    let raw = raw_cow.trim_end_matches('\n').trim_end_matches('\r');
+                    // 智能解码：优先严格 UTF-8，失败回退 GB18030（GBK 超集）。
+                    // 修 Windows 中文子进程（npm/python 等）按系统 ANSI(GBK) 输出时
+                    // 被 from_utf8_lossy 当 UTF-8 解成 � 乱码的问题。
+                    let decoded = decode_log_bytes(&byte_buf);
+                    let raw = decoded.trim_end_matches('\n').trim_end_matches('\r');
                     if raw.is_empty() {
                         continue;
                     }
@@ -855,6 +857,20 @@ async fn watchdog(
 
 // ─────────────────────────── 工具函数 ────────────────────────────
 
+/// 解码一行日志字节：优先严格 UTF-8；失败则按 GB18030（GBK 超集，简体中文
+/// Windows 子进程常用的 ANSI 编码）解码。纯 ASCII 与纯 UTF-8 走前者，
+/// GBK 输出走后者，避免非法字节被 lossy 成 � 乱码。
+fn decode_log_bytes(bytes: &[u8]) -> String {
+    match std::str::from_utf8(bytes) {
+        Ok(s) => s.to_string(),
+        Err(_) => {
+            // GB18030 解码不会失败（有替换），对 GBK/GB2312/GB18030 均正确
+            let (cow, _, _) = encoding_rs::GB18030.decode(bytes);
+            cow.into_owned()
+        }
+    }
+}
+
 /// 解析持续时间字符串，如 "5m" → 300，"1h" → 3600，"30s" → 30
 fn parse_duration(s: &str) -> Option<i64> {
     let s = s.trim();
@@ -867,5 +883,24 @@ fn parse_duration(s: &str) -> Option<i64> {
     } else {
         // 无单位时视为秒
         s.parse::<i64>().ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_utf8_and_gbk() {
+        // 纯 ASCII：UTF-8 路径
+        assert_eq!(decode_log_bytes(b"hello world"), "hello world");
+        // UTF-8 中文：严格解码成功
+        assert_eq!(decode_log_bytes("编译完成".as_bytes()), "编译完成");
+        // GBK 中文字节（"编译"的 GBK 编码 B1 E0 D2 EB）：回退 GB18030 正确解码
+        let gbk = [0xB1u8, 0xE0, 0xD2, 0xEB];
+        assert_eq!(decode_log_bytes(&gbk), "编译");
+        // GBK 混 ASCII（"错误: fail" 的 GBK）：cuo wu = B4 ED CE F3
+        let mixed = [0xB4u8, 0xED, 0xCE, 0xF3, 0x3A, 0x20, 0x66, 0x61, 0x69, 0x6C];
+        assert_eq!(decode_log_bytes(&mixed), "错误: fail");
     }
 }
