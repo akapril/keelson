@@ -1,5 +1,5 @@
 // KanbanBoard —— 已打开项目的拖拽看板（纯看板；git 状态/关联会话由 ProjectWorkspace 承载）。
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useDeferredValue, useEffect, useRef, useMemo } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -101,15 +101,18 @@ export function KanbanBoard() {
     }
     return g;
   }, [tasks]);
+  // 搜索/筛选用「延迟值」：输入框由 filter(即时)驱动保持跟手，而重量级的
+  // 按列过滤 + 所有列/卡重渲用 deferredFilter，在低优先级下进行，不阻塞击键。
+  const deferredFilter = useDeferredValue(filter);
   const visibleByState = useMemo(() => {
     const map: Record<string, BoardTask[]> = {};
     for (const st of sortedStates) {
       map[st.id] = (grouped[st.id] ?? []).filter(
-        (t) => (showArchived || !t.archived) && taskMatchesFilter(t, filter),
+        (t) => (showArchived || !t.archived) && taskMatchesFilter(t, deferredFilter),
       );
     }
     return map;
-  }, [sortedStates, grouped, showArchived, filter]);
+  }, [sortedStates, grouped, showArchived, deferredFilter]);
 
   // 自动归档：进入项目、任务加载后，把「完成超过 N 天」的任务自动归档（阈值可在设置改，0=关）。
   useEffect(() => {
@@ -133,6 +136,17 @@ export function KanbanBoard() {
     open: false,
     mode: "create",
   });
+
+  // 传给列/卡的稳定回调（useCallback）——否则 memo 的 StatusColumn/TaskCard 会被
+  // 每次新建的内联箭头函数击穿，失去 memo 意义。
+  const openCreate = useCallback(
+    (stateId: string) => setSheet({ open: true, mode: "create", stateId }),
+    [],
+  );
+  const openEdit = useCallback(
+    (task: BoardTask) => setSheet({ open: true, mode: "edit", task }),
+    [],
+  );
 
   // ── 多选状态 ─────────────────────────────────────────────────
   const [selectMode, setSelectMode] = useState(false);
@@ -311,18 +325,21 @@ export function KanbanBoard() {
   const archivedCount = tasks.filter((t) => t.archived).length;
   const filterOn = isFilterActive(filter);
 
-  // 一键归档某列全部未归档任务
-  const archiveColumn = (stateId: string) => {
-    const ids = archivableInState(tasks, stateId);
-    if (ids.length === 0) return;
-    void Promise.allSettled(ids.map((id) => updateTask(id, { archived: true }))).then(
-      (rs) => {
-        const ok = rs.filter((r) => r.status === "fulfilled").length;
-        if (ok > 0) toast.success(`已归档 ${ok} 个任务`);
-        if (ok < ids.length) toast.error(`${ids.length - ok} 个归档失败`);
-      },
-    );
-  };
+  // 一键归档某列全部未归档任务（useCallback 稳定：tasks 按需 getState 读，不进依赖）
+  const archiveColumn = useCallback(
+    (stateId: string) => {
+      const ids = archivableInState(useBoardStore.getState().tasks, stateId);
+      if (ids.length === 0) return;
+      void Promise.allSettled(ids.map((id) => updateTask(id, { archived: true }))).then(
+        (rs) => {
+          const ok = rs.filter((r) => r.status === "fulfilled").length;
+          if (ok > 0) toast.success(`已归档 ${ok} 个任务`);
+          if (ok < ids.length) toast.error(`${ids.length - ok} 个归档失败`);
+        },
+      );
+    },
+    [updateTask],
+  );
 
   // 当前项目的仓库路径（注入依据 + 状态查询）
   const repoPath = projects.find((p) => p.id === openedProjectId)?.repo_path;
@@ -572,10 +589,8 @@ export function KanbanBoard() {
               key={state.id}
               state={state}
               tasks={visibleByState[state.id] ?? []}
-              onAddTask={(stateId) =>
-                setSheet({ open: true, mode: "create", stateId })
-              }
-              onEditTask={(task) => setSheet({ open: true, mode: "edit", task })}
+              onAddTask={openCreate}
+              onEditTask={openEdit}
               selectMode={selectMode}
               selected={selected}
               onToggleSelect={handleToggleSelect}
