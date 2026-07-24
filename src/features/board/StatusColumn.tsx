@@ -7,6 +7,7 @@ import { Add01Icon, ArchiveArrowDownIcon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useBoardStore } from "@/store/board";
 import type { BoardState, BoardTask } from "@/types/board";
 import { TaskCard } from "./TaskCard";
 
@@ -49,6 +50,11 @@ function StatusColumnInner({
     id: `state:${state.id}`,
     data: { type: "state", stateId: state.id },
   });
+
+  // 每列订阅一次 labels/states 传给卡片，取代原来每张卡各自订阅整个数组
+  // （100 卡 = 200 次 selector 求值/次 board 变更 → 降到每列一次）。
+  const labels = useBoardStore((s) => s.labels);
+  const states = useBoardStore((s) => s.states);
 
   // 完成类别列 + 当前有未归档任务 → 显示「一键归档已完成」入口
   const canArchiveColumn =
@@ -111,6 +117,8 @@ function StatusColumnInner({
             <TaskCard
               key={task.id}
               task={task}
+              labels={labels}
+              states={states}
               onEdit={onEditTask}
               selectMode={selectMode}
               selected={selected?.has(task.id)}

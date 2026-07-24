@@ -1,5 +1,5 @@
 // TaskCard —— 看板单任务卡片（视觉移植自 workavera todo-card，绑定我们的 store/类型）。
-import { memo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "react-router-dom";
@@ -28,7 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { stripMarkdown } from "@/lib/markdown-preview";
 import { useBoardStore } from "@/store/board";
-import type { BoardTask } from "@/types/board";
+import type { BoardTask, BoardLabel, BoardState } from "@/types/board";
 import { PRIORITY_META, PRIORITY_ORDER } from "./board-meta";
 import { isCliSynced, toggleInject, getInjectSet } from "./cli-task-source";
 
@@ -48,6 +48,10 @@ function isOverdue(dateStr: string): boolean {
 
 interface TaskCardProps {
   task: BoardTask;
+  /** 全部标签（由父列 StatusColumn 订阅一次后传入，避免每卡各订阅整个 labels 数组）。 */
+  labels: BoardLabel[];
+  /** 全部状态列（同上，供右键"移动到"子菜单；父列订阅一次传入）。 */
+  states: BoardState[];
   /** 点击卡片进入编辑（拖拽激活距离 6px，纯点击不会触发拖拽）。 */
   onEdit?: (task: BoardTask) => void;
   /** 当前是否处于多选模式。 */
@@ -67,14 +71,16 @@ interface TaskCardProps {
  */
 function TaskCardInner({
   task,
+  labels,
+  states,
   onEdit,
   selectMode = false,
   selected = false,
   onToggleSelect,
   onEnterSelect,
 }: TaskCardProps) {
-  const labels = useBoardStore((s) => s.labels);
-  const states = useBoardStore((s) => s.states);
+  // labels/states 改由父列传入（不再每卡各订阅整个数组）；
+  // 仅保留下面几个稳定函数 selector（返回同一引用，求值代价可忽略）。
   const updateTask = useBoardStore((s) => s.updateTask);
   const deleteTask = useBoardStore((s) => s.deleteTask);
   const moveTask = useBoardStore((s) => s.moveTask);
@@ -160,7 +166,10 @@ function TaskCardInner({
     navigate(`/sessions?${params.toString()}`);
   }
 
-  const taskLabels = labels.filter((l) => task.labels?.includes(l.id));
+  const taskLabels = useMemo(
+    () => labels.filter((l) => task.labels?.includes(l.id)),
+    [labels, task.labels],
+  );
   const priority = PRIORITY_META[task.priority];
   const overdue = task.due_date ? isOverdue(task.due_date) : false;
 
