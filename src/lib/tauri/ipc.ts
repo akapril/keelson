@@ -42,8 +42,8 @@ export const ipc = {
   spotlightOpen: (path: string) => invoke<void>("spotlight_open", { path }),
 
   // ── MCP 一键接入（把 rework MCP 写入 claude / codex 配置） ──────────
-  /** 获取当前 MCP 端点（url + secret，供设置页展示） */
-  mcpEndpoint: () => invoke<{ url: string; secret: string }>("mcp_endpoint"),
+  /** 获取当前 MCP 端点 url（供设置页展示；secret 不再下发前端） */
+  mcpEndpoint: () => invoke<{ url: string }>("mcp_endpoint"),
   /** 一键接入 Claude Code（写 ~/.claude.json 的 mcpServers.rework） */
   mcpInstallClaude: () => invoke<string>("mcp_install_claude"),
   /** 一键接入 Codex（写 ~/.codex/config.toml 的 [mcp_servers.rework]） */

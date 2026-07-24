@@ -614,13 +614,14 @@ async fn spawn_rmcp_service(
             move |req: axum::extract::Request, next: axum::middleware::Next| {
                 let secret = secret.clone();
                 async move {
-                    // 校验 Authorization: Bearer <secret>
+                    // 校验 Authorization: Bearer <secret>。常量时间比较防时序侧信道。
+                    use subtle::ConstantTimeEq;
                     let ok = req
                         .headers()
                         .get(axum::http::header::AUTHORIZATION)
                         .and_then(|v| v.to_str().ok())
                         .and_then(|s| s.strip_prefix("Bearer "))
-                        .map(|t| t == secret)
+                        .map(|t| bool::from(t.as_bytes().ct_eq(secret.as_bytes())))
                         .unwrap_or(false);
                     if ok {
                         Ok::<_, axum::http::StatusCode>(next.run(req).await)
