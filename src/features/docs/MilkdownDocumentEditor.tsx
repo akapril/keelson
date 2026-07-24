@@ -199,6 +199,9 @@ function MilkdownEditorBody({
 }) {
   const editorRootRef = useRef<HTMLDivElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
+  // 编辑器最近一次吐出的 markdown。用于让 MilkdownValueSync 区分「用户自己输入的
+  // value 回声」与「外部变更」，避免每次按键都 getMarkdown() 序列化整篇文档比对（编辑卡顿根因）。
+  const lastEmittedRef = useRef(value)
 
   useEffect(() => {
     const updateFullscreen = () => {
@@ -245,7 +248,11 @@ function MilkdownEditorBody({
       })
     crepe.on((listener) => {
       listener.markdownUpdated((_ctx, markdown, previousMarkdown) => {
-        if (markdown !== previousMarkdown) onChange(markdown)
+        if (markdown !== previousMarkdown) {
+          // 记下自己吐出的最新 markdown，供 MilkdownValueSync 跳过回声
+          lastEmittedRef.current = markdown
+          onChange(markdown)
+        }
       })
     })
     return crepe
@@ -259,7 +266,7 @@ function MilkdownEditorBody({
         onModeChange={onModeChange}
         onToggleFullscreen={() => void toggleFullscreen()}
       />
-      <MilkdownValueSync value={value} />
+      <MilkdownValueSync value={value} lastEmittedRef={lastEmittedRef} />
       <EditorContextMenu
         mode={mode}
         fullscreen={fullscreen}
@@ -295,15 +302,26 @@ function MilkdownEditorBody({
   )
 }
 
-function MilkdownValueSync({ value }: { value: string }) {
+function MilkdownValueSync({
+  value,
+  lastEmittedRef,
+}: {
+  value: string
+  lastEmittedRef: React.MutableRefObject<string>
+}) {
   const [loading, getEditor] = useInstance()
   useEffect(() => {
     if (loading) return
+    // 用户自己输入产生的 value 回声 → 直接跳过，避免每键都 getMarkdown() 序列化整篇比对。
+    if (value === lastEmittedRef.current) return
     const editor = getEditor()
+    // 走到这里说明是外部变更（程序化替换 / 从源码模式回填等），才真正回填编辑器。
+    // getMarkdown() 仅在此罕见路径执行，不再是每键成本。
     if (editor.action(getMarkdown()) !== value) {
       editor.action(replaceAll(value))
+      lastEmittedRef.current = value
     }
-  }, [getEditor, loading, value])
+  }, [getEditor, loading, value, lastEmittedRef])
   return null
 }
 
