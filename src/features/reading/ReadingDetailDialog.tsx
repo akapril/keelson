@@ -7,6 +7,7 @@ import {
   PinIcon,
 } from "@hugeicons/core-free-icons";
 
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -50,7 +51,9 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
   // 只动 unread（已归档/在读保持不变），非破坏、用户仍可手动改回。
   useEffect(() => {
     if (item && item.status === "unread") {
-      void updateItem(item.id, { status: "reading" });
+      void updateItem(item.id, { status: "reading" }).catch((e) =>
+        toast.error(`更新失败：${String(e)}`),
+      );
     }
     // 仅在打开的条目切换时判断一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,10 +83,14 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
   const addTag = () => {
     const next = splitTags(joinTags([...tags, tagInput]));
     setTagInput("");
-    void updateItem(item.id, { tags: joinTags(next) });
+    void updateItem(item.id, { tags: joinTags(next) }).catch((e) =>
+      toast.error(`更新标签失败：${String(e)}`),
+    );
   };
   const removeTag = (t: string) => {
-    void updateItem(item.id, { tags: joinTags(tags.filter((x) => x !== t)) });
+    void updateItem(item.id, { tags: joinTags(tags.filter((x) => x !== t)) }).catch((e) =>
+      toast.error(`更新标签失败：${String(e)}`),
+    );
   };
 
   return (
@@ -117,7 +124,11 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
             <Button
               variant={item.pinned ? "secondary" : "ghost"}
               size="sm"
-              onClick={() => void updateItem(item.id, { pinned: !item.pinned })}
+              onClick={() =>
+                void updateItem(item.id, { pinned: !item.pinned }).catch((e) =>
+                  toast.error(`置顶失败：${String(e)}`),
+                )
+              }
               title={item.pinned ? "取消置顶" : "置顶"}
             >
               <HugeiconsIcon icon={PinIcon} strokeWidth={2} />

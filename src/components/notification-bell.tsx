@@ -8,6 +8,7 @@ import {
   CheckmarkCircle02Icon,
 } from "@hugeicons/core-free-icons";
 
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -66,7 +67,11 @@ export function NotificationBell() {
   }, []);
 
   const onItemClick = (n: AppNotification) => {
-    if (!n.read) void useNotificationsStore.getState().markRead(n.id);
+    if (!n.read)
+      void useNotificationsStore
+        .getState()
+        .markRead(n.id)
+        .catch((e) => toast.error(`标记已读失败：${String(e)}`));
     if (n.link) navigate(n.link);
   };
 
@@ -91,7 +96,12 @@ export function NotificationBell() {
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => void useNotificationsStore.getState().markAllRead()}
+              onClick={() =>
+                void useNotificationsStore
+                  .getState()
+                  .markAllRead()
+                  .catch((e) => toast.error(`全部已读失败：${String(e)}`))
+              }
               disabled={unread === 0}
               className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
             >
@@ -99,7 +109,12 @@ export function NotificationBell() {
             </button>
             <button
               type="button"
-              onClick={() => void useNotificationsStore.getState().clearAll()}
+              onClick={() =>
+                void useNotificationsStore
+                  .getState()
+                  .clearAll()
+                  .catch((e) => toast.error(`清空失败：${String(e)}`))
+              }
               disabled={items.length === 0}
               className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-destructive disabled:opacity-40"
             >
@@ -146,7 +161,12 @@ export function NotificationBell() {
                 <button
                   type="button"
                   aria-label="删除"
-                  onClick={() => void useNotificationsStore.getState().remove(n.id)}
+                  onClick={() =>
+                    void useNotificationsStore
+                      .getState()
+                      .remove(n.id)
+                      .catch((e) => toast.error(`删除失败：${String(e)}`))
+                  }
                   className="shrink-0 self-start rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
                 >
                   <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} className="size-3.5" />

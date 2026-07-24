@@ -105,7 +105,10 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
 
   // 点开原文即视为开始阅读：未读 → 在读（不动已归档/在读）
   const markReading = () => {
-    if (item.status === "unread") void updateItem(item.id, { status: "reading" });
+    if (item.status === "unread")
+      void updateItem(item.id, { status: "reading" }).catch((e) =>
+        toast.error(`更新失败：${String(e)}`),
+      );
   };
 
   // 卡片一键 AI 摘要：后台发起，立即返回（不阻塞，可继续操作其它条目）
@@ -221,7 +224,9 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
           <Select
             value={item.status}
             onValueChange={(v) =>
-              void updateItem(item.id, { status: v as ReadingStatus })
+              void updateItem(item.id, { status: v as ReadingStatus }).catch((e) =>
+                toast.error(`更新失败：${String(e)}`),
+              )
             }
           >
             <SelectTrigger size="sm" aria-label="修改状态">
@@ -241,7 +246,11 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
             size="icon"
             aria-label="删除"
             className="text-muted-foreground hover:text-destructive"
-            onClick={() => void removeItem(item.id)}
+            onClick={() =>
+              void removeItem(item.id).catch((e) =>
+                toast.error(`删除失败：${String(e)}`),
+              )
+            }
           >
             <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
           </Button>
@@ -277,7 +286,11 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
         {STATUS_OPTIONS.filter((o) => o.value !== item.status).map((o) => (
           <ContextMenuItem
             key={o.value}
-            onSelect={() => void updateItem(item.id, { status: o.value })}
+            onSelect={() =>
+              void updateItem(item.id, { status: o.value }).catch((e) =>
+                toast.error(`更新失败：${String(e)}`),
+              )
+            }
           >
             标记为{o.label}
           </ContextMenuItem>
@@ -294,7 +307,14 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
             复制链接
           </ContextMenuItem>
         )}
-        <ContextMenuItem variant="destructive" onSelect={() => void removeItem(item.id)}>
+        <ContextMenuItem
+          variant="destructive"
+          onSelect={() =>
+            void removeItem(item.id).catch((e) =>
+              toast.error(`删除失败：${String(e)}`),
+            )
+          }
+        >
           删除
         </ContextMenuItem>
       </ContextMenuContent>

@@ -28,7 +28,13 @@ function SessionNoteEditor({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     const original = notes.get(sessionId) ?? "";
     if (text === original) return;
-    const t = setTimeout(() => void setNote(sessionId, text), 800);
+    const t = setTimeout(
+      () =>
+        void setNote(sessionId, text).catch((e) =>
+          toast.error(`保存备注失败：${String(e)}`),
+        ),
+      800,
+    );
     return () => clearTimeout(t);
   }, [text, sessionId, notes, setNote]);
 

@@ -114,8 +114,9 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
         metaRecordMap.set(sessionId, row.id);
       }
     } catch (e) {
-      // 回滚乐观更新
+      // 回滚乐观更新并重抛，让调用方能感知失败
       set({ favorites, error: String(e) });
+      throw e;
     }
   },
 
@@ -144,8 +145,9 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
         metaRecordMap.set(sessionId, row.id);
       }
     } catch (e) {
-      // 回滚
+      // 回滚并重抛
       set({ hidden, error: String(e) });
+      throw e;
     }
   },
 
@@ -171,8 +173,9 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
         noteRecordMap.set(sessionId, row.id);
       }
     } catch (e) {
-      // 回滚
+      // 回滚并重抛
       set({ notes, error: String(e) });
+      throw e;
     }
   },
 
@@ -202,8 +205,9 @@ export const useSessionMetaStore = create<SessionMetaState>((set, get) => ({
         metaRecordMap.set(sessionId, row.id);
       }
     } catch (e) {
-      // 回滚
+      // 回滚并重抛
       set({ customNames, error: String(e) });
+      throw e;
     }
   },
 }));

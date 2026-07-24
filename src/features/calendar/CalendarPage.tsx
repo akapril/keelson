@@ -57,6 +57,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   expandRecurringEvents,
   REPEAT_OPTIONS,
@@ -264,10 +265,16 @@ export default function CalendarPage() {
       project: form.project, // 空串 = 不关联
       repeat: buildRepeat(form.repeatUnit, form.repeatInterval), // ""=不重复 / "daily" / "daily:N"
     };
-    if (dialog.editing) {
-      await updateEvent(dialog.editing.id, payload);
-    } else {
-      await addEvent(payload);
+    try {
+      if (dialog.editing) {
+        await updateEvent(dialog.editing.id, payload);
+      } else {
+        await addEvent(payload);
+      }
+    } catch (e) {
+      // 更新/新建失败时弹 toast，不关闭弹窗让用户可以重试
+      toast.error(`${dialog.editing ? "更新" : "新建"}失败：${String(e)}`);
+      return;
     }
     closeDialog();
   };
@@ -275,7 +282,13 @@ export default function CalendarPage() {
   // 删除（仅编辑态可用）
   const handleDelete = async () => {
     if (!dialog.editing) return;
-    await removeEvent(dialog.editing.id);
+    try {
+      await removeEvent(dialog.editing.id);
+    } catch (e) {
+      // 删除失败时弹 toast，不关闭弹窗让用户可以重试
+      toast.error(`删除失败：${String(e)}`);
+      return;
+    }
     closeDialog();
   };
 
@@ -311,7 +324,12 @@ export default function CalendarPage() {
       const newEnd = addDays(startOfDay(parseISO(d.end)), delta);
       if (!Number.isNaN(newEnd.getTime())) patch.end = format(newEnd, "yyyy-MM-dd");
     }
-    await updateEvent(d.id, patch);
+    try {
+      await updateEvent(d.id, patch);
+    } catch (e) {
+      // 拖拽移动事件失败时提示
+      toast.error(`移动失败：${String(e)}`);
+    }
   };
 
   return (
@@ -451,7 +469,11 @@ export default function CalendarPage() {
                       <ContextMenuItem onSelect={() => openEdit(ev)}>编辑</ContextMenuItem>
                       <ContextMenuItem
                         variant="destructive"
-                        onSelect={() => void removeEvent(ev.id)}
+                        onSelect={() =>
+                          void removeEvent(ev.id).catch((e) =>
+                            toast.error(`删除失败：${String(e)}`),
+                          )
+                        }
                       >
                         删除
                       </ContextMenuItem>

@@ -429,8 +429,9 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
         rank: moved.rank,
       });
     } catch (e) {
-      // 失败则回滚到快照
+      // 失败则回滚到快照，并重抛（与 updateTask/deleteTask 一致，供调用点 toast）
       set({ tasks: snapshot, error: String(e) });
+      throw e;
     }
   },
 
