@@ -41,7 +41,7 @@ pub fn run(days: u32, json_output: bool) {
         println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
     } else {
         // 人类可读格式输出
-        println!("claude-runtime clean — 日志清理\n");
+        println!("进程记录清理\n");
 
         println!(
             "✓ 已清理 {} 个已退出的进程记录",

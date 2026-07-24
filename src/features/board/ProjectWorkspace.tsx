@@ -201,7 +201,7 @@ export function ProjectWorkspace() {
           {repoPath && <TabsTrigger value="commits">提交</TabsTrigger>}
           <TabsTrigger value="board">看板</TabsTrigger>
           <TabsTrigger value="docs">文档</TabsTrigger>
-          {/* 进程面仅在绑定仓库时有意义（按 repo_path 过滤 claude-runtime 进程） */}
+          {/* 进程面仅在绑定仓库时有意义（按 repo_path 过滤本项目进程） */}
           {repoPath && <TabsTrigger value="processes">进程</TabsTrigger>}
           <TabsTrigger value="activity">活动</TabsTrigger>
           <TabsTrigger value="ai">AI</TabsTrigger>
@@ -389,7 +389,7 @@ export function ProjectWorkspace() {
         <TabsContent value="docs" className="mt-3 flex min-h-0 flex-1 flex-col">
           <DocsPanel projectId={project.id} initialDocId={focusDocId} />
         </TabsContent>
-        {/* 进程（claude-runtime 托管：本项目跑的进程 + 日志 + start/stop/restart） */}
+        {/* 进程（rework 托管：本项目跑的进程 + 日志 + 停止/重启/删除） */}
         {repoPath && (
           <TabsContent value="processes" className="mt-3 flex min-h-0 flex-1 flex-col">
             <WorkspaceProcesses repoPath={repoPath} />
