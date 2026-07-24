@@ -28,3 +28,17 @@ pub fn start_embedded() {
         daemon::run().await;
     });
 }
+
+/// 起后台任务：进程表一有变更就 emit "runtime-processes-changed" 给前端，
+/// 让「进程」tab 像活动流一样「一有数据就显示」（不必等轮询）。100ms 去抖合并突发变更。
+pub fn start_change_emitter(app: tauri::AppHandle) {
+    use tauri::Emitter;
+    tauri::async_runtime::spawn(async move {
+        loop {
+            store::change_notify().notified().await;
+            // 去抖：合并 100ms 内的连续变更为一次 emit（如批量端口检测/健康更新）
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            let _ = app.emit("runtime-processes-changed", ());
+        }
+    });
+}

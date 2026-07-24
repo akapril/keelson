@@ -257,6 +257,8 @@ pub fn run() {
             // ── 进程管理 daemon（融入 claude-runtime，headless，进程内起）──
             // 幂等：外部 claude-runtime daemon 已在跑则内部守卫自动让路。
             runtime::start_embedded();
+            // 进程表变更 → emit 给前端，「进程」tab 实时刷新（一有数据就显示）。
+            runtime::start_change_emitter(app.handle().clone());
 
             // 确定 PB 数据目录和迁移文件目录
             let data_dir = app.path().app_data_dir()?.join("pb_data");
