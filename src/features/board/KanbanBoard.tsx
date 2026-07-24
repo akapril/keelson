@@ -612,7 +612,7 @@ export function KanbanBoard() {
         <DragOverlay>
           {activeTask ? (
             <div className="w-72 rotate-3 opacity-80">
-              <TaskCard task={activeTask} />
+              <TaskCard task={activeTask} labels={labels} states={states} />
             </div>
           ) : null}
         </DragOverlay>
