@@ -6,8 +6,21 @@
 use serde_json::Value;
 
 /// 供内部（如 /intercept 端点）托管一个进程：直接调 daemon 的 start handler。
-pub(crate) async fn daemon_start(command: &str, name: &str, cwd: &str) -> Value {
-    let args = serde_json::json!({ "command": command, "name": name, "cwd": cwd });
+/// session_id/provider 可选（intercept 自动托管时带上，做进程→会话溯源）。
+pub(crate) async fn daemon_start(
+    command: &str,
+    name: &str,
+    cwd: &str,
+    session_id: Option<&str>,
+    provider: Option<&str>,
+) -> Value {
+    let args = serde_json::json!({
+        "command": command,
+        "name": name,
+        "cwd": cwd,
+        "session_id": session_id,
+        "provider": provider,
+    });
     crate::runtime::daemon::dispatch("start", &args).await
 }
 

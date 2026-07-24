@@ -1,4 +1,4 @@
-// claude-runtime 进程条目类型（对应 daemon ps 返回的 ProcessEntry + 运行时增补）。
+// 进程条目类型（对应进程管理内核返回的 ProcessEntry + 运行时增补）。
 export interface RuntimeProcess {
   id: string;
   name: string;
@@ -9,7 +9,11 @@ export interface RuntimeProcess {
   status: string; // "running" | "stopped" | "exited"
   started_at: string;
   health?: string; // healthy | unhealthy | unknown
-  /** running 时 daemon 附带的实时资源（cpu/mem 结构不定，按需读） */
+  /** 起自哪次 CLI 会话（intercept 自动托管时记；手动启动为空） */
+  session_id?: string | null;
+  /** 会话 provider（claude / codex），配合 session_id 跳转 */
+  provider?: string | null;
+  /** running 时附带的实时资源（cpu/mem 结构不定，按需读） */
   resources?: Record<string, unknown> | null;
 }
 
