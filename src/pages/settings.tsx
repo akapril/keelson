@@ -38,7 +38,6 @@ import {
   getAutoSyncTasks,
   setAutoSyncTasks,
 } from "@/features/board/auto-sync-pref";
-import type { RuntimeDiag } from "@/types/runtime";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
 /**
@@ -542,33 +541,16 @@ function AutoSyncTasksSection() {
 }
 
 /**
- * 运行时区：进程管理 daemon（已从 claude-runtime 融入 rework 进程内）的自检 / 修复。
- * daemon 随 rework 启动恒定在进程内起（headless，:19191 + ~/.claude-runtime store），
- * 与终端 claude-runtime CLI 共享同一批进程。「立即修复」在极少数没起来时手动补起。
+ * 运行时区：进程管理已内置于 rework 进程内（去 TCP，随应用恒在），无独立 daemon/端口。
+ * 全部进程一览与管理见侧边栏「进程」页。此处仅保留「自动托管 Claude 起的长驻进程」开关。
  */
 function RuntimeSection() {
-  // null=尚未体检；否则为最近一次 diagnose 结果
-  const [diag, setDiag] = useState<RuntimeDiag | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [fixing, setFixing] = useState(false);
   // 进程拦截 hook：null=读取中
   const [intercept, setIntercept] = useState<boolean | null>(null);
   const [interceptBusy, setInterceptBusy] = useState(false);
 
-  // 拉取一次体检结果
-  const check = async () => {
-    setChecking(true);
-    try {
-      setDiag(await ipc.runtimeDiagnose());
-    } catch {
-      setDiag(null);
-    } finally {
-      setChecking(false);
-    }
-  };
-  // 挂载时体检一次 + 读拦截 hook 状态
+  // 挂载时读拦截 hook 状态
   useEffect(() => {
-    void check();
     void ipc.interceptHookStatus().then(setIntercept).catch(() => setIntercept(false));
   }, []);
 
@@ -591,73 +573,18 @@ function RuntimeSection() {
     }
   };
 
-  // 立即修复：确保 daemon 运行，再复检
-  const fix = async () => {
-    setFixing(true);
-    try {
-      const up = await ipc.runtimeEnsureDaemon();
-      toast[up ? "success" : "error"](
-        up ? "进程管理 daemon 已就绪" : "拉起后仍未连通（:19191 可能被占用）",
-      );
-      await check();
-    } catch (e) {
-      toast.error(`修复失败：${String(e)}`);
-    } finally {
-      setFixing(false);
-    }
-  };
-
   return (
     <section className="space-y-3">
       <div>
         <h2 className="text-sm font-medium">运行时（进程管理）</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          进程管理内核已内置于 rework、随应用在进程内启动，<strong>无需安装或运行任何外部程序</strong>。
-          在项目「进程」标签里直接启动/停止/看日志即可。
+          进程管理已内置于 rework 进程内、随应用启动，<strong>无需任何外部程序或端口</strong>。
+          全部托管进程一览与管理见侧边栏 <strong>「进程」</strong> 页；也可在项目「进程」标签管本项目的。
         </p>
       </div>
 
-      {/* 体检状态 */}
-      <div className="space-y-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
-        {diag === null ? (
-          <span className="text-muted-foreground">{checking ? "体检中…" : "未体检"}</span>
-        ) : (
-          <>
-            <StatusRow
-              ok={diag.daemon_running}
-              label="daemon (:19191)"
-              value={diag.daemon_running ? "运行中" : "未运行"}
-            />
-            <StatusRow
-              ok
-              label="运行方式"
-              value={
-                !diag.daemon_running
-                  ? "—"
-                  : diag.embedded
-                    ? "rework 进程内"
-                    : "外部进程"
-              }
-            />
-            <StatusRow ok label="托管进程" value={`${diag.process_count} 个`} />
-          </>
-        )}
-      </div>
-
-      {/* 操作按钮 */}
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" disabled={checking} onClick={() => void check()}>
-          {checking ? "体检中…" : "自检"}
-        </Button>
-        {diag && !diag.daemon_running && (
-          <Button variant="default" size="sm" disabled={fixing} onClick={() => void fix()}>
-            {fixing ? "启动中…" : "立即修复（进程内启动）"}
-          </Button>
-        )}
-      </div>
-
       {/* 进程拦截 hook：自动托管 Claude Code 起的长驻进程 */}
-      <div className="space-y-1.5 border-t border-border pt-3">
+      <div className="space-y-1.5">
         <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
           <input
             type="checkbox"
@@ -677,21 +604,6 @@ function RuntimeSection() {
         </p>
       </div>
     </section>
-  );
-}
-
-/** 体检状态一行：绿点/灰点 + 标签 + 值。 */
-function StatusRow({ ok, label, value }: { ok: boolean; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span
-        className={
-          "size-2 shrink-0 rounded-full " + (ok ? "bg-green-500" : "bg-muted-foreground/40")
-        }
-      />
-      <span className="text-muted-foreground">{label}</span>
-      <span className="ml-auto truncate font-mono text-foreground">{value}</span>
-    </div>
   );
 }
 

@@ -3,7 +3,7 @@ import type { Session, SessionHit, TimelineMessage, PlannedTask } from "../../ty
 import type { EmbedConfig, RagHit } from "@/types/rag";
 import type { CommitInfo, CorrelatedCommit, HookStatus } from "@/types/git";
 import type { MemFilesStatus, FileMemory } from "@/types/memory";
-import type { RuntimeProcess, RuntimeLog, RuntimeDiag } from "@/types/runtime";
+import type { RuntimeProcess, RuntimeLog } from "@/types/runtime";
 import type { FileChange } from "@/types/file-change";
 import type {
   AiConfig,
@@ -215,10 +215,8 @@ export const ipc = {
   /** 扫描 Claude 文件记忆（各项目 memory 目录下的 .md），供记忆桥导入记忆账本 */
   scanFileMemories: () => invoke<FileMemory[]>("scan_file_memories"),
 
-  // ── claude-runtime 进程管理（项目「进程」tab；连 daemon :19191） ──────
-  /** daemon 是否可连接（未运行则 tab 显示提示） */
-  runtimeAvailable: () => invoke<boolean>("runtime_available"),
-  /** 本项目的进程（按 cwd 含 project 过滤） */
+  // ── 进程管理（进程内模块，命令直调；项目「进程」tab + 侧边栏「进程」页） ──────
+  /** 进程列表（project 为空=全部；非空=按 cwd 含 project 过滤） */
   runtimePs: (project: string) =>
     invoke<RuntimeProcess[]>("runtime_command", { cmd: "ps", args: { project } }),
   /** 某进程的日志（最近 limit 条） */
@@ -241,8 +239,4 @@ export const ipc = {
       cmd: "clean",
       args: { days },
     }),
-  /** 一次性体检：二进制/版本/daemon/dashboard 状态 */
-  runtimeDiagnose: () => invoke<RuntimeDiag>("runtime_diagnose"),
-  /** 确保 daemon 运行：已运行返回 true，否则在进程内拉起并轮询复检（自动启动/手动修复共用） */
-  runtimeEnsureDaemon: () => invoke<boolean>("runtime_ensure_daemon"),
 };

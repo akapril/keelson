@@ -9,7 +9,6 @@ import { thisWindowLabel } from "./lib/tauri/window";
 import { SpotlightApp } from "./features/spotlight/SpotlightApp";
 import { LoginScreen } from "./features/auth/LoginScreen";
 import { TitleBar } from "./components/title-bar";
-import { autoStartRuntimeOnce } from "./features/board/runtime-daemon";
 
 export default function App() {
   const { ready, authed, error, init } = useAuthStore();
@@ -27,11 +26,6 @@ export default function App() {
     void useUpdaterStore.getState().checkForUpdate({ silent: true });
   }, [isSpotlight]);
 
-  // 主窗口启动后按偏好静默拉起 claude-runtime daemon（默认开，幂等安全）
-  useEffect(() => {
-    if (isSpotlight) return;
-    autoStartRuntimeOnce();
-  }, [isSpotlight]);
 
   return (
     <ThemeProvider>
