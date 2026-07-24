@@ -2,6 +2,16 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::OnceLock;
+use tokio::sync::Notify;
+
+/// 进程表变更通知：save_processes 后唤醒等待者。
+/// rework 主进程订阅它，一有变更就 emit 事件给前端，实现「一有数据就显示」的实时刷新
+/// （替代纯 4s 轮询；start/stop/exit/端口/健康变化都经 save_processes，覆盖全）。
+pub fn change_notify() -> &'static Notify {
+    static N: OnceLock<Notify> = OnceLock::new();
+    N.get_or_init(Notify::new)
+}
 
 /// 进程表条目
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,11 +75,13 @@ pub fn load_processes() -> Vec<ProcessEntry> {
     serde_json::from_str(&data).unwrap_or_default()
 }
 
-/// 写入进程表
+/// 写入进程表。写完唤醒变更通知，供前端实时刷新。
 pub fn save_processes(entries: &[ProcessEntry]) {
     let path = process_table_path();
     let data = serde_json::to_string_pretty(entries).expect("无法序列化进程表");
     fs::write(&path, data).expect("无法写入进程表");
+    // 进程表已变更 → 唤醒订阅者（rework 主进程会 emit 给前端）
+    change_notify().notify_waiters();
 }
 
 /// 按名称或 ID 查找进程

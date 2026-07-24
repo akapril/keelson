@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
+import { on } from "@/lib/tauri/events";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,14 +44,18 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
     }
   };
 
-  // 挂载 + 轮询(4s)；切项目重置
+  // 挂载 + 事件驱动实时刷新（后端进程表一变更就 emit）+ 8s 兜底轮询；切项目重置
   useEffect(() => {
     setSelected(null);
     setLogs([]);
     void refresh();
-    timer.current = setInterval(() => void refresh(), 4000);
+    // 实时：进程表变更事件 → 即时刷新（一有数据就显示，同活动流机制）
+    const un = on("runtime-processes-changed", () => void refresh());
+    // 兜底：降到 8s（防漏事件 / 外部 daemon 场景），主要即时性来自事件
+    timer.current = setInterval(() => void refresh(), 8000);
     return () => {
       if (timer.current) clearInterval(timer.current);
+      void un.then((f) => f());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repoPath]);
