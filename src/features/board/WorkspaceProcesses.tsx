@@ -1,7 +1,8 @@
-// WorkspaceProcesses —— 项目工作台「进程」tab：接入 claude-runtime daemon，
-// 显示本项目(按 repo_path 过滤)跑的进程 + 日志 + start/stop/restart。
-// daemon 未运行则显示友好提示。轮询刷新(每 4s)。
+// WorkspaceProcesses —— 进程管理视图（项目「进程」tab = 按 repo_path 过滤；
+// 侧边栏「进程」页 = 全局）。进程列表 + 日志 + start/stop/restart/remove/清理。
+// 进程管理为 rework 进程内模块，命令直调；实时事件刷新 + 兜底轮询。
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
 import { on } from "@/lib/tauri/events";
@@ -19,6 +20,7 @@ function logText(l: RuntimeLog): string {
 // 无值=全局模式（侧边栏「进程」页：显示所有托管进程，不过滤，不提供启动，附清理入口）。
 export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
   const global = !repoPath;
+  const navigate = useNavigate();
   const [procs, setProcs] = useState<RuntimeProcess[]>([]);
   const [loaded, setLoaded] = useState(false); // 首次加载完成前不显示"空"文案
   const [selected, setSelected] = useState<string | null>(null); // 选中查看日志的进程 name
@@ -246,6 +248,23 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                   {global && (
                     <span className="truncate text-[10px] text-muted-foreground/70" title={p.cwd}>
                       {p.cwd}
+                    </span>
+                  )}
+                  {/* 会话溯源：intercept 自动托管的进程带来源会话 → 徽章点击跳会话中枢 */}
+                  {p.session_id && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      title={`起自会话 ${p.session_id}，点击查看`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const params = new URLSearchParams({ session: p.session_id! });
+                        if (p.provider) params.set("provider", p.provider);
+                        navigate(`/sessions?${params.toString()}`);
+                      }}
+                      className="w-fit rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary hover:bg-primary/20"
+                    >
+                      ↻ 来自会话
                     </span>
                   )}
                   <div className="flex items-center gap-1.5 pt-0.5">

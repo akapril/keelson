@@ -202,6 +202,8 @@ pub fn start(
         health_url: None,
         health: "unknown".to_string(),
         env: env_vars.clone(),
+        session_id: None,
+        provider: None,
     };
 
     store::add_process(entry);

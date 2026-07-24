@@ -126,10 +126,14 @@ pub async fn handle_intercept(payload: Value) -> Value {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
+    // 会话溯源：PreToolUse payload 带 session_id（Claude Code hook）→ 记进程起自哪次会话。
+    let session_id = payload.get("session_id").and_then(|v| v.as_str());
     let name = derive_process_name(&command);
 
     // 直接调进程内进程管理托管（无 TCP）。返回 JSON：成功含 id/pid，失败含 error。
-    let result = crate::commands::runtime::daemon_start(&command, &name, &cwd).await;
+    let result =
+        crate::commands::runtime::daemon_start(&command, &name, &cwd, session_id, Some("claude"))
+            .await;
     match result.get("error").and_then(|v| v.as_str()) {
         // 托管成功 → 挡回原 Bash，告知 Claude 进程已起
         None => deny(format!(

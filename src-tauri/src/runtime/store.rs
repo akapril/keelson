@@ -39,6 +39,12 @@ pub struct ProcessEntry {
     /// 环境变量（启动时注入）
     #[serde(default)]
     pub env: std::collections::HashMap<String, String>,
+    /// 起自哪次 CLI 会话（intercept 自动托管时从 hook payload 记；手动启动为空）
+    #[serde(default)]
+    pub session_id: Option<String>,
+    /// 会话 provider（claude / codex），配合 session_id 做跳转
+    #[serde(default)]
+    pub provider: Option<String>,
 }
 
 fn default_health() -> String {

@@ -176,6 +176,16 @@ pub(crate) async fn handle_start(args: &Value) -> Value {
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
+    // 会话关联（intercept 自动托管时带；手动启动为空）
+    let session_id = args
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let provider = args
+        .get("provider")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
     // 构建进程条目并写入存储
     let entry = store::ProcessEntry {
         id: id.clone(),
@@ -191,6 +201,8 @@ pub(crate) async fn handle_start(args: &Value) -> Value {
         health_url,
         health: "unknown".to_string(),
         env: env_vars.clone(),
+        session_id,
+        provider,
     };
     store::add_process(entry);
 
@@ -294,11 +306,13 @@ pub(crate) async fn handle_restart(args: &Value) -> Value {
         None => return json!({"error": format!("找不到进程 '{}'", name_or_id)}),
     };
 
-    // 保存重启所需的原始参数（含环境变量）
+    // 保存重启所需的原始参数（含环境变量 + 会话关联）
     let saved_command = entry.command.clone();
     let saved_name = entry.name.clone();
     let saved_cwd = entry.cwd.clone();
     let saved_env = entry.env.clone();
+    let saved_session = entry.session_id.clone();
+    let saved_provider = entry.provider.clone();
 
     // 先停止旧进程
     #[cfg(windows)]
@@ -317,12 +331,14 @@ pub(crate) async fn handle_restart(args: &Value) -> Value {
 
     store::remove_process(&entry.id);
 
-    // 以相同参数（含环境变量）重新启动
+    // 以相同参数（含环境变量 + 会话关联）重新启动
     let start_args = json!({
         "command": saved_command,
         "name": saved_name,
         "cwd": saved_cwd,
         "env": saved_env,
+        "session_id": saved_session,
+        "provider": saved_provider,
     });
     handle_start(&start_args).await
 }
