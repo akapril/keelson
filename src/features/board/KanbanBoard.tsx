@@ -319,7 +319,9 @@ export function KanbanBoard() {
     const r = resolveDrop(String(active.id), String(over.id));
     if (!r) return;
     // 落手：持久化最终位置（previewMove 已将卡片放到位，此处计算最终 index 落库）
-    void moveTask(r.dragged.id, r.targetStateId, r.toIndex).catch(() => {});
+    void moveTask(r.dragged.id, r.targetStateId, r.toIndex).catch((e) =>
+      toast.error(`移动失败：${String(e)}`),
+    );
   };
 
   const archivedCount = tasks.filter((t) => t.archived).length;

@@ -130,8 +130,9 @@ export const useReadingStore = create<ReadingStoreState>((set, get) => ({
     try {
       await updateReadingRecord(id, patch as Record<string, unknown>);
     } catch (e) {
-      // 回滚
+      // 回滚并重抛，让调用方能感知失败（不再误报成功）
       set({ items, error: String(e) });
+      throw e;
     }
   },
 
@@ -143,8 +144,9 @@ export const useReadingStore = create<ReadingStoreState>((set, get) => ({
     try {
       await deleteReadingRecord(id);
     } catch (e) {
-      // 回滚
+      // 回滚并重抛
       set({ items, error: String(e) });
+      throw e;
     }
   },
 

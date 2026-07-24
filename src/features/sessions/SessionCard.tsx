@@ -92,13 +92,17 @@ function SessionCardImpl({
   function handleRenameResult(value: string | null) {
     setRenameOpen(false);
     if (value === null) return;
-    void setCustomName(session.session_id, value);
+    void setCustomName(session.session_id, value).catch((e) =>
+      toast.error(`保存名称失败：${String(e)}`),
+    );
   }
 
   function handleStarClick(e: React.MouseEvent) {
     // 阻止冒泡，避免同时触发 onSelect
     e.stopPropagation();
-    toggleFavorite(session.session_id);
+    void toggleFavorite(session.session_id).catch((e) =>
+      toast.error(`收藏失败：${String(e)}`),
+    );
   }
 
   function handleRestoreClick(e: React.MouseEvent) {
@@ -210,13 +214,25 @@ function SessionCardImpl({
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => setTaskDialogOpen(true)}>建任务</ContextMenuItem>
         <ContextMenuItem onSelect={() => setMemoryOpen(true)}>提炼记忆</ContextMenuItem>
-        <ContextMenuItem onSelect={() => toggleFavorite(session.session_id)}>
+        <ContextMenuItem
+          onSelect={() =>
+            void toggleFavorite(session.session_id).catch((e) =>
+              toast.error(`收藏失败：${String(e)}`),
+            )
+          }
+        >
           {isFav ? "取消收藏" : "收藏"}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => setRenameOpen(true)}>
           {customName ? "重命名 / 恢复默认" : "重命名"}
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => toggleHidden(session.session_id)}>
+        <ContextMenuItem
+          onSelect={() =>
+            void toggleHidden(session.session_id).catch((e) =>
+              toast.error(`隐藏操作失败：${String(e)}`),
+            )
+          }
+        >
           {isHidden ? "取消隐藏" : "隐藏"}
         </ContextMenuItem>
         <ContextMenuSeparator />

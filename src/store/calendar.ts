@@ -141,8 +141,9 @@ export const useCalendarStore = create<CalendarStoreState>((set, get) => ({
     try {
       await updateEventRecord(id, patch as Record<string, unknown>);
     } catch (e) {
-      // 回滚
+      // 回滚并重抛，让调用方能感知失败（不再误报成功）
       set({ events, error: String(e) });
+      throw e;
     }
   },
 
@@ -154,8 +155,9 @@ export const useCalendarStore = create<CalendarStoreState>((set, get) => ({
     try {
       await deleteEventRecord(id);
     } catch (e) {
-      // 回滚
+      // 回滚并重抛
       set({ events, error: String(e) });
+      throw e;
     }
   },
 

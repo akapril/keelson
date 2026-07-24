@@ -1,5 +1,6 @@
 // 收件箱 —— 把所有通知聚成可批处理的一页：按来源/未读过滤、多选、批量已读/删除、点击跳转。
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Virtualizer } from "virtua";
 import { useNavigate } from "react-router-dom";
 import { useNotificationsStore } from "@/store/notifications";
@@ -87,7 +88,7 @@ export default function InboxPage() {
   const selectedIds = [...checked].filter((id) => visible.some((n) => n.id === id));
 
   const openItem = (n: AppNotification) => {
-    if (!n.read) void markRead(n.id);
+    if (!n.read) void markRead(n.id).catch((e) => toast.error(`标记已读失败：${String(e)}`));
     if (n.link) navigate(n.link);
   };
 
@@ -134,7 +135,11 @@ export default function InboxPage() {
             variant="ghost"
             size="xs"
             disabled={selectedIds.length === 0}
-            onClick={() => void markManyRead(selectedIds)}
+            onClick={() =>
+              void markManyRead(selectedIds).catch((e) =>
+                toast.error(`批量已读失败：${String(e)}`),
+              )
+            }
           >
             标记已读
           </Button>
@@ -143,7 +148,9 @@ export default function InboxPage() {
             size="xs"
             disabled={selectedIds.length === 0}
             onClick={() => {
-              void removeMany(selectedIds);
+              void removeMany(selectedIds).catch((e) =>
+                toast.error(`批量删除失败：${String(e)}`),
+              );
               setChecked(new Set());
             }}
           >

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Virtualizer, type VirtualizerHandle } from "virtua";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
@@ -61,9 +62,23 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
   };
   // 批量动作：对所选按目标态幂等设置（已是目标态则跳过，避免误 toggle）
   const batchFavorite = () =>
-    checked.forEach((id) => favorites.has(id) || void toggleFavorite(id));
-  const batchHide = () => checked.forEach((id) => hidden.has(id) || void toggleHidden(id));
-  const batchUnhide = () => checked.forEach((id) => hidden.has(id) && void toggleHidden(id));
+    checked.forEach(
+      (id) =>
+        favorites.has(id) ||
+        void toggleFavorite(id).catch((e) => toast.error(`收藏失败：${String(e)}`)),
+    );
+  const batchHide = () =>
+    checked.forEach(
+      (id) =>
+        hidden.has(id) ||
+        void toggleHidden(id).catch((e) => toast.error(`隐藏操作失败：${String(e)}`)),
+    );
+  const batchUnhide = () =>
+    checked.forEach(
+      (id) =>
+        hidden.has(id) &&
+        void toggleHidden(id).catch((e) => toast.error(`隐藏操作失败：${String(e)}`)),
+    );
 
   // 「只看收藏」/「显示已隐藏」筛选
   const [favOnly, setFavOnly] = useState(false);

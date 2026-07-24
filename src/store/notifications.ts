@@ -85,7 +85,9 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     try {
       await setNotificationRead(id, true);
     } catch (e) {
+      // 回滚并重抛，让调用方能感知失败
       set({ items: snapshot, error: String(e) });
+      throw e;
     }
   },
 
@@ -97,7 +99,9 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     try {
       await Promise.all(unread.map((n) => setNotificationRead(n.id, true)));
     } catch (e) {
+      // 回滚并重抛，让调用方能感知失败
       set({ items: snapshot, error: String(e) });
+      throw e;
     }
   },
 
@@ -110,7 +114,9 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     try {
       await Promise.all(targets.map((n) => setNotificationRead(n.id, true)));
     } catch (e) {
+      // 回滚并重抛，让调用方能感知失败
       set({ items: snapshot, error: String(e) });
+      throw e;
     }
   },
 
@@ -120,7 +126,9 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     try {
       await deleteNotification(id);
     } catch (e) {
+      // 回滚并重抛，让调用方能感知失败
       set({ items: snapshot, error: String(e) });
+      throw e;
     }
   },
 
@@ -132,7 +140,9 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     try {
       await Promise.all([...idSet].map((id) => deleteNotification(id)));
     } catch (e) {
+      // 回滚并重抛，让调用方能感知失败
       set({ items: snapshot, error: String(e) });
+      throw e;
     }
   },
 
@@ -143,7 +153,9 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     try {
       await Promise.all(snapshot.map((n) => deleteNotification(n.id)));
     } catch (e) {
+      // 回滚并重抛，让调用方能感知失败
       set({ items: snapshot, error: String(e) });
+      throw e;
     }
   },
 }));
