@@ -15,7 +15,10 @@ function logText(l: RuntimeLog): string {
   return (l.message || l.raw || "").trim();
 }
 
-export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
+// repoPath 有值=项目模式（按仓库路径过滤 + 可在本目录启动）；
+// 无值=全局模式（侧边栏「进程」页：显示所有托管进程，不过滤，不提供启动，附清理入口）。
+export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
+  const global = !repoPath;
   const [available, setAvailable] = useState<boolean | null>(null); // null=检测中
   const [procs, setProcs] = useState<RuntimeProcess[]>([]);
   const [selected, setSelected] = useState<string | null>(null); // 选中查看日志的进程 name
@@ -37,7 +40,8 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
       return;
     }
     try {
-      const list = await ipc.runtimePs(repoPath);
+      // 全局模式传空串 = 不过滤（daemon 侧 !project.is_empty() 守卫）
+      const list = await ipc.runtimePs(repoPath ?? "");
       setProcs(Array.isArray(list) ? list : []);
     } catch {
       setProcs([]);
@@ -70,7 +74,9 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
         .then((ls) => !cancelled && setLogs(Array.isArray(ls) ? ls : []))
         .catch(() => !cancelled && setLogs([]));
     load();
-    const t = setInterval(load, 4000);
+    // 日志轮询提速到 1s：选中进程时才轮询，接近实时（比每行 emit 更稳，
+    // 高频输出的进程不会刷爆前端——拉最近 N 行天然合批）。
+    const t = setInterval(load, 1000);
     return () => {
       cancelled = true;
       clearInterval(t);
@@ -94,9 +100,24 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
     }
   };
 
+  // 全局清理：移除所有已停止/退出记录 + 删 7 天前日志
+  const cleanup = async () => {
+    setBusy(true);
+    try {
+      const r = await ipc.runtimeClean(7);
+      toast.success(`已清理 ${r.processes_removed} 条停止/退出记录 · ${r.log_files_deleted} 个旧日志`);
+      if (selected) setSelected(null);
+      await refresh();
+    } catch (e) {
+      toast.error(`清理失败：${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const startNew = async () => {
     const command = cmd.trim();
-    if (!command) return;
+    if (!command || !repoPath) return;
     setBusy(true);
     try {
       // name 默认取命令首词 + 时间无关的简短标识（daemon 会去重/覆盖）
@@ -171,35 +192,52 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      {/* 启动新进程 */}
-      <form
-        className="flex shrink-0 items-center gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void startNew();
-        }}
-      >
-        <Input
-          value={cmd}
-          onChange={(e) => setCmd(e.target.value)}
-          placeholder="在本项目目录启动进程，如 npm run dev / cargo run"
-          className="flex-1"
-          disabled={busy}
-        />
-        <Button type="submit" disabled={busy || !cmd.trim()}>
-          启动
-        </Button>
-        {/* 手动刷新：每 4s 已自动刷新，此处即时刷新（不必等一轮轮询） */}
-        <Button
-          type="button"
-          variant="outline"
-          disabled={busy}
-          title="立即刷新进程列表（每 4s 自动刷新）"
-          onClick={() => void refresh()}
+      {global ? (
+        // 全局模式：不提供启动（启动属具体项目），改提供刷新 + 清理停止/退出记录
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            共 {procs.length} 个托管进程（跨项目）。启动新进程请到具体项目的「进程」标签。
+          </span>
+          <div className="ml-auto flex gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void refresh()}>
+              刷新
+            </Button>
+            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void cleanup()}>
+              清理已停止/退出
+            </Button>
+          </div>
+        </div>
+      ) : (
+        // 项目模式：启动新进程 + 刷新
+        <form
+          className="flex shrink-0 items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void startNew();
+          }}
         >
-          刷新
-        </Button>
-      </form>
+          <Input
+            value={cmd}
+            onChange={(e) => setCmd(e.target.value)}
+            placeholder="在本项目目录启动进程，如 npm run dev / cargo run"
+            className="flex-1"
+            disabled={busy}
+          />
+          <Button type="submit" disabled={busy || !cmd.trim()}>
+            启动
+          </Button>
+          {/* 手动刷新：已自动刷新，此处即时刷新 */}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            title="立即刷新进程列表"
+            onClick={() => void refresh()}
+          >
+            刷新
+          </Button>
+        </form>
+      )}
 
       <div className="flex min-h-0 flex-1 gap-3">
         {/* 进程列表 */}
@@ -208,7 +246,9 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
             <p className="py-8 text-center text-xs text-muted-foreground">检测中…</p>
           ) : procs.length === 0 ? (
             <p className="py-8 text-center text-xs text-muted-foreground">
-              本项目暂无正在托管的进程。在上方输入框启动一个，或让 Claude Code 起长驻进程自动托管。
+              {global
+                ? "暂无由 rework 托管的进程。"
+                : "本项目暂无正在托管的进程。在上方输入框启动一个，或让 Claude Code 起长驻进程自动托管。"}
             </p>
           ) : (
             procs.map((p) => {
@@ -244,6 +284,12 @@ export function WorkspaceProcesses({ repoPath }: { repoPath: string }) {
                   <span className="truncate font-mono text-[11px] text-muted-foreground">
                     {p.command}
                   </span>
+                  {/* 全局模式：显示 cwd，便于辨认进程所属目录/项目 */}
+                  {global && (
+                    <span className="truncate text-[10px] text-muted-foreground/70" title={p.cwd}>
+                      {p.cwd}
+                    </span>
+                  )}
                   <div className="flex items-center gap-1.5 pt-0.5">
                     <span className="text-[10px] text-muted-foreground">
                       {running ? "运行中" : p.status}

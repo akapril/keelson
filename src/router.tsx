@@ -17,6 +17,7 @@ const InboxPage = lazy(() => import("./pages/inbox"));
 const MemoryPage = lazy(() => import("./pages/memory"));
 const PromptsPage = lazy(() => import("./pages/prompts"));
 const ReportPage = lazy(() => import("./pages/report"));
+const ProcessesPage = lazy(() => import("./pages/processes"));
 
 export function AppRouter() {
   return (
@@ -46,6 +47,7 @@ export function AppRouter() {
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/prompts" element={<PromptsPage />} />
           <Route path="/report" element={<ReportPage />} />
+          <Route path="/processes" element={<ProcessesPage />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

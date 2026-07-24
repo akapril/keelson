@@ -235,6 +235,12 @@ export const ipc = {
   /** 删除一个已退出/停止的进程记录（连同其日志文件；running 的会被拒绝，需先停止） */
   runtimeRemove: (name: string) =>
     invoke<unknown>("runtime_command", { cmd: "remove", args: { name } }),
+  /** 清理：移除所有已停止/退出的进程记录 + 删除超过 days 天的日志文件 */
+  runtimeClean: (days: number) =>
+    invoke<{ processes_removed: number; log_files_deleted: number }>("runtime_command", {
+      cmd: "clean",
+      args: { days },
+    }),
   /** 一次性体检：二进制/版本/daemon/dashboard 状态 */
   runtimeDiagnose: () => invoke<RuntimeDiag>("runtime_diagnose"),
   /** 确保 daemon 运行：已运行返回 true，否则在进程内拉起并轮询复检（自动启动/手动修复共用） */
