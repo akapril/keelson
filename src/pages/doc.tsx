@@ -1,6 +1,6 @@
 // 全页文档编辑器 /docs/:id —— 专业写作页：标题 + Milkdown(斜杠菜单/KaTeX/AI) + 右侧大纲 TOC。
 // /docs 列表与项目「文档」标签点开均跳此页；改动防抖自动保存；所属项目多选(0..N)。
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -164,8 +164,12 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
     }
   };
 
+  // aside(大纲/双链)用延迟内容：正文每键都全文扫描，用 deferredContent 降到低优先级，
+  // 让 TOC/双链略滞后而不阻塞打字（编辑器本身已跳过回声，见 MilkdownValueSync）。
+  const deferredContent = useDeferredValue(content);
+
   // 大纲：从正文解析标题（跳过代码块内 #）
-  const headings = useMemo(() => parseHeadings(content), [content]);
+  const headings = useMemo(() => parseHeadings(deferredContent), [deferredContent]);
 
   // Wiki 双链：出链（本文 [[标题]] 解析到的文档）+ 反向链接（引用了本文标题的文档）
   const titleToDoc = useMemo(() => {
@@ -176,11 +180,11 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
 
   const outLinks = useMemo(() => {
     // 解析到的目标标题 → { target, doc?(命中则可跳转) }
-    return parseWikiLinks(content).map((target) => ({
+    return parseWikiLinks(deferredContent).map((target) => ({
       target,
       doc: titleToDoc.get(target.toLowerCase()),
     }));
-  }, [content, titleToDoc]);
+  }, [deferredContent, titleToDoc]);
 
   const backLinks = useMemo(() => {
     const t = (title || "").trim();
