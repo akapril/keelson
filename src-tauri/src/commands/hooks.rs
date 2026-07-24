@@ -14,7 +14,8 @@ const HOOK_MARKER: &str = "rework-activity";
 
 /// hook 命令版本：命令结构/端点逻辑变更时 +1。
 /// 已装 hook 的命令里带 `rework-activity/<版本>`，据此检测是否过期需升级。
-const HOOK_VERSION: u32 = 1;
+/// v2：命令末尾加 `|| exit 0`，rework 未开/连不上时 curl 非0退出不再报 hook error。
+const HOOK_VERSION: u32 = 2;
 
 // ——————————————————————————————————————————————————————————————————————
 // 纯逻辑：settings.json 的 hooks.PostToolUse 受管条目增删（可测，无 IO）
@@ -191,8 +192,10 @@ pub fn has_intercept_hook(root: &Value) -> bool {
 /// 组装拦截 hook 命令：curl 从 stdin 转发 hook JSON 到 /intercept，把决策 JSON 打回 stdout。
 /// -m 8：托管进程可能需数秒，给足超时；--user-agent 携带标记便于识别。
 fn build_intercept_command(intercept_url: &str, secret: &str) -> String {
+    // 末尾 `|| exit 0`：rework 未开时 curl 连不上会非0退出并报 hook error；
+    // 静默退 0 → 空 stdout → Claude 视作放行（正确降级：daemon 不在就正常跑命令）。
     format!(
-        "curl -s -m 8 -X POST -H \"Authorization: Bearer {secret}\" -H \"Content-Type: application/json\" --user-agent {INTERCEPT_MARKER}/1 --data-binary @- {intercept_url}"
+        "curl -s -m 8 -X POST -H \"Authorization: Bearer {secret}\" -H \"Content-Type: application/json\" --user-agent {INTERCEPT_MARKER}/2 --data-binary @- {intercept_url} || exit 0"
     )
 }
 
@@ -242,8 +245,10 @@ fn read_intercept_endpoint(app: &tauri::AppHandle) -> Result<(String, String), S
 /// - Windows 10+/mac/linux 均自带 curl(.exe)。
 fn build_hook_command(activity_url: &str, secret: &str) -> String {
     // user-agent 带版本（rework-activity/<n>）：既是识别标记，又供 installed_hook_version 判过期。
+    // 末尾 `|| exit 0`：rework 未开时 curl 连不上会非0退出，Claude 会报 "hook error"；
+    // 尽力上报本就不该打扰用户，失败一律静默退 0（cmd/sh 均支持 || 与 exit 0）。
     format!(
-        "curl -s -m 2 -X POST -H \"Authorization: Bearer {secret}\" -H \"Content-Type: application/json\" --user-agent {HOOK_MARKER}/{HOOK_VERSION} --data-binary @- {activity_url}"
+        "curl -s -m 2 -X POST -H \"Authorization: Bearer {secret}\" -H \"Content-Type: application/json\" --user-agent {HOOK_MARKER}/{HOOK_VERSION} --data-binary @- {activity_url} || exit 0"
     )
 }
 
@@ -492,7 +497,9 @@ mod tests {
         assert!(cmd.contains("Authorization: Bearer sekret"));
         assert!(cmd.contains("--data-binary @-"));
         assert!(cmd.contains(HOOK_MARKER));
-        assert!(cmd.ends_with("http://127.0.0.1:47600/activity"));
+        assert!(cmd.contains("http://127.0.0.1:47600/activity"));
+        // 末尾静默退 0，避免 rework 未开时报 hook error
+        assert!(cmd.trim_end().ends_with("|| exit 0"));
     }
 
     const ICMD: &str = "curl -s --user-agent rework-intercept http://x/intercept";
