@@ -14,7 +14,6 @@ import {
   SortableContext,
   verticalListSortingStrategy,
   useSortable,
-  arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { StarIcon } from "@hugeicons/core-free-icons";
@@ -37,7 +36,8 @@ import { navGroups } from "@/lib/navigation";
 import { useBoardStore, selectPinnedProjects } from "@/store/board";
 
 /** 收藏组单行：可拖拽排序，点击 NavLink 走 /board?open=<id>（board 页据此打开项目）。
- * SidebarMenuItem 未用 forwardRef，不接受 ref，故外层包 div 承接 dnd-kit 的 ref/style。
+ * SidebarMenuItem 未用 forwardRef 不接受 ref，故这里直接渲染等价的 <li>（复制其
+ * data-slot/data-sidebar/className）承接 dnd-kit 的 ref/style，避免 ul>div>li 语义违规。
  */
 function FavoriteRow({ id, name }: { id: string; name: string }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -48,16 +48,20 @@ function FavoriteRow({ id, name }: { id: string; name: string }) {
     opacity: isDragging ? 0.6 : 1,
   };
   return (
-    <div ref={setNodeRef} style={style}>
-      <SidebarMenuItem>
-        <SidebarMenuButton asChild tooltip={name}>
-          <NavLink to={`/board?open=${id}`} {...attributes} {...listeners}>
-            <HugeiconsIcon icon={StarIcon} strokeWidth={2} />
-            <span className="truncate">{name}</span>
-          </NavLink>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </div>
+    <li
+      ref={setNodeRef}
+      style={style}
+      data-slot="sidebar-menu-item"
+      data-sidebar="menu-item"
+      className="group/menu-item relative"
+    >
+      <SidebarMenuButton asChild tooltip={name}>
+        <NavLink to={`/board?open=${id}`} {...attributes} {...listeners}>
+          <HugeiconsIcon icon={StarIcon} strokeWidth={2} />
+          <span className="truncate">{name}</span>
+        </NavLink>
+      </SidebarMenuButton>
+    </li>
   );
 }
 
@@ -72,8 +76,10 @@ export function AppSidebar() {
   // 兜底：侧栏在任意页都可见，若项目尚未加载（用户没进过「项目」页）则拉一次，
   // 使收藏组启动即可用。loadProjects 仅做列表拉取（无实时订阅副作用），重复调用安全。
   useEffect(() => {
-    if (!useBoardStore.getState().projects.length) {
-      void useBoardStore.getState().loadProjects();
+    const s = useBoardStore.getState();
+    // 加载中不重复触发（避免与「项目」页首次加载并发拉两次）
+    if (!s.projects.length && !s.loading) {
+      void s.loadProjects();
     }
   }, []);
 
@@ -86,13 +92,13 @@ export function AppSidebar() {
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
-    const from = pinned.findIndex((p) => p.id === active.id);
+    // to = over 在收藏列表里的目标下标；reorderPin 内部会排除自己后在该下标处插入，
+    // 与 dnd-kit arrayMove(full, from, to) 语义一致（下拖/上拖均正确）。
     const to = pinned.findIndex((p) => p.id === over.id);
-    if (from < 0 || to < 0) return;
+    if (to < 0) return;
     void reorderPin(String(active.id), to).catch(() => {
       /* 失败回滚已在 store 内，拖拽不弹 toast 以免打断 */
     });
-    void arrayMove(pinned, from, to); // 仅为语义占位；真实顺序由 store pin_rank 驱动
   };
 
   return (
