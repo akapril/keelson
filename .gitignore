@@ -10,6 +10,9 @@ node_modules/
 .vite/
 *.local
 
+# TypeScript 增量构建产物
+*.tsbuildinfo
+
 # PocketBase runtime data (never commit)
 /src-tauri/pb_data/
 pb_data/
