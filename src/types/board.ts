@@ -10,6 +10,10 @@ export interface BoardProject {
   description?: string;
   archived?: boolean;
   repo_path?: string;
+  /** 是否收藏（侧栏收藏组展示） */
+  pinned?: boolean;
+  /** 收藏项排序键（浮点 rank，未收藏时忽略） */
+  pin_rank?: number;
   created: string;
   updated: string;
 }
