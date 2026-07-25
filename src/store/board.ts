@@ -581,11 +581,14 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
   // ── 拖拽重排收藏（乐观 + 回滚重抛） ─────────────────────
   reorderPin: async (id, toIndex) => {
     const snapshot = get().projects;
-    // 排除自己后取前后邻居的 pin_rank，算落点 rank
+    // 只对已收藏项重排；传入未收藏 id 直接忽略（防写出 pinned=false 却有 rank 的脏记录）
+    const proj = snapshot.find((p) => p.id === id);
+    if (!proj?.pinned) return;
+    // 排除自己后取前后邻居的 pin_rank，算落点 rank（?.pin_rank 已是 number|undefined，直接传）
     const others = selectPinnedProjects(snapshot).filter((p) => p.id !== id);
     const before = others[toIndex - 1]?.pin_rank;
     const after = others[toIndex]?.pin_rank;
-    const newRank = rankBetween(before ?? undefined, after ?? undefined);
+    const newRank = rankBetween(before, after);
     set({
       projects: snapshot.map((p) => (p.id === id ? { ...p, pin_rank: newRank } : p)),
     });
