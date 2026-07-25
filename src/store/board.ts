@@ -49,6 +49,21 @@ function removeById<T extends { id: string }>(list: T[], id: string): T[] {
 }
 
 // ── 纯辅助函数（可独立测试） ─────────────────────────────
+/** 收藏项目：只取 pinned，按 pin_rank 升序（未收藏/无 rank 视为 0）。纯函数，便于测试。 */
+export function selectPinnedProjects(projects: BoardProject[]): BoardProject[] {
+  return projects
+    .filter((pj) => pj.pinned)
+    .sort((a, b) => (a.pin_rank ?? 0) - (b.pin_rank ?? 0));
+}
+
+/** 当前收藏项里最大的 pin_rank（无收藏返回 null），用于「加星追加到末尾」。 */
+function maxPinRank(projects: BoardProject[]): number | null {
+  const ranks = projects
+    .filter((pj) => pj.pinned && pj.pin_rank != null)
+    .map((pj) => pj.pin_rank as number);
+  return ranks.length ? Math.max(...ranks) : null;
+}
+
 /**
  * 将任务列表按 state ID 分组，保留原始顺序。
  * @param tasks 任务数组（按 rank 排序后传入）
@@ -188,6 +203,10 @@ interface BoardStoreState {
       archived: boolean;
     }>,
   ) => Promise<void>;
+  /** 切换项目收藏：收藏→pinned=true 且 pin_rank 追加到末尾；取消→pinned=false。乐观+回滚重抛。 */
+  toggleProjectPin: (id: string) => Promise<void>;
+  /** 拖拽重排收藏项：按目标位置算 rankBetween，写 pin_rank。乐观+回滚重抛。 */
+  reorderPin: (id: string, toIndex: number) => Promise<void>;
   /**
    * 删除项目（先删任务再删项目，PB 级联删其状态列/标签/成员）。
    * @param opts.deleteDocs 为 true 时，删除**仅属于本项目**的文档；与其他项目共享的仍只解除关联。
@@ -536,6 +555,46 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
     set((s) => ({
       projects: s.projects.map((p) => (p.id === id ? updated : p)),
     }));
+  },
+
+  // ── 切换收藏（乐观 + 回滚重抛） ─────────────────────────
+  toggleProjectPin: async (id) => {
+    const snapshot = get().projects;
+    const proj = snapshot.find((p) => p.id === id);
+    if (!proj) return;
+    const willPin = !proj.pinned;
+    // 收藏→追加到末尾 rank；取消→仅置 pinned=false（pin_rank 保留、忽略）
+    const patch = willPin
+      ? { pinned: true, pin_rank: nextRank(maxPinRank(snapshot)) }
+      : { pinned: false };
+    set({
+      projects: snapshot.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    });
+    try {
+      await updateRecord(COL.boardProjects, id, patch as Record<string, unknown>);
+    } catch (e) {
+      set({ projects: snapshot, error: String(e) });
+      throw e;
+    }
+  },
+
+  // ── 拖拽重排收藏（乐观 + 回滚重抛） ─────────────────────
+  reorderPin: async (id, toIndex) => {
+    const snapshot = get().projects;
+    // 排除自己后取前后邻居的 pin_rank，算落点 rank
+    const others = selectPinnedProjects(snapshot).filter((p) => p.id !== id);
+    const before = others[toIndex - 1]?.pin_rank;
+    const after = others[toIndex]?.pin_rank;
+    const newRank = rankBetween(before ?? undefined, after ?? undefined);
+    set({
+      projects: snapshot.map((p) => (p.id === id ? { ...p, pin_rank: newRank } : p)),
+    });
+    try {
+      await updateRecord(COL.boardProjects, id, { pin_rank: newRank });
+    } catch (e) {
+      set({ projects: snapshot, error: String(e) });
+      throw e;
+    }
   },
 
   // ── 删除项目 ─────────────────────────────────────────────
