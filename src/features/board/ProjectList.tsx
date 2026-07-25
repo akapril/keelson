@@ -12,6 +12,8 @@ import {
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
 import type { BoardProject } from "../../types/board";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { StarIcon } from "@hugeicons/core-free-icons";
 
 /** 复制文本到剪贴板 + 反馈 */
 export function copyText(text: string, label: string) {
@@ -58,6 +60,8 @@ function ProjectCard({
 }) {
   const openProject = useBoardStore((s) => s.openProject);
   const updateProject = useBoardStore((s) => s.updateProject);
+  // 收藏切换方法（Task 2 store 提供）
+  const toggleProjectPin = useBoardStore((s) => s.toggleProjectPin);
   const handleOpen = () => void openProject(project.id);
 
   const total = stat?.total ?? 0;
@@ -72,7 +76,7 @@ function ProjectCard({
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") handleOpen();
       }}
-      className="flex cursor-pointer flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-border hover:bg-accent/40 focus:outline-none focus:ring-2 focus:ring-ring"
+      className="group flex cursor-pointer flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-border hover:bg-accent/40 focus:outline-none focus:ring-2 focus:ring-ring"
     >
       {/* 名称 + 归档 */}
       <div className="flex items-center gap-2">
@@ -84,6 +88,26 @@ function ProjectCard({
             已归档
           </span>
         )}
+        {/* 收藏星标：已收藏常亮(primary)，未收藏淡显、卡片 hover 才出；点击不触发打开 */}
+        <button
+          type="button"
+          aria-label={project.pinned ? "取消收藏" : "收藏"}
+          title={project.pinned ? "取消收藏" : "收藏"}
+          onClick={(e) => {
+            e.stopPropagation();
+            void toggleProjectPin(project.id).catch((err) =>
+              toast.error(`收藏失败：${String(err)}`),
+            );
+          }}
+          className={[
+            "shrink-0 rounded p-0.5 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring",
+            project.pinned
+              ? "text-primary opacity-100"
+              : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground",
+          ].join(" ")}
+        >
+          <HugeiconsIcon icon={StarIcon} size={16} strokeWidth={2} />
+        </button>
       </div>
 
       {/* 「这个项目是做什么的」：优先项目描述；无则用扫描到的最近会话提示词兜底 */}
@@ -142,6 +166,16 @@ function ProjectCard({
             复制仓库路径
           </ContextMenuItem>
         )}
+        {/* 收藏/取消收藏：文案随当前状态切换 */}
+        <ContextMenuItem
+          onSelect={() =>
+            void toggleProjectPin(project.id).catch((e) =>
+              toast.error(`收藏失败：${String(e)}`),
+            )
+          }
+        >
+          {project.pinned ? "取消收藏" : "收藏"}
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={() =>
