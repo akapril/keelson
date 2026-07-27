@@ -358,16 +358,19 @@ impl ReworkMcpHandler {
         ctx: &McpCtx,
     ) {
         use tauri_plugin_notification::NotificationExt;
+        // 取当前界面语言（沿用 lib.rs set_locale 同步的 AppState.locale），供通知文案查表
+        let loc = self.app.state::<AppState>().locale.lock().clone();
         let title = result.get("title").and_then(|v| v.as_str()).unwrap_or("");
         let (text, link) = match tool {
             "create_task" => (
-                format!("MCP 新建任务：{title}"),
+                // 前缀经 i18n 查表，动态标题用 format! 拼接（动态值不入 key）
+                format!("{}{title}", crate::i18n::t(&loc, "notify.task.created")),
                 project_id
                     .map(|p| format!("/board?open={p}&tab=board"))
                     .unwrap_or_else(|| "/board".into()),
             ),
             "create_doc" => (
-                format!("MCP 新建文档：{title}"),
+                format!("{}{title}", crate::i18n::t(&loc, "notify.doc.created")),
                 project_id
                     .map(|p| format!("/board?open={p}&tab=docs"))
                     .unwrap_or_else(|| "/docs".into()),
@@ -382,7 +385,7 @@ impl ReworkMcpHandler {
                 &serde_json::json!({
                     "owner": ctx.user_id,
                     "title": text,
-                    "body": "由外部 AI（claude / codex）经 MCP 创建",
+                    "body": crate::i18n::t(&loc, "notify.external.body"),
                     "kind": "info",
                     "read": false,
                     "link": link,
