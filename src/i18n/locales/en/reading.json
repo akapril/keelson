@@ -1,0 +1,103 @@
+{
+  "page": {
+    "title": "Reading",
+    "subtitle": "Save links and articles to read later, take notes, and archive by status."
+  },
+  "filter": {
+    "all": "All",
+    "unread": "Unread",
+    "reading": "Reading",
+    "archived": "Archived"
+  },
+  "status": {
+    "unread": "Unread",
+    "reading": "Reading",
+    "archived": "Archived"
+  },
+  "add": {
+    "urlPlaceholder": "Paste a link (bookmark style, title optional)",
+    "titlePlaceholder": "Title (optional)",
+    "urlAriaLabel": "Link",
+    "titleAriaLabel": "Title",
+    "button": "Add"
+  },
+  "search": {
+    "placeholder": "Search title / link / tag…",
+    "ariaLabel": "Search"
+  },
+  "empty": {
+    "all": "No reading items yet",
+    "byStatus": "No items in this status",
+    "hint": "Add your first reading item above"
+  },
+  "section": {
+    "pinned": "📌 Pinned ({{count}})",
+    "recent": "Recent"
+  },
+  "row": {
+    "readingMinutes": "· ~{{n}} min",
+    "viewDetail": "View detail",
+    "viewDetailTitle": "View detail",
+    "aiSummarize": "AI Summary",
+    "aiResummarize": "Re-summarize",
+    "summarizing": "Summarizing…",
+    "aiSummarizeAriaLabel": "AI Summary",
+    "createTask": "Create task",
+    "createTaskAriaLabel": "Create task",
+    "changeStatusAriaLabel": "Change status",
+    "deleteAriaLabel": "Delete"
+  },
+  "context": {
+    "openLink": "Open link",
+    "detail": "Detail",
+    "aiSummarize": "AI Summary",
+    "aiResummarize": "Re-summarize with AI",
+    "createTask": "Create task",
+    "markAs": "Mark as {{label}}",
+    "copyLink": "Copy link"
+  },
+  "detail": {
+    "defaultTitle": "Reading item",
+    "description": "Reading item detail and AI summary",
+    "noLink": "No link",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinned": "Pinned",
+    "tagClickToRemove": "Click to remove",
+    "tagPlaceholder": "Add tag, press Enter or comma",
+    "keyPoints": "Key Points",
+    "noSummary": "No AI summary yet.",
+    "noSummaryWithLink": "No AI summary yet. Click \"AI Summary\" in the top right to fetch and generate one.",
+    "noSummaryNoLink": "No AI summary yet. This item has no link.",
+    "note": "Note",
+    "aiSummarize": "AI Summary",
+    "aiResummarize": "Re-summarize",
+    "summarizing": "Summarizing…"
+  },
+  "createTask": {
+    "dialogTitle": "Create task from reading item",
+    "titleLabel": "Title",
+    "titlePlaceholder": "Enter task title",
+    "projectLabel": "Target project",
+    "projectPlaceholder": "Select a project",
+    "noProject": "Please create a board project in \"Projects\" first",
+    "sourceLink": "Source link:",
+    "creating": "Creating…",
+    "submit": "Create task",
+    "errorNoProject": "Please create a board project in \"Projects\" first",
+    "errorEmptyTitle": "Task title cannot be empty",
+    "errorNoState": "This project has no status columns, cannot create task"
+  },
+  "toast": {
+    "updateFailed": "Update failed: {{msg}}",
+    "deleteFailed": "Delete failed: {{msg}}",
+    "pinFailed": "Pin failed: {{msg}}",
+    "tagUpdateFailed": "Tag update failed: {{msg}}",
+    "linkCopied": "Link copied",
+    "noLinkToSummarize": "This item has no link, cannot summarize",
+    "noAiConfig": "Please configure AI service in settings first",
+    "summarizeDoneWithTags": "\"{{title}}\" summarized (with {{n}} suggested tags)",
+    "summarizeDone": "\"{{title}}\" summarized",
+    "summarizeFailed": "\"{{title}}\" summarize failed: {{msg}}"
+  }
+}

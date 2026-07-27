@@ -1,0 +1,103 @@
+{
+  "page": {
+    "title": "阅读",
+    "subtitle": "收藏想读的链接与文章，随手记录、按状态归档。"
+  },
+  "filter": {
+    "all": "全部",
+    "unread": "未读",
+    "reading": "在读",
+    "archived": "已归档"
+  },
+  "status": {
+    "unread": "未读",
+    "reading": "在读",
+    "archived": "已归档"
+  },
+  "add": {
+    "urlPlaceholder": "粘贴链接（书签式，标题可留空）",
+    "titlePlaceholder": "标题（可选）",
+    "urlAriaLabel": "链接",
+    "titleAriaLabel": "标题",
+    "button": "添加"
+  },
+  "search": {
+    "placeholder": "搜索标题 / 链接 / 标签…",
+    "ariaLabel": "搜索"
+  },
+  "empty": {
+    "all": "暂无阅读条目",
+    "byStatus": "该状态下暂无条目",
+    "hint": "在上方添加第一条阅读记录"
+  },
+  "section": {
+    "pinned": "📌 置顶（{{count}}）",
+    "recent": "最近"
+  },
+  "row": {
+    "readingMinutes": "· 约 {{n}} 分钟",
+    "viewDetail": "查看详情",
+    "viewDetailTitle": "查看详情",
+    "aiSummarize": "AI 摘要",
+    "aiResummarize": "重新摘要",
+    "summarizing": "摘要中…",
+    "aiSummarizeAriaLabel": "AI 摘要",
+    "createTask": "建任务",
+    "createTaskAriaLabel": "建任务",
+    "changeStatusAriaLabel": "修改状态",
+    "deleteAriaLabel": "删除"
+  },
+  "context": {
+    "openLink": "打开链接",
+    "detail": "详情",
+    "aiSummarize": "AI 摘要",
+    "aiResummarize": "重新 AI 摘要",
+    "createTask": "建任务",
+    "markAs": "标记为{{label}}",
+    "copyLink": "复制链接"
+  },
+  "detail": {
+    "defaultTitle": "阅读条目",
+    "description": "阅读条目详情与 AI 摘要",
+    "noLink": "无链接",
+    "pin": "置顶",
+    "unpin": "取消置顶",
+    "pinned": "已置顶",
+    "tagClickToRemove": "点击删除",
+    "tagPlaceholder": "加标签，回车/逗号确认",
+    "keyPoints": "关键要点",
+    "noSummary": "暂无 AI 摘要。",
+    "noSummaryWithLink": "暂无 AI 摘要。点右上「AI 摘要」抓取网页并生成。",
+    "noSummaryNoLink": "暂无 AI 摘要。该条目无链接。",
+    "note": "备注",
+    "aiSummarize": "AI 摘要",
+    "aiResummarize": "重新摘要",
+    "summarizing": "摘要中…"
+  },
+  "createTask": {
+    "dialogTitle": "从阅读条目建任务",
+    "titleLabel": "标题",
+    "titlePlaceholder": "输入任务标题",
+    "projectLabel": "目标项目",
+    "projectPlaceholder": "选择目标项目",
+    "noProject": "请先在「项目」中创建一个看板项目",
+    "sourceLink": "来源链接：",
+    "creating": "创建中…",
+    "submit": "创建任务",
+    "errorNoProject": "请先在「项目」中创建一个看板项目",
+    "errorEmptyTitle": "任务标题不能为空",
+    "errorNoState": "该项目暂无状态列，无法创建任务"
+  },
+  "toast": {
+    "updateFailed": "更新失败：{{msg}}",
+    "deleteFailed": "删除失败：{{msg}}",
+    "pinFailed": "置顶失败：{{msg}}",
+    "tagUpdateFailed": "更新标签失败：{{msg}}",
+    "linkCopied": "已复制链接",
+    "noLinkToSummarize": "该条目无链接，无法摘要",
+    "noAiConfig": "请先在设置中配置 AI 服务",
+    "summarizeDoneWithTags": "「{{title}}」摘要完成（含 {{n}} 个推荐标签）",
+    "summarizeDone": "「{{title}}」摘要完成",
+    "summarizeFailed": "「{{title}}」摘要失败：{{msg}}"
+  }
+}

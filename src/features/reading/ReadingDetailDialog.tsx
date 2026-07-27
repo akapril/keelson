@@ -1,5 +1,6 @@
 // ReadingDetailDialog —— 阅读条目详情(交互):AI 摘要/要点、标签编辑、置顶、备注。
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   LinkSquare02Icon,
@@ -24,18 +25,13 @@ import { useReadingSummaryJob } from "./reading-summary-job";
 import { splitTags, joinTags } from "./reading-utils";
 import type { ReadingItem, ReadingStatus } from "@/types/reading";
 
-const STATUS_LABEL: Record<ReadingStatus, string> = {
-  unread: "未读",
-  reading: "在读",
-  archived: "已归档",
-};
-
 interface ReadingDetailDialogProps {
   item: ReadingItem | null;
   onClose: () => void;
 }
 
 export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps) {
+  const { t } = useTranslation("reading");
   const updateItem = useReadingStore((s) => s.updateItem);
   // AI 摘要后台任务：进行中态取自模块级 store（详情弹窗关了再开仍正确）
   const summarizing = useReadingSummaryJob((s) => (item ? s.pending.has(item.id) : false));
@@ -52,7 +48,7 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
   useEffect(() => {
     if (item && item.status === "unread") {
       void updateItem(item.id, { status: "reading" }).catch((e) =>
-        toast.error(`更新失败：${String(e)}`),
+        toast.error(t("toast.updateFailed", { msg: String(e) })),
       );
     }
     // 仅在打开的条目切换时判断一次
@@ -84,21 +80,24 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
     const next = splitTags(joinTags([...tags, tagInput]));
     setTagInput("");
     void updateItem(item.id, { tags: joinTags(next) }).catch((e) =>
-      toast.error(`更新标签失败：${String(e)}`),
+      toast.error(t("toast.tagUpdateFailed", { msg: String(e) })),
     );
   };
-  const removeTag = (t: string) => {
-    void updateItem(item.id, { tags: joinTags(tags.filter((x) => x !== t)) }).catch((e) =>
-      toast.error(`更新标签失败：${String(e)}`),
+  const removeTag = (tag: string) => {
+    void updateItem(item.id, { tags: joinTags(tags.filter((x) => x !== tag)) }).catch((e) =>
+      toast.error(t("toast.tagUpdateFailed", { msg: String(e) })),
     );
   };
+
+  // 状态标签通过 i18n 获取
+  const statusLabel = (status: ReadingStatus) => t(`status.${status}`);
 
   return (
     <Dialog open={!!item} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="flex max-h-[80vh] w-full max-w-2xl flex-col">
         <DialogHeader>
-          <DialogTitle className="pr-6">{item.title || "阅读条目"}</DialogTitle>
-          <DialogDescription>阅读条目详情与 AI 摘要</DialogDescription>
+          <DialogTitle className="pr-6">{item.title || t("detail.defaultTitle")}</DialogTitle>
+          <DialogDescription>{t("detail.description")}</DialogDescription>
         </DialogHeader>
 
         {/* 链接 + 状态 + 操作 */}
@@ -115,10 +114,10 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
               <span className="truncate">{item.url}</span>
             </a>
           ) : (
-            <span className="text-muted-foreground">无链接</span>
+            <span className="text-muted-foreground">{t("detail.noLink")}</span>
           )}
           <Badge variant="secondary" className="shrink-0">
-            {STATUS_LABEL[item.status] ?? item.status}
+            {statusLabel(item.status)}
           </Badge>
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <Button
@@ -126,18 +125,18 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
               size="sm"
               onClick={() =>
                 void updateItem(item.id, { pinned: !item.pinned }).catch((e) =>
-                  toast.error(`置顶失败：${String(e)}`),
+                  toast.error(t("toast.pinFailed", { msg: String(e) })),
                 )
               }
-              title={item.pinned ? "取消置顶" : "置顶"}
+              title={item.pinned ? t("detail.unpin") : t("detail.pin")}
             >
               <HugeiconsIcon icon={PinIcon} strokeWidth={2} />
-              {item.pinned ? "已置顶" : "置顶"}
+              {item.pinned ? t("detail.pinned") : t("detail.pin")}
             </Button>
             {item.url && (
               <Button variant="ghost" size="sm" disabled={summarizing} onClick={runSummarize}>
                 <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} />
-                {summarizing ? "摘要中…" : item.summary ? "重新摘要" : "AI 摘要"}
+                {summarizing ? t("detail.summarizing") : item.summary ? t("detail.aiResummarize") : t("detail.aiSummarize")}
               </Button>
             )}
           </div>
@@ -145,15 +144,15 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
 
         {/* 标签 */}
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border py-2">
-          {tags.map((t) => (
+          {tags.map((tag) => (
             <button
-              key={t}
+              key={tag}
               type="button"
-              onClick={() => removeTag(t)}
+              onClick={() => removeTag(tag)}
               className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-              title="点击删除"
+              title={t("detail.tagClickToRemove")}
             >
-              {t} ✕
+              {tag} ✕
             </button>
           ))}
           <Input
@@ -165,7 +164,7 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
                 addTag();
               }
             }}
-            placeholder="加标签，回车/逗号确认"
+            placeholder={t("detail.tagPlaceholder")}
             className="h-7 w-40 text-xs"
           />
         </div>
@@ -179,7 +178,7 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
               {keyPoints.length > 0 && (
                 <div className="mt-3">
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    关键要点
+                    {t("detail.keyPoints")}
                   </p>
                   <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
                     {keyPoints.map((k, i) => (
@@ -191,12 +190,12 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              暂无 AI 摘要。{item.url ? "点右上「AI 摘要」抓取网页并生成。" : "该条目无链接。"}
+              {item.url ? t("detail.noSummaryWithLink") : t("detail.noSummaryNoLink")}
             </p>
           )}
           {item.note?.trim() && (
             <div className="border-t border-border pt-2">
-              <p className="mb-1 text-xs font-medium text-muted-foreground">备注</p>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">{t("detail.note")}</p>
               <p className="whitespace-pre-wrap text-sm text-foreground">{item.note}</p>
             </div>
           )}

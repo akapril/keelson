@@ -3,6 +3,7 @@
 // 进行中的 id 集合放模块级 store，使切页面/重挂载后按钮态仍正确（不随组件本地 state 丢）。
 import { create } from "zustand";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { useSettingsStore } from "@/store/settings";
 import { useReadingStore } from "@/store/reading";
 import { summarizeReadingItem } from "./summarize";
@@ -21,13 +22,13 @@ export const useReadingSummaryJob = create<ReadingSummaryJobState>((set, get) =>
   start: (item) => {
     if (get().pending.has(item.id)) return; // 该条目已在摘要中
     if (!item.url) {
-      toast.error("该条目无链接，无法摘要");
+      toast.error(i18n.t("toast.noLinkToSummarize", { ns: "reading" }));
       return;
     }
     const cfg = useSettingsStore.getState().aiConfig;
     const isCli = cfg.provider === "claude-cli" || cfg.provider === "codex-cli";
     if (!isCli && !cfg.api_key) {
-      toast.error("请先在设置中配置 AI 服务");
+      toast.error(i18n.t("toast.noAiConfig", { ns: "reading" }));
       return;
     }
 
@@ -51,12 +52,12 @@ export const useReadingSummaryJob = create<ReadingSummaryJobState>((set, get) =>
         await useReadingStore.getState().updateItem(item.id, patch);
         toast.success(
           fillTags
-            ? `「${item.title}」摘要完成（含 ${r.tags.length} 个推荐标签）`
-            : `「${item.title}」摘要完成`,
+            ? i18n.t("toast.summarizeDoneWithTags", { ns: "reading", title: item.title, n: r.tags.length })
+            : i18n.t("toast.summarizeDone", { ns: "reading", title: item.title }),
         );
       })
       .catch((e) => {
-        toast.error(`「${item.title}」摘要失败：${String(e instanceof Error ? e.message : e)}`);
+        toast.error(i18n.t("toast.summarizeFailed", { ns: "reading", title: item.title, msg: String(e instanceof Error ? e.message : e) }));
       })
       .finally(() => {
         set((s) => {

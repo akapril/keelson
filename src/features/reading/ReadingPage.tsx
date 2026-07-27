@@ -2,6 +2,7 @@
 // 组件仅调用 store；数据访问由 store → src/lib/pb/reading.ts 收口。
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Add01Icon,
@@ -43,20 +44,6 @@ import {
 // ── 筛选选项（全部 + 三种状态） ────────────────────────────
 type FilterValue = "all" | ReadingStatus;
 
-const FILTERS: { value: FilterValue; label: string }[] = [
-  { value: "all", label: "全部" },
-  { value: "unread", label: "未读" },
-  { value: "reading", label: "在读" },
-  { value: "archived", label: "已归档" },
-];
-
-// ── 状态下拉选项 ───────────────────────────────────────────
-const STATUS_OPTIONS: { value: ReadingStatus; label: string }[] = [
-  { value: "unread", label: "未读" },
-  { value: "reading", label: "在读" },
-  { value: "archived", label: "已归档" },
-];
-
 /** 从 URL 提取主机名用于小字展示；解析失败时回退原串 */
 function urlHost(url: string): string {
   try {
@@ -95,6 +82,7 @@ interface ReadingRowProps {
 }
 
 function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
+  const { t } = useTranslation("reading");
   const updateItem = useReadingStore((s) => s.updateItem);
   const removeItem = useReadingStore((s) => s.removeItem);
   // 详情对话框（完整查看备注 / AI 摘要）
@@ -107,7 +95,7 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
   const markReading = () => {
     if (item.status === "unread")
       void updateItem(item.id, { status: "reading" }).catch((e) =>
-        toast.error(`更新失败：${String(e)}`),
+        toast.error(t("toast.updateFailed", { msg: String(e) })),
       );
   };
 
@@ -161,7 +149,7 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
               )}
               <span className="truncate">{urlHost(item.url)}</span>
               {readingMinutes(item.content_text) != null && (
-                <span className="shrink-0">· 约 {readingMinutes(item.content_text)} 分钟</span>
+                <span className="shrink-0">{t("row.readingMinutes", { n: readingMinutes(item.content_text) })}</span>
               )}
             </div>
           )}
@@ -169,9 +157,9 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
           {/* 标签胶囊 */}
           {splitTags(item.tags).length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
-              {splitTags(item.tags).map((t) => (
-                <span key={t} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                  {t}
+              {splitTags(item.tags).map((tag) => (
+                <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  {tag}
                 </span>
               ))}
             </div>
@@ -183,12 +171,12 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
               type="button"
               onClick={() => setDetailOpen(true)}
               className="mt-1 block w-full text-left"
-              title="查看详情"
+              title={t("row.viewDetailTitle")}
             >
               <span className="line-clamp-2 text-sm text-muted-foreground">
                 {item.summary || item.note}
               </span>
-              <span className="text-xs text-primary hover:underline">查看详情</span>
+              <span className="text-xs text-primary hover:underline">{t("row.viewDetail")}</span>
             </button>
           )}
         </div>
@@ -200,42 +188,42 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
             <Button
               variant="ghost"
               size="sm"
-              aria-label="AI 摘要"
+              aria-label={t("row.aiSummarizeAriaLabel")}
               className="text-muted-foreground hover:text-foreground"
               disabled={summarizing}
               onClick={handleSummarize}
             >
               <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} />
-              {summarizing ? "摘要中…" : item.summary ? "重新摘要" : "AI 摘要"}
+              {summarizing ? t("row.summarizing") : item.summary ? t("row.aiResummarize") : t("row.aiSummarize")}
             </Button>
           )}
           {/* 从当前阅读条目创建看板任务 */}
           <Button
             variant="ghost"
             size="sm"
-            aria-label="建任务"
+            aria-label={t("row.createTaskAriaLabel")}
             className="text-muted-foreground hover:text-foreground"
             onClick={() => onCreateTask(item)}
           >
             <HugeiconsIcon icon={TaskAdd01Icon} strokeWidth={2} />
-            建任务
+            {t("row.createTask")}
           </Button>
 
           <Select
             value={item.status}
             onValueChange={(v) =>
               void updateItem(item.id, { status: v as ReadingStatus }).catch((e) =>
-                toast.error(`更新失败：${String(e)}`),
+                toast.error(t("toast.updateFailed", { msg: String(e) })),
               )
             }
           >
-            <SelectTrigger size="sm" aria-label="修改状态">
+            <SelectTrigger size="sm" aria-label={t("row.changeStatusAriaLabel")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {STATUS_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
+              {(["unread", "reading", "archived"] as ReadingStatus[]).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {t(`status.${s}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -244,11 +232,11 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="删除"
+            aria-label={t("row.deleteAriaLabel")}
             className="text-muted-foreground hover:text-destructive"
             onClick={() =>
               void removeItem(item.id).catch((e) =>
-                toast.error(`删除失败：${String(e)}`),
+                toast.error(t("toast.deleteFailed", { msg: String(e) })),
               )
             }
           >
@@ -272,50 +260,52 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
               window.open(item.url, "_blank");
             }}
           >
-            打开链接
+            {t("context.openLink")}
           </ContextMenuItem>
         )}
-        <ContextMenuItem onSelect={() => setDetailOpen(true)}>详情</ContextMenuItem>
+        <ContextMenuItem onSelect={() => setDetailOpen(true)}>{t("context.detail")}</ContextMenuItem>
         {item.url && (
           <ContextMenuItem disabled={summarizing} onSelect={handleSummarize}>
-            {item.summary ? "重新 AI 摘要" : "AI 摘要"}
+            {item.summary ? t("context.aiResummarize") : t("context.aiSummarize")}
           </ContextMenuItem>
         )}
-        <ContextMenuItem onSelect={() => onCreateTask(item)}>建任务</ContextMenuItem>
+        <ContextMenuItem onSelect={() => onCreateTask(item)}>{t("context.createTask")}</ContextMenuItem>
         <ContextMenuSeparator />
-        {STATUS_OPTIONS.filter((o) => o.value !== item.status).map((o) => (
-          <ContextMenuItem
-            key={o.value}
-            onSelect={() =>
-              void updateItem(item.id, { status: o.value }).catch((e) =>
-                toast.error(`更新失败：${String(e)}`),
-              )
-            }
-          >
-            标记为{o.label}
-          </ContextMenuItem>
-        ))}
+        {(["unread", "reading", "archived"] as ReadingStatus[])
+          .filter((s) => s !== item.status)
+          .map((s) => (
+            <ContextMenuItem
+              key={s}
+              onSelect={() =>
+                void updateItem(item.id, { status: s }).catch((e) =>
+                  toast.error(t("toast.updateFailed", { msg: String(e) })),
+                )
+              }
+            >
+              {t("context.markAs", { label: t(`status.${s}`) })}
+            </ContextMenuItem>
+          ))}
         <ContextMenuSeparator />
         {item.url && (
           <ContextMenuItem
             onSelect={() =>
               void navigator.clipboard
                 .writeText(item.url)
-                .then(() => toast.success("已复制链接"))
+                .then(() => toast.success(t("toast.linkCopied")))
             }
           >
-            复制链接
+            {t("context.copyLink")}
           </ContextMenuItem>
         )}
         <ContextMenuItem
           variant="destructive"
           onSelect={() =>
             void removeItem(item.id).catch((e) =>
-              toast.error(`删除失败：${String(e)}`),
+              toast.error(t("toast.deleteFailed", { msg: String(e) })),
             )
           }
         >
-          删除
+          {t("row.deleteAriaLabel")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -324,14 +314,15 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
 
 // ── 页面主体 ───────────────────────────────────────────────
 export default function ReadingPage() {
+  const { t } = useTranslation("reading");
   const items = useReadingStore((s) => s.items);
   const loading = useReadingStore((s) => s.loading);
   const error = useReadingStore((s) => s.error);
   const addItem = useReadingStore((s) => s.addItem);
 
   // 添加行的本地输入状态
-  const [title, setTitle] = useState("");
-  const [url, setUrl] = useState("");
+  const [titleInput, setTitleInput] = useState("");
+  const [urlInput, setUrlInput] = useState("");
   // 状态筛选
   const [filter, setFilter] = useState<FilterValue>("all");
   // 关键词搜索（标题 / 链接 / 标签）
@@ -356,32 +347,40 @@ export default function ReadingPage() {
       (it) =>
         it.title.toLowerCase().includes(q) ||
         it.url.toLowerCase().includes(q) ||
-        splitTags(it.tags).some((t) => t.toLowerCase().includes(q)),
+        splitTags(it.tags).some((tag) => tag.toLowerCase().includes(q)),
     );
   }, [items, filter, query]);
 
   // 提交添加：标题或链接至少一个。书签式：只贴链接也能存，标题空则用域名兜底。
   const handleAdd = async () => {
-    const t = title.trim();
-    const u = url.trim();
-    if (!t && !u) return;
+    const ti = titleInput.trim();
+    const u = urlInput.trim();
+    if (!ti && !u) return;
     // 标题兜底：无标题但有链接 → 用域名当标题（书签感，随后可 AI 摘要补全）
-    const finalTitle = t || (u ? urlHost(u) : "");
+    const finalTitle = ti || (u ? urlHost(u) : "");
     if (!finalTitle) return;
     await addItem({ title: finalTitle, url: u });
-    setTitle("");
-    setUrl("");
+    setTitleInput("");
+    setUrlInput("");
   };
+
+  // 筛选项（全部 + 三种状态），label 来自 i18n
+  const filterOptions: { value: FilterValue }[] = [
+    { value: "all" },
+    { value: "unread" },
+    { value: "reading" },
+    { value: "archived" },
+  ];
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
       {/* 头部：标题 + 副标题 */}
       <header className="mb-4 shrink-0">
         <h1 className="font-heading text-xl font-semibold text-foreground">
-          阅读
+          {t("page.title")}
         </h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          收藏想读的链接与文章，随手记录、按状态归档。
+          {t("page.subtitle")}
         </p>
       </header>
 
@@ -394,22 +393,22 @@ export default function ReadingPage() {
         }}
       >
         <Input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="粘贴链接（书签式，标题可留空）"
+          value={urlInput}
+          onChange={(e) => setUrlInput(e.target.value)}
+          placeholder={t("add.urlPlaceholder")}
           className="flex-1"
-          aria-label="链接"
+          aria-label={t("add.urlAriaLabel")}
         />
         <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="标题（可选）"
+          value={titleInput}
+          onChange={(e) => setTitleInput(e.target.value)}
+          placeholder={t("add.titlePlaceholder")}
           className="flex-1"
-          aria-label="标题"
+          aria-label={t("add.titleAriaLabel")}
         />
-        <Button type="submit" disabled={!title.trim() && !url.trim()}>
+        <Button type="submit" disabled={!titleInput.trim() && !urlInput.trim()}>
           <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-          添加
+          {t("add.button")}
         </Button>
       </form>
 
@@ -420,9 +419,9 @@ export default function ReadingPage() {
         className="mb-3 shrink-0"
       >
         <TabsList>
-          {FILTERS.map((f) => (
+          {filterOptions.map((f) => (
             <TabsTrigger key={f.value} value={f.value}>
-              {f.label}
+              {t(`filter.${f.value}`)}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -432,9 +431,9 @@ export default function ReadingPage() {
       <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜索标题 / 链接 / 标签…"
+        placeholder={t("search.placeholder")}
         className="mb-3 shrink-0"
-        aria-label="搜索"
+        aria-label={t("search.ariaLabel")}
       />
 
       {/* 错误提示 */}
@@ -451,13 +450,13 @@ export default function ReadingPage() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-            加载中…
+            {t("common:state.loading")}
           </div>
         ) : visible.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
-            <span>{filter === "all" ? "暂无阅读条目" : "该状态下暂无条目"}</span>
+            <span>{filter === "all" ? t("empty.all") : t("empty.byStatus")}</span>
             {filter === "all" && (
-              <span className="text-xs">在上方添加第一条阅读记录</span>
+              <span className="text-xs">{t("empty.hint")}</span>
             )}
           </div>
         ) : (
@@ -468,7 +467,7 @@ export default function ReadingPage() {
                 {pinned.length > 0 && (
                   <section>
                     <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      📌 置顶（{pinned.length}）
+                      {t("section.pinned", { count: pinned.length })}
                     </h2>
                     <div className="flex flex-col gap-2">
                       {pinned.map((it) => (
@@ -480,7 +479,7 @@ export default function ReadingPage() {
                 <section>
                   {pinned.length > 0 && (
                     <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      最近
+                      {t("section.recent")}
                     </h2>
                   )}
                   <div className="flex flex-col gap-2">
