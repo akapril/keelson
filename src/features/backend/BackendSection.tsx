@@ -46,7 +46,7 @@ export function BackendSection() {
             id="pb-url"
             type="text"
             value={url}
-            placeholder="https://pb.example.com（留空用本地）"
+            placeholder={t("backend.urlPlaceholder")}
             onChange={(e) => setUrl(e.target.value)}
             className="flex-1"
           />
