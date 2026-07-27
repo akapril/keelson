@@ -1,0 +1,22 @@
+{
+  "chat": {
+    "emptyHint": "向「{{projectName}}」项目的 AI 助手提问吧",
+    "noConfigTitle": "尚未配置 AI 服务",
+    "noConfigDesc": "前往设置页填写 API Key 后即可与项目 AI 助手对话。",
+    "goSettings": "去设置",
+    "includeContext": "包含项目上下文（文档 + 关联会话）",
+    "toolMode": "工具模式（允许 AI 建/改看板任务与文档）",
+    "cliToolHint": "CLI 将自主调用已装的 MCP 工具（完全自动，可能读写文件 / 跑命令）",
+    "clear": "清空",
+    "placeholder": "输入消息，Enter 发送，/ 唤起指令库",
+    "running": "执行中…",
+    "stop": "停止",
+    "send": "发送",
+    "noReply": "（无回复）",
+    "done": "（已完成）",
+    "requestError": "请求失败：{{msg}}",
+    "toolDone": "完成",
+    "toolFailed": "失败",
+    "toolLimitReached": "（已达工具调用上限，请细化你的要求后重试）"
+  }
+}

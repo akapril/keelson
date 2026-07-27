@@ -2,6 +2,7 @@
 // 消息仅本地内存（不持久化，YAGNI）；流式经 ipc.aiChatStream 逐块渲染。
 // 「包含项目上下文」开启后，注入本项目的文档 + 关联会话作为参考资料。
 import { memo, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // ── 对话历史本地持久化（按项目隔离；懒读避免挂载竞态删存档） ──
 const chatKey = (projectId: string) => `rework-ai-chat-${projectId}`;
@@ -50,15 +51,18 @@ function shortArgs(json: string): string {
   }
 }
 
-// 从工具结果 JSON 提取简短错误信息
+// 从工具结果 JSON 提取简短错误信息（返回 error 字段原文；无法解析时返回英文 sentinel 供调用方映射）
 function briefErr(result: string): string {
   try {
     const o = JSON.parse(result) as { error?: string };
-    return String(o.error ?? "失败");
+    return String(o.error ?? "TOOL_FAILED");
   } catch {
-    return "失败";
+    return "TOOL_FAILED";
   }
 }
+
+// 错误内容前缀 sentinel（English，与 localStorage 兼容）
+const REQUEST_FAILED_PREFIX = "REQUEST_FAILED:";
 
 // 单条消息气泡（memo）：流式时只有内容变化的那条（最后一条）重渲染，
 // 已完成的助手气泡不再重复解析 markdown —— 消除长对话流式时的卡顿。
@@ -69,6 +73,8 @@ const MessageRow = memo(function MessageRow({
   message: AiChatMessage;
   isStreaming: boolean;
 }) {
+  const { t } = useTranslation("ai");
+
   // 工具活动行（role=system）：居中小胶囊
   if (message.role === "system") {
     return (
@@ -80,10 +86,12 @@ const MessageRow = memo(function MessageRow({
     );
   }
   const isUser = message.role === "user";
-  const isError = message.role === "assistant" && message.content.startsWith("请求失败：");
+  const isError = message.role === "assistant" && message.content.startsWith(REQUEST_FAILED_PREFIX);
   const streamingThis = message.role === "assistant" && isStreaming;
   // 流式中的空助手气泡显示光标
-  const display = message.content || (streamingThis ? "▍" : "");
+  const display = isError
+    ? t("chat.requestError", { msg: message.content.slice(REQUEST_FAILED_PREFIX.length) })
+    : message.content || (streamingThis ? "▍" : "");
   // 流式中先纯文本，结束后再 markdown（避免每 token 全量重解析）
   const renderMarkdown =
     message.role === "assistant" && !isError && !!message.content && !streamingThis;
@@ -113,6 +121,7 @@ interface AiChatPanelProps {
 }
 
 export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelProps) {
+  const { t } = useTranslation("ai");
   const navigate = useNavigate();
   // 懒初始化：首帧即从 localStorage 载入本项目历史（避免"空数组先删存档"的挂载竞态）
   const [messages, setMessages] = useState<AiChatMessage[]>(() => loadChat(projectId));
@@ -246,7 +255,8 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
           if (ev.kind === "delta" && ev.text) {
             updateAssistant((c) => c + ev.text);
           } else if (ev.kind === "error") {
-            updateAssistant(() => `请求失败：${ev.text ?? ""}`);
+            // 存英文 sentinel 前缀，MessageRow 渲染时按 i18n key 翻译
+            updateAssistant(() => `${REQUEST_FAILED_PREFIX}${ev.text ?? ""}`);
           }
         },
         useTools && isCli,
@@ -254,9 +264,10 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
         repoPath,
       );
       // 结束时助手仍为空 → 给个占位
-      updateAssistant((c) => (c === "" ? "（无回复）" : c));
+      updateAssistant((c) => (c === "" ? t("chat.noReply") : c));
     } catch (e) {
-      updateAssistant(() => `请求失败：${String(e)}`);
+      // 存英文 sentinel 前缀，MessageRow 渲染时按 i18n key 翻译
+      updateAssistant(() => `${REQUEST_FAILED_PREFIX}${String(e)}`);
     } finally {
       activeStreamId.current = null;
       setLoading(false);
@@ -301,29 +312,36 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
           },
           onToolResult: (call, result) => {
             const ok = !/"ok"\s*:\s*false/.test(result);
+            // briefErr 返回 error 字段原文（非中文 LLM prompt 错误），或 "TOOL_FAILED" sentinel
+            const errMsg = briefErr(result) === "TOOL_FAILED"
+              ? t("chat.toolFailed")
+              : briefErr(result);
             setMessages((prev) => [
               ...prev,
               {
                 role: "system",
-                content: ok ? `✓ ${call.name} 完成` : `✗ ${call.name}：${briefErr(result)}`,
+                content: ok
+                  ? `✓ ${call.name} ${t("chat.toolDone")}`
+                  : `✗ ${call.name}：${errMsg}`,
               },
             ]);
             scrollToBottom();
           },
-          onAssistantText: (t) => {
-            setMessages((prev) => [...prev, { role: "assistant", content: t }]);
+          onAssistantText: (txt) => {
+            setMessages((prev) => [...prev, { role: "assistant", content: txt }]);
             scrollToBottom();
           },
         },
       );
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: final || "（已完成）" },
+        { role: "assistant", content: final || t("chat.done") },
       ]);
     } catch (e) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `请求失败：${String(e)}` },
+        // 存英文 sentinel 前缀，MessageRow 渲染时按 i18n key 翻译
+        { role: "assistant", content: `${REQUEST_FAILED_PREFIX}${String(e)}` },
       ]);
     } finally {
       setLoading(false);
@@ -345,7 +363,7 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
         {messages.length === 0 && !needConfig && (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
             <HugeiconsIcon icon={AiChat02Icon} strokeWidth={1.5} className="size-10 opacity-60" />
-            <p className="text-sm">向「{projectName}」项目的 AI 助手提问吧</p>
+            <p className="text-sm">{t("chat.emptyHint", { projectName })}</p>
           </div>
         )}
 
@@ -361,12 +379,12 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
       {/* 未配置密钥引导卡片 */}
       {needConfig && (
         <div className="mx-1 mb-2 rounded-xl border border-border bg-card p-4 text-sm">
-          <p className="text-foreground">尚未配置 AI 服务</p>
+          <p className="text-foreground">{t("chat.noConfigTitle")}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            前往设置页填写 API Key 后即可与项目 AI 助手对话。
+            {t("chat.noConfigDesc")}
           </p>
           <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/settings")}>
-            去设置
+            {t("chat.goSettings")}
           </Button>
         </div>
       )}
@@ -381,7 +399,7 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
               onChange={(e) => setIncludeContext(e.target.checked)}
               className="h-3.5 w-3.5 rounded border-input accent-primary"
             />
-            包含项目上下文（文档 + 关联会话）
+            {t("chat.includeContext")}
           </label>
           <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
             <input
@@ -390,11 +408,11 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
               onChange={(e) => setUseTools(e.target.checked)}
               className="h-3.5 w-3.5 rounded border-input accent-primary"
             />
-            工具模式（允许 AI 建/改看板任务与文档）
+            {t("chat.toolMode")}
           </label>
           {isCli && useTools && (
             <p className="text-xs text-muted-foreground/70 pl-5">
-              CLI 将自主调用已装的 MCP 工具（完全自动，可能读写文件 / 跑命令）
+              {t("chat.cliToolHint")}
             </p>
           )}
         </div>
@@ -407,7 +425,7 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
             className="text-muted-foreground hover:text-destructive"
           >
             <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
-            清空
+            {t("chat.clear")}
           </Button>
         )}
       </div>
@@ -422,7 +440,7 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
               if (promptInsert.onKeyDown(e)) return;
               onKeyDown(e);
             }}
-            placeholder="输入消息，Enter 发送，/ 唤起指令库"
+            placeholder={t("chat.placeholder")}
             className="min-h-16 w-full"
             disabled={loading}
           />
@@ -433,17 +451,17 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
           useTools ? (
             // 工具模式为非流式 agent loop，不可中途取消
             <Button variant="outline" disabled>
-              执行中…
+              {t("chat.running")}
             </Button>
           ) : (
             <Button variant="outline" onClick={handleStop}>
-              停止
+              {t("chat.stop")}
             </Button>
           )
         ) : (
           <Button onClick={() => void send()} disabled={!input.trim()}>
             <HugeiconsIcon icon={SentIcon} strokeWidth={2} />
-            发送
+            {t("chat.send")}
           </Button>
         )}
       </div>
