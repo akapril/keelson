@@ -15,6 +15,6 @@ export default defineConfig({
     // 纯逻辑测试无需 DOM，使用 node 环境
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-    // TSX 组件测试通过文件头 @vitest-environment jsdom 指定环境
+    // .test.tsx 文件必须在文件头写 // @vitest-environment jsdom，否则会静默用 node 环境失败
   },
 });
