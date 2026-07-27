@@ -5,6 +5,7 @@ import { useSettingsStore } from "@/store/settings";
 import { ExportSection } from "@/features/export/ExportSection";
 import { UpdateSection } from "@/features/updater/UpdateSection";
 import { BackendSection } from "@/features/backend/BackendSection";
+import { LanguageSection } from "@/features/settings/LanguageSection";
 import { ShortcutSection } from "@/features/settings/ShortcutSection";
 import { WorkspacePathSection } from "@/features/settings/WorkspacePathSection";
 import { ProjectDefaultTabSection } from "@/features/settings/ProjectDefaultTabSection";
@@ -51,6 +52,8 @@ export default function Settings() {
         </div>
       )}
 
+      <LanguageSection />
+      <Divider />
       <ShortcutSection />
       <Divider />
       <WorkspacePathSection />
