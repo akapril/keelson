@@ -10,6 +10,7 @@ import {
   TerminalIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -32,22 +33,26 @@ const ACTION_ICON: Record<ActivityAction, typeof Edit02Icon> = {
   search: Search01Icon,
 };
 
-// 简短相对时间
-function shortTime(iso: string): string {
-  if (!iso) return "";
-  const d = new Date(iso).getTime();
-  if (Number.isNaN(d)) return "";
-  const diff = Math.max(0, Date.now() - d);
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return "刚刚";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} 分钟前`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} 小时前`;
-  return new Date(iso).toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
+// 简短相对时间（接受 t 函数）
+function makeShortTime(t: (key: string, opts?: Record<string, unknown>) => string) {
+  return (iso: string): string => {
+    if (!iso) return "";
+    const d = new Date(iso).getTime();
+    if (Number.isNaN(d)) return "";
+    const diff = Math.max(0, Date.now() - d);
+    const sec = Math.floor(diff / 1000);
+    if (sec < 60) return t("activity.timeJustNow");
+    const min = Math.floor(sec / 60);
+    if (min < 60) return t("activity.timeMinutesAgo", { n: min });
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return t("activity.timeHoursAgo", { n: hr });
+    return new Date(iso).toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
+  };
 }
 
 export function ActivityIndicator() {
+  const { t } = useTranslation("shell");
+  const shortTime = makeShortTime(t);
   const navigate = useNavigate();
   const events = useActivityStore((s) => s.events);
   const pulse = useActivityStore((s) => s.pulse);
@@ -75,7 +80,7 @@ export function ActivityIndicator() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label="活动流">
+        <Button variant="ghost" size="icon" className="relative" aria-label={t("activity.ariaLabel")}>
           <HugeiconsIcon
             icon={Activity03Icon}
             strokeWidth={2}
@@ -93,14 +98,14 @@ export function ActivityIndicator() {
       <DropdownMenuContent align="end" className="w-80 p-0">
         {/* 头部 */}
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
-          <span className="text-sm font-semibold">实时活动</span>
+          <span className="text-sm font-semibold">{t("activity.title")}</span>
           <button
             type="button"
             onClick={() => useActivityStore.getState().clear()}
             disabled={events.length === 0}
             className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
           >
-            清空
+            {t("activity.clearAll")}
           </button>
         </div>
 
@@ -109,7 +114,7 @@ export function ActivityIndicator() {
           {events.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
               <HugeiconsIcon icon={Activity03Icon} strokeWidth={1.5} className="size-8 opacity-50" />
-              <span className="text-xs">暂无实时活动</span>
+              <span className="text-xs">{t("activity.empty")}</span>
             </div>
           ) : (
             events.slice(0, SHOW_N).map((ev) => {
@@ -137,7 +142,7 @@ export function ActivityIndicator() {
                     <span className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
                       <span className="rounded bg-muted px-1">{ev.tool}</span>
                       {ev.status === "error" && (
-                        <span className="text-destructive">失败</span>
+                        <span className="text-destructive">{t("activity.statusError")}</span>
                       )}
                       <span>{shortTime(ev.ts)}</span>
                     </span>

@@ -1,6 +1,7 @@
 // PromptDialog —— 风格化的"输入型"对话框，替代原生 window.prompt。
 // 受控：由调用方管理 open；提交回传输入值（Enter 或按钮），取消回传 null。
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -36,10 +37,11 @@ export function PromptDialog({
   label,
   placeholder,
   defaultValue = "",
-  confirmText = "确定",
+  confirmText,
   allowEmpty = true,
   onResult,
 }: PromptDialogProps) {
+  const { t } = useTranslation(["shell", "common"]);
   const [value, setValue] = useState(defaultValue);
 
   // 每次打开时以 defaultValue 重置
@@ -77,10 +79,10 @@ export function PromptDialog({
           />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onResult(null)}>
-              取消
+              {t("common:action.cancel")}
             </Button>
             <Button type="submit" disabled={!canSubmit}>
-              {confirmText}
+              {confirmText ?? t("common:action.confirm")}
             </Button>
           </DialogFooter>
         </form>
