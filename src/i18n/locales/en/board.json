@@ -189,6 +189,16 @@
       "starterDocs": "Starter docs: {{titles}}"
     },
     "templateSelectPlaceholder": "Select a template",
+    "category": {
+      "dev": "Development",
+      "workplace": "Workplace",
+      "contentMarketing": "Content & Marketing",
+      "research": "Research",
+      "personal": "Personal",
+      "business": "Business",
+      "general": "General",
+      "other": "Other"
+    },
     "errors": {
       "noTemplate": "Please select a template",
       "emptyName": "Project name cannot be empty"

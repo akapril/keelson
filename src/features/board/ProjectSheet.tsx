@@ -416,7 +416,7 @@ function ProjectFields({
 }
 
 // ── 子组件：状态列区块 ───────────────────────────────────────────
-function StatesSection({ onError, t }: { onError: OnError; t: (key: string) => string }) {
+function StatesSection({ onError, t }: { onError: OnError; t: (key: string, opts?: Record<string, unknown>) => string }) {
   const states = useBoardStore((s) => s.states)
   const createState = useBoardStore((s) => s.createState)
 

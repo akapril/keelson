@@ -32,7 +32,7 @@ import { WorkspaceProcesses } from "./WorkspaceProcesses";
 import { ImportPlanDialog } from "./ImportPlanDialog";
 import { DocsPanel } from "@/features/docs/DocsPanel";
 import { AiChatPanel } from "@/features/ai/AiChatPanel";
-// STATE_CATEGORY_META は t("meta.stateCategory.*") で翻訳するため削除
+// STATE_CATEGORY_META 已删除，改用 t("meta.stateCategory.*") 翻译
 import { MemoryFilesBar } from "@/features/memory/MemoryFilesBar";
 import { resolveInitialTab, rememberProjectTab } from "./project-tab-pref";
 

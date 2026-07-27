@@ -174,4 +174,46 @@ describe("TaskCard i18n – board 命名空间", () => {
     const val = i18n.t("meta.stateCategory.pending", { ns: "board", lng: "en" });
     expect(val).toBe("Pending");
   });
+
+  // 分类标题映射：CATEGORY_I18N_KEY + t() 组合验证
+  it("中文 createProject.category.dev 为「开发」", () => {
+    const val = i18n.t("createProject.category.dev", { ns: "board", lng: "zh" });
+    expect(val).toBe("开发");
+  });
+
+  it("英文 createProject.category.dev 为「Development」", () => {
+    const val = i18n.t("createProject.category.dev", { ns: "board", lng: "en" });
+    expect(val).toBe("Development");
+  });
+
+  it("中文 createProject.category.other 为「其他」", () => {
+    const val = i18n.t("createProject.category.other", { ns: "board", lng: "zh" });
+    expect(val).toBe("其他");
+  });
+
+  it("英文 createProject.category.other 为「Other」", () => {
+    const val = i18n.t("createProject.category.other", { ns: "board", lng: "en" });
+    expect(val).toBe("Other");
+  });
+
+  it("CATEGORY_I18N_KEY 映射：全部预置分类均有 i18n key，zh 值非空且非 key", () => {
+    const CATEGORY_I18N_KEY: Record<string, string> = {
+      "开发": "dev",
+      "职场管理": "workplace",
+      "内容营销": "contentMarketing",
+      "研究": "research",
+      "个人生活": "personal",
+      "商业创业": "business",
+      "通用": "general",
+      "其他": "other",
+    };
+    for (const [, key] of Object.entries(CATEGORY_I18N_KEY)) {
+      const zhVal = i18n.t(`createProject.category.${key}`, { ns: "board", lng: "zh" });
+      const enVal = i18n.t(`createProject.category.${key}`, { ns: "board", lng: "en" });
+      expect(zhVal, `zh key createProject.category.${key} 不应为 key 本身`).not.toBe(`createProject.category.${key}`);
+      expect(enVal, `en key createProject.category.${key} 不应为 key 本身`).not.toBe(`createProject.category.${key}`);
+      expect(zhVal).toBeTruthy();
+      expect(enVal).toBeTruthy();
+    }
+  });
 });
