@@ -2,7 +2,7 @@
 // embed 配置本地维护（与 AskPane 共享 localStorage key rework-embed-config）；
 // aiConfig 从 store 订阅，用于「复用 AI 密钥」。
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { useSettingsStore } from "@/store/settings";
 import { DEFAULT_EMBED_CONFIG } from "@/types/rag";
 import type { EmbedConfig } from "@/types/rag";
@@ -162,12 +162,22 @@ export function EmbedSection() {
         </Select>
         {embedCfg.provider === "mock" && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            {t("embed.mockWarning")}
+            {/* <1>...</1> 对应 strong（关键词检索 是强调文本） */}
+            <Trans
+              i18nKey="embed.mockWarning"
+              ns="settings"
+              components={{ 1: <strong /> }}
+            />
           </p>
         )}
         {embedCfg.provider === "local" && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            {t("embed.localWarning")}
+            {/* <1>...</1> 对应 code（--features local-embed 是命令参数） */}
+            <Trans
+              i18nKey="embed.localWarning"
+              ns="settings"
+              components={{ 1: <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]" /> }}
+            />
           </p>
         )}
         {/* 主线 A：一键复用 AI 对话的 OpenAI 密钥 */}

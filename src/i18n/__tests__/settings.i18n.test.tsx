@@ -194,4 +194,38 @@ describe("ProjectDefaultTabSection i18n – settings 命名空间", () => {
     const val = i18n.t("shortcut.ariaLabel", { ns: "settings", lng: "zh", value: "Ctrl+Space" });
     expect(val).toContain("Ctrl+Space");
   });
+
+  // Task 8 review fix: Trans 富文本标签不应字面输出
+  it("Trans embed.localWarning 渲染出 <code> 元素，不含字面 '<1>'（zh）", async () => {
+    const { Trans: TransComp } = await import("react-i18next");
+    await i18n.changeLanguage("zh");
+    const { container } = render(
+      <TransComp
+        i18nKey="embed.localWarning"
+        ns="settings"
+        components={{ 1: <code /> }}
+      />,
+    );
+    // 不应有字面 "<1>" 字符串
+    expect(container.textContent).not.toContain("<1>");
+    // 应渲染出 <code> 元素
+    expect(container.querySelector("code")).not.toBeNull();
+    // 应含有命令参数文本
+    expect(container.textContent).toContain("--features local-embed");
+  });
+
+  it("Trans embed.localWarning 渲染出 <code> 元素，不含字面 '<1>'（en）", async () => {
+    const { Trans: TransComp } = await import("react-i18next");
+    await i18n.changeLanguage("en");
+    const { container } = render(
+      <TransComp
+        i18nKey="embed.localWarning"
+        ns="settings"
+        components={{ 1: <code /> }}
+      />,
+    );
+    expect(container.textContent).not.toContain("<1>");
+    expect(container.querySelector("code")).not.toBeNull();
+    expect(container.textContent).toContain("--features local-embed");
+  });
 });

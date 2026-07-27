@@ -2,7 +2,7 @@
 // 一次装/卸 rework 的两条 hook：① 活动 hook(PostToolUse *) 上报活动流+看板同步；
 // ② 拦截 hook(PreToolUse Bash) 长驻进程自动托管。只增删自己那两条，其它逐字保留。
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
@@ -61,7 +61,16 @@ export function ClaudeIntegrationSection() {
       <div>
         <h2 className="text-sm font-medium">{t("claudeIntegration.title")}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {t("claudeIntegration.desc")}
+          {/* <1>=strong(活动流) <2>=code(npm run dev) <3>=strong(自动托管) */}
+          <Trans
+            i18nKey="claudeIntegration.desc"
+            ns="settings"
+            components={{
+              1: <strong />,
+              2: <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]" />,
+              3: <strong />,
+            }}
+          />
         </p>
       </div>
 
