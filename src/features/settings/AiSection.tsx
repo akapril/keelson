@@ -1,6 +1,7 @@
 // AI 助手配置区（从 pages/settings.tsx 拆出，逻辑逐字保留）。
 // aiConfig 来源 useSettingsStore（写入即持久化 localStorage）；模型建议本地拉取。
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "@/store/settings";
 import type { AiProvider } from "@/types/ai";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
 
 export function AiSection() {
+  const { t } = useTranslation("settings");
   // AI 助手配置（受控，来源于 store，写入即持久化 localStorage）
   const aiConfig = useSettingsStore((s) => s.aiConfig);
   const setAiConfig = useSettingsStore((s) => s.setAiConfig);
@@ -38,11 +40,15 @@ export function AiSection() {
       const list = await ipc.listModels(aiConfig);
       setModels(list);
       toast[list.length ? "success" : "message"](
-        list.length ? `获取到 ${list.length} 个模型` : "未获取到模型列表，请手动输入",
+        list.length
+          ? t("ai.model.fetchSuccess", { count: list.length })
+          : t("ai.model.fetchEmpty"),
       );
     } catch (e) {
       setModels([]);
-      toast.error(`拉取模型失败，请手动输入：${e instanceof Error ? e.message : e}`);
+      toast.error(
+        t("ai.model.fetchError", { message: e instanceof Error ? e.message : String(e) }),
+      );
     } finally {
       setModelsLoading(false);
     }
@@ -51,27 +57,27 @@ export function AiSection() {
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-sm font-medium">AI 助手</h2>
+        <h2 className="text-sm font-medium">{t("ai.title")}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          配置项目工作台「AI」标签使用的模型服务；密钥仅保存在本机。
+          {t("ai.desc")}
         </p>
       </div>
 
       {/* 服务商选择 */}
       <div className="space-y-1.5">
-        <Label htmlFor="ai-provider">服务商</Label>
+        <Label htmlFor="ai-provider">{t("ai.provider.label")}</Label>
         <Select
           value={aiConfig.provider}
           onValueChange={(v) => setAiConfig({ provider: v as AiProvider })}
         >
           <SelectTrigger id="ai-provider" className="w-full">
-            <SelectValue placeholder="选择服务商" />
+            <SelectValue placeholder={t("ai.provider.placeholder")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="openai">OpenAI 兼容</SelectItem>
-            <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
-            <SelectItem value="claude-cli">Claude Code（本地 CLI）</SelectItem>
-            <SelectItem value="codex-cli">Codex（本地 CLI）</SelectItem>
+            <SelectItem value="openai">{t("ai.provider.openai")}</SelectItem>
+            <SelectItem value="anthropic">{t("ai.provider.anthropic")}</SelectItem>
+            <SelectItem value="claude-cli">{t("ai.provider.claudeCli")}</SelectItem>
+            <SelectItem value="codex-cli">{t("ai.provider.codexCli")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -80,21 +86,22 @@ export function AiSection() {
       {(() => {
         const isCliProvider =
           aiConfig.provider === "claude-cli" || aiConfig.provider === "codex-cli";
+        const cliCmd = aiConfig.provider === "codex-cli" ? "codex" : "claude";
         return (
           <>
             {!isCliProvider && (
               <>
                 {/* 接口 Base URL */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="ai-base-url">Base URL</Label>
+                  <Label htmlFor="ai-base-url">{t("ai.baseUrl.label")}</Label>
                   <Input
                     id="ai-base-url"
                     type="text"
                     value={aiConfig.base_url}
                     placeholder={
                       aiConfig.provider === "anthropic"
-                        ? "https://api.anthropic.com（留空用默认）"
-                        : "https://api.openai.com/v1（留空用默认）"
+                        ? t("ai.apiBaseUrlPlaceholderAnthropic")
+                        : t("ai.apiBaseUrlPlaceholderOpenai")
                     }
                     onChange={(e) => setAiConfig({ base_url: e.target.value })}
                   />
@@ -102,7 +109,7 @@ export function AiSection() {
 
                 {/* API 密钥（明文不回显，仅本机保存） */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="ai-api-key">API 密钥</Label>
+                  <Label htmlFor="ai-api-key">{t("ai.apiKey.label")}</Label>
                   <Input
                     id="ai-api-key"
                     type="password"
@@ -117,7 +124,7 @@ export function AiSection() {
                     可点「拉取模型」从服务商 /models 接口取建议（datalist），拉不到则手动输入。 */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="ai-model">模型</Label>
+                    <Label htmlFor="ai-model">{t("ai.model.label")}</Label>
                     <Button
                       type="button"
                       variant="ghost"
@@ -126,7 +133,7 @@ export function AiSection() {
                       disabled={modelsLoading}
                       onClick={() => void fetchModels()}
                     >
-                      {modelsLoading ? "拉取中…" : "拉取模型"}
+                      {modelsLoading ? t("ai.model.fetching") : t("ai.model.fetchBtn")}
                     </Button>
                   </div>
                   <Input
@@ -134,7 +141,7 @@ export function AiSection() {
                     type="text"
                     list="ai-model-suggestions"
                     value={aiConfig.model}
-                    placeholder="gpt-4o-mini / claude-3-5-sonnet-...（可点『拉取模型』获取建议）"
+                    placeholder={t("ai.model.placeholder")}
                     onChange={(e) => setAiConfig({ model: e.target.value })}
                   />
                   {models.length > 0 && (
@@ -152,24 +159,21 @@ export function AiSection() {
             {isCliProvider && (
               <>
                 <div className="space-y-1.5">
-                  <Label htmlFor="ai-cli-path">命令路径（可选）</Label>
+                  <Label htmlFor="ai-cli-path">{t("ai.cliPath.label")}</Label>
                   <Input
                     id="ai-cli-path"
                     type="text"
                     value={aiConfig.cli_path ?? ""}
                     placeholder={
                       aiConfig.provider === "codex-cli"
-                        ? "留空自动查找；如 C:\\Users\\you\\AppData\\Roaming\\npm\\codex.cmd"
-                        : "留空自动查找；如 C:\\Users\\you\\AppData\\Roaming\\npm\\claude.cmd"
+                        ? t("ai.cliPath.placeholderCodex")
+                        : t("ai.cliPath.placeholderClaude")
                     }
                     onChange={(e) => setAiConfig({ cli_path: e.target.value })}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  将调用本机的{" "}
-                  <code>{aiConfig.provider === "codex-cli" ? "codex" : "claude"}</code>{" "}
-                  命令行（走本地订阅，数据不出本机）。若提示「program not found」但终端里能运行，
-                  在上面填它的绝对路径即可（终端里用 <code>where {aiConfig.provider === "codex-cli" ? "codex" : "claude"}</code> 查）。
+                  {t("ai.cliHint", { cmd: cliCmd })}
                 </p>
               </>
             )}

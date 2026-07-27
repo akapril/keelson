@@ -2,6 +2,7 @@
 // embed 配置本地维护（与 AskPane 共享 localStorage key rework-embed-config）；
 // aiConfig 从 store 订阅，用于「复用 AI 密钥」。
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "@/store/settings";
 import { DEFAULT_EMBED_CONFIG } from "@/types/rag";
 import type { EmbedConfig } from "@/types/rag";
@@ -20,6 +21,7 @@ import { ipc } from "@/lib/tauri/ipc";
 import { on } from "@/lib/tauri/events";
 
 export function EmbedSection() {
+  const { t } = useTranslation("settings");
   // AI 对话配置（用于「复用 AI 密钥」）
   const aiConfig = useSettingsStore((s) => s.aiConfig);
 
@@ -109,7 +111,7 @@ export function EmbedSection() {
       api_key: aiConfig.api_key,
       model: "text-embedding-3-small",
     });
-    toast.success("已复用 AI 对话的 OpenAI 密钥（可点「重建索引」启用语义）");
+    toast.success(t("embed.reuseAiKeySuccess"));
   };
 
   /** 调用后端重建全量嵌入索引 */
@@ -118,15 +120,15 @@ export function EmbedSection() {
     try {
       const n = await ipc.ragBuildIndex(embedCfg);
       if (n === 0) {
-        toast(`暂无会话可索引（可能扫描未完成）`);
+        toast(t("embed.rebuildEmpty"));
       } else {
-        toast.success(`索引完成：${n} 个片段`);
+        toast.success(t("embed.rebuildSuccess", { count: n }));
         // 记录本次索引的 embed 标识，供"过期"提示比对
         localStorage.setItem("rework-rag-indexed-model", embedModelId);
         setLastIndexedModel(embedModelId);
       }
     } catch (e) {
-      toast.error(`索引失败：${String(e)}`);
+      toast.error(t("embed.rebuildError", { message: String(e) }));
     } finally {
       setRebuilding(false);
       setIndexProgress(null);
@@ -136,36 +138,36 @@ export function EmbedSection() {
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-sm font-medium">检索 / 嵌入</h2>
+        <h2 className="text-sm font-medium">{t("embed.title")}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          配置「问」模式的语义检索嵌入服务；密钥仅保存在本机。
+          {t("embed.desc")}
         </p>
       </div>
 
       {/* 嵌入服务商 */}
       <div className="space-y-1.5">
-        <Label htmlFor="embed-provider">嵌入服务商</Label>
+        <Label htmlFor="embed-provider">{t("embed.provider.label")}</Label>
         <Select
           value={embedCfg.provider}
           onValueChange={(v) => setEmbed({ provider: v })}
         >
           <SelectTrigger id="embed-provider" className="w-full">
-            <SelectValue placeholder="选择嵌入服务商" />
+            <SelectValue placeholder={t("embed.provider.placeholder")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="local">本地 fastembed（数据不出本机）</SelectItem>
-            <SelectItem value="api">云 Embeddings API</SelectItem>
-            <SelectItem value="mock">Mock（占位假向量 / 非语义）</SelectItem>
+            <SelectItem value="local">{t("embed.provider.local")}</SelectItem>
+            <SelectItem value="api">{t("embed.provider.api")}</SelectItem>
+            <SelectItem value="mock">{t("embed.provider.mock")}</SelectItem>
           </SelectContent>
         </Select>
         {embedCfg.provider === "mock" && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            Mock 是占位假向量、非真实语义。「问」模式此时将改用<strong>关键词检索</strong>；要语义检索请选 local 或 api。
+            {t("embed.mockWarning")}
           </p>
         )}
         {embedCfg.provider === "local" && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            本地嵌入需以 <code>--features local-embed</code> 构建的版本才可用；当前版本若未包含，选它会静默回退关键词。想开箱即用语义，建议用 api（可一键复用 AI 密钥）。
+            {t("embed.localWarning")}
           </p>
         )}
         {/* 主线 A：一键复用 AI 对话的 OpenAI 密钥 */}
@@ -175,12 +177,12 @@ export function EmbedSection() {
           disabled={!aiReusable}
           title={
             aiReusable
-              ? "把 AI 对话配置的 OpenAI base_url/密钥填入嵌入(api)"
-              : "需先在「AI 助手」把服务商设为 OpenAI 并填密钥"
+              ? t("embed.reuseAiKeyTitle")
+              : t("embed.reuseAiKeyDisabledTitle")
           }
           className="text-xs text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
         >
-          复用 AI 对话的 OpenAI 密钥启用语义检索
+          {t("embed.reuseAiKey")}
         </button>
       </div>
 
@@ -188,18 +190,18 @@ export function EmbedSection() {
       {embedCfg.provider === "api" && (
         <>
           <div className="space-y-1.5">
-            <Label htmlFor="embed-base-url">Base URL</Label>
+            <Label htmlFor="embed-base-url">{t("embed.baseUrl.label")}</Label>
             <Input
               id="embed-base-url"
               type="text"
               value={embedCfg.base_url}
-              placeholder="https://api.openai.com/v1（留空用默认）"
+              placeholder={t("embed.baseUrl.placeholder")}
               onChange={(e) => setEmbed({ base_url: e.target.value })}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="embed-api-key">API 密钥</Label>
+            <Label htmlFor="embed-api-key">{t("embed.apiKey.label")}</Label>
             <Input
               id="embed-api-key"
               type="password"
@@ -214,7 +216,7 @@ export function EmbedSection() {
 
       {/* 模型名称（所有 provider 可见） */}
       <div className="space-y-1.5">
-        <Label htmlFor="embed-model">模型</Label>
+        <Label htmlFor="embed-model">{t("embed.model.label")}</Label>
         <Input
           id="embed-model"
           type="text"
@@ -227,25 +229,27 @@ export function EmbedSection() {
       {/* 索引过期提示（provider/model 变了） */}
       {indexStale && (
         <p className="text-xs text-amber-600 dark:text-amber-400">
-          嵌入配置已变（上次索引用 {lastIndexedModel}），语义检索可能过期，请点「重建索引」。
+          {t("embed.indexStale", { model: lastIndexedModel })}
         </p>
       )}
 
       {/* 重建索引 + 进度 */}
       <div className="flex items-center gap-3">
         <Button onClick={rebuildIndex} disabled={rebuilding} variant="outline" size="sm">
-          {rebuilding ? "索引中…" : "重建索引"}
+          {rebuilding ? t("embed.rebuilding") : t("embed.rebuildBtn")}
         </Button>
         {rebuilding && indexProgress != null && (
-          <span className="text-xs text-muted-foreground">索引中…（{indexProgress} 会话）</span>
+          <span className="text-xs text-muted-foreground">
+            {t("embed.rebuildProgress", { count: indexProgress })}
+          </span>
         )}
       </div>
 
       {/* 数据流向说明 */}
       <p className="text-xs text-muted-foreground">
         {embedCfg.provider === "api"
-          ? "使用云 API 时，会话片段将发送到配置的云 Embedding 接口；请确认你的隐私设置。"
-          : "当前模式（local / mock）全程不出本机，数据仅在本地处理。"}
+          ? t("embed.dataNote.api")
+          : t("embed.dataNote.local")}
       </p>
     </section>
   );

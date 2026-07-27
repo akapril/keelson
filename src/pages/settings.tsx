@@ -1,6 +1,7 @@
 // 设置页：仅做区块组合与 store 加载。各设置区已拆到 features/settings/*，
 // 主体不再持有各区状态、也不再全量订阅 settings store（只取 error + load）。
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "@/store/settings";
 import { ExportSection } from "@/features/export/ExportSection";
 import { UpdateSection } from "@/features/updater/UpdateSection";
@@ -29,6 +30,7 @@ function Divider() {
  * 颜色全部使用 Tailwind 语义类（无硬编码 hex/rgba），自动适配明暗主题。
  */
 export default function Settings() {
+  const { t } = useTranslation("settings");
   // 主体只取 error（顶部错误提示）与 load（挂载加载）；各区各自订阅所需 slice。
   const error = useSettingsStore((s) => s.error);
   const load = useSettingsStore((s) => s.load);
@@ -40,7 +42,7 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-xl space-y-8 px-6 py-6">
-      <h1 className="text-lg font-semibold">设置</h1>
+      <h1 className="text-lg font-semibold">{t("page.title")}</h1>
 
       {/* 错误提示 */}
       {error && (
