@@ -38,7 +38,7 @@ async function pushUpdateNotification(version: string, notes: string) {
   }
   // 桌面弹窗遵循"更新"类型偏好
   if (isTypeEnabled("更新")) {
-    void osNotify("rework 有新版本", `v${version} 可更新`);
+    void osNotify("Keelson 有新版本", `v${version} 可更新`);
   }
 }
 

@@ -1,4 +1,4 @@
-// 应用侧栏 —— 移植自 workavera（Apache-2.0），改用 rework 品牌与路由，react-router-dom。
+// 应用侧栏 —— 移植自 workavera（Apache-2.0），改用 Keelson 品牌与路由，react-router-dom。
 import { useEffect, useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -115,7 +115,7 @@ export function AppSidebar() {
                 {/* 品牌标记（裸 SVG，对齐 workavera 样式） */}
                 <Logo className="!size-[30px] shrink-0 group-data-[collapsible=icon]:!size-4" />
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">rework</span>
+                  <span className="truncate font-semibold">Keelson</span>
                   <span className="truncate text-xs text-muted-foreground">
                     会话 · 项目 · 看板
                   </span>
@@ -181,7 +181,7 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <div className="px-3 py-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-          <p className="font-medium text-foreground/70">rework</p>
+          <p className="font-medium text-foreground/70">Keelson</p>
           <p className="mt-0.5">按 ⌘B 折叠侧栏 · 按 d 切换主题</p>
         </div>
       </SidebarFooter>

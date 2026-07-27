@@ -20,7 +20,7 @@ export async function openDocWindow(id: string, title?: string): Promise<void> {
   }
   const win = new WebviewWindow(label, {
     url: `index.html#/doc-window/${id}`,
-    title: title ? `${title} — rework` : "rework 文档",
+    title: title ? `${title} — Keelson` : "Keelson 文档",
     width: 900,
     height: 720,
     minWidth: 480,

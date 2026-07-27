@@ -353,7 +353,7 @@ export function SessionChat({
       {mode === "terminal" ? (
         <div className="flex shrink-0 items-center justify-between gap-2 pt-3">
           <p className="text-xs text-muted-foreground">
-            在终端里真正接着这个 {session.provider} 会话继续，消息写回磁盘、rework 重扫后同步。
+            在终端里真正接着这个 {session.provider} 会话继续，消息写回磁盘、Keelson 重扫后同步。
           </p>
           <Button onClick={resumeInTerminal}>在终端续接</Button>
         </div>

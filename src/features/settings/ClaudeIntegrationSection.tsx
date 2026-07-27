@@ -59,9 +59,9 @@ export function ClaudeIntegrationSection() {
       <div>
         <h2 className="text-sm font-medium">Claude Code 集成</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          一键启用 rework 与 Claude Code 的联动：① 每次工具操作实时上报<strong>活动流</strong>（看板同步依赖它）；
+          一键启用 Keelson 与 Claude Code 的联动：① 每次工具操作实时上报<strong>活动流</strong>（看板同步依赖它）；
           ② Claude 起 <code className="rounded bg-muted px-1">npm run dev</code> 等长驻进程时<strong>自动托管</strong>进「进程」页。
-          只增删 rework 自己那两条 hook，其它设置逐字保留。需重启 Claude 会话生效。
+          只增删 Keelson 自己那两条 hook，其它设置逐字保留。需重启 Claude 会话生效。
         </p>
       </div>
 

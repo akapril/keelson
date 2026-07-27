@@ -39,7 +39,7 @@ export function TitleBar() {
         data-tauri-drag-region
         className="flex items-center gap-2 pl-3 text-xs font-medium text-muted-foreground"
       >
-        rework
+        Keelson
       </div>
 
       {/* 右：窗口控制 */}
