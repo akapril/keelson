@@ -11,8 +11,13 @@ const LNG_STORAGE_KEY = "i18nextLng"; // i18next-browser-languagedetector 默认
 
 type Choice = "system" | "zh" | "en";
 
-function currentChoice(): Choice {
-  return (localStorage.getItem(LNG_STORAGE_KEY) as Choice) ?? "system";
+// 归一化读取：detector 首次写入完整语言标签（如 en-US / zh-CN），需前缀匹配
+export function currentChoice(): Choice {
+  const raw = localStorage.getItem(LNG_STORAGE_KEY);
+  if (!raw) return "system";
+  if (raw.toLowerCase().startsWith("zh")) return "zh";
+  if (raw.toLowerCase().startsWith("en")) return "en";
+  return "system";
 }
 
 export function LanguageSection() {
