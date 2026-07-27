@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
@@ -14,6 +15,7 @@ import { MemoryReviewDialog } from "../memory/MemoryReviewDialog";
 
 /** 会话备注编辑器（存 session_notes，跟随配置后端；自动保存）。 */
 function SessionNoteEditor({ sessionId }: { sessionId: string }) {
+  const { t: ts } = useTranslation("sessions");
   const notes = useSessionMetaStore((s) => s.notes);
   const setNote = useSessionMetaStore((s) => s.setNote);
   const [text, setText] = useState("");
@@ -28,21 +30,21 @@ function SessionNoteEditor({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     const original = notes.get(sessionId) ?? "";
     if (text === original) return;
-    const t = setTimeout(
+    const timer = setTimeout(
       () =>
         void setNote(sessionId, text).catch((e) =>
-          toast.error(`保存备注失败：${String(e)}`),
+          toast.error(ts("preview.toast.saveNoteError", { msg: String(e) })),
         ),
       800,
     );
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [text, sessionId, notes, setNote]);
 
   return (
     <Textarea
       value={text}
       onChange={(e) => setText(e.target.value)}
-      placeholder="会话备注（自动保存）"
+      placeholder={ts("preview.notePlaceholder")}
       rows={1}
       className="min-h-9 shrink-0 resize-none text-sm"
     />
@@ -59,6 +61,7 @@ interface SessionPreviewPaneProps {
  * 顶部会话信息 + 操作（恢复 / 建任务 / AI 提炼），下方内联聊天（历史气泡 + 底部续聊）。
  */
 export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
+  const { t } = useTranslation("sessions");
   const [restoreTarget, setRestoreTarget] = useState<Session | null>(null);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [linkedRefresh, setLinkedRefresh] = useState(0);
@@ -76,19 +79,24 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
         (p) => p.repo_path && p.repo_path === s.project_path,
       );
       if (!proj) {
-        toast.error("该会话未关联看板项目——先在会话列表「提升为看板项目」");
+        toast.error(t("preview.toast.noProject"));
         return;
       }
       const r = await syncSessionTasks(s.session_id, s.provider, proj.id);
       if (r.total === 0) {
-        toast.message("该会话没有规划任务（未用 Task 工具）");
+        toast.message(t("preview.toast.noTasks"));
       } else {
         toast.success(
-          `已同步到「${proj.name}」：新建 ${r.created}，更新进度 ${r.updated}（共 ${r.total}）`,
+          t("preview.toast.syncSuccess", {
+            proj: proj.name,
+            created: r.created,
+            updated: r.updated,
+            total: r.total,
+          }),
         );
       }
     } catch (e) {
-      toast.error(`同步失败：${String(e instanceof Error ? e.message : e)}`);
+      toast.error(t("preview.toast.syncError", { msg: String(e instanceof Error ? e.message : e) }));
     } finally {
       setSyncing(false);
     }
@@ -97,7 +105,7 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   if (!session) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-muted-foreground">选择一个会话以预览</p>
+        <p className="text-sm text-muted-foreground">{t("preview.selectHint")}</p>
       </div>
     );
   }
@@ -118,44 +126,44 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
               <button
                 onClick={() => setDistillOpen(true)}
                 className={action}
-                title="用 AI 从此会话提炼任务与文档，确认后写入项目"
+                title={t("preview.distillTitle")}
               >
-                AI 提炼
+                {t("preview.aiDistill")}
               </button>
               <button
                 onClick={() => setMemoryOpen(true)}
                 className={action}
-                title="从此会话提炼可长期复用的记忆（事实/偏好/决策/约定），去重后存入记忆账本"
+                title={t("preview.distillMemoryTitle")}
               >
-                提炼记忆
+                {t("preview.distillMemory")}
               </button>
               <button
                 onClick={() => setTaskDialogOpen(true)}
                 className={action}
-                title="从此会话创建看板任务"
+                title={t("preview.createTaskTitle")}
               >
-                建任务
+                {t("preview.createTask")}
               </button>
               <button
                 onClick={() => void syncTasks(session)}
                 className={action}
                 disabled={syncing}
-                title="把此会话规划的任务(Claude Task 工具的状态)同步到其关联项目的看板，进度随之更新"
+                title={t("preview.syncTasksTitle")}
               >
-                {syncing ? "同步中…" : "同步任务"}
+                {syncing ? t("preview.syncingTasks") : t("preview.syncTasks")}
               </button>
               <button
                 onClick={() => setRestoreTarget(session)}
                 className={action}
-                title="在终端恢复该 CLI 会话"
+                title={t("preview.restoreTitle")}
               >
-                恢复
+                {t("preview.restore")}
               </button>
             </div>
           </div>
           <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
             <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{session.provider}</span>
-            <span>{session.message_count} 条消息</span>
+            <span>{t("preview.messageCount", { n: session.message_count })}</span>
             <span className="ml-auto font-mono">{session.session_id.slice(0, 8)}…</span>
           </div>
         </div>

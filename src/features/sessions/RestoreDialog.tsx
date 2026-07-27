@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useRestoreStore } from "../../store/restore";
 import type { Session } from "../../types/session";
 
@@ -20,6 +21,7 @@ interface RestoreDialogProps {
  * 成功后自动关闭对话框；失败则在对话框内展示错误信息。
  */
 export function RestoreDialog({ session, onClose }: RestoreDialogProps) {
+  const { t } = useTranslation("sessions");
   const restore = useRestoreStore((s) => s.restore);
   const loading = useRestoreStore((s) => s.loading);
   const error = useRestoreStore((s) => s.error);
@@ -87,7 +89,7 @@ export function RestoreDialog({ session, onClose }: RestoreDialogProps) {
           id="restore-dialog-title"
           className="mb-1 text-base font-semibold text-foreground"
         >
-          恢复会话
+          {t("restore.title")}
         </h2>
 
         {/* 会话信息摘要 */}
@@ -102,7 +104,7 @@ export function RestoreDialog({ session, onClose }: RestoreDialogProps) {
         {/* 错误提示 */}
         {error && (
           <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            恢复失败：{error}
+            {t("restore.error", { msg: error })}
           </p>
         )}
 
@@ -120,7 +122,7 @@ export function RestoreDialog({ session, onClose }: RestoreDialogProps) {
             ].join(" ")}
           >
             {/* 加载中时展示旋转指示器 */}
-            {loading ? "恢复中…" : "恢复到新终端窗"}
+            {loading ? t("restore.loading") : t("restore.openNewWindow")}
           </button>
 
           {/* 次操作：作为标签页打开 */}
@@ -134,7 +136,7 @@ export function RestoreDialog({ session, onClose }: RestoreDialogProps) {
               "disabled:cursor-not-allowed disabled:opacity-50",
             ].join(" ")}
           >
-            {loading ? "恢复中…" : "作为标签页"}
+            {loading ? t("restore.loading") : t("restore.openAsTab")}
           </button>
 
           {/* 取消 */}
@@ -147,7 +149,7 @@ export function RestoreDialog({ session, onClose }: RestoreDialogProps) {
               "disabled:cursor-not-allowed disabled:opacity-50",
             ].join(" ")}
           >
-            取消
+            {t("common:action.cancel")}
           </button>
         </div>
       </div>

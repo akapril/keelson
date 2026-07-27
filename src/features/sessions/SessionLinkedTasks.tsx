@@ -1,6 +1,7 @@
 // SessionLinkedTasks —— 会话↔看板双向跳转（反向）：展示由本会话衍生的看板任务。
 // 数据经 listTasksBySession(source_session_id) 反查；点击任务跳到其所在项目看板。
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
@@ -25,6 +26,7 @@ interface SessionLinkedTasksProps {
  * 每项点击 → 跳转到该任务所在项目的看板（/board?open=<project>）。
  */
 export function SessionLinkedTasks({ sessionId, refreshKey, open, onCount }: SessionLinkedTasksProps) {
+  const { t } = useTranslation("sessions");
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<BoardTask[]>([]);
 
@@ -51,26 +53,26 @@ export function SessionLinkedTasks({ sessionId, refreshKey, open, onCount }: Ses
 
   if (!open) return null;
   if (tasks.length === 0) {
-    return <p className="mt-2 px-1 text-xs text-muted-foreground">无关联任务。</p>;
+    return <p className="mt-2 px-1 text-xs text-muted-foreground">{t("linkedTasks.empty")}</p>;
   }
 
   return (
     <div className="mt-2">
       <div className="flex max-h-52 flex-col gap-1.5 overflow-y-auto pr-1">
-        {tasks.map((t) => {
-          const priority = PRIORITY_META[t.priority];
+        {tasks.map((task) => {
+          const priority = PRIORITY_META[task.priority];
           return (
             <button
-              key={t.id}
+              key={task.id}
               type="button"
-              onClick={() => navigate(workspaceRecordUrl("board", t.project))}
-              title="跳转到该任务所在项目看板"
+              onClick={() => navigate(workspaceRecordUrl("board", task.project))}
+              title={t("linkedTasks.jumpTitle")}
               className="group flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {/* 优先级色点（none 也给个中性点，保持对齐） */}
               <span className={`size-1.5 shrink-0 rounded-full ${priority?.dot ?? "bg-muted-foreground/40"}`} />
               <span className="min-w-0 flex-1 truncate text-foreground group-hover:text-accent-foreground">
-                {t.title}
+                {task.title}
               </span>
               <HugeiconsIcon
                 icon={ArrowRight01Icon}

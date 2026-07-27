@@ -1,0 +1,172 @@
+{
+  "card": {
+    "selectSession": "选择会话",
+    "createTask": "建任务",
+    "restore": "恢复",
+    "unfavorite": "取消收藏",
+    "favorite": "收藏",
+    "messageCount": "{{n}} 条消息",
+    "timeJustNow": "刚刚",
+    "timeMinutesAgo": "{{n}} 分钟前",
+    "timeHoursAgo": "{{n}} 小时前",
+    "timeDaysAgo": "{{n}} 天前",
+    "ctx": {
+      "restoreSession": "恢复会话",
+      "createTask": "建任务",
+      "distillMemory": "提炼记忆",
+      "unfavorite": "取消收藏",
+      "favorite": "收藏",
+      "renameOrReset": "重命名 / 恢复默认",
+      "rename": "重命名",
+      "unhide": "取消隐藏",
+      "hide": "隐藏",
+      "openLocation": "打开项目位置",
+      "copyPath": "复制项目路径",
+      "copyId": "复制会话 ID"
+    },
+    "toast": {
+      "saveNameError": "保存名称失败：{{msg}}",
+      "favoriteError": "收藏失败：{{msg}}",
+      "hideError": "隐藏操作失败：{{msg}}",
+      "openLocationError": "打开位置失败：{{msg}}",
+      "copiedPath": "已复制项目路径",
+      "copiedId": "已复制会话 ID"
+    }
+  },
+  "rename": {
+    "title": "重命名会话",
+    "description": "给会话起个好认的名字；留空恢复默认（项目名）。",
+    "label": "会话名称",
+    "placeholder": "如：支付重构排障"
+  },
+  "restore": {
+    "title": "恢复会话",
+    "loading": "恢复中…",
+    "openNewWindow": "恢复到新终端窗",
+    "openAsTab": "作为标签页",
+    "error": "恢复失败：{{msg}}"
+  },
+  "list": {
+    "modeSearch": "搜索",
+    "modeAsk": "问历史",
+    "searchPlaceholder": "搜索会话…",
+    "searchAriaLabel": "搜索会话",
+    "favOnlyTitle": "只看收藏",
+    "showAllTitle": "显示全部会话",
+    "showHiddenActive": "隐藏项✓",
+    "showHidden": "隐藏项",
+    "showHiddenTitleActive": "隐藏「已隐藏」会话",
+    "showHiddenTitle": "显示「已隐藏」会话",
+    "batchSelect": "批量",
+    "batchSelectTitle": "批量选择会话",
+    "batchSelectedCount": "已选 {{n}}",
+    "batchFavorite": "收藏",
+    "batchHide": "隐藏",
+    "batchUnhide": "取消隐藏",
+    "batchDone": "完成",
+    "collapseTitle": "折叠",
+    "expandTitle": "展开",
+    "promoteTitle": "提升为看板项目",
+    "loading": "加载中…",
+    "searching": "检索中…",
+    "emptyFav": "没有收藏的会话",
+    "emptySearch": "未找到匹配的会话",
+    "emptyScanning": "正在扫描本地会话…",
+    "empty": "暂无会话记录",
+    "toast": {
+      "favoriteError": "收藏失败：{{msg}}",
+      "hideError": "隐藏操作失败：{{msg}}"
+    }
+  },
+  "preview": {
+    "selectHint": "选择一个会话以预览",
+    "aiDistill": "AI 提炼",
+    "distillTitle": "用 AI 从此会话提炼任务与文档，确认后写入项目",
+    "distillMemory": "提炼记忆",
+    "distillMemoryTitle": "从此会话提炼可长期复用的记忆（事实/偏好/决策/约定），去重后存入记忆账本",
+    "createTask": "建任务",
+    "createTaskTitle": "从此会话创建看板任务",
+    "syncTasks": "同步任务",
+    "syncingTasks": "同步中…",
+    "syncTasksTitle": "把此会话规划的任务(Claude Task 工具的状态)同步到其关联项目的看板，进度随之更新",
+    "restore": "恢复",
+    "restoreTitle": "在终端恢复该 CLI 会话",
+    "messageCount": "{{n}} 条消息",
+    "notePlaceholder": "会话备注（自动保存）",
+    "toast": {
+      "noProject": "该会话未关联看板项目——先在会话列表「提升为看板项目」",
+      "noTasks": "该会话没有规划任务（未用 Task 工具）",
+      "syncSuccess": "已同步到「{{proj}}」：新建 {{created}}，更新进度 {{updated}}（共 {{total}}）",
+      "syncError": "同步失败：{{msg}}",
+      "saveNoteError": "保存备注失败：{{msg}}"
+    }
+  },
+  "chat": {
+    "loadingHistory": "正在加载会话消息…",
+    "emptyHistory": "此会话暂无消息，或直接在下方继续对话。",
+    "showEarlier": "显示更早的 {{n}} 条消息",
+    "noAiConfig": "尚未配置 AI 服务",
+    "goSettings": "去设置",
+    "continueMode": "续聊方式",
+    "modeInapp": "应用内",
+    "modeTerminal": "终端续接",
+    "modeInappDesc": "在应用内续聊（重放上下文，不写回原会话）",
+    "modeTerminalDesc": "用 CLI --resume 真接原会话（写回磁盘、真同步）",
+    "terminalHint": "在终端里真正接着这个 {{provider}} 会话继续，消息写回磁盘、Keelson 重扫后同步。",
+    "resumeInTerminal": "在终端续接",
+    "inputPlaceholder": "继续对话，Enter 发送，/ 唤起指令库",
+    "send": "发送",
+    "stop": "停止",
+    "loadHistoryError": "载入历史失败：{{msg}}",
+    "requestError": "请求失败：{{msg}}",
+    "noReply": "（无回复）",
+    "resumeError": "恢复到终端失败：{{msg}}"
+  },
+  "commits": {
+    "loading": "正在查找关联提交…",
+    "empty": "无关联提交。",
+    "exactMatch": "🎯 精确",
+    "exactMatchTitle": "commit 带 Rework-Session trailer，精确关联",
+    "likelyRelated": "🕐 可能相关",
+    "likelyRelatedTitle": "按提交时间落在会话时段内推断，可能相关"
+  },
+  "fileChanges": {
+    "loading": "正在读取本会话改动的文件…",
+    "empty": "无文件改动记录（或非 Claude 会话）。",
+    "editsCount": "{{n}} 处"
+  },
+  "linkedTasks": {
+    "empty": "无关联任务。",
+    "jumpTitle": "跳转到该任务所在项目看板"
+  },
+  "provenance": {
+    "commits": "提交",
+    "files": "改动",
+    "tasks": "任务",
+    "collapse": "收起",
+    "expand": "展开"
+  },
+  "ask": {
+    "placeholder": "问历史会话，如「上次我怎么修的 PB 400 错误」",
+    "searching": "检索中…",
+    "ask": "问",
+    "copyAnswer": "复制",
+    "saveAsDoc": "存为文档",
+    "saving": "保存中…",
+    "kwOnly": "关键词检索（未配置语义嵌入 —— 可在「设置 → 检索 / 嵌入」切换 api / local 启用语义）",
+    "kwFallback": "（语义索引未就绪，已回退关键词检索）",
+    "similarity": "相似度",
+    "relevance": "相关度",
+    "emptyHint": "输入问题，检索你的历史会话",
+    "toast": {
+      "copiedAnswer": "已复制答案",
+      "copyError": "复制失败",
+      "savedDoc": "已存为文档（速记）",
+      "openDoc": "打开",
+      "saveDocError": "存文档失败：{{msg}}",
+      "retrieveError": "检索失败：{{msg}}"
+    },
+    "docTitle": "历史问答",
+    "docSourcesHeader": "来源会话片段"
+  }
+}

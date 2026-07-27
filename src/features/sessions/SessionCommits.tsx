@@ -1,6 +1,7 @@
 // SessionCommits —— 会话→Commit 溯源：与本会话关联的提交（受 SessionProvenance 折叠控制）。
 // 始终拉取并经 onCount 上报数量（供摘要胶囊显示）；仅 open 时渲染详情列表。
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ipc } from "@/lib/tauri/ipc";
 import type { CorrelatedCommit } from "@/types/git";
@@ -23,6 +24,7 @@ export function SessionCommits({
   open: boolean;
   onCount: (n: number) => void;
 }) {
+  const { t } = useTranslation("sessions");
   const [commits, setCommits] = useState<CorrelatedCommit[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -54,10 +56,10 @@ export function SessionCommits({
 
   if (!open) return null;
   if (loading) {
-    return <p className="mt-2 px-1 text-xs text-muted-foreground">正在查找关联提交…</p>;
+    return <p className="mt-2 px-1 text-xs text-muted-foreground">{t("commits.loading")}</p>;
   }
   if (commits.length === 0) {
-    return <p className="mt-2 px-1 text-xs text-muted-foreground">无关联提交。</p>;
+    return <p className="mt-2 px-1 text-xs text-muted-foreground">{t("commits.empty")}</p>;
   }
 
   return (
@@ -75,16 +77,16 @@ export function SessionCommits({
           {link_kind === "trailer" ? (
             <span
               className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary"
-              title="commit 带 Rework-Session trailer，精确关联"
+              title={t("commits.exactMatchTitle")}
             >
-              🎯 精确
+              {t("commits.exactMatch")}
             </span>
           ) : (
             <span
               className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
-              title="按提交时间落在会话时段内推断，可能相关"
+              title={t("commits.likelyRelatedTitle")}
             >
-              🕐 可能相关
+              {t("commits.likelyRelated")}
             </span>
           )}
           <span className="shrink-0 font-mono text-[10px] text-muted-foreground/70">

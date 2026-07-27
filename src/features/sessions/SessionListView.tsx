@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Virtualizer, type VirtualizerHandle } from "virtua";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -26,6 +27,7 @@ interface SessionListViewProps {
  * 顶部提供搜索框，输入内容实时调用 useSessionSearchStore.run。
  */
 export function SessionListView({ selectedId, onSelect }: SessionListViewProps) {
+  const { t } = useTranslation("sessions");
   const loading = useSessionsStore((s) => s.loading);
   const groups = useSessionsStore((s) => s.groups);
   const scanned = useSessionsStore((s) => s.scanned);
@@ -65,19 +67,19 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
     checked.forEach(
       (id) =>
         favorites.has(id) ||
-        void toggleFavorite(id).catch((e) => toast.error(`收藏失败：${String(e)}`)),
+        void toggleFavorite(id).catch((e) => toast.error(t("list.toast.favoriteError", { msg: String(e) }))),
     );
   const batchHide = () =>
     checked.forEach(
       (id) =>
         hidden.has(id) ||
-        void toggleHidden(id).catch((e) => toast.error(`隐藏操作失败：${String(e)}`)),
+        void toggleHidden(id).catch((e) => toast.error(t("list.toast.hideError", { msg: String(e) }))),
     );
   const batchUnhide = () =>
     checked.forEach(
       (id) =>
         hidden.has(id) &&
-        void toggleHidden(id).catch((e) => toast.error(`隐藏操作失败：${String(e)}`)),
+        void toggleHidden(id).catch((e) => toast.error(t("list.toast.hideError", { msg: String(e) }))),
     );
 
   // 「只看收藏」/「显示已隐藏」筛选
@@ -192,14 +194,14 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
           onClick={() => setMode("search")}
           className={`rounded-lg px-2.5 py-1 text-xs ${mode === "search" ? "bg-accent" : "text-muted-foreground"}`}
         >
-          搜索
+          {t("list.modeSearch")}
         </button>
         <button
           type="button"
           onClick={() => setMode("ask")}
           className={`rounded-lg px-2.5 py-1 text-xs ${mode === "ask" ? "bg-accent" : "text-muted-foreground"}`}
         >
-          问历史
+          {t("list.modeAsk")}
         </button>
       </div>
 
@@ -215,14 +217,14 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
           type="search"
           value={query}
           onChange={(e) => run(e.target.value)}
-          placeholder="搜索会话…"
+          placeholder={t("list.searchPlaceholder")}
           className="min-w-0 flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          aria-label="搜索会话"
+          aria-label={t("list.searchAriaLabel")}
         />
         <button
           type="button"
           onClick={() => setFavOnly((v) => !v)}
-          title={favOnly ? "显示全部会话" : "只看收藏"}
+          title={favOnly ? t("list.showAllTitle") : t("list.favOnlyTitle")}
           aria-pressed={favOnly}
           className={`shrink-0 rounded-lg border border-border px-2.5 py-2 text-sm leading-none transition-colors ${
             favOnly ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
@@ -233,38 +235,38 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
         <button
           type="button"
           onClick={() => setShowHidden((v) => !v)}
-          title={showHidden ? "隐藏「已隐藏」会话" : "显示「已隐藏」会话"}
+          title={showHidden ? t("list.showHiddenTitleActive") : t("list.showHiddenTitle")}
           aria-pressed={showHidden}
           className={`shrink-0 rounded-lg border border-border px-2.5 py-2 text-xs leading-none transition-colors ${
             showHidden ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
           }`}
         >
-          {showHidden ? "隐藏项✓" : "隐藏项"}
+          {showHidden ? t("list.showHiddenActive") : t("list.showHidden")}
         </button>
         <button
           type="button"
           onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
-          title="批量选择会话"
+          title={t("list.batchSelectTitle")}
           aria-pressed={selectMode}
           className={`shrink-0 rounded-lg border border-border px-2.5 py-2 text-xs leading-none transition-colors ${
             selectMode ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
           }`}
         >
-          批量
+          {t("list.batchSelect")}
         </button>
       </div>
 
       {/* 批量选择工具栏 */}
       {selectMode && (
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1.5 text-xs">
-          <span className="mr-1 text-muted-foreground">已选 {checked.size}</span>
+          <span className="mr-1 text-muted-foreground">{t("list.batchSelectedCount", { n: checked.size })}</span>
           <button
             type="button"
             disabled={checked.size === 0}
             onClick={batchFavorite}
             className="rounded px-1.5 py-0.5 hover:bg-accent disabled:opacity-40"
           >
-            收藏
+            {t("list.batchFavorite")}
           </button>
           <button
             type="button"
@@ -272,7 +274,7 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
             onClick={batchHide}
             className="rounded px-1.5 py-0.5 hover:bg-accent disabled:opacity-40"
           >
-            隐藏
+            {t("list.batchHide")}
           </button>
           <button
             type="button"
@@ -280,14 +282,14 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
             onClick={batchUnhide}
             className="rounded px-1.5 py-0.5 hover:bg-accent disabled:opacity-40"
           >
-            取消隐藏
+            {t("list.batchUnhide")}
           </button>
           <button
             type="button"
             onClick={exitSelect}
             className="ml-auto rounded px-1.5 py-0.5 text-primary hover:bg-accent"
           >
-            完成
+            {t("list.batchDone")}
           </button>
         </div>
       )}
@@ -295,20 +297,20 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
       {/* 内容区：可滚动 + virtua 虚拟化（只渲染可视区行，会话极多也不卡死） */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">加载中…</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">{t("list.loading")}</p>
         ) : isSearching && searchLoading && results.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">检索中…</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">{t("list.searching")}</p>
         ) : rows.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             {isSearching
               ? favOnly
-                ? "没有收藏的会话"
-                : "未找到匹配的会话"
+                ? t("list.emptyFav")
+                : t("list.emptySearch")
               : favOnly
-                ? "没有收藏的会话"
+                ? t("list.emptyFav")
                 : scanned
-                  ? "暂无会话记录"
-                  : "正在扫描本地会话…"}
+                  ? t("list.empty")
+                  : t("list.emptyScanning")}
           </p>
         ) : (
           <Virtualizer ref={vRef}>
@@ -322,7 +324,7 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
                   <button
                     type="button"
                     onClick={() => toggleCollapse(row.path)}
-                    title={row.collapsed ? "展开" : "折叠"}
+                    title={row.collapsed ? t("list.expandTitle") : t("list.collapseTitle")}
                     aria-expanded={!row.collapsed}
                     className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-0.5 py-0.5 text-left hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring"
                   >
@@ -346,10 +348,10 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
                   <button
                     type="button"
                     onClick={() => setPromotingPath(row.path)}
-                    title="提升为看板项目"
+                    title={t("list.promoteTitle")}
                     className="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    提升为看板项目
+                    {t("list.promoteTitle")}
                   </button>
                 </div>
               ) : (

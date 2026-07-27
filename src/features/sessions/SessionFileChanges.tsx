@@ -2,6 +2,7 @@
 // 数据从会话转录里的 Write/Edit/MultiEdit 工具调用还原（Rust session_file_changes），
 // 含未提交 git 的改动，补齐「此会话期间的提交」看不到的部分。v1 仅 Claude。
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { diffLines } from "diff";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { File01Icon, ArrowDown01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
@@ -56,6 +57,7 @@ export function SessionFileChanges({
   open: boolean;
   onCount: (n: number) => void;
 }) {
+  const { t } = useTranslation("sessions");
   const [changes, setChanges] = useState<FileChange[]>([]);
   const [loading, setLoading] = useState(true);
   const [openFile, setOpenFile] = useState<string | null>(null);
@@ -92,12 +94,12 @@ export function SessionFileChanges({
     return (
       <p className="mt-2 flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
         <HugeiconsIcon icon={File01Icon} strokeWidth={2} className="size-3.5 animate-pulse" />
-        正在读取本会话改动的文件…
+        {t("fileChanges.loading")}
       </p>
     );
   }
   if (changes.length === 0) {
-    return <p className="mt-2 px-1 text-xs text-muted-foreground">无文件改动记录（或非 Claude 会话）。</p>;
+    return <p className="mt-2 px-1 text-xs text-muted-foreground">{t("fileChanges.empty")}</p>;
   }
 
   return (
@@ -122,7 +124,7 @@ export function SessionFileChanges({
                   {shortPath(fc.path, session.project_path)}
                 </span>
                 <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                  {fc.edits.length} 处
+                  {t("fileChanges.editsCount", { n: fc.edits.length })}
                 </span>
               </button>
               {isOpen && (

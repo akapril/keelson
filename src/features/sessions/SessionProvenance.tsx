@@ -2,6 +2,7 @@
 // 默认全折叠，点某个胶囊展开对应详情。把纵向空间还给会话消息(SessionChat)。
 // 三个子组件始终挂载(拉数据+上报数量)，仅 open 的那个渲染详情。
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   GitCommitIcon,
@@ -24,6 +25,7 @@ export function SessionProvenance({
   session: Session;
   tasksRefreshKey?: number;
 }) {
+  const { t } = useTranslation("sessions");
   const [counts, setCounts] = useState<Record<Key, number>>({ tasks: 0, commits: 0, files: 0 });
   const [open, setOpen] = useState<Key | null>(null);
   // 稳定的计数上报（仅在值变化时 setState，避免多余渲染）
@@ -31,9 +33,9 @@ export function SessionProvenance({
     setCounts((c) => (c[k] === n ? c : { ...c, [k]: n }));
 
   const chips: { key: Key; label: string; icon: IconSvgElement; n: number }[] = [
-    { key: "commits", label: "提交", icon: GitCommitIcon, n: counts.commits },
-    { key: "files", label: "改动", icon: File01Icon, n: counts.files },
-    { key: "tasks", label: "任务", icon: DashboardSquare02Icon, n: counts.tasks },
+    { key: "commits", label: t("provenance.commits"), icon: GitCommitIcon, n: counts.commits },
+    { key: "files", label: t("provenance.files"), icon: File01Icon, n: counts.files },
+    { key: "tasks", label: t("provenance.tasks"), icon: DashboardSquare02Icon, n: counts.tasks },
   ];
   const shown = chips.filter((c) => c.n > 0);
 
@@ -53,7 +55,7 @@ export function SessionProvenance({
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
                 }`}
-                title={active ? "收起" : "展开"}
+                title={active ? t("provenance.collapse") : t("provenance.expand")}
               >
                 <HugeiconsIcon icon={c.icon} strokeWidth={2} className="size-3.5" />
                 {c.label}

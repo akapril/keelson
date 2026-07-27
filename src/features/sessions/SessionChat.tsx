@@ -2,6 +2,7 @@
 // codex-gui 风格:用户右、助手左，等宽友好，滚动到底。续聊用配置的 AI（非重开 CLI 会话），
 // 历史按会话持久化到 localStorage。
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SentIcon } from "@hugeicons/core-free-icons";
@@ -35,10 +36,16 @@ const HistoryBubble = memo(function HistoryBubble({
   message: AiChatMessage;
   isStreaming: boolean;
 }) {
+  const { t } = useTranslation("sessions");
   const isUser = message.role === "user";
-  const isError = message.role === "assistant" && message.content.startsWith("请求失败：");
+  // 错误消息用内部哨兵前缀标记（\x00ERR:）区分正常内容
+  const isError = message.role === "assistant" && message.content.startsWith("\x00ERR:");
   const streamingThis = message.role === "assistant" && isStreaming;
-  const display = message.content || (streamingThis ? "▍" : "");
+  // 错误消息：去除哨兵前缀后显示翻译后的错误提示
+  const errorBody = isError ? message.content.slice("\x00ERR:".length) : "";
+  const display = isError
+    ? t("chat.requestError", { msg: errorBody })
+    : message.content || (streamingThis ? "▍" : "");
   // 会话消息可能是 markdown：助手正文渲染 markdown；用户/错误/流式中保持纯文本
   const renderMarkdown =
     message.role === "assistant" && !isError && !!message.content && !streamingThis;
@@ -68,6 +75,7 @@ export function SessionChat({
   session: Session;
   className?: string;
 }) {
+  const { t } = useTranslation("sessions");
   const navigate = useNavigate();
   // 历史时间线（完整、只读、不持久化）与续聊（本地持久化）分开，
   // 避免种子截断/持久化覆盖导致"内容不全、与列表不一致"。
@@ -91,7 +99,7 @@ export function SessionChat({
   // 终端续接：用 claude/codex --resume 在终端真正接着原会话（写回磁盘、真同步）
   const resumeInTerminal = () => {
     void restore(session, false).catch((e) =>
-      toast.error(`恢复到终端失败：${String(e)}`),
+      toast.error(t("chat.resumeError", { msg: String(e) })),
     );
   };
   const listRef = useRef<HTMLDivElement>(null);
@@ -234,11 +242,11 @@ export function SessionChat({
     try {
       await ipc.aiChatStream(aiConfig, reqMsgs, streamId, (ev) => {
         if (ev.kind === "delta" && ev.text) updateAssistant((c) => c + ev.text);
-        else if (ev.kind === "error") updateAssistant(() => `请求失败：${ev.text ?? ""}`);
+        else if (ev.kind === "error") updateAssistant(() => `\x00ERR:${ev.text ?? ""}`);
       });
-      updateAssistant((c) => (c === "" ? "（无回复）" : c));
+      updateAssistant((c) => (c === "" ? t("chat.noReply") : c));
     } catch (e) {
-      updateAssistant(() => `请求失败：${String(e)}`);
+      updateAssistant(() => `\x00ERR:${String(e)}`);
     } finally {
       activeStreamId.current = null;
       setLoading(false);
@@ -258,12 +266,12 @@ export function SessionChat({
       {/* 消息流（codex-gui 风格气泡） */}
       <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-1 py-2">
         {seedError && (
-          <p className="text-center text-sm text-destructive">载入历史失败：{seedError}</p>
+          <p className="text-center text-sm text-destructive">{t("chat.loadHistoryError", { msg: seedError })}</p>
         )}
         {/* 加载中骨架：区分「正在读取会话消息」与「真的没有消息」 */}
         {loadingHistory && messages.length === 0 && !seedError && (
           <div className="space-y-3 py-2" aria-live="polite">
-            <p className="text-center text-xs text-muted-foreground">正在加载会话消息…</p>
+            <p className="text-center text-xs text-muted-foreground">{t("chat.loadingHistory")}</p>
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
@@ -276,7 +284,7 @@ export function SessionChat({
         )}
         {!loadingHistory && messages.length === 0 && !seedError && (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            此会话暂无消息，或直接在下方继续对话。
+            {t("chat.emptyHistory")}
           </p>
         )}
         {/* 长会话分页：默认只渲染最近 VISIBLE_LIMIT 条，顶部按钮展开更早的 */}
@@ -286,7 +294,7 @@ export function SessionChat({
             onClick={() => setShowAll(true)}
             className="mx-auto block rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
-            显示更早的 {messages.length - VISIBLE_LIMIT} 条消息
+            {t("chat.showEarlier", { n: messages.length - VISIBLE_LIMIT })}
           </button>
         )}
         {(showAll ? messages : messages.slice(-VISIBLE_LIMIT)).map((m, idx) => {
@@ -305,21 +313,21 @@ export function SessionChat({
       {/* 未配置密钥引导 */}
       {needConfig && (
         <div className="mx-1 mb-2 rounded-xl border border-border bg-card p-3 text-sm">
-          <p className="text-foreground">尚未配置 AI 服务</p>
+          <p className="text-foreground">{t("chat.noAiConfig")}</p>
           <Button
             variant="outline"
             size="sm"
             className="mt-2"
             onClick={() => navigate("/settings")}
           >
-            去设置
+            {t("chat.goSettings")}
           </Button>
         </div>
       )}
 
       {/* 续聊模式开关：应用内(分叉,快) / 终端续接(真接原会话,写回磁盘) */}
       <div className="mt-2 flex shrink-0 items-center gap-1.5 border-t border-border pt-2 text-xs">
-        <span className="text-muted-foreground">续聊方式</span>
+        <span className="text-muted-foreground">{t("chat.continueMode")}</span>
         <div className="inline-flex rounded-lg border border-border p-0.5">
           <button
             type="button"
@@ -329,7 +337,7 @@ export function SessionChat({
               mode === "inapp" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground",
             )}
           >
-            应用内
+            {t("chat.modeInapp")}
           </button>
           <button
             type="button"
@@ -339,13 +347,13 @@ export function SessionChat({
               mode === "terminal" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground",
             )}
           >
-            终端续接
+            {t("chat.modeTerminal")}
           </button>
         </div>
         <span className="ml-1 truncate text-[11px] text-muted-foreground/70">
           {mode === "inapp"
-            ? "在应用内续聊（重放上下文，不写回原会话）"
-            : "用 CLI --resume 真接原会话（写回磁盘、真同步）"}
+            ? t("chat.modeInappDesc")
+            : t("chat.modeTerminalDesc")}
         </span>
       </div>
 
@@ -353,9 +361,9 @@ export function SessionChat({
       {mode === "terminal" ? (
         <div className="flex shrink-0 items-center justify-between gap-2 pt-3">
           <p className="text-xs text-muted-foreground">
-            在终端里真正接着这个 {session.provider} 会话继续，消息写回磁盘、Keelson 重扫后同步。
+            {t("chat.terminalHint", { provider: session.provider })}
           </p>
-          <Button onClick={resumeInTerminal}>在终端续接</Button>
+          <Button onClick={resumeInTerminal}>{t("chat.resumeInTerminal")}</Button>
         </div>
       ) : (
         <div className="flex shrink-0 items-end gap-2 pt-3">
@@ -367,7 +375,7 @@ export function SessionChat({
                 if (promptInsert.onKeyDown(e)) return;
                 onKeyDown(e);
               }}
-              placeholder="继续对话，Enter 发送，/ 唤起指令库"
+              placeholder={t("chat.inputPlaceholder")}
               className="min-h-11 w-full"
               disabled={loading}
             />
@@ -376,12 +384,12 @@ export function SessionChat({
           {promptInsert.button}
           {loading ? (
             <Button variant="outline" onClick={handleStop}>
-              停止
+              {t("chat.stop")}
             </Button>
           ) : (
             <Button onClick={() => void send()} disabled={!input.trim()}>
               <HugeiconsIcon icon={SentIcon} strokeWidth={2} />
-              发送
+              {t("chat.send")}
             </Button>
           )}
         </div>
