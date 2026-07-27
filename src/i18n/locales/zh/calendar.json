@@ -1,6 +1,5 @@
 {
   "page": {
-    "title": "{{year}} 年 {{month}} 月",
     "prevMonth": "上个月",
     "nextMonth": "下个月",
     "today": "今天",
