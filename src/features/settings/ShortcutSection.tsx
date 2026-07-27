@@ -1,5 +1,6 @@
 // 全局唤起快捷键设置区（从 pages/settings.tsx 拆出，逻辑逐字保留）。
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "@/store/settings";
 
 // ── 快捷键字符串构建辅助 ───────────────────────────────────────
@@ -60,6 +61,7 @@ interface HotkeyCaptureProps {
 }
 
 function HotkeyCapture({ value, onCapture, disabled }: HotkeyCaptureProps) {
+  const { t } = useTranslation("settings");
   // 是否处于"捕获中"状态
   const [capturing, setCapturing] = useState(false);
   // 捕获中显示的预览字符串
@@ -105,15 +107,17 @@ function HotkeyCapture({ value, onCapture, disabled }: HotkeyCaptureProps) {
 
   // 显示文本：捕获中 → 预览；否则 → 当前值（或提示）
   const displayText = capturing
-    ? preview || "按下快捷键组合…"
-    : value || "点击以设置";
+    ? preview || t("shortcut.capturePrompt")
+    : value || t("shortcut.clickToSet");
+
+  const ariaLabelValue = value || t("shortcut.ariaLabelUnset");
 
   return (
     <div
       ref={divRef}
       role="button"
       tabIndex={disabled ? -1 : 0}
-      aria-label={`快捷键输入，当前：${value || "未设置"}`}
+      aria-label={t("shortcut.ariaLabel", { value: ariaLabelValue })}
       aria-disabled={disabled}
       onMouseDown={startCapture}
       onKeyDown={handleKeyDown}
@@ -138,6 +142,7 @@ function HotkeyCapture({ value, onCapture, disabled }: HotkeyCaptureProps) {
  * 持久化并在 Rust 端立即重注册。
  */
 export function ShortcutSection() {
+  const { t } = useTranslation("settings");
   const hotkey = useSettingsStore((s) => s.hotkey);
   const loading = useSettingsStore((s) => s.loading);
   const saveHotkey = useSettingsStore((s) => s.saveHotkey);
@@ -150,10 +155,9 @@ export function ShortcutSection() {
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-sm font-medium">全局唤起快捷键</h2>
+        <h2 className="text-sm font-medium">{t("shortcut.title")}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          在任意界面按下此组合键，即可唤起 / 隐藏 Spotlight 搜索窗口。
-          修改后立即生效，无需重启。
+          {t("shortcut.desc")}
         </p>
       </div>
 
@@ -164,12 +168,12 @@ export function ShortcutSection() {
           disabled={loading}
         />
         {loading && (
-          <span className="text-xs text-muted-foreground">保存中…</span>
+          <span className="text-xs text-muted-foreground">{t("shortcut.saving")}</span>
         )}
       </div>
 
       <p className="text-xs text-muted-foreground">
-        点击上方控件后，按下目标组合键（需含修饰键，如 Ctrl / Alt / Shift）；按 Esc 取消捕获。
+        {t("shortcut.hint")}
       </p>
     </section>
   );

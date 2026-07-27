@@ -1,6 +1,7 @@
 // 通知偏好区（从 pages/settings.tsx 拆出，逻辑逐字保留）。
 // 逐类型开关（铃铛 + 桌面），可独立关闭任意来源；「发现新会话」保留旧独立开关。
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   newSessionsPref,
   setNewSessionsPref,
@@ -8,6 +9,7 @@ import {
 import { NOTIF_TYPES, useNotifPrefsStore } from "@/store/notification-prefs";
 
 export function NotifyPrefsSection() {
+  const { t } = useTranslation("settings");
   // 旧的会话摘要开关（独立 localStorage key）
   const [newSessions, setNewSessions] = useState(newSessionsPref());
   const toggleNewSessions = (v: boolean) => {
@@ -22,17 +24,18 @@ export function NotifyPrefsSection() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-sm font-medium">通知偏好</h2>
+        <h2 className="text-sm font-medium">{t("notify.title")}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          控制哪些类型的通知写入铃铛/收件箱，以及是否弹出桌面系统通知。
-          关闭后，该类型既不创建也不显示（含外部 Agent 写入的同类型通知）。
+          {t("notify.desc")}
         </p>
       </div>
 
       {/* 逐类型开关 */}
       <div className="space-y-2">
-        {NOTIF_TYPES.map(({ source, label }) => {
+        {NOTIF_TYPES.map(({ source }) => {
           const enabled = prefs[source] !== false;
+          // 用 source 作为 i18n key 查翻译；回退到原始 label（兜底）
+          const label = t(`notify.types.${source}`, { defaultValue: source });
           return (
             <label
               key={source}
@@ -52,7 +55,7 @@ export function NotifyPrefsSection() {
 
       {/* 旧：会话摘要粒度控制（启动时是否推摘要条；与"会话"类型开关叠加） */}
       <div className="space-y-1.5">
-        <p className="text-xs font-medium text-muted-foreground">会话提醒细粒度</p>
+        <p className="text-xs font-medium text-muted-foreground">{t("notify.sessionGranularity")}</p>
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -60,7 +63,7 @@ export function NotifyPrefsSection() {
             onChange={(e) => toggleNewSessions(e.target.checked)}
             className="h-3.5 w-3.5 rounded border-input accent-primary"
           />
-          <span>发现新的本地 CLI 会话时提醒（启动时汇总一条，需「会话」类型也开启才生效）</span>
+          <span>{t("notify.newSessionsLabel")}</span>
         </label>
       </div>
     </section>

@@ -1,1 +1,155 @@
-{ "language": { "title": "语言", "desc": "界面语言。默认跟随系统，手动切换后记住。", "followSystem": "跟随系统" } }
+{
+  "language": { "title": "语言", "desc": "界面语言。默认跟随系统，手动切换后记住。", "followSystem": "跟随系统" },
+  "page": { "title": "设置" },
+  "shortcut": {
+    "title": "全局唤起快捷键",
+    "desc": "在任意界面按下此组合键，即可唤起 / 隐藏 Spotlight 搜索窗口。修改后立即生效，无需重启。",
+    "hint": "点击上方控件后，按下目标组合键（需含修饰键，如 Ctrl / Alt / Shift）；按 Esc 取消捕获。",
+    "saving": "保存中…",
+    "capturePrompt": "按下快捷键组合…",
+    "clickToSet": "点击以设置",
+    "ariaLabel": "快捷键输入，当前：{{value}}",
+    "ariaLabelUnset": "未设置"
+  },
+  "workspacePath": {
+    "title": "工作区路径",
+    "desc": "Claude / Codex 会话所在的根目录（MVP 阶段仅本地保存，不同步后端）。",
+    "hint": "留空则使用默认路径（~/.claude / ~/.codex）。",
+    "ariaLabel": "工作区路径",
+    "placeholder": "/Users/you/projects 或 C:\\Users\\you\\projects"
+  },
+  "projectDefaultTab": {
+    "title": "项目默认打开标签页",
+    "desc": "打开一个项目时默认停留的标签页。系统会自动记住每个项目上次停留的位置并优先回到那里；此处仅作为「从未打开过」时的兜底默认。",
+    "placeholder": "选择默认标签页",
+    "tabs": {
+      "overview": "概览",
+      "sessions": "会话",
+      "board": "看板",
+      "docs": "文档",
+      "activity": "活动",
+      "ai": "AI"
+    }
+  },
+  "autoArchive": {
+    "title": "看板已完成任务自动归档",
+    "desc": "打开项目时，把「完成」列中停留超过所选天数的任务自动归档（软删除、保留会话/提交溯源，默认从看板隐藏，可随时「显示归档」查看或取消归档）。不会删除任何数据。",
+    "placeholder": "选择自动归档时机",
+    "options": {
+      "off": "关闭（仅手动归档）",
+      "days3": "完成 3 天后",
+      "days7": "完成 7 天后",
+      "days14": "完成 14 天后",
+      "days30": "完成 30 天后"
+    }
+  },
+  "ai": {
+    "title": "AI 助手",
+    "desc": "配置项目工作台「AI」标签使用的模型服务；密钥仅保存在本机。",
+    "provider": {
+      "label": "服务商",
+      "placeholder": "选择服务商",
+      "openai": "OpenAI 兼容",
+      "anthropic": "Anthropic (Claude)",
+      "claudeCli": "Claude Code（本地 CLI）",
+      "codexCli": "Codex（本地 CLI）"
+    },
+    "baseUrl": { "label": "Base URL" },
+    "apiKey": { "label": "API 密钥" },
+    "model": {
+      "label": "模型",
+      "fetchBtn": "拉取模型",
+      "fetching": "拉取中…",
+      "placeholder": "gpt-4o-mini / claude-3-5-sonnet-...（可点『拉取模型』获取建议）",
+      "fetchSuccess": "获取到 {{count}} 个模型",
+      "fetchEmpty": "未获取到模型列表，请手动输入",
+      "fetchError": "拉取模型失败，请手动输入：{{message}}"
+    },
+    "cliPath": {
+      "label": "命令路径（可选）",
+      "placeholderClaude": "留空自动查找；如 C:\\Users\\you\\AppData\\Roaming\\npm\\claude.cmd",
+      "placeholderCodex": "留空自动查找；如 C:\\Users\\you\\AppData\\Roaming\\npm\\codex.cmd"
+    },
+    "cliHint": "将调用本机的 {{cmd}} 命令行（走本地订阅，数据不出本机）。若提示「program not found」但终端里能运行，在上面填它的绝对路径即可（终端里用 where {{cmd}} 查）。",
+    "apiBaseUrlPlaceholderAnthropic": "https://api.anthropic.com（留空用默认）",
+    "apiBaseUrlPlaceholderOpenai": "https://api.openai.com/v1（留空用默认）"
+  },
+  "embed": {
+    "title": "检索 / 嵌入",
+    "desc": "配置「问」模式的语义检索嵌入服务；密钥仅保存在本机。",
+    "provider": {
+      "label": "嵌入服务商",
+      "placeholder": "选择嵌入服务商",
+      "local": "本地 fastembed（数据不出本机）",
+      "api": "云 Embeddings API",
+      "mock": "Mock（占位假向量 / 非语义）"
+    },
+    "mockWarning": "Mock 是占位假向量、非真实语义。「问」模式此时将改用<1>关键词检索</1>；要语义检索请选 local 或 api。",
+    "localWarning": "本地嵌入需以 <1>--features local-embed</1> 构建的版本才可用；当前版本若未包含，选它会静默回退关键词。想开箱即用语义，建议用 api（可一键复用 AI 密钥）。",
+    "reuseAiKey": "复用 AI 对话的 OpenAI 密钥启用语义检索",
+    "reuseAiKeyTitle": "把 AI 对话配置的 OpenAI base_url/密钥填入嵌入(api)",
+    "reuseAiKeyDisabledTitle": "需先在「AI 助手」把服务商设为 OpenAI 并填密钥",
+    "reuseAiKeySuccess": "已复用 AI 对话的 OpenAI 密钥（可点「重建索引」启用语义）",
+    "baseUrl": { "label": "Base URL", "placeholder": "https://api.openai.com/v1（留空用默认）" },
+    "apiKey": { "label": "API 密钥" },
+    "model": { "label": "模型" },
+    "indexStale": "嵌入配置已变（上次索引用 {{model}}），语义检索可能过期，请点「重建索引」。",
+    "rebuildBtn": "重建索引",
+    "rebuilding": "索引中…",
+    "rebuildProgress": "索引中…（{{count}} 会话）",
+    "rebuildEmpty": "暂无会话可索引（可能扫描未完成）",
+    "rebuildSuccess": "索引完成：{{count}} 个片段",
+    "rebuildError": "索引失败：{{message}}",
+    "dataNote": {
+      "api": "使用云 API 时，会话片段将发送到配置的云 Embedding 接口；请确认你的隐私设置。",
+      "local": "当前模式（local / mock）全程不出本机，数据仅在本地处理。"
+    }
+  },
+  "mcp": {
+    "title": "MCP 接入（claude / codex）",
+    "desc": "让本地 claude / codex 直接操作你的看板任务与文档。一键写入客户端配置，无需手动命令。需重启客户端会话生效。",
+    "endpoint": "端点：",
+    "endpointNotReady": "MCP 端点未就绪（应用可能刚启动，稍后重进设置页）。",
+    "connectClaude": "接入 Claude Code",
+    "connectCodex": "接入 Codex",
+    "connecting": "接入中…",
+    "connectError": "接入失败：{{message}}",
+    "hint": "提示：secret 已持久化，端口固定 47600，接入一次长期有效（除非端口被占用回退）。仅本机（127.0.0.1）；需 Keelson 应用开着。"
+  },
+  "claudeIntegration": {
+    "title": "Claude Code 集成",
+    "desc": "一键启用 Keelson 与 Claude Code 的联动：① 每次工具操作实时上报<1>活动流</1>（看板同步依赖它）；② Claude 起 <2>npm run dev</2> 等长驻进程时<3>自动托管</3>进「进程」页。只增删 Keelson 自己那两条 hook，其它设置逐字保留。需重启 Claude 会话生效。",
+    "loading": "读取状态中…",
+    "statusEnabled": "已启用（最新）",
+    "statusStale": "已启用（有更新，建议升级）",
+    "statusDisabled": "未启用",
+    "enableBtn": "一键启用",
+    "disableBtn": "停用",
+    "upgradeBtn": "一键升级",
+    "processing": "处理中…",
+    "enableSuccess": "已启用 Claude Code 集成：工具流上报 + 长驻进程自动托管（需重启会话生效）",
+    "upgradeSuccess": "已升级到最新（需重启 Claude 会话生效）",
+    "disableSuccess": "已停用 Claude Code 集成",
+    "actionError": "操作失败：{{message}}",
+    "hint": "说明：Codex 无逐工具 hook，仅通过 MCP（上方）上报看板/文档操作；实时全量工具流与进程拦截仅 Claude Code 支持。"
+  },
+  "autoSyncTasks": {
+    "title": "看板自动同步（CLI 任务）",
+    "desc": "开启后，Claude 会话里建/改任务（TaskCreate/TaskUpdate）会实时同步进其关联项目的看板。关掉则不自动同步，仍可在会话预览手动点「同步任务」。依赖上方「实时活动 hook」已启用。",
+    "checkboxLabel": "自动同步 CLI 任务到看板"
+  },
+  "notify": {
+    "title": "通知偏好",
+    "desc": "控制哪些类型的通知写入铃铛/收件箱，以及是否弹出桌面系统通知。关闭后，该类型既不创建也不显示（含外部 Agent 写入的同类型通知）。",
+    "sessionGranularity": "会话提醒细粒度",
+    "newSessionsLabel": "发现新的本地 CLI 会话时提醒（启动时汇总一条，需「会话」类型也开启才生效）",
+    "types": {
+      "沉淀": "沉淀（AI 提炼结果）",
+      "截止提醒": "截止提醒（任务/事件到期）",
+      "会话": "会话（发现新 CLI 会话）",
+      "更新": "更新（应用新版本）",
+      "MCP": "MCP（外部 Agent 动作）",
+      "Loop": "Loop（收件箱循环任务）"
+    }
+  }
+}

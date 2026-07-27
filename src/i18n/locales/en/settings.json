@@ -1,1 +1,155 @@
-{ "language": { "title": "Language", "desc": "Interface language. Follows the system by default; remembered after you switch.", "followSystem": "Follow system" } }
+{
+  "language": { "title": "Language", "desc": "Interface language. Follows the system by default; remembered after you switch.", "followSystem": "Follow system" },
+  "page": { "title": "Settings" },
+  "shortcut": {
+    "title": "Global Shortcut",
+    "desc": "Press this key combination from any screen to toggle the Spotlight search window. Takes effect immediately; no restart needed.",
+    "hint": "Click the control above, then press the target key combination (must include a modifier: Ctrl / Alt / Shift). Press Esc to cancel.",
+    "saving": "Saving…",
+    "capturePrompt": "Press key combination…",
+    "clickToSet": "Click to set",
+    "ariaLabel": "Shortcut input, current: {{value}}",
+    "ariaLabelUnset": "Not set"
+  },
+  "workspacePath": {
+    "title": "Workspace Path",
+    "desc": "Root directory for Claude / Codex sessions (saved locally only in MVP; not synced to backend).",
+    "hint": "Leave empty to use the default path (~/.claude / ~/.codex).",
+    "ariaLabel": "Workspace path",
+    "placeholder": "/Users/you/projects or C:\\Users\\you\\projects"
+  },
+  "projectDefaultTab": {
+    "title": "Project Default Tab",
+    "desc": "The tab shown when opening a project. The system remembers the last-visited tab per project and prefers that; this setting is the fallback for projects never opened before.",
+    "placeholder": "Select default tab",
+    "tabs": {
+      "overview": "Overview",
+      "sessions": "Sessions",
+      "board": "Board",
+      "docs": "Docs",
+      "activity": "Activity",
+      "ai": "AI"
+    }
+  },
+  "autoArchive": {
+    "title": "Auto-archive Completed Tasks",
+    "desc": "When opening a project, tasks that have been in the \"Done\" column longer than the selected threshold are auto-archived (soft-delete; sessions/commit provenance is kept, hidden from board by default; you can view or un-archive them at any time). No data is deleted.",
+    "placeholder": "Select auto-archive timing",
+    "options": {
+      "off": "Off (manual archive only)",
+      "days3": "3 days after completion",
+      "days7": "7 days after completion",
+      "days14": "14 days after completion",
+      "days30": "30 days after completion"
+    }
+  },
+  "ai": {
+    "title": "AI Assistant",
+    "desc": "Configure the model service for the project workspace's AI tab; keys are stored locally only.",
+    "provider": {
+      "label": "Provider",
+      "placeholder": "Select provider",
+      "openai": "OpenAI Compatible",
+      "anthropic": "Anthropic (Claude)",
+      "claudeCli": "Claude Code (local CLI)",
+      "codexCli": "Codex (local CLI)"
+    },
+    "baseUrl": { "label": "Base URL" },
+    "apiKey": { "label": "API Key" },
+    "model": {
+      "label": "Model",
+      "fetchBtn": "Fetch models",
+      "fetching": "Fetching…",
+      "placeholder": "gpt-4o-mini / claude-3-5-sonnet-... (click 'Fetch models' for suggestions)",
+      "fetchSuccess": "Found {{count}} models",
+      "fetchEmpty": "No models returned; please enter manually",
+      "fetchError": "Failed to fetch models; please enter manually: {{message}}"
+    },
+    "cliPath": {
+      "label": "Command path (optional)",
+      "placeholderClaude": "Auto-detect if empty; e.g. C:\\Users\\you\\AppData\\Roaming\\npm\\claude.cmd",
+      "placeholderCodex": "Auto-detect if empty; e.g. C:\\Users\\you\\AppData\\Roaming\\npm\\codex.cmd"
+    },
+    "cliHint": "Invokes the local {{cmd}} CLI (uses your local subscription; data never leaves this machine). If you see \"program not found\" but it works in your terminal, paste the absolute path above (run where {{cmd}} in the terminal to find it).",
+    "apiBaseUrlPlaceholderAnthropic": "https://api.anthropic.com (leave empty for default)",
+    "apiBaseUrlPlaceholderOpenai": "https://api.openai.com/v1 (leave empty for default)"
+  },
+  "embed": {
+    "title": "Retrieval / Embeddings",
+    "desc": "Configure the embedding service for semantic search in Ask mode; keys are stored locally only.",
+    "provider": {
+      "label": "Embedding provider",
+      "placeholder": "Select embedding provider",
+      "local": "Local fastembed (data stays on device)",
+      "api": "Cloud Embeddings API",
+      "mock": "Mock (placeholder vectors / not semantic)"
+    },
+    "mockWarning": "Mock uses placeholder vectors — not real semantics. Ask mode will fall back to <1>keyword search</1>; choose local or api for semantic search.",
+    "localWarning": "Local embeddings require a build with <1>--features local-embed</1>; if not included in the current build, selecting it silently falls back to keywords. For out-of-the-box semantics, use api (you can reuse the AI key in one click).",
+    "reuseAiKey": "Reuse OpenAI key from AI config for semantic search",
+    "reuseAiKeyTitle": "Copy the OpenAI base_url/key from AI config into embeddings (api)",
+    "reuseAiKeyDisabledTitle": "Set the AI assistant provider to OpenAI and enter an API key first",
+    "reuseAiKeySuccess": "OpenAI key reused from AI config (click 'Rebuild index' to enable semantics)",
+    "baseUrl": { "label": "Base URL", "placeholder": "https://api.openai.com/v1 (leave empty for default)" },
+    "apiKey": { "label": "API Key" },
+    "model": { "label": "Model" },
+    "indexStale": "Embedding config changed (last indexed with {{model}}); semantic search may be stale — click 'Rebuild index'.",
+    "rebuildBtn": "Rebuild index",
+    "rebuilding": "Indexing…",
+    "rebuildProgress": "Indexing… ({{count}} sessions)",
+    "rebuildEmpty": "No sessions to index yet (scan may still be in progress)",
+    "rebuildSuccess": "Indexing complete: {{count}} chunks",
+    "rebuildError": "Indexing failed: {{message}}",
+    "dataNote": {
+      "api": "When using the cloud API, session chunks are sent to the configured Embedding endpoint; review your privacy settings.",
+      "local": "Current mode (local / mock) keeps all data on device; nothing is sent externally."
+    }
+  },
+  "mcp": {
+    "title": "MCP Integration (claude / codex)",
+    "desc": "Let local claude / codex directly operate your board tasks and docs. Writes to the client config in one click — no manual commands needed. Restart the client session for changes to take effect.",
+    "endpoint": "Endpoint: ",
+    "endpointNotReady": "MCP endpoint not ready (app may have just started — re-open settings in a moment).",
+    "connectClaude": "Connect Claude Code",
+    "connectCodex": "Connect Codex",
+    "connecting": "Connecting…",
+    "connectError": "Connection failed: {{message}}",
+    "hint": "Note: the secret is persisted, the port is fixed at 47600, and the connection stays valid long-term (unless the port is taken). Local only (127.0.0.1); Keelson must be running."
+  },
+  "claudeIntegration": {
+    "title": "Claude Code Integration",
+    "desc": "Enable Keelson–Claude Code integration in one click: ① every tool call streams to the <1>activity feed</1> (board sync depends on it); ② long-running processes started by Claude (e.g. <2>npm run dev</2>) are <3>auto-managed</3> in the Processes page. Only Keelson's two hooks are added or removed; all other settings are preserved. Restart your Claude session for changes to take effect.",
+    "loading": "Loading status…",
+    "statusEnabled": "Enabled (up to date)",
+    "statusStale": "Enabled (update available, upgrade recommended)",
+    "statusDisabled": "Not enabled",
+    "enableBtn": "Enable",
+    "disableBtn": "Disable",
+    "upgradeBtn": "Upgrade",
+    "processing": "Processing…",
+    "enableSuccess": "Claude Code integration enabled: tool stream reporting + auto-managed processes (restart session to take effect)",
+    "upgradeSuccess": "Upgraded to latest (restart your Claude session to take effect)",
+    "disableSuccess": "Claude Code integration disabled",
+    "actionError": "Operation failed: {{message}}",
+    "hint": "Note: Codex has no per-tool hooks — it reports board/doc actions via MCP only (above); full real-time tool streaming and process interception are Claude Code-only features."
+  },
+  "autoSyncTasks": {
+    "title": "Auto-sync Board (CLI Tasks)",
+    "desc": "When enabled, tasks created or updated in Claude sessions (TaskCreate/TaskUpdate) are synced to their linked project board in real time. When disabled, you can still sync manually from the session preview. Requires the activity hook (above) to be enabled.",
+    "checkboxLabel": "Auto-sync CLI tasks to board"
+  },
+  "notify": {
+    "title": "Notification Preferences",
+    "desc": "Control which notification types are written to the bell / inbox and whether desktop system notifications are shown. When disabled, that type is neither created nor displayed (including notifications of that type written by external agents).",
+    "sessionGranularity": "Session reminder granularity",
+    "newSessionsLabel": "Notify when new local CLI sessions are discovered (one summary at startup; requires the Session type to be enabled)",
+    "types": {
+      "沉淀": "Distill (AI extraction results)",
+      "截止提醒": "Deadline (tasks / events due)",
+      "会话": "Session (new CLI session discovered)",
+      "更新": "Update (new app version)",
+      "MCP": "MCP (external agent actions)",
+      "Loop": "Loop (inbox recurring tasks)"
+    }
+  }
+}
