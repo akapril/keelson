@@ -16,7 +16,7 @@ import { maybeAutoSyncTasks } from "@/features/board/auto-sync-tasks";
 import type { ActivityEvent } from "@/types/activity";
 
 export function DashboardLayout() {
-  const { t } = useTranslation("shell");
+  const { t } = useTranslation(["shell", "common"]);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -70,7 +70,7 @@ export function DashboardLayout() {
             <Suspense
               fallback={
                 <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  {t("layout.loading")}
+                  {t("common:state.loading")}
                 </div>
               }
             >

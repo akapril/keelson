@@ -62,9 +62,6 @@
     "installNow": "下载并安装",
     "downloadingProgress": "下载中 {{progress}}%"
   },
-  "layout": {
-    "loading": "加载中…"
-  },
   "errorBoundary": {
     "title": "此页面出错了",
     "retry": "重试"
@@ -85,8 +82,5 @@
     "groupReading": "阅读",
     "unnamedDoc": "未命名文档",
     "docFallbackGroup": "文档"
-  },
-  "promptDialog": {
-    "cancel": "取消"
   }
 }
