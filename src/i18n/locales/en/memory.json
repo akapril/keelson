@@ -1,0 +1,43 @@
+{
+  "editDialog": {
+    "title": "Edit Memory",
+    "description": "Supports markdown; content will be fed back to the CLI, keep it concise.",
+    "tabEdit": "Edit",
+    "tabPreview": "Preview",
+    "placeholder": "Memory content (markdown supported)",
+    "emptyPreview": "Nothing to preview"
+  },
+  "reviewDialog": {
+    "title": "Distill Memories",
+    "description": "Distill reusable facts/preferences/decisions/conventions from this session; existing ones are auto-marked as duplicates. Check items to save into the memory ledger (with source).",
+    "loading": "Distilling memories…",
+    "errorFallback": "Unable to distill",
+    "errorNoAi": "AI service not configured (set an API Key in Settings, or switch to a local CLI provider)",
+    "emptyResult": "No memories found to retain.",
+    "scopeGlobal": "Global",
+    "scopeProject": "Project",
+    "confidence": "Confidence {{value}}",
+    "dupExisting": "Similar memory exists",
+    "dupBatch": "Duplicate in batch",
+    "committing": "Saving…",
+    "commitButton": "Retain {{count}}",
+    "footerCount": "{{fresh}} new · {{selected}} selected",
+    "toastSuccess": "Retained {{count}} memories"
+  },
+  "filesBar": {
+    "syncedLabel": "🧠 Memories injected into CLAUDE.md/AGENTS.md",
+    "unsyncedDesc": "Write 'global + this project' memories into CLAUDE.md / AGENTS.md (managed block, fed back to CLI)",
+    "busyButton": "Syncing…",
+    "resyncButton": "Re-sync",
+    "syncButton": "Sync memories to files",
+    "toastSynced": "Synced {{count}} memories to {{files}} files",
+    "toastEmpty": "No memories to inject; managed block cleared",
+    "toastError": "Sync failed: {{msg}}"
+  },
+  "kind": {
+    "fact": "Fact",
+    "preference": "Preference",
+    "decision": "Decision",
+    "convention": "Convention"
+  }
+}
