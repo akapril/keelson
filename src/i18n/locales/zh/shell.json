@@ -1,0 +1,92 @@
+{
+  "titleBar": {
+    "minimize": "最小化",
+    "maximize": "最大化 / 还原",
+    "close": "关闭"
+  },
+  "sidebar": {
+    "tagline": "会话 · 项目 · 看板",
+    "favorites": "收藏",
+    "hint": "按 ⌘B 折叠侧栏 · 按 d 切换主题"
+  },
+  "header": {
+    "usageTitle": "成本控制塔",
+    "inboxTitle": "收件箱",
+    "updateInstalling": "更新中…",
+    "updateLabel": "更新",
+    "updateTooltip": "发现新版本 v{{version}}，点击查看并升级",
+    "costLabel": "成本",
+    "costTooltip": "成本控制塔（Token 用量 · 成本预估）",
+    "searchLabel": "搜索",
+    "userFallback": "用户",
+    "localUser": "本地用户",
+    "noEmail": "未设置邮箱",
+    "logout": "登出 / 切换用户"
+  },
+  "notification": {
+    "ariaLabel": "通知",
+    "title": "通知",
+    "titleWithUnread": "通知 · {{n}} 未读",
+    "markAllRead": "全部已读",
+    "clearAll": "清空",
+    "empty": "暂无通知",
+    "deleteAriaLabel": "删除",
+    "viewAll": "查看全部（收件箱）",
+    "viewAllWithCount": "查看全部（收件箱） · 共 {{n}}",
+    "timeJustNow": "刚刚",
+    "timeMinutesAgo": "{{n}} 分钟前",
+    "timeHoursAgo": "{{n}} 小时前",
+    "errorMarkRead": "标记已读失败：{{msg}}",
+    "errorMarkAllRead": "全部已读失败：{{msg}}",
+    "errorClear": "清空失败：{{msg}}",
+    "errorDelete": "删除失败：{{msg}}"
+  },
+  "activity": {
+    "ariaLabel": "活动流",
+    "title": "实时活动",
+    "clearAll": "清空",
+    "empty": "暂无实时活动",
+    "statusError": "失败",
+    "timeJustNow": "刚刚",
+    "timeMinutesAgo": "{{n}} 分钟前",
+    "timeHoursAgo": "{{n}} 小时前"
+  },
+  "updateDialog": {
+    "title": "发现新版本",
+    "descriptionWithCurrent": "Keelson {{version}} 已发布，当前版本为 {{current}}。",
+    "descriptionNoCurrent": "Keelson {{version}} 已发布。",
+    "changelogLabel": "更新内容",
+    "errorPrefix": "更新失败：{{msg}}",
+    "downloading": "下载中…请勿关闭",
+    "later": "稍后",
+    "installNow": "下载并安装",
+    "downloadingProgress": "下载中 {{progress}}%"
+  },
+  "layout": {
+    "loading": "加载中…"
+  },
+  "errorBoundary": {
+    "title": "此页面出错了",
+    "retry": "重试"
+  },
+  "themeToggle": {
+    "ariaLabel": "切换主题",
+    "tooltip": "切换主题（按 {{key}}）"
+  },
+  "commandPalette": {
+    "placeholder": "搜索页面 / 项目 / 文档 / 会话 / 阅读…",
+    "empty": "无结果",
+    "groupActions": "操作",
+    "actionReport": "生成工作报告",
+    "groupPages": "页面",
+    "groupProjects": "项目",
+    "groupDocs": "文档",
+    "groupSessions": "会话",
+    "groupReading": "阅读",
+    "unnamedDoc": "未命名文档",
+    "docFallbackGroup": "文档"
+  },
+  "promptDialog": {
+    "cancel": "取消"
+  }
+}

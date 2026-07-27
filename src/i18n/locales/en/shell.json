@@ -1,0 +1,92 @@
+{
+  "titleBar": {
+    "minimize": "Minimize",
+    "maximize": "Maximize / Restore",
+    "close": "Close"
+  },
+  "sidebar": {
+    "tagline": "Sessions · Projects · Board",
+    "favorites": "Favorites",
+    "hint": "Press ⌘B to collapse · Press d to toggle theme"
+  },
+  "header": {
+    "usageTitle": "Cost Dashboard",
+    "inboxTitle": "Inbox",
+    "updateInstalling": "Updating…",
+    "updateLabel": "Update",
+    "updateTooltip": "New version v{{version}} available, click to upgrade",
+    "costLabel": "Cost",
+    "costTooltip": "Cost Dashboard (Token usage · Cost estimate)",
+    "searchLabel": "Search",
+    "userFallback": "User",
+    "localUser": "Local User",
+    "noEmail": "No email set",
+    "logout": "Log out / Switch user"
+  },
+  "notification": {
+    "ariaLabel": "Notifications",
+    "title": "Notifications",
+    "titleWithUnread": "Notifications · {{n}} unread",
+    "markAllRead": "Mark all read",
+    "clearAll": "Clear all",
+    "empty": "No notifications",
+    "deleteAriaLabel": "Delete",
+    "viewAll": "View all (Inbox)",
+    "viewAllWithCount": "View all (Inbox) · {{n}} total",
+    "timeJustNow": "Just now",
+    "timeMinutesAgo": "{{n}} min ago",
+    "timeHoursAgo": "{{n}} hr ago",
+    "errorMarkRead": "Failed to mark as read: {{msg}}",
+    "errorMarkAllRead": "Failed to mark all as read: {{msg}}",
+    "errorClear": "Failed to clear: {{msg}}",
+    "errorDelete": "Failed to delete: {{msg}}"
+  },
+  "activity": {
+    "ariaLabel": "Activity feed",
+    "title": "Live Activity",
+    "clearAll": "Clear",
+    "empty": "No recent activity",
+    "statusError": "Error",
+    "timeJustNow": "Just now",
+    "timeMinutesAgo": "{{n}} min ago",
+    "timeHoursAgo": "{{n}} hr ago"
+  },
+  "updateDialog": {
+    "title": "New Version Available",
+    "descriptionWithCurrent": "Keelson {{version}} has been released. You are on {{current}}.",
+    "descriptionNoCurrent": "Keelson {{version}} has been released.",
+    "changelogLabel": "What's new",
+    "errorPrefix": "Update failed: {{msg}}",
+    "downloading": "Downloading… Please do not close",
+    "later": "Later",
+    "installNow": "Download & Install",
+    "downloadingProgress": "Downloading {{progress}}%"
+  },
+  "layout": {
+    "loading": "Loading…"
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "retry": "Retry"
+  },
+  "themeToggle": {
+    "ariaLabel": "Toggle theme",
+    "tooltip": "Toggle theme (press {{key}})"
+  },
+  "commandPalette": {
+    "placeholder": "Search pages / projects / docs / sessions / reading…",
+    "empty": "No results",
+    "groupActions": "Actions",
+    "actionReport": "Generate work report",
+    "groupPages": "Pages",
+    "groupProjects": "Projects",
+    "groupDocs": "Docs",
+    "groupSessions": "Sessions",
+    "groupReading": "Reading",
+    "unnamedDoc": "Untitled doc",
+    "docFallbackGroup": "Docs"
+  },
+  "promptDialog": {
+    "cancel": "Cancel"
+  }
+}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useTranslation } from "react-i18next";
 
 import {
   CommandDialog,
@@ -34,6 +35,7 @@ function docSnippet(content: string, q: string): string {
 }
 
 export function CommandPalette() {
+  const { t } = useTranslation("shell");
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState<BoardProject[]>([]);
   const [docs, setDocs] = useState<BoardDoc[]>([]);
@@ -99,20 +101,20 @@ export function CommandPalette() {
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput
-        placeholder="搜索页面 / 项目 / 文档 / 会话 / 阅读…"
+        placeholder={t("commandPalette.placeholder")}
         onValueChange={setQuery}
       />
       <CommandList>
-        <CommandEmpty>无结果</CommandEmpty>
+        <CommandEmpty>{t("commandPalette.empty")}</CommandEmpty>
 
-        <CommandGroup heading="操作">
+        <CommandGroup heading={t("commandPalette.groupActions")}>
           <CommandItem value="操作 生成工作报告 周报 日报" onSelect={() => go("/report")}>
             <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} className="size-4" />
-            生成工作报告
+            {t("commandPalette.actionReport")}
           </CommandItem>
         </CommandGroup>
 
-        <CommandGroup heading="页面">
+        <CommandGroup heading={t("commandPalette.groupPages")}>
           {flatNavItems.map((it) => (
             <CommandItem
               key={it.url}
@@ -126,7 +128,7 @@ export function CommandPalette() {
         </CommandGroup>
 
         {projects.length > 0 && (
-          <CommandGroup heading="项目">
+          <CommandGroup heading={t("commandPalette.groupProjects")}>
             {projects.map((p) => (
               <CommandItem
                 key={p.id}
@@ -140,7 +142,7 @@ export function CommandPalette() {
         )}
 
         {docMatches.length > 0 && (
-          <CommandGroup heading="文档">
+          <CommandGroup heading={t("commandPalette.groupDocs")}>
             {docMatches.map((d) => (
               <CommandItem
                 key={d.id}
@@ -151,9 +153,9 @@ export function CommandPalette() {
                 }
               >
                 <span className="flex min-w-0 flex-col">
-                  <span className="truncate">{d.title || "未命名文档"}</span>
+                  <span className="truncate">{d.title || t("commandPalette.unnamedDoc")}</span>
                   <span className="truncate text-xs text-muted-foreground">
-                    {projectNameById.get(d.projects[0] ?? "") ?? "文档"} · {docSnippet(d.content, q)}
+                    {projectNameById.get(d.projects[0] ?? "") ?? t("commandPalette.docFallbackGroup")} · {docSnippet(d.content, q)}
                   </span>
                 </span>
               </CommandItem>
@@ -162,7 +164,7 @@ export function CommandPalette() {
         )}
 
         {sessions.length > 0 && (
-          <CommandGroup heading="会话">
+          <CommandGroup heading={t("commandPalette.groupSessions")}>
             {sessions.slice(0, 50).map((s) => (
               <CommandItem
                 key={s.session_id}
@@ -178,7 +180,7 @@ export function CommandPalette() {
         )}
 
         {reading.length > 0 && (
-          <CommandGroup heading="阅读">
+          <CommandGroup heading={t("commandPalette.groupReading")}>
             {reading.map((r) => (
               <CommandItem
                 key={r.id}

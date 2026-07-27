@@ -7,6 +7,7 @@ import {
   Delete02Icon,
   CheckmarkCircle02Icon,
 } from "@hugeicons/core-free-icons";
+import { useTranslation } from "react-i18next";
 
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -31,20 +32,24 @@ const KIND_DOT: Record<NotificationKind, string> = {
 };
 
 // 简短相对时间
-function shortTime(iso: string): string {
-  if (!iso) return "";
-  const d = new Date(iso).getTime();
-  const now = Date.now();
-  const diff = Math.max(0, now - d);
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "刚刚";
-  if (min < 60) return `${min} 分钟前`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} 小时前`;
-  return new Date(iso).toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
+function useShortTime(t: (key: string, opts?: Record<string, unknown>) => string) {
+  return (iso: string): string => {
+    if (!iso) return "";
+    const d = new Date(iso).getTime();
+    const now = Date.now();
+    const diff = Math.max(0, now - d);
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return t("notification.timeJustNow");
+    if (min < 60) return t("notification.timeMinutesAgo", { n: min });
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return t("notification.timeHoursAgo", { n: hr });
+    return new Date(iso).toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
+  };
 }
 
 export function NotificationBell() {
+  const { t } = useTranslation("shell");
+  const shortTime = useShortTime(t);
   const navigate = useNavigate();
   const allItems = useNotificationsStore((s) => s.items);
   // 按通知类型偏好过滤（含 MCP/Loop 等非前端发射的类型）
@@ -71,14 +76,14 @@ export function NotificationBell() {
       void useNotificationsStore
         .getState()
         .markRead(n.id)
-        .catch((e) => toast.error(`标记已读失败：${String(e)}`));
+        .catch((e) => toast.error(t("notification.errorMarkRead", { msg: String(e) })));
     if (n.link) navigate(n.link);
   };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label="通知">
+        <Button variant="ghost" size="icon" className="relative" aria-label={t("notification.ariaLabel")}>
           <HugeiconsIcon icon={Notification03Icon} strokeWidth={2} />
           {unread > 0 && (
             <span className="absolute right-1 top-1 flex min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-semibold leading-none text-white">
@@ -91,7 +96,9 @@ export function NotificationBell() {
         {/* 头部 */}
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <span className="text-sm font-semibold">
-            通知{unread > 0 ? ` · ${unread} 未读` : ""}
+            {unread > 0
+              ? t("notification.titleWithUnread", { n: unread })
+              : t("notification.title")}
           </span>
           <div className="flex items-center gap-1">
             <button
@@ -100,12 +107,12 @@ export function NotificationBell() {
                 void useNotificationsStore
                   .getState()
                   .markAllRead()
-                  .catch((e) => toast.error(`全部已读失败：${String(e)}`))
+                  .catch((e) => toast.error(t("notification.errorMarkAllRead", { msg: String(e) })))
               }
               disabled={unread === 0}
               className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
             >
-              全部已读
+              {t("notification.markAllRead")}
             </button>
             <button
               type="button"
@@ -113,12 +120,12 @@ export function NotificationBell() {
                 void useNotificationsStore
                   .getState()
                   .clearAll()
-                  .catch((e) => toast.error(`清空失败：${String(e)}`))
+                  .catch((e) => toast.error(t("notification.errorClear", { msg: String(e) })))
               }
               disabled={items.length === 0}
               className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-destructive disabled:opacity-40"
             >
-              清空
+              {t("notification.clearAll")}
             </button>
           </div>
         </div>
@@ -128,7 +135,7 @@ export function NotificationBell() {
           {items.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
               <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={1.5} className="size-8 opacity-50" />
-              <span className="text-xs">暂无通知</span>
+              <span className="text-xs">{t("notification.empty")}</span>
             </div>
           ) : (
             items.slice(0, 8).map((n) => (
@@ -160,12 +167,12 @@ export function NotificationBell() {
                 </button>
                 <button
                   type="button"
-                  aria-label="删除"
+                  aria-label={t("notification.deleteAriaLabel")}
                   onClick={() =>
                     void useNotificationsStore
                       .getState()
                       .remove(n.id)
-                      .catch((e) => toast.error(`删除失败：${String(e)}`))
+                      .catch((e) => toast.error(t("notification.errorDelete", { msg: String(e) })))
                   }
                   className="shrink-0 self-start rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
                 >
@@ -182,7 +189,10 @@ export function NotificationBell() {
           onClick={() => navigate("/inbox")}
           className="w-full border-t border-border px-3 py-2 text-center text-xs text-primary hover:bg-accent"
         >
-          查看全部（收件箱）{items.length > 8 ? ` · 共 ${items.length}` : ""} →
+          {items.length > 8
+            ? t("notification.viewAllWithCount", { n: items.length })
+            : t("notification.viewAll")}
+          {" →"}
         </button>
       </DropdownMenuContent>
     </DropdownMenu>

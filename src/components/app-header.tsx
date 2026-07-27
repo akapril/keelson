@@ -8,6 +8,7 @@ import {
   Download04Icon,
   Analytics01Icon,
 } from "@hugeicons/core-free-icons";
+import { useTranslation } from "react-i18next";
 
 import {
   Breadcrumb,
@@ -36,6 +37,7 @@ import { useAuthStore } from "@/store/auth";
 import { useUpdaterStore } from "@/store/updater";
 
 export function AppHeader() {
+  const { t } = useTranslation("shell");
   const location = useLocation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -51,8 +53,8 @@ export function AppHeader() {
   );
   // 不在侧栏导航里的页面标题（成本塔入口在头部、收件箱经通知铃进入）
   const EXTRA_TITLES: Record<string, string> = {
-    "/usage": "成本控制塔",
-    "/inbox": "收件箱",
+    "/usage": t("header.usageTitle"),
+    "/inbox": t("header.inboxTitle"),
   };
   const currentTitle =
     currentNav?.title ?? EXTRA_TITLES[location.pathname] ?? "Keelson";
@@ -89,13 +91,13 @@ export function AppHeader() {
             variant="ghost"
             size="sm"
             onClick={openUpdateDialog}
-            title={`发现新版本 v${updateVersion}，点击查看并升级`}
+            title={t("header.updateTooltip", { version: updateVersion })}
             className="relative gap-1.5 text-primary"
           >
             <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-red-500" />
             <HugeiconsIcon icon={Download04Icon} strokeWidth={2} />
             <span className="hidden sm:inline">
-              {installing ? "更新中…" : "更新"}
+              {installing ? t("header.updateInstalling") : t("header.updateLabel")}
             </span>
           </Button>
         )}
@@ -110,10 +112,10 @@ export function AppHeader() {
               : "gap-1.5 text-muted-foreground"
           }
           onClick={() => navigate("/usage")}
-          title="成本控制塔（Token 用量 · 成本预估）"
+          title={t("header.costTooltip")}
         >
           <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} />
-          <span className="hidden sm:inline">成本</span>
+          <span className="hidden sm:inline">{t("header.costLabel")}</span>
         </Button>
 
         {/* 全局搜索（打开命令面板 ⌘K） */}
@@ -126,7 +128,7 @@ export function AppHeader() {
           }
         >
           <HugeiconsIcon icon={SearchIcon} strokeWidth={2} />
-          <span className="hidden sm:inline">搜索</span>
+          <span className="hidden sm:inline">{t("header.searchLabel")}</span>
           <kbd className="hidden rounded border border-border bg-muted px-1 text-[10px] sm:inline">
             ⌘K
           </kbd>
@@ -146,7 +148,7 @@ export function AppHeader() {
                 <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
               <span className="hidden max-w-32 truncate text-sm font-medium sm:inline">
-                {user?.name ?? "用户"}
+                {user?.name ?? t("header.userFallback")}
               </span>
             </Button>
           </DropdownMenuTrigger>
@@ -154,17 +156,17 @@ export function AppHeader() {
             <DropdownMenuLabel>
               <div className="grid">
                 <span className="truncate text-sm font-medium text-foreground">
-                  {user?.name ?? "本地用户"}
+                  {user?.name ?? t("header.localUser")}
                 </span>
                 <span className="truncate text-xs font-normal text-muted-foreground">
-                  {user?.email || "未设置邮箱"}
+                  {user?.email || t("header.noEmail")}
                 </span>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={() => logout()}>
               <HugeiconsIcon icon={Logout02Icon} strokeWidth={2} />
-              <span>登出 / 切换用户</span>
+              <span>{t("header.logout")}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

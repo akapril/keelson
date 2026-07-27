@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { StarIcon } from "@hugeicons/core-free-icons";
+import { useTranslation } from "react-i18next";
 
 import {
   Sidebar,
@@ -66,6 +67,7 @@ function FavoriteRow({ id, name }: { id: string; name: string }) {
 }
 
 export function AppSidebar() {
+  const { t } = useTranslation("shell");
   const { pathname } = useLocation();
 
   // 收藏项目：从 board store 读 projects，派生出已收藏列表
@@ -117,7 +119,7 @@ export function AppSidebar() {
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Keelson</span>
                   <span className="truncate text-xs text-muted-foreground">
-                    会话 · 项目 · 看板
+                    {t("sidebar.tagline")}
                   </span>
                 </div>
               </NavLink>
@@ -130,7 +132,7 @@ export function AppSidebar() {
         {/* 收藏组：置顶，空收藏不渲染；dnd-kit 拖拽排序，点击走 ?open 深链 */}
         {pinned.length > 0 && (
           <SidebarGroup>
-            <SidebarGroupLabel>收藏</SidebarGroupLabel>
+            <SidebarGroupLabel>{t("sidebar.favorites")}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <DndContext
@@ -182,7 +184,7 @@ export function AppSidebar() {
       <SidebarFooter>
         <div className="px-3 py-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
           <p className="font-medium text-foreground/70">Keelson</p>
-          <p className="mt-0.5">按 ⌘B 折叠侧栏 · 按 d 切换主题</p>
+          <p className="mt-0.5">{t("sidebar.hint")}</p>
         </div>
       </SidebarFooter>
 

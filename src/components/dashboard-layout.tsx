@@ -2,6 +2,7 @@
 // rework 各页面自管内边距与滚动，故 main 只提供全高容器。
 import { Suspense, useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
@@ -15,6 +16,7 @@ import { maybeAutoSyncTasks } from "@/features/board/auto-sync-tasks";
 import type { ActivityEvent } from "@/types/activity";
 
 export function DashboardLayout() {
+  const { t } = useTranslation("shell");
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -68,7 +70,7 @@ export function DashboardLayout() {
             <Suspense
               fallback={
                 <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  加载中…
+                  {t("layout.loading")}
                 </div>
               }
             >

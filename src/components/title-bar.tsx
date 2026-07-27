@@ -2,6 +2,7 @@
 // 顶部细条：可拖拽区（data-tauri-drag-region，双击最大化/还原）+ 窗口控制按钮。
 // 控件用内联 SVG，零图标依赖。仅主窗口渲染（spotlight 无标题栏）。
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useTranslation } from "react-i18next";
 
 const win = getCurrentWindow();
 
@@ -29,6 +30,8 @@ function CloseIcon() {
 }
 
 export function TitleBar() {
+  const { t } = useTranslation("shell");
+
   return (
     <div
       data-tauri-drag-region
@@ -46,7 +49,7 @@ export function TitleBar() {
       <div className="flex h-full">
         <button
           type="button"
-          aria-label="最小化"
+          aria-label={t("titleBar.minimize")}
           onClick={() => void win.minimize()}
           className="inline-flex h-full w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
@@ -54,7 +57,7 @@ export function TitleBar() {
         </button>
         <button
           type="button"
-          aria-label="最大化 / 还原"
+          aria-label={t("titleBar.maximize")}
           onClick={() => void win.toggleMaximize()}
           className="inline-flex h-full w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
@@ -62,7 +65,7 @@ export function TitleBar() {
         </button>
         <button
           type="button"
-          aria-label="关闭"
+          aria-label={t("titleBar.close")}
           onClick={() => void win.close()}
           className="inline-flex h-full w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-destructive hover:text-white"
         >
