@@ -3,9 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Virtualizer } from "virtua";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { listMemories, updateMemoryRecord, deleteMemoryRecord } from "@/lib/pb/memory";
 import { listProjects } from "@/lib/pb/board";
-import { MEMORY_KIND_LABEL, type Memory, type MemoryKind } from "@/types/memory";
+import { type Memory, type MemoryKind } from "@/types/memory";
 import type { BoardProject } from "@/types/board";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ const KINDS: (MemoryKind | "all")[] = ["all", "fact", "preference", "decision", 
 
 export default function MemoryPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation(["memory", "common"]);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [projects, setProjects] = useState<BoardProject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,9 +36,9 @@ export default function MemoryPage() {
   );
   // 某记忆的项目名标签（scope=project 且能解析出名字才显示具体项目）
   const scopeLabel = (m: Memory): string => {
-    if (m.scope !== "project") return "全局";
+    if (m.scope !== "project") return t("page.scopeGlobal");
     const n = m.project ? projName.get(m.project) : undefined;
-    return n ? `项目：${n}` : "项目";
+    return n ? t("page.scopeProject", { name: n }) : t("page.scopeProjectUnknown");
   };
   const [kind, setKind] = useState<MemoryKind | "all">("all");
   // 作用域筛选："all" / "global" / "project:<id>"（具体项目）
@@ -80,13 +82,13 @@ export default function MemoryPage() {
     try {
       const r = await importFileMemories();
       if (r.imported === 0 && r.skipped === 0) {
-        toast.message("未发现可导入的文件记忆");
+        toast.message(t("page.importNone"));
       } else {
-        toast.success(`已导入 ${r.imported} 条到待审（跳过 ${r.skipped} 条已存在）`);
+        toast.success(t("page.importSuccess", { imported: r.imported, skipped: r.skipped }));
         load();
       }
     } catch (e) {
-      toast.error(`导入失败：${String(e instanceof Error ? e.message : e)}`);
+      toast.error(t("page.importError", { msg: String(e instanceof Error ? e.message : e) }));
     } finally {
       setImporting(false);
     }
@@ -121,7 +123,7 @@ export default function MemoryPage() {
     try {
       await updateMemoryRecord(m.id, { status: "accepted" });
     } catch (e) {
-      toast.error(`采纳失败：${String(e)}`);
+      toast.error(t("page.acceptError", { msg: String(e) }));
       load();
     }
   };
@@ -131,7 +133,7 @@ export default function MemoryPage() {
     try {
       await deleteMemoryRecord(m.id);
     } catch (e) {
-      toast.error(`删除失败：${String(e)}`);
+      toast.error(t("page.deleteError", { msg: String(e) }));
       load();
     }
   };
@@ -144,9 +146,9 @@ export default function MemoryPage() {
     exitSelect();
     try {
       for (const id of ids) await deleteMemoryRecord(id);
-      toast.success(`已删除 ${ids.length} 条记忆`);
+      toast.success(t("page.batchDeleteSuccess", { count: ids.length }));
     } catch (e) {
-      toast.error(`批量删除失败：${String(e)}`);
+      toast.error(t("page.batchDeleteError", { msg: String(e) }));
       load();
     }
   };
@@ -161,7 +163,7 @@ export default function MemoryPage() {
     try {
       await updateMemoryRecord(m.id, { content });
     } catch (e) {
-      toast.error(`保存失败：${String(e)}`);
+      toast.error(t("page.saveError", { msg: String(e) }));
       load();
     }
   };
@@ -170,9 +172,9 @@ export default function MemoryPage() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
       <header className="mb-4 flex shrink-0 items-start justify-between gap-3">
         <div>
-          <h1 className="font-heading text-xl font-semibold text-foreground">记忆账本</h1>
+          <h1 className="font-heading text-xl font-semibold text-foreground">{t("page.title")}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            从 claude / codex 会话提炼、去重的可复用记忆；喂回任一 CLI（外部经 MCP search_memory 查询）。
+            {t("page.description")}
           </p>
         </div>
         {/* 记忆桥：导入 Claude 文件记忆(*.md) → 待审收件箱 */}
@@ -181,9 +183,9 @@ export default function MemoryPage() {
           size="sm"
           disabled={importing}
           onClick={() => void handleImportFileMemories()}
-          title="扫描 ~/.claude/projects/*/memory/*.md，导入为待审记忆"
+          title={t("page.importButtonTitle")}
         >
-          {importing ? "导入中…" : "导入文件记忆"}
+          {importing ? t("page.importingLabel") : t("page.importButton")}
         </Button>
       </header>
 
@@ -191,9 +193,9 @@ export default function MemoryPage() {
       {pending.length > 0 && (
         <div className="mb-3 shrink-0 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
           <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-700 dark:text-amber-400">
-            待审记忆（{pending.length}）
+            {t("page.pendingTitle", { count: pending.length })}
             <span className="font-normal text-muted-foreground">
-              — 外部 AI 经 MCP 写入，采纳后才进账本
+              {t("page.pendingDesc")}
             </span>
           </div>
           <div className="flex max-h-52 flex-col gap-1.5 overflow-y-auto">
@@ -207,16 +209,16 @@ export default function MemoryPage() {
                     <Markdown content={m.content} />
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                    <span className="rounded bg-muted px-1">{MEMORY_KIND_LABEL[m.kind]}</span>
+                    <span className="rounded bg-muted px-1">{t(`kind.${m.kind}`)}</span>
                     <span className="rounded bg-muted px-1">{scopeLabel(m)}</span>
                     {m.source_provider && (
-                      <span className="rounded bg-muted px-1">来源：{m.source_provider}</span>
+                      <span className="rounded bg-muted px-1">{t("page.sourceProvider", { provider: m.source_provider })}</span>
                     )}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <Button variant="ghost" size="xs" onClick={() => void accept(m)}>
-                    采纳
+                    {t("page.acceptButton")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -224,7 +226,7 @@ export default function MemoryPage() {
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => void remove(m)}
                   >
-                    丢弃
+                    {t("page.discardButton")}
                   </Button>
                 </div>
               </div>
@@ -242,7 +244,7 @@ export default function MemoryPage() {
           <SelectContent>
             {KINDS.map((k) => (
               <SelectItem key={k} value={k}>
-                {k === "all" ? "全部类别" : MEMORY_KIND_LABEL[k]}
+                {k === "all" ? t("page.filterAllKinds") : t(`kind.${k}`)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -252,14 +254,14 @@ export default function MemoryPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全部作用域</SelectItem>
-            <SelectItem value="global">全局</SelectItem>
+            <SelectItem value="all">{t("page.filterAllScopes")}</SelectItem>
+            <SelectItem value="global">{t("page.scopeGlobal")}</SelectItem>
             {/* 有记忆归属的项目逐个列出，直接按项目筛 */}
             {projects
               .filter((p) => memories.some((m) => m.project === p.id))
               .map((p) => (
                 <SelectItem key={p.id} value={`project:${p.id}`}>
-                  项目：{p.name}
+                  {t("page.scopeProject", { name: p.name })}
                 </SelectItem>
               ))}
           </SelectContent>
@@ -267,10 +269,10 @@ export default function MemoryPage() {
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="搜索记忆…"
+          placeholder={t("page.searchPlaceholder")}
           className="h-9 max-w-xs flex-1"
         />
-        <span className="ml-auto text-xs text-muted-foreground">{visible.length} 条</span>
+        <span className="ml-auto text-xs text-muted-foreground">{t("page.countLabel", { count: visible.length })}</span>
         <button
           type="button"
           onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
@@ -279,17 +281,17 @@ export default function MemoryPage() {
             selectMode ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
           }`}
         >
-          批量
+          {t("page.batchButton")}
         </button>
       </div>
 
       {/* 列表 */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
-          <p className="py-16 text-center text-sm text-muted-foreground">加载中…</p>
+          <p className="py-16 text-center text-sm text-muted-foreground">{t("common:state.loading")}</p>
         ) : visible.length === 0 ? (
           <p className="py-16 text-center text-sm text-muted-foreground">
-            暂无记忆。在会话预览点「提炼记忆」从会话沉淀。
+            {t("page.emptyHint")}
           </p>
         ) : (
           <Virtualizer>
@@ -311,7 +313,7 @@ export default function MemoryPage() {
                       checked={isSel}
                       readOnly
                       className="mt-0.5 size-3.5 shrink-0 accent-primary"
-                      aria-label="选择记忆"
+                      aria-label={t("page.selectCheckboxLabel")}
                     />
                   )}
                   <div className="min-w-0 flex-1">
@@ -320,9 +322,9 @@ export default function MemoryPage() {
                       <Markdown content={m.content} />
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <span className="rounded bg-muted px-1">{MEMORY_KIND_LABEL[m.kind]}</span>
+                      <span className="rounded bg-muted px-1">{t(`kind.${m.kind}`)}</span>
                       <span className="rounded bg-muted px-1">{scopeLabel(m)}</span>
-                      <span>把握 {m.confidence}</span>
+                      <span>{t("page.confidence", { confidence: m.confidence })}</span>
                       {m.source_session_id && (
                         <button
                           type="button"
@@ -331,9 +333,9 @@ export default function MemoryPage() {
                             navigate(`/sessions?session=${m.source_session_id}`);
                           }}
                           className="text-primary hover:underline"
-                          title="回跳来源会话"
+                          title={t("page.sourceSessionTitle")}
                         >
-                          来源会话 →
+                          {t("page.sourceSessionLink")}
                         </button>
                       )}
                     </div>
@@ -341,7 +343,7 @@ export default function MemoryPage() {
                   {!selectMode && (
                     <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                       <Button variant="ghost" size="xs" onClick={() => setEditing(m)}>
-                        编辑
+                        {t("common:action.edit")}
                       </Button>
                       <Button
                         variant="ghost"
@@ -349,7 +351,7 @@ export default function MemoryPage() {
                         className="text-muted-foreground hover:text-destructive"
                         onClick={() => void remove(m)}
                       >
-                        删除
+                        {t("common:action.delete")}
                       </Button>
                     </div>
                   )}
@@ -363,7 +365,7 @@ export default function MemoryPage() {
       {/* 批量操作栏（多选模式浮现） */}
       {selectMode && (
         <div className="mt-2 flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">
-          <span className="text-muted-foreground">已选 {selected.size} 条</span>
+          <span className="text-muted-foreground">{t("page.selectedCount", { count: selected.size })}</span>
           <Button
             variant="ghost"
             size="xs"
@@ -371,10 +373,10 @@ export default function MemoryPage() {
             className="text-muted-foreground hover:text-destructive"
             onClick={() => void batchDelete()}
           >
-            删除所选
+            {t("page.deleteSelectedButton")}
           </Button>
           <Button variant="ghost" size="xs" className="ml-auto" onClick={exitSelect}>
-            退出多选
+            {t("page.exitSelectButton")}
           </Button>
         </div>
       )}
