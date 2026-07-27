@@ -12,6 +12,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, FilterIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { useBoardStore, groupTasksByState } from "@/store/board";
@@ -64,6 +65,7 @@ interface SheetState {
  * 批量操作栏 BatchActionBar 在选中 >0 时浮现于底部。
  */
 export function KanbanBoard() {
+  const { t } = useTranslation("board");
   const states = useBoardStore((s) => s.states);
   const tasks = useBoardStore((s) => s.tasks);
   const labels = useBoardStore((s) => s.labels);
@@ -126,7 +128,7 @@ export function KanbanBoard() {
       (rs) => {
         // 只按实际成功的条数提示（写库失败时不误报，如迁移未应用/PB 不可用）
         const ok = rs.filter((r) => r.status === "fulfilled").length;
-        if (ok > 0) toast.message(`已自动归档 ${ok} 个完成超过 ${days} 天的任务`);
+        if (ok > 0) toast.message(t("board.autoArchiveToast", { count: ok, days }));
       },
     );
   }, [openedProjectId, tasks, states, updateTask]);
@@ -200,11 +202,11 @@ export function KanbanBoard() {
         }
       }
       if (errors.length > 0) {
-        toast.error(`批量移动部分失败（${successCount}/${ids.length} 成功）`);
+        toast.error(t("batch.toast.movePartial", { ok: successCount, total: ids.length }));
       } else {
         const stateName =
           states.find((s) => s.id === toStateId)?.name ?? toStateId;
-        toast.success(`已将 ${successCount} 项任务移动至「${stateName}」`);
+        toast.success(t("batch.toast.moveSuccess", { count: successCount, state: stateName }));
       }
       handleExitSelect();
     },
@@ -227,10 +229,10 @@ export function KanbanBoard() {
       }
       if (errors.length > 0) {
         toast.error(
-          `批量改优先级部分失败（${successCount}/${ids.length} 成功）`,
+          t("batch.toast.priorityPartial", { ok: successCount, total: ids.length }),
         );
       } else {
-        toast.success(`已将 ${successCount} 项任务优先级设为「${priority}」`);
+        toast.success(t("batch.toast.prioritySuccess", { count: successCount, priority }));
       }
       handleExitSelect();
     },
@@ -251,9 +253,9 @@ export function KanbanBoard() {
       }
     }
     if (errors.length > 0) {
-      toast.error(`批量删除部分失败（${successCount}/${ids.length} 成功）`);
+      toast.error(t("batch.toast.deletePartial", { ok: successCount, total: ids.length }));
     } else {
-      toast.success(`已删除 ${successCount} 项任务`);
+      toast.success(t("batch.toast.deleteSuccess", { count: successCount }));
     }
     handleExitSelect();
   }, [selected, deleteTask, handleExitSelect]);
@@ -320,7 +322,7 @@ export function KanbanBoard() {
     if (!r) return;
     // 落手：持久化最终位置（previewMove 已将卡片放到位，此处计算最终 index 落库）
     void moveTask(r.dragged.id, r.targetStateId, r.toIndex).catch((e) =>
-      toast.error(`移动失败：${String(e)}`),
+      toast.error(t("task.toast.moveError", { msg: String(e) })),
     );
   };
 
@@ -335,12 +337,12 @@ export function KanbanBoard() {
       void Promise.allSettled(ids.map((id) => updateTask(id, { archived: true }))).then(
         (rs) => {
           const ok = rs.filter((r) => r.status === "fulfilled").length;
-          if (ok > 0) toast.success(`已归档 ${ok} 个任务`);
-          if (ok < ids.length) toast.error(`${ids.length - ok} 个归档失败`);
+          if (ok > 0) toast.success(t("board.archiveColumnOk", { count: ok }));
+          if (ok < ids.length) toast.error(t("board.archiveColumnErr", { count: ids.length - ok }));
         },
       );
     },
-    [updateTask],
+    [updateTask, t],
   );
 
   // 当前项目的仓库路径（注入依据 + 状态查询）
@@ -381,44 +383,44 @@ export function KanbanBoard() {
   const injectToCli = async (scope: "set" | "all" | "clear") => {
     const project = projects.find((p) => p.id === openedProjectId);
     if (!project?.repo_path) {
-      toast.error("本项目未绑定仓库路径，无法注入（先在项目设置里绑定仓库）");
+      toast.error(t("board.inject.noRepoError"));
       return;
     }
     // 清空：写空列表 = 卸载受管块（块外内容保留）
     if (scope === "clear") {
       try {
         await ipc.tasksWriteProjectFiles(project.repo_path, []);
-        toast.success("已清空 CLI 注入块（CLAUDE.md / AGENTS.md）");
+        toast.success(t("board.inject.clearSuccess"));
         refreshInjectStatus();
       } catch (e) {
-        toast.error(`清空失败：${String(e)}`);
+        toast.error(t("board.inject.clearError", { msg: String(e) }));
       }
       return;
     }
     const stateById = new Map(states.map((s) => [s.id, s]));
     const injectSet = getInjectSet(project.id);
-    const chosen = tasks.filter((t) => {
-      if (t.archived || isCliSynced(t)) return false; // 排除归档 + CLI 同步来的
-      return scope === "all" || injectSet.has(t.id);
+    const chosen = tasks.filter((tk) => {
+      if (tk.archived || isCliSynced(tk)) return false; // 排除归档 + CLI 同步来的
+      return scope === "all" || injectSet.has(tk.id);
     });
     if (chosen.length === 0) {
       toast.message(
         scope === "set"
-          ? "注入集为空——右键自建任务「加入 CLI 注入集」"
-          : "没有可注入的自建任务",
+          ? t("board.inject.emptySet")
+          : t("board.inject.emptyAll"),
       );
       return;
     }
-    const lines = chosen.map((t) => {
-      const st = stateById.get(t.state);
-      return { title: t.title, done: st?.category === "completed", hint: st?.name ?? "" };
+    const lines = chosen.map((tk) => {
+      const st = stateById.get(tk.state);
+      return { title: tk.title, done: st?.category === "completed", hint: st?.name ?? "" };
     });
     try {
       const written = await ipc.tasksWriteProjectFiles(project.repo_path, lines);
-      toast.success(`已注入 ${lines.length} 个任务到 ${written.length} 个文件（CLAUDE.md / AGENTS.md）`);
+      toast.success(t("board.inject.injectSuccess", { count: lines.length, files: written.length }));
       refreshInjectStatus();
     } catch (e) {
-      toast.error(`注入失败：${String(e)}`);
+      toast.error(t("board.inject.injectError", { msg: String(e) }));
     }
   };
 
@@ -437,7 +439,7 @@ export function KanbanBoard() {
           <Input
             value={filter.query}
             onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
-            placeholder="搜索任务（标题 + 描述）…"
+            placeholder={t("board.searchPlaceholder")}
             className="h-8 pl-8 text-sm"
           />
         </div>
@@ -456,11 +458,13 @@ export function KanbanBoard() {
                 )}
               >
                 <HugeiconsIcon icon={FilterIcon} strokeWidth={2} className="size-3.5" />
-                标签{filter.labels.length > 0 ? `（${filter.labels.length}）` : ""}
+                {filter.labels.length > 0
+                  ? t("board.filterLabelWithCount", { count: filter.labels.length })
+                  : t("board.filterLabel")}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-h-72 w-52 overflow-y-auto">
-              <DropdownMenuLabel>按标签筛选</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("board.filterByLabel")}</DropdownMenuLabel>
               {labels.map((l) => (
                 <DropdownMenuCheckboxItem
                   key={l.id}
@@ -495,7 +499,7 @@ export function KanbanBoard() {
                   : "border-border text-muted-foreground hover:bg-accent",
               )}
             >
-              {filter.priority ? PRIORITY_META[filter.priority].label : "优先级"}
+              {filter.priority ? t(`meta.priority.${filter.priority}`) : t("board.filterPriority")}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-40">
@@ -505,12 +509,12 @@ export function KanbanBoard() {
                 setFilter((f) => ({ ...f, priority: v === "__all" ? null : (v as TaskPriority) }))
               }
             >
-              <DropdownMenuRadioItem value="__all">全部优先级</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="__all">{t("board.filterAllPriority")}</DropdownMenuRadioItem>
               <DropdownMenuSeparator />
               {PRIORITY_ORDER.map((p) => (
                 <DropdownMenuRadioItem key={p} value={p}>
                   <span className={cn("size-1.5 rounded-full", PRIORITY_META[p].dot)} />
-                  {PRIORITY_META[p].label}
+                  {t(`meta.priority.${p}`)}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -524,7 +528,7 @@ export function KanbanBoard() {
             className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground"
           >
             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-3.5" />
-            清除
+            {t("board.clearFilter")}
           </button>
         )}
 
@@ -534,7 +538,7 @@ export function KanbanBoard() {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                title="把自建任务写进仓库 CLAUDE.md/AGENTS.md 的受管块，让 CLI 会话看到（CLI 同步来的任务不注入）"
+                title={t("board.inject.btnTitle")}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
                   injectStatus
@@ -542,7 +546,7 @@ export function KanbanBoard() {
                     : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground",
                 )}
               >
-                注入到 CLI
+                {t("board.inject.btn")}
                 {/* 常驻状态：已注入显示条数（含 ✓），未注入不显示——一眼知道注了没 */}
                 {injectStatus && (
                   <span className="rounded-full bg-primary/20 px-1.5 text-[10px] tabular-nums">
@@ -552,16 +556,16 @@ export function KanbanBoard() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuLabel>注入自建任务到 CLI</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("board.inject.menuLabel")}</DropdownMenuLabel>
               <DropdownMenuItem onSelect={() => void injectToCli("set")}>
-                注入选中（注入集）
+                {t("board.inject.set")}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void injectToCli("all")}>
-                注入全部自建任务
+                {t("board.inject.all")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void injectToCli("clear")}>
-                清空注入块
+                {t("board.inject.clear")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -571,7 +575,7 @@ export function KanbanBoard() {
               onClick={() => setShowArchived((v) => !v)}
               className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              {showArchived ? "隐藏归档" : `显示归档（${archivedCount}）`}
+              {showArchived ? t("board.hideArchived") : t("board.showArchived", { count: archivedCount })}
             </button>
           )}
         </div>
@@ -603,7 +607,7 @@ export function KanbanBoard() {
 
           {sortedStates.length === 0 && (
             <div className="flex min-h-48 flex-1 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-              此项目暂无状态列 —— 打开「项目设置」添加
+              {t("board.noStates")}
             </div>
           )}
         </div>

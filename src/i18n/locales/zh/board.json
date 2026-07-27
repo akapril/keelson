@@ -1,0 +1,429 @@
+{
+  "meta": {
+    "priority": {
+      "none": "无",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "urgent": "紧急"
+    },
+    "stateCategory": {
+      "pending": "待处理",
+      "active": "进行中",
+      "completed": "已完成"
+    }
+  },
+  "task": {
+    "archived": "已归档",
+    "sourceSession": "来源",
+    "sourceSessionCli": "↻会话",
+    "sourceSessionAriaLabel": "跳转到来源会话",
+    "sourceSessionTitle": "来源会话：{{id}}",
+    "sourceSessionCliTitle": "CLI 同步任务，来源会话：{{id}}",
+    "addTask": "+ 添加任务",
+    "titleRequired": "任务标题不能为空",
+    "noOpenProject": "尚未打开任何项目",
+    "toast": {
+      "priorityError": "修改优先级失败：{{msg}}",
+      "moveError": "移动失败：{{msg}}",
+      "deleteSuccess": "已删除任务",
+      "deleteError": "删除失败：{{msg}}",
+      "archiveError": "操作失败：{{msg}}"
+    },
+    "ctxMenu": {
+      "select": "选择",
+      "edit": "编辑",
+      "priority": "优先级",
+      "current": "当前",
+      "moveTo": "移动到",
+      "noStates": "无可用状态列",
+      "gotoSource": "跳转来源会话",
+      "addToInjectSet": "加入 CLI 注入集",
+      "removeFromInjectSet": "移出 CLI 注入集",
+      "archive": "归档",
+      "unarchive": "取消归档"
+    }
+  },
+  "sheet": {
+    "titleCreate": "新建任务",
+    "titleEdit": "编辑任务",
+    "fieldTitle": "标题",
+    "fieldDesc": "描述",
+    "fieldState": "状态",
+    "fieldPriority": "优先级",
+    "fieldLabels": "标签",
+    "fieldDueDate": "截止日期",
+    "noLabels": "暂无可用标签",
+    "descPreview": "预览",
+    "descEdit": "编辑",
+    "descPlaceholder": "补充任务细节（支持 markdown）",
+    "titlePlaceholder": "输入任务标题",
+    "statePlaceholder": "选择状态",
+    "datePlaceholder": "选择日期",
+    "aiBreakdown": "AI 拆解为子任务",
+    "saving": "保存中…",
+    "creating": "创建",
+    "deleteBtn": "删除",
+    "confirmDeleteTitle": "删除任务？",
+    "confirmDeleteDesc": "将从看板永久移除「{{title}}」，此操作无法撤销。"
+  },
+  "breakdown": {
+    "dialogTitle": "AI 拆解任务",
+    "dialogDesc": "拆成可执行子任务，勾选后在同一状态列创建（标注来源任务）。",
+    "loading": "正在拆解…",
+    "noApiKey": "尚未配置 AI 服务（请在设置页填写 API Key）",
+    "empty": "未生成子任务。",
+    "createBtn": "创建 {{count}} 个子任务",
+    "creating": "创建中…",
+    "sourceRef": "↳ 拆解自「{{title}}」",
+    "toast": {
+      "created": "已创建 {{count}} 个子任务"
+    }
+  },
+  "batch": {
+    "selectedCount": "已选 {{count}} 项",
+    "movePlaceholder": "移动到…",
+    "priorityPlaceholder": "优先级…",
+    "exitSelect": "退出多选",
+    "confirmDeleteTitle": "确认批量删除",
+    "confirmDeleteDesc": "将永久删除已选的 {{count}} 项任务，此操作不可撤销。",
+    "confirmDeleteAction": "确认删除",
+    "toast": {
+      "movePartial": "批量移动部分失败（{{ok}}/{{total}} 成功）",
+      "moveSuccess": "已将 {{count}} 项任务移动至「{{state}}」",
+      "priorityPartial": "批量改优先级部分失败（{{ok}}/{{total}} 成功）",
+      "prioritySuccess": "已将 {{count}} 项任务优先级设为「{{priority}}」",
+      "deletePartial": "批量删除部分失败（{{ok}}/{{total}} 成功）",
+      "deleteSuccess": "已删除 {{count}} 项任务"
+    }
+  },
+  "column": {
+    "archiveAllTitle": "归档本列全部已完成任务",
+    "archiveAllAriaLabel": "归档「{{name}}」全部任务",
+    "addTaskAriaLabel": "向「{{name}}」添加任务"
+  },
+  "board": {
+    "searchPlaceholder": "搜索任务（标题 + 描述）…",
+    "filterLabel": "标签",
+    "filterLabelWithCount": "标签（{{count}}）",
+    "filterByLabel": "按标签筛选",
+    "filterPriority": "优先级",
+    "filterAllPriority": "全部优先级",
+    "clearFilter": "清除",
+    "showArchived": "显示归档（{{count}}）",
+    "hideArchived": "隐藏归档",
+    "noStates": "此项目暂无状态列 —— 打开「项目设置」添加",
+    "autoArchiveToast": "已自动归档 {{count}} 个完成超过 {{days}} 天的任务",
+    "archiveColumnOk": "已归档 {{count}} 个任务",
+    "archiveColumnErr": "{{count}} 个归档失败",
+    "inject": {
+      "btn": "注入到 CLI",
+      "menuLabel": "注入自建任务到 CLI",
+      "set": "注入选中（注入集）",
+      "all": "注入全部自建任务",
+      "clear": "清空注入块",
+      "btnTitle": "把自建任务写进仓库 CLAUDE.md/AGENTS.md 的受管块，让 CLI 会话看到（CLI 同步来的任务不注入）",
+      "noRepoError": "本项目未绑定仓库路径，无法注入（先在项目设置里绑定仓库）",
+      "emptySet": "注入集为空——右键自建任务「加入 CLI 注入集」",
+      "emptyAll": "没有可注入的自建任务",
+      "clearSuccess": "已清空 CLI 注入块（CLAUDE.md / AGENTS.md）",
+      "clearError": "清空失败：{{msg}}",
+      "injectSuccess": "已注入 {{count}} 个任务到 {{files}} 个文件（CLAUDE.md / AGENTS.md）",
+      "injectError": "注入失败：{{msg}}"
+    }
+  },
+  "project": {
+    "archived": "已归档",
+    "active": "活跃",
+    "noDesc": "暂无描述",
+    "latestHint": "最近：{{text}}",
+    "noRepo": "未绑定仓库",
+    "taskCount": "任务 {{done}}/{{total}}",
+    "docCount": "文档 {{count}}",
+    "sessionCount": "会话 {{count}}",
+    "ctxMenu": {
+      "open": "打开项目",
+      "copyRepoPath": "复制仓库路径",
+      "pin": "收藏",
+      "unpin": "取消收藏",
+      "archive": "归档",
+      "unarchive": "取消归档"
+    },
+    "pinBtn": {
+      "pin": "收藏",
+      "unpin": "取消收藏"
+    },
+    "toast": {
+      "pinError": "收藏失败：{{msg}}",
+      "archiveError": "操作失败：{{msg}}",
+      "copySuccess": "已复制{{label}}"
+    },
+    "list": {
+      "allArchived": "当前无进行中的项目",
+      "empty": "暂无项目",
+      "allArchivedHint": "已有项目均已归档，点右上「显示归档」查看",
+      "emptyHint": "点击「新建项目」创建第一个看板"
+    }
+  },
+  "createProject": {
+    "title": "新建项目",
+    "desc": "填写项目信息并选择一个模板以创建。",
+    "fieldName": "项目名称",
+    "fieldDesc": "描述",
+    "fieldDescOptional": "（可选）",
+    "fieldRepo": "仓库路径",
+    "fieldRepoOptional": "（可选）",
+    "fieldTemplate": "模板",
+    "namePlaceholder": "输入项目名称",
+    "descPlaceholder": "简短描述项目用途",
+    "repoPlaceholder": "/path/to/repo 或留空",
+    "duplicateNameHint": "已存在同名项目，建议绑定仓库路径以便区分。",
+    "noTemplates": "暂无可用模板",
+    "templatePlaceholder": "选择一个模板",
+    "templatePickDir": "选择项目仓库目录",
+    "browseBtn": "浏览",
+    "creating": "创建中…",
+    "templateLabel": {
+      "labelCount": "标签 {{count}}",
+      "taskCount": "起步任务 {{count}}",
+      "starterDocs": "起始文档：{{titles}}"
+    },
+    "templateSelectPlaceholder": "选择一个模板",
+    "errors": {
+      "noTemplate": "请选择一个模板",
+      "emptyName": "项目名称不能为空"
+    }
+  },
+  "promote": {
+    "title": "提升为看板项目",
+    "fieldName": "项目名称",
+    "fieldRepo": "仓库路径",
+    "fieldRepoHint": "（来自会话项目）",
+    "fieldTemplate": "模板",
+    "namePlaceholder": "输入项目名称",
+    "templatePlaceholder": "选择模板",
+    "loadingTemplates": "加载模板中…",
+    "promoting": "提升中…",
+    "promote": "提升",
+    "existingTitle": "此仓库已提升为项目「{{name}}」。",
+    "existingHint": "一个仓库对应一个项目，避免重复。会话仍会关联到该项目。",
+    "openExisting": "打开「{{name}}」",
+    "errors": {
+      "noTemplate": "请选择一个模板",
+      "emptyName": "项目名称不能为空"
+    }
+  },
+  "fromSession": {
+    "title": "从会话建任务",
+    "fieldTitle": "任务标题",
+    "fieldProject": "目标项目",
+    "titlePlaceholder": "输入任务标题",
+    "projectPlaceholder": "选择目标项目",
+    "repoMatch": "（匹配仓库）",
+    "sourceLabel": "来源会话：",
+    "noProjects": "暂无看板项目，请先在会话中枢将其提升为看板项目。",
+    "creating": "创建中…",
+    "createBtn": "创建任务",
+    "errors": {
+      "noProject": "请先选择目标项目（可先在会话中枢将其提升为看板项目）",
+      "emptyTitle": "任务标题不能为空",
+      "noStates": "该项目暂无状态列，无法创建任务"
+    }
+  },
+  "workspace": {
+    "backAriaLabel": "返回",
+    "openPath": "打开位置",
+    "importPlan": "导入计划",
+    "projectSettings": "项目设置",
+    "tabs": {
+      "overview": "概览",
+      "sessions": "会话",
+      "commits": "提交",
+      "board": "看板",
+      "docs": "文档",
+      "processes": "进程",
+      "activity": "活动",
+      "ai": "AI"
+    },
+    "toast": {
+      "openPathError": "打开位置失败：{{msg}}"
+    },
+    "overview": {
+      "statTaskTotal": "任务总数",
+      "projectInfo": "项目信息",
+      "noDescription": "暂无项目描述。",
+      "fieldRepo": "仓库路径",
+      "fieldRepoMissing": "未绑定（会话 / git 关联不可用）",
+      "fieldTasks": "任务",
+      "fieldTasksUnit": "{{count}} 个",
+      "fieldDocs": "文档",
+      "fieldDocsUnit": "{{count}} 篇",
+      "fieldLinkedSessions": "关联会话",
+      "fieldLinkedSessionsUnit": "{{count}} 个",
+      "fieldStatesLabels": "状态列 / 标签",
+      "fieldCreated": "创建于",
+      "fieldUpdated": "最近更新",
+      "upcomingTitle": "近期截止",
+      "eventsTitle": "近期事件"
+    },
+    "noRepo": "该项目未绑定仓库路径 —— 在「项目设置」填写 repo_path 后即可关联本地会话。",
+    "noRepoCommits": "该项目未绑定仓库路径。"
+  },
+  "projectSheet": {
+    "title": "项目设置",
+    "desc": "编辑项目的基础信息、状态列与标签。",
+    "noProject": "未打开任何项目。",
+    "basicInfo": "基础信息",
+    "fieldName": "名称",
+    "fieldDesc": "描述",
+    "fieldRepo": "仓库路径",
+    "namePlaceholder": "项目名称",
+    "descPlaceholder": "项目描述（可选，可点「AI 生成」自动概括）",
+    "aiGenerate": "AI 生成",
+    "aiGenerating": "生成中…",
+    "archived": "已归档",
+    "archivedHint": "（归档后项目将从看板列表隐藏）",
+    "deleteProject": "删除项目",
+    "deleteNeedArchive": "需先「归档」项目，才能删除（防误删）。",
+    "statesSection": "状态列",
+    "labelsSection": "标签",
+    "statePlaceholder": "状态名称",
+    "newStatePlaceholder": "新状态名称",
+    "labelPlaceholder": "标签名称",
+    "newLabelPlaceholder": "新标签名称",
+    "addBtn": "添加",
+    "stateColorAriaLabel": "{{name}} 颜色",
+    "newStateColorAriaLabel": "新状态颜色",
+    "labelColorAriaLabel": "{{name}} 颜色",
+    "newLabelColorAriaLabel": "新标签颜色",
+    "moveUpAriaLabel": "上移",
+    "moveDownAriaLabel": "下移",
+    "deleteStateAriaLabel": "删除状态",
+    "deleteLabelAriaLabel": "删除标签 {{name}}",
+    "deleteLabelTitle": "删除标签？",
+    "deleteLabelDesc": "标签 {{name}} 将从本项目移除，使用该标签的任务也会解除关联。",
+    "deleteLabelAction": "删除标签",
+    "deleteProjectTitle": "删除项目「{{name}}」？",
+    "deleteProjectDesc1": "将永久删除该项目及其任务、状态列、标签，无法撤销。",
+    "deleteProjectDesc2": "不会删除本地仓库文件 / git / 会话记录。关联文档默认仅解除关联、保留。",
+    "deleteProjectDocs": "同时删除本项目的文档",
+    "deleteProjectDocsHint": "仅删除只属于本项目的文档；与其他项目共享的文档仍只解除关联、不删除。",
+    "deleteProjectAction": "删除项目",
+    "deleting": "删除中…",
+    "toast": {
+      "aiGenerateSuccess": "已由 AI 生成描述",
+      "aiGenerateError": "AI 生成失败：{{msg}}",
+      "noAiKey": "尚未配置 AI 服务（在设置页填 API Key，或改用本地 CLI provider）"
+    }
+  },
+  "importPlan": {
+    "title": "导入计划到看板",
+    "desc": "扫描主流规格驱动工具的计划目录（superpowers / Spec Kit / Kiro，递归子目录），把 ### Task 或 - [ ] 复选框任务解析为卡片（幂等，已存在跳过）。也可手选任意目录。",
+    "fileCount": "共 {{count}} 个计划文件",
+    "pickDir": "选择其它目录…",
+    "empty": "未找到计划文件。试试右上「选择其它目录」指向你的计划位置。",
+    "parsedCount": "解析出 {{count}} 个任务",
+    "withSpec": "同时把设计 spec（{{name}}）存为项目文档",
+    "importing": "导入中…",
+    "importBtn": "导入 {{count}} 个任务",
+    "pickDirTitle": "选择计划目录",
+    "toast": {
+      "noPlanFiles": "该目录下没有 .md 文件",
+      "pickDirError": "选择目录失败：{{msg}}",
+      "readError": "读取失败：{{msg}}",
+      "importSuccess": "新建 {{created}} 张卡片，跳过 {{skipped}} 张已存在{{docMsg}}",
+      "specSaved": "，spec 已存为文档",
+      "specError": "，spec 存文档失败：{{msg}}",
+      "importError": "导入失败：{{msg}}"
+    }
+  },
+  "sessions": {
+    "linkedCount": "{{count}} 个关联会话",
+    "noRepo": "本项目未绑定仓库路径——先在「项目设置」绑定仓库，才能新建 / 关联本地 CLI 会话。",
+    "empty": "该项目暂无关联的本地会话。",
+    "emptyHint": "在下方新建一个——会在此项目目录起 CLI 会话，对话后自动出现在这里。",
+    "newClaude": "+ Claude 会话",
+    "newCodex": "+ Codex 会话",
+    "toast": {
+      "startSuccess": "已在终端启动 {{provider}} 会话（对话后会自动出现在此）",
+      "startError": "启动失败：{{msg}}"
+    }
+  },
+  "commits": {
+    "loading": "加载提交…",
+    "empty": "近 30 天无提交记录（或该路径非 git 仓库）。",
+    "hook": {
+      "enabled": "🎯 会话溯源已启用",
+      "disabled": "启用后，此仓库的新提交将自动打上 Rework-Session trailer（精确关联会话）",
+      "foreignHook": "（将与已有 prepare-commit-msg 钩子共存）",
+      "enableBtn": "启用会话溯源",
+      "disableBtn": "停用",
+      "toast": {
+        "enabled": "已启用：之后的新提交将自动带会话溯源 trailer",
+        "disabled": "已停用会话溯源",
+        "error": "操作失败：{{msg}}"
+      }
+    },
+    "trailerFrom": "🎯 来自会话：",
+    "maybeFrom": "🕐 可能来自：",
+    "noLinked": "无关联会话",
+    "sessionTitle": "跳到会话（{{kind}}）",
+    "kindTrailer": "精确",
+    "kindWindow": "可能相关"
+  },
+  "activity": {
+    "loading": "加载活动历史…",
+    "empty": "暂无活动 —— 外部 AI（claude / codex）经 MCP 操作本项目时会实时出现在这里。",
+    "sessionBtn": "会话",
+    "sessionBtnTitle": "查看会话",
+    "actionLabel": {
+      "write": "写入",
+      "read": "读取",
+      "run": "执行",
+      "search": "检索"
+    },
+    "statusError": "失败"
+  },
+  "processes": {
+    "globalDesc": "共 {{count}} 个托管进程（跨项目）。启动新进程请到具体项目的「进程」标签。",
+    "refreshBtn": "刷新",
+    "cleanBtn": "清理已停止/退出",
+    "startPlaceholder": "在本项目目录启动进程，如 npm run dev / cargo run",
+    "startBtn": "启动",
+    "startBtnRefreshTitle": "立即刷新进程列表",
+    "loading": "加载中…",
+    "emptyGlobal": "暂无由 Keelson 托管的进程。",
+    "emptyProject": "本项目暂无正在托管的进程。在上方输入框启动一个，或让 Claude Code 起长驻进程自动托管。",
+    "running": "运行中",
+    "restartBtn": "重启",
+    "stopBtn": "停止",
+    "removeBtn": "删除",
+    "sessionBadge": "↻ 来自会话",
+    "sessionBadgeTitle": "起自会话 {{id}}，点击查看",
+    "selectProcess": "选择左侧进程查看日志",
+    "logHeader": "{{name}} · 最近 {{count}} 条日志",
+    "noLogs": "暂无日志。",
+    "toast": {
+      "stop": "已停止 {{name}}",
+      "restart": "已重启 {{name}}",
+      "remove": "已删除 {{name}}",
+      "error": "操作失败：{{msg}}",
+      "cleanSuccess": "已清理 {{processes}} 条停止/退出记录 · {{logs}} 个旧日志",
+      "cleanError": "清理失败：{{msg}}",
+      "startSuccess": "已启动：{{cmd}}",
+      "startError": "启动失败：{{msg}}"
+    }
+  },
+  "git": {
+    "uncommitted": "{{count}} 未提交"
+  },
+  "autoSync": {
+    "toast": {
+      "synced": "已自动同步 {{count}} 个新任务到看板"
+    }
+  },
+  "syncError": {
+    "noStates": "该项目没有状态列，无法同步"
+  },
+  "taskFallbackTitle": "任务 {{id}}"
+}

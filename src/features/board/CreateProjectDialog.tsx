@@ -2,6 +2,7 @@
 // 调用 createProjectFromTemplate，成功后刷新项目列表并关闭。
 // 表现层已改用 shadcn/ui Dialog 及输入类原语，逻辑保持不变。
 import { useState, useMemo, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FolderOpenIcon } from "@hugeicons/core-free-icons";
@@ -44,6 +45,7 @@ interface CreateProjectDialogProps {
  * 父组件控制显示/隐藏，通过 onClose 关闭。
  */
 export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
+  const { t } = useTranslation("board");
   const templates = useBoardStore((s) => s.templates);
   const loadProjects = useBoardStore((s) => s.loadProjects);
   const projects = useBoardStore((s) => s.projects);
@@ -84,7 +86,7 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
       const dir = await open({
         directory: true,
         multiple: false,
-        title: "选择项目仓库目录",
+        title: t("createProject.templatePickDir"),
       });
       if (typeof dir === "string") setRepoPath(dir);
     } catch {
@@ -98,13 +100,13 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
     setError(undefined);
 
     // 找到所选模板对象
-    const template = templates.find((t) => t.id === templateId);
+    const template = templates.find((tmpl) => tmpl.id === templateId);
     if (!template) {
-      setError("请选择一个模板");
+      setError(t("createProject.errors.noTemplate"));
       return;
     }
     if (!name.trim()) {
-      setError("项目名称不能为空");
+      setError(t("createProject.errors.emptyName"));
       return;
     }
 
@@ -139,9 +141,9 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
       <DialogContent>
         {/* 标题区 */}
         <DialogHeader>
-          <DialogTitle>新建项目</DialogTitle>
+          <DialogTitle>{t("createProject.title")}</DialogTitle>
           <DialogDescription>
-            填写项目信息并选择一个模板以创建。
+            {t("createProject.desc")}
           </DialogDescription>
         </DialogHeader>
 
@@ -150,7 +152,7 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
           {/* 项目名称（必填） */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="cp-name">
-              项目名称
+              {t("createProject.fieldName")}
               <span className="ml-1 text-destructive">*</span>
             </Label>
             <Input
@@ -159,7 +161,7 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="输入项目名称"
+              placeholder={t("createProject.namePlaceholder")}
               disabled={loading}
             />
             {/* 同名提示（不阻止创建，仅提醒用仓库路径区分） */}
@@ -168,7 +170,7 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
                 (p) => p.name.trim().toLowerCase() === name.trim().toLowerCase(),
               ) && (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  已存在同名项目，建议绑定仓库路径以便区分。
+                  {t("createProject.duplicateNameHint")}
                 </p>
               )}
           </div>
@@ -176,14 +178,14 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
           {/* 描述（可选） */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="cp-desc">
-              描述
-              <span className="ml-1 text-xs text-muted-foreground">（可选）</span>
+              {t("createProject.fieldDesc")}
+              <span className="ml-1 text-xs text-muted-foreground">{t("createProject.fieldDescOptional")}</span>
             </Label>
             <Textarea
               id="cp-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="简短描述项目用途"
+              placeholder={t("createProject.descPlaceholder")}
               rows={2}
               disabled={loading}
             />
@@ -192,8 +194,8 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
           {/* 仓库路径（可选） */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="cp-repo">
-              仓库路径
-              <span className="ml-1 text-xs text-muted-foreground">（可选）</span>
+              {t("createProject.fieldRepo")}
+              <span className="ml-1 text-xs text-muted-foreground">{t("createProject.fieldRepoOptional")}</span>
             </Label>
             <div className="flex items-center gap-2">
               <Input
@@ -201,7 +203,7 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
                 type="text"
                 value={repoPath}
                 onChange={(e) => setRepoPath(e.target.value)}
-                placeholder="/path/to/repo 或留空"
+                placeholder={t("createProject.repoPlaceholder")}
                 disabled={loading}
                 className="flex-1"
               />
@@ -210,10 +212,9 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
                 variant="outline"
                 onClick={() => void pickRepoDir()}
                 disabled={loading}
-                title="选择本地目录"
               >
                 <HugeiconsIcon icon={FolderOpenIcon} strokeWidth={2} />
-                浏览
+                {t("createProject.browseBtn")}
               </Button>
             </div>
           </div>
@@ -221,11 +222,11 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
           {/* 模板选择 */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="cp-template">
-              模板
+              {t("createProject.fieldTemplate")}
               <span className="ml-1 text-destructive">*</span>
             </Label>
             {templates.length === 0 ? (
-              <p className="text-sm text-muted-foreground">暂无可用模板</p>
+              <p className="text-sm text-muted-foreground">{t("createProject.noTemplates")}</p>
             ) : (
               <Select
                 value={templateId}
@@ -234,15 +235,15 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
               >
                 {/* 触发器铺满一行，覆盖默认的 w-fit */}
                 <SelectTrigger id="cp-template" className="w-full">
-                  <SelectValue placeholder="选择一个模板" />
+                  <SelectValue placeholder={t("createProject.templateSelectPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {grouped.map(([cat, list]) => (
                     <SelectGroup key={cat}>
                       <SelectLabel>{cat}</SelectLabel>
-                      {list.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name}
+                      {list.map((tmpl) => (
+                        <SelectItem key={tmpl.id} value={tmpl.id}>
+                          {tmpl.name}
                         </SelectItem>
                       ))}
                     </SelectGroup>
@@ -270,13 +271,13 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground">
                   {selected.labels && selected.labels.length > 0 && (
-                    <span>标签 {selected.labels.length}</span>
+                    <span>{t("createProject.templateLabel.labelCount", { count: selected.labels.length })}</span>
                   )}
                   {selected.tasks && selected.tasks.length > 0 && (
-                    <span>起步任务 {selected.tasks.length}</span>
+                    <span>{t("createProject.templateLabel.taskCount", { count: selected.tasks.length })}</span>
                   )}
                   {selected.starter_docs && selected.starter_docs.length > 0 && (
-                    <span>起始文档：{selected.starter_docs.map((d) => d.title).join("、")}</span>
+                    <span>{t("createProject.templateLabel.starterDocs", { titles: selected.starter_docs.map((d) => d.title).join("、") })}</span>
                   )}
                 </div>
               </div>
@@ -301,10 +302,10 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
               onClick={onClose}
               disabled={loading}
             >
-              取消
+              {t("common:action.cancel")}
             </Button>
             <Button type="submit" disabled={loading || templates.length === 0}>
-              {loading ? "创建中…" : "创建"}
+              {loading ? t("createProject.creating") : t("common:action.create")}
             </Button>
           </DialogFooter>
         </form>

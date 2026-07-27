@@ -2,6 +2,7 @@
 import { memo } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, ArchiveArrowDownIcon } from "@hugeicons/core-free-icons";
 
@@ -55,6 +56,7 @@ function StatusColumnInner({
   // （100 卡 = 200 次 selector 求值/次 board 变更 → 降到每列一次）。
   const labels = useBoardStore((s) => s.labels);
   const states = useBoardStore((s) => s.states);
+  const { t } = useTranslation("board");
 
   // 完成类别列 + 当前有未归档任务 → 显示「一键归档已完成」入口
   const canArchiveColumn =
@@ -84,8 +86,8 @@ function StatusColumnInner({
               variant="ghost"
               size="icon-xs"
               onClick={() => onArchiveColumn!(state.id)}
-              title="归档本列全部已完成任务"
-              aria-label={`归档「${state.name}」全部任务`}
+              title={t("column.archiveAllTitle")}
+              aria-label={t("column.archiveAllAriaLabel", { name: state.name })}
             >
               <HugeiconsIcon icon={ArchiveArrowDownIcon} strokeWidth={2} />
             </Button>
@@ -94,7 +96,7 @@ function StatusColumnInner({
             variant="ghost"
             size="icon-xs"
             onClick={() => onAddTask(state.id)}
-            aria-label={`向「${state.name}」添加任务`}
+            aria-label={t("column.addTaskAriaLabel", { name: state.name })}
           >
             <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
           </Button>
@@ -135,7 +137,7 @@ function StatusColumnInner({
             onClick={() => onAddTask(state.id)}
             className="flex flex-1 items-center justify-center rounded-lg border border-dashed py-4 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           >
-            + 添加任务
+            {t("task.addTask")}
           </button>
         )}
       </div>

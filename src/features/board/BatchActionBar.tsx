@@ -1,6 +1,7 @@
 // BatchActionBar —— 多选模式底部批量操作栏。
 // 浮现于看板底部（多选模式且选中 >0 时由 KanbanBoard 渲染）。
 // 操作：移动到状态列 / 改优先级 / 删除（二次确认）/ 退出多选。
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,6 +52,7 @@ export function BatchActionBar({
   onDelete,
   onExit,
 }: BatchActionBarProps) {
+  const { t } = useTranslation("board");
   return (
     <div
       className={cn(
@@ -60,7 +62,7 @@ export function BatchActionBar({
     >
       {/* 已选计数 */}
       <span className="shrink-0 text-sm font-medium text-foreground">
-        已选 {selectedCount} 项
+        {t("batch.selectedCount", { count: selectedCount })}
       </span>
 
       <div className="mx-1 h-4 w-px shrink-0 bg-border" />
@@ -68,7 +70,7 @@ export function BatchActionBar({
       {/* 移动到目标状态列 */}
       <Select onValueChange={(val) => void onMove(val)}>
         <SelectTrigger className="h-8 w-36 text-xs">
-          <SelectValue placeholder="移动到…" />
+          <SelectValue placeholder={t("batch.movePlaceholder")} />
         </SelectTrigger>
         <SelectContent>
           {states.map((st) => (
@@ -88,7 +90,7 @@ export function BatchActionBar({
       {/* 改优先级 */}
       <Select onValueChange={(val) => void onPriority(val as TaskPriority)}>
         <SelectTrigger className="h-8 w-32 text-xs">
-          <SelectValue placeholder="优先级…" />
+          <SelectValue placeholder={t("batch.priorityPlaceholder")} />
         </SelectTrigger>
         <SelectContent>
           {PRIORITY_ORDER.map((p) => (
@@ -97,7 +99,7 @@ export function BatchActionBar({
                 <span
                   className={cn("size-1.5 shrink-0 rounded-full", PRIORITY_META[p].dot)}
                 />
-                {PRIORITY_META[p].label}
+                {t(`meta.priority.${p}`)}
               </div>
             </SelectItem>
           ))}
@@ -108,23 +110,23 @@ export function BatchActionBar({
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button variant="destructive" size="sm" className="h-8 text-xs">
-            删除
+            {t("common:action.delete")}
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认批量删除</AlertDialogTitle>
+            <AlertDialogTitle>{t("batch.confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              将永久删除已选的 {selectedCount} 项任务，此操作不可撤销。
+              {t("batch.confirmDeleteDesc", { count: selectedCount })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:action.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => void onDelete()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              确认删除
+              {t("batch.confirmDeleteAction")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -137,7 +139,7 @@ export function BatchActionBar({
         className="ml-auto h-8 text-xs"
         onClick={onExit}
       >
-        退出多选
+        {t("batch.exitSelect")}
       </Button>
     </div>
   );

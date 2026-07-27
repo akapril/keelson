@@ -3,6 +3,7 @@
 // 还可手选任意目录（其它 agent/plugin 的计划位置）。
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Dialog,
@@ -76,6 +77,7 @@ export function ImportPlanDialog({
   onClose: () => void;
   project: BoardProject;
 }) {
+  const { t } = useTranslation("board");
   const importPlanTasks = useBoardStore((s) => s.importPlanTasks);
   const repo = project.repo_path ?? "";
   const [files, setFiles] = useState<MdFile[]>([]);
@@ -117,16 +119,16 @@ export function ImportPlanDialog({
   // 手选任意目录（其它 agent/plugin 的计划位置）
   const pickDir = async () => {
     try {
-      const dir = await openDialog({ directory: true, title: "选择计划目录" });
+      const dir = await openDialog({ directory: true, title: t("importPlan.pickDirTitle") });
       if (typeof dir !== "string") return;
       const list = await ipc.listMarkdownFiles(dir).catch(() => [] as MdFile[]);
       if (list.length === 0) {
-        toast.message("该目录下没有 .md 文件");
+        toast.message(t("importPlan.toast.noPlanFiles"));
         return;
       }
       setFiles((prev) => mergeFiles(prev, list));
     } catch (e) {
-      toast.error(`选择目录失败：${String(e)}`);
+      toast.error(t("importPlan.toast.pickDirError", { msg: String(e) }));
     }
   };
 
@@ -144,7 +146,7 @@ export function ImportPlanDialog({
       const specFiles = await scanDirs(repo, SPEC_DIRS).catch(() => [] as MdFile[]);
       setSpecFile(specFiles.find((s) => s.name === specNameForPlan(f.name)) ?? null);
     } catch (e) {
-      toast.error(`读取失败：${String(e)}`);
+      toast.error(t("importPlan.toast.readError", { msg: String(e) }));
       setTasks([]);
     }
   };
@@ -164,15 +166,15 @@ export function ImportPlanDialog({
             title: parseDocTitle(md) || specNameForPlan(sel.name),
             content: md,
           });
-          docMsg = "，spec 已存为文档";
+          docMsg = t("importPlan.toast.specSaved");
         } catch (e) {
-          docMsg = `，spec 存文档失败：${String(e)}`;
+          docMsg = t("importPlan.toast.specError", { msg: String(e) });
         }
       }
-      toast.success(`新建 ${created} 张卡片，跳过 ${skipped} 张已存在${docMsg}`);
+      toast.success(t("importPlan.toast.importSuccess", { created, skipped, docMsg }));
       onClose();
     } catch (e) {
-      toast.error(`导入失败：${String(e)}`);
+      toast.error(t("importPlan.toast.importError", { msg: String(e) }));
     } finally {
       setBusy(false);
     }
@@ -182,27 +184,25 @@ export function ImportPlanDialog({
     <Dialog open={open} onOpenChange={(o) => !o && !busy && onClose()}>
       <DialogContent className="flex max-h-[80vh] w-full max-w-lg flex-col">
         <DialogHeader>
-          <DialogTitle>导入计划到看板</DialogTitle>
+          <DialogTitle>{t("importPlan.title")}</DialogTitle>
           <DialogDescription>
-            扫描主流规格驱动工具的计划目录（superpowers / Spec Kit / Kiro，递归子目录），
-            把 <code className="font-mono">### Task</code> 或 <code className="font-mono">- [ ]</code>
-            复选框任务解析为卡片（幂等，已存在跳过）。也可手选任意目录。
+            {t("importPlan.desc")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex shrink-0 items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
-            共 {files.length} 个计划文件
+            {t("importPlan.fileCount", { count: files.length })}
           </span>
           <Button variant="outline" size="xs" onClick={() => void pickDir()}>
-            选择其它目录…
+            {t("importPlan.pickDir")}
           </Button>
         </div>
 
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto py-1">
           {files.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              未找到计划文件。试试右上「选择其它目录」指向你的计划位置。
+              {t("importPlan.empty")}
             </p>
           ) : (
             files.map((f) => (
@@ -220,7 +220,7 @@ export function ImportPlanDialog({
                 <span className="truncate font-mono text-foreground">{relLabel(f.path)}</span>
                 {sel?.path === f.path && (
                   <span className="ml-2 text-xs text-muted-foreground">
-                    解析出 {tasks.length} 个任务
+                    {t("importPlan.parsedCount", { count: tasks.length })}
                   </span>
                 )}
               </button>
@@ -236,19 +236,19 @@ export function ImportPlanDialog({
               onChange={(e) => setWithSpec(e.target.checked)}
               className="size-3.5 accent-primary"
             />
-            同时把设计 spec（{specNameForPlan(sel.name)}）存为项目文档
+            {t("importPlan.withSpec", { name: specNameForPlan(sel.name) })}
           </label>
         )}
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>
-            取消
+            {t("common:action.cancel")}
           </Button>
           <Button
             onClick={() => void doImport()}
             disabled={busy || !sel || tasks.length === 0}
           >
-            {busy ? "导入中…" : `导入 ${tasks.length} 个任务`}
+            {busy ? t("importPlan.importing") : t("importPlan.importBtn", { count: tasks.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

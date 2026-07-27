@@ -2,6 +2,7 @@
 // 选择目标看板项目（默认匹配 repo_path === session.project_path），
 // 提交时解析该项目首个状态列，调用 createTask 并写入来源溯源字段。
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { useBoardStore } from "@/store/board";
 import type { Session } from "@/types/session";
 import {
@@ -45,6 +46,7 @@ export function CreateTaskFromSessionDialog({
   session,
   onClose,
 }: CreateTaskFromSessionDialogProps) {
+  const { t } = useTranslation("board");
   const projects = useBoardStore((s) => s.projects);
   const loadProjects = useBoardStore((s) => s.loadProjects);
 
@@ -86,11 +88,11 @@ export function CreateTaskFromSessionDialog({
     setError(undefined);
 
     if (!projectId) {
-      setError("请先选择目标项目（可先在会话中枢将其提升为看板项目）");
+      setError(t("fromSession.errors.noProject"));
       return;
     }
     if (!title.trim()) {
-      setError("任务标题不能为空");
+      setError(t("fromSession.errors.emptyTitle"));
       return;
     }
 
@@ -101,7 +103,7 @@ export function CreateTaskFromSessionDialog({
       await store.openProject(projectId);
       const firstState = useBoardStore.getState().states[0];
       if (!firstState) {
-        setError("该项目暂无状态列，无法创建任务");
+        setError(t("fromSession.errors.noStates"));
         setLoading(false);
         return;
       }
@@ -132,7 +134,7 @@ export function CreateTaskFromSessionDialog({
       <DialogContent>
         {/* 标题区 */}
         <DialogHeader>
-          <DialogTitle>从会话建任务</DialogTitle>
+          <DialogTitle>{t("fromSession.title")}</DialogTitle>
         </DialogHeader>
 
         {/* 表单 */}
@@ -140,7 +142,7 @@ export function CreateTaskFromSessionDialog({
           {/* 任务标题（必填，预填自会话提示词） */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="cts-title">
-              任务标题
+              {t("fromSession.fieldTitle")}
               <span className="ml-1 text-destructive">*</span>
             </Label>
             <Input
@@ -149,7 +151,7 @@ export function CreateTaskFromSessionDialog({
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="输入任务标题"
+              placeholder={t("fromSession.titlePlaceholder")}
               disabled={loading}
             />
           </div>
@@ -157,13 +159,13 @@ export function CreateTaskFromSessionDialog({
           {/* 目标项目选择 */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="cts-project">
-              目标项目
+              {t("fromSession.fieldProject")}
               <span className="ml-1 text-destructive">*</span>
             </Label>
             {projects.length === 0 ? (
-              // 无看板项目时保留“先提升为看板项目”提示
+              // 无看板项目时保留"先提升为看板项目"提示
               <p className="text-sm text-muted-foreground">
-                暂无看板项目，请先在会话中枢将其提升为看板项目。
+                {t("fromSession.noProjects")}
               </p>
             ) : (
               <Select
@@ -172,14 +174,14 @@ export function CreateTaskFromSessionDialog({
                 disabled={loading}
               >
                 <SelectTrigger id="cts-project" className="w-full">
-                  <SelectValue placeholder="选择目标项目" />
+                  <SelectValue placeholder={t("fromSession.projectPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
                       {p.repo_path === session.project_path
-                        ? "（匹配仓库）"
+                        ? t("fromSession.repoMatch")
                         : ""}
                     </SelectItem>
                   ))}
@@ -190,7 +192,7 @@ export function CreateTaskFromSessionDialog({
 
           {/* 来源会话信息（只读展示） */}
           <p className="text-xs text-muted-foreground">
-            来源会话：
+            {t("fromSession.sourceLabel")}
             <span className="ml-1 font-mono">{session.provider}</span>
             <span className="ml-1 font-mono">
               {session.session_id.slice(0, 8)}…
@@ -215,10 +217,10 @@ export function CreateTaskFromSessionDialog({
               onClick={onClose}
               disabled={loading}
             >
-              取消
+              {t("common:action.cancel")}
             </Button>
             <Button type="submit" disabled={loading || projects.length === 0}>
-              {loading ? "创建中…" : "创建任务"}
+              {loading ? t("fromSession.creating") : t("fromSession.createBtn")}
             </Button>
           </DialogFooter>
         </form>

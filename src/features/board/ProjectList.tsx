@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useBoardStore } from "../../store/board";
 import { useSessionsStore } from "../../store/sessions";
 import { listAllTasks, listAllStates } from "../../lib/pb/board";
@@ -15,11 +16,11 @@ import type { BoardProject } from "../../types/board";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { StarIcon } from "@hugeicons/core-free-icons";
 
-/** 复制文本到剪贴板 + 反馈 */
-export function copyText(text: string, label: string) {
+/** 复制文本到剪贴板 + 反馈（调用者传入已翻译的 label 和错误文案） */
+export function copyText(text: string, successMsg: string, errorMsg: string) {
   void navigator.clipboard.writeText(text).then(
-    () => toast.success(`已复制${label}`),
-    () => toast.error("复制失败"),
+    () => toast.success(successMsg),
+    () => toast.error(errorMsg),
   );
 }
 
@@ -36,9 +37,9 @@ function repoTail(path?: string): string {
   if (!path) return "";
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
 }
-function fmtDate(iso: string): string {
+function fmtDate(iso: string, locale: string): string {
   try {
-    return new Date(iso).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+    return new Date(iso).toLocaleDateString(locale, { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch {
     return "";
   }
@@ -58,6 +59,7 @@ function ProjectCard({
   /** 无描述时的兜底提示：扫描到的最近会话提示词（「在做什么」） */
   hint?: string;
 }) {
+  const { t, i18n } = useTranslation("board");
   const openProject = useBoardStore((s) => s.openProject);
   const updateProject = useBoardStore((s) => s.updateProject);
   // 收藏切换方法（Task 2 store 提供）
@@ -85,18 +87,18 @@ function ProjectCard({
         </span>
         {project.archived && (
           <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-            已归档
+            {t("project.archived")}
           </span>
         )}
         {/* 收藏星标：已收藏常亮(primary)，未收藏淡显、卡片 hover 才出；点击不触发打开 */}
         <button
           type="button"
-          aria-label={project.pinned ? "取消收藏" : "收藏"}
-          title={project.pinned ? "取消收藏" : "收藏"}
+          aria-label={project.pinned ? t("project.pinBtn.unpin") : t("project.pinBtn.pin")}
+          title={project.pinned ? t("project.pinBtn.unpin") : t("project.pinBtn.pin")}
           onClick={(e) => {
             e.stopPropagation();
             void toggleProjectPin(project.id).catch((err) =>
-              toast.error(`收藏失败：${String(err)}`),
+              toast.error(t("project.toast.pinError", { msg: String(err) })),
             );
           }}
           className={[
@@ -117,10 +119,10 @@ function ProjectCard({
         </p>
       ) : hint ? (
         <p className="line-clamp-2 text-xs italic leading-relaxed text-muted-foreground/80">
-          最近：{hint}
+          {t("project.latestHint", { text: hint })}
         </p>
       ) : (
-        <p className="text-xs italic text-muted-foreground/50">暂无描述</p>
+        <p className="text-xs italic text-muted-foreground/50">{t("project.noDesc")}</p>
       )}
 
       {/* 消歧信息：仓库路径 + 创建日期（同名项目务必显示以区分） */}
@@ -130,9 +132,9 @@ function ProjectCard({
             {duplicate ? project.repo_path : repoTail(project.repo_path)}
           </span>
         ) : (
-          <span className="italic">未绑定仓库</span>
+          <span className="italic">{t("project.noRepo")}</span>
         )}
-        <span className="ml-auto shrink-0">{fmtDate(project.created)}</span>
+        <span className="ml-auto shrink-0">{fmtDate(project.created, i18n.language)}</span>
       </div>
 
       {/* 进度条（完成/总任务） */}
@@ -147,11 +149,9 @@ function ProjectCard({
 
       {/* 计数：任务 done/total · 文档 · 会话 */}
       <div className="flex items-center gap-3 text-[11px] text-muted-foreground tabular-nums">
-        <span>
-          任务 {done}/{total}
-        </span>
-        <span>文档 {stat?.docs ?? 0}</span>
-        <span>会话 {stat?.sessions ?? 0}</span>
+        <span>{t("project.taskCount", { done, total })}</span>
+        <span>{t("project.docCount", { count: stat?.docs ?? 0 })}</span>
+        <span>{t("project.sessionCount", { count: stat?.sessions ?? 0 })}</span>
       </div>
     </div>
   );
@@ -160,31 +160,35 @@ function ProjectCard({
     <ContextMenu>
       <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={handleOpen}>打开项目</ContextMenuItem>
+        <ContextMenuItem onSelect={handleOpen}>{t("project.ctxMenu.open")}</ContextMenuItem>
         {project.repo_path && (
-          <ContextMenuItem onSelect={() => copyText(project.repo_path!, "仓库路径")}>
-            复制仓库路径
+          <ContextMenuItem onSelect={() => copyText(
+            project.repo_path!,
+            t("project.toast.copySuccess", { label: t("projectSheet.fieldRepo") }),
+            t("common:state.error"),
+          )}>
+            {t("project.ctxMenu.copyRepoPath")}
           </ContextMenuItem>
         )}
         {/* 收藏/取消收藏：文案随当前状态切换 */}
         <ContextMenuItem
           onSelect={() =>
             void toggleProjectPin(project.id).catch((e) =>
-              toast.error(`收藏失败：${String(e)}`),
+              toast.error(t("project.toast.pinError", { msg: String(e) })),
             )
           }
         >
-          {project.pinned ? "取消收藏" : "收藏"}
+          {project.pinned ? t("project.ctxMenu.unpin") : t("project.ctxMenu.pin")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={() =>
             void updateProject(project.id, { archived: !project.archived }).catch(
-              (e) => toast.error(`操作失败：${String(e)}`),
+              (e) => toast.error(t("project.toast.archiveError", { msg: String(e) })),
             )
           }
         >
-          {project.archived ? "取消归档" : "归档"}
+          {project.archived ? t("project.ctxMenu.unarchive") : t("project.ctxMenu.archive")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -193,6 +197,7 @@ function ProjectCard({
 
 // ── 项目列表组件 ────────────────────────────────────────────────
 export function ProjectList({ showArchived = false }: { showArchived?: boolean }) {
+  const { t } = useTranslation("board");
   const allProjects = useBoardStore((s) => s.projects);
   const loading = useBoardStore((s) => s.loading);
   const error = useBoardStore((s) => s.error);
@@ -271,7 +276,7 @@ export function ProjectList({ showArchived = false }: { showArchived?: boolean }
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-        加载中…
+        {t("common:state.loading")}
       </div>
     );
   }
@@ -290,11 +295,11 @@ export function ProjectList({ showArchived = false }: { showArchived?: boolean }
     const allArchived = allProjects.length > 0;
     return (
       <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
-        <span>{allArchived ? "当前无进行中的项目" : "暂无项目"}</span>
+        <span>{allArchived ? t("project.list.allArchived") : t("project.list.empty")}</span>
         <span className="text-xs">
           {allArchived
-            ? "已有项目均已归档，点右上「显示归档」查看"
-            : "点击“新建项目”创建第一个看板"}
+            ? t("project.list.allArchivedHint")
+            : t("project.list.emptyHint")}
         </span>
       </div>
     );

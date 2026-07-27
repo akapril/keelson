@@ -2,6 +2,7 @@
 // UX 参照 workavera 的 todo-card-sheet，但去除 assignees / 关联文档 / 活动记录；数据一律走 useBoardStore。
 // 本组件不直接调用 invoke 或 pb.collection。
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Delete02Icon, AiChat02Icon } from "@hugeicons/core-free-icons";
@@ -62,6 +63,7 @@ interface TaskSheetProps {
  * 父组件通过 open 控制显隐；关闭（onOpenChange → false）或保存成功后调用 onClose。
  */
 export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps) {
+  const { t } = useTranslation("board");
   const states = useBoardStore((s) => s.states);
   const labels = useBoardStore((s) => s.labels);
 
@@ -119,7 +121,7 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
   // ── 提交（新建 / 编辑），错误内联展示 ───────────────────
   async function handleSave() {
     if (!title.trim()) {
-      setError("任务标题不能为空");
+      setError(t("task.titleRequired"));
       return;
     }
     setError(undefined);
@@ -139,7 +141,7 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
         // 新建模式：project 取自当前打开的项目（守卫非空）
         const openedProjectId = useBoardStore.getState().openedProjectId;
         if (!openedProjectId) {
-          setError("尚未打开任何项目");
+          setError(t("task.noOpenProject"));
           setSaving(false);
           return;
         }
@@ -188,7 +190,7 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
       <SheetContent side="right" className="w-full gap-0 sm:max-w-lg">
         {/* 头部标题 */}
         <SheetHeader className="border-b border-border">
-          <SheetTitle>{mode === "edit" ? "编辑任务" : "新建任务"}</SheetTitle>
+          <SheetTitle>{mode === "edit" ? t("sheet.titleEdit") : t("sheet.titleCreate")}</SheetTitle>
         </SheetHeader>
 
         {/* 表单主体（可滚动） */}
@@ -196,14 +198,14 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
           {/* 标题（必填） */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="ts-title">
-              标题
+              {t("sheet.fieldTitle")}
               <span className="text-destructive">*</span>
             </Label>
             <Input
               id="ts-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="输入任务标题"
+              placeholder={t("sheet.titlePlaceholder")}
               disabled={saving}
             />
           </div>
@@ -211,14 +213,14 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
           {/* 描述（可选，支持 markdown；可切换预览） */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="ts-desc">描述</Label>
+              <Label htmlFor="ts-desc">{t("sheet.fieldDesc")}</Label>
               {description.trim() && (
                 <button
                   type="button"
                   onClick={() => setDescPreview((v) => !v)}
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
-                  {descPreview ? "编辑" : "预览"}
+                  {descPreview ? t("sheet.descEdit") : t("sheet.descPreview")}
                 </button>
               )}
             </div>
@@ -232,7 +234,7 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
                 id="ts-desc"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="补充任务细节（支持 markdown）"
+                placeholder={t("sheet.descPlaceholder")}
                 rows={4}
                 disabled={saving}
               />
@@ -248,7 +250,7 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
                 className="self-start"
               >
                 <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} />
-                AI 拆解为子任务
+                {t("sheet.aiBreakdown")}
               </Button>
             )}
           </div>
@@ -256,14 +258,14 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
           {/* 状态 + 优先级（两列） */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-2">
-              <Label>状态</Label>
+              <Label>{t("sheet.fieldState")}</Label>
               <Select
                 value={state}
                 onValueChange={setState}
                 disabled={saving}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择状态" />
+                  <SelectValue placeholder={t("sheet.statePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {states.map((st) => (
@@ -281,7 +283,7 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label>优先级</Label>
+              <Label>{t("sheet.fieldPriority")}</Label>
               <Select
                 value={priority}
                 onValueChange={(v) => setPriority(v as TaskPriority)}
@@ -300,7 +302,7 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
                           PRIORITY_META[p].dot,
                         )}
                       />
-                      {PRIORITY_META[p].label}
+                      {t(`meta.priority.${p}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -310,9 +312,9 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
 
           {/* 标签多选（芯片按标签自身颜色着色） */}
           <div className="flex flex-col gap-2">
-            <Label>标签</Label>
+            <Label>{t("sheet.fieldLabels")}</Label>
             {labels.length === 0 ? (
-              <p className="text-sm text-muted-foreground">暂无可用标签</p>
+              <p className="text-sm text-muted-foreground">{t("sheet.noLabels")}</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {labels.map((l) => {
@@ -350,11 +352,11 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
 
           {/* 截止日期（可选，使用日历选择器） */}
           <div className="flex flex-col gap-2">
-            <Label>截止日期</Label>
+            <Label>{t("sheet.fieldDueDate")}</Label>
             <DatePicker
               value={dueDate}
               onChange={setDueDate}
-              placeholder="选择日期"
+              placeholder={t("sheet.datePlaceholder")}
               disabled={saving}
             />
           </div>
@@ -382,7 +384,7 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
               className="text-destructive hover:text-destructive"
             >
               <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
-              删除
+              {t("sheet.deleteBtn")}
             </Button>
           ) : (
             <span />
@@ -390,10 +392,10 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
 
           <div className="flex gap-2">
             <Button variant="outline" disabled={saving} onClick={onClose}>
-              取消
+              {t("common:action.cancel")}
             </Button>
             <Button disabled={!canSave} onClick={() => void handleSave()}>
-              {saving ? "保存中…" : mode === "edit" ? "保存" : "创建"}
+              {saving ? t("sheet.saving") : mode === "edit" ? t("common:action.save") : t("sheet.creating")}
             </Button>
           </div>
         </SheetFooter>
@@ -403,18 +405,18 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除任务？</AlertDialogTitle>
+            <AlertDialogTitle>{t("sheet.confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              将从看板永久移除「{task?.title}」，此操作无法撤销。
+              {t("sheet.confirmDeleteDesc", { title: task?.title ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:action.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => void handleDelete()}
             >
-              删除
+              {t("common:action.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

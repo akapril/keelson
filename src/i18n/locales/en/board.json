@@ -1,0 +1,429 @@
+{
+  "meta": {
+    "priority": {
+      "none": "None",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "stateCategory": {
+      "pending": "Pending",
+      "active": "In Progress",
+      "completed": "Completed"
+    }
+  },
+  "task": {
+    "archived": "Archived",
+    "sourceSession": "Source",
+    "sourceSessionCli": "↻Session",
+    "sourceSessionAriaLabel": "Go to source session",
+    "sourceSessionTitle": "Source session: {{id}}",
+    "sourceSessionCliTitle": "CLI-synced task, source session: {{id}}",
+    "addTask": "+ Add task",
+    "titleRequired": "Task title cannot be empty",
+    "noOpenProject": "No project is open",
+    "toast": {
+      "priorityError": "Failed to change priority: {{msg}}",
+      "moveError": "Move failed: {{msg}}",
+      "deleteSuccess": "Task deleted",
+      "deleteError": "Delete failed: {{msg}}",
+      "archiveError": "Action failed: {{msg}}"
+    },
+    "ctxMenu": {
+      "select": "Select",
+      "edit": "Edit",
+      "priority": "Priority",
+      "current": "Current",
+      "moveTo": "Move to",
+      "noStates": "No states available",
+      "gotoSource": "Go to source session",
+      "addToInjectSet": "Add to CLI inject set",
+      "removeFromInjectSet": "Remove from CLI inject set",
+      "archive": "Archive",
+      "unarchive": "Unarchive"
+    }
+  },
+  "sheet": {
+    "titleCreate": "New task",
+    "titleEdit": "Edit task",
+    "fieldTitle": "Title",
+    "fieldDesc": "Description",
+    "fieldState": "State",
+    "fieldPriority": "Priority",
+    "fieldLabels": "Labels",
+    "fieldDueDate": "Due date",
+    "noLabels": "No labels available",
+    "descPreview": "Preview",
+    "descEdit": "Edit",
+    "descPlaceholder": "Add task details (Markdown supported)",
+    "titlePlaceholder": "Enter task title",
+    "statePlaceholder": "Select state",
+    "datePlaceholder": "Select date",
+    "aiBreakdown": "AI breakdown into subtasks",
+    "saving": "Saving…",
+    "creating": "Create",
+    "deleteBtn": "Delete",
+    "confirmDeleteTitle": "Delete task?",
+    "confirmDeleteDesc": "\"{{title}}\" will be permanently removed from the board. This cannot be undone."
+  },
+  "breakdown": {
+    "dialogTitle": "AI Task Breakdown",
+    "dialogDesc": "Break into actionable subtasks, then select which to create in the same state column (with source reference).",
+    "loading": "Breaking down…",
+    "noApiKey": "AI service not configured (add an API Key in Settings)",
+    "empty": "No subtasks generated.",
+    "createBtn": "Create {{count}} subtasks",
+    "creating": "Creating…",
+    "sourceRef": "↳ Broken down from \"{{title}}\"",
+    "toast": {
+      "created": "Created {{count}} subtasks"
+    }
+  },
+  "batch": {
+    "selectedCount": "{{count}} selected",
+    "movePlaceholder": "Move to…",
+    "priorityPlaceholder": "Priority…",
+    "exitSelect": "Exit multi-select",
+    "confirmDeleteTitle": "Confirm bulk delete",
+    "confirmDeleteDesc": "{{count}} selected tasks will be permanently deleted. This cannot be undone.",
+    "confirmDeleteAction": "Delete",
+    "toast": {
+      "movePartial": "Bulk move partially failed ({{ok}}/{{total}} succeeded)",
+      "moveSuccess": "Moved {{count}} tasks to \"{{state}}\"",
+      "priorityPartial": "Bulk priority change partially failed ({{ok}}/{{total}} succeeded)",
+      "prioritySuccess": "Set priority to \"{{priority}}\" for {{count}} tasks",
+      "deletePartial": "Bulk delete partially failed ({{ok}}/{{total}} succeeded)",
+      "deleteSuccess": "Deleted {{count}} tasks"
+    }
+  },
+  "column": {
+    "archiveAllTitle": "Archive all completed tasks in this column",
+    "archiveAllAriaLabel": "Archive all tasks in \"{{name}}\"",
+    "addTaskAriaLabel": "Add task to \"{{name}}\""
+  },
+  "board": {
+    "searchPlaceholder": "Search tasks (title + description)…",
+    "filterLabel": "Labels",
+    "filterLabelWithCount": "Labels ({{count}})",
+    "filterByLabel": "Filter by label",
+    "filterPriority": "Priority",
+    "filterAllPriority": "All priorities",
+    "clearFilter": "Clear",
+    "showArchived": "Show archived ({{count}})",
+    "hideArchived": "Hide archived",
+    "noStates": "This project has no state columns — open \"Project Settings\" to add one",
+    "autoArchiveToast": "Auto-archived {{count}} tasks completed more than {{days}} days ago",
+    "archiveColumnOk": "Archived {{count}} tasks",
+    "archiveColumnErr": "{{count}} tasks failed to archive",
+    "inject": {
+      "btn": "Inject to CLI",
+      "menuLabel": "Inject tasks to CLI",
+      "set": "Inject selected (inject set)",
+      "all": "Inject all custom tasks",
+      "clear": "Clear inject block",
+      "btnTitle": "Write custom tasks to the managed block in CLAUDE.md/AGENTS.md so CLI sessions can see them (CLI-synced tasks are excluded)",
+      "noRepoError": "This project has no repo path — bind a repo in Project Settings first",
+      "emptySet": "Inject set is empty — right-click a custom task to \"Add to CLI inject set\"",
+      "emptyAll": "No custom tasks to inject",
+      "clearSuccess": "Cleared CLI inject block (CLAUDE.md / AGENTS.md)",
+      "clearError": "Clear failed: {{msg}}",
+      "injectSuccess": "Injected {{count}} tasks to {{files}} files (CLAUDE.md / AGENTS.md)",
+      "injectError": "Inject failed: {{msg}}"
+    }
+  },
+  "project": {
+    "archived": "Archived",
+    "active": "Active",
+    "noDesc": "No description",
+    "latestHint": "Recent: {{text}}",
+    "noRepo": "No repo bound",
+    "taskCount": "Tasks {{done}}/{{total}}",
+    "docCount": "Docs {{count}}",
+    "sessionCount": "Sessions {{count}}",
+    "ctxMenu": {
+      "open": "Open project",
+      "copyRepoPath": "Copy repo path",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "archive": "Archive",
+      "unarchive": "Unarchive"
+    },
+    "pinBtn": {
+      "pin": "Pin",
+      "unpin": "Unpin"
+    },
+    "toast": {
+      "pinError": "Pin failed: {{msg}}",
+      "archiveError": "Action failed: {{msg}}",
+      "copySuccess": "Copied {{label}}"
+    },
+    "list": {
+      "allArchived": "No active projects",
+      "empty": "No projects yet",
+      "allArchivedHint": "All projects are archived — click \"Show archived\" in the top right",
+      "emptyHint": "Click \"New project\" to create your first board"
+    }
+  },
+  "createProject": {
+    "title": "New project",
+    "desc": "Fill in project details and select a template.",
+    "fieldName": "Project name",
+    "fieldDesc": "Description",
+    "fieldDescOptional": "(optional)",
+    "fieldRepo": "Repo path",
+    "fieldRepoOptional": "(optional)",
+    "fieldTemplate": "Template",
+    "namePlaceholder": "Enter project name",
+    "descPlaceholder": "Brief description of the project",
+    "repoPlaceholder": "/path/to/repo or leave empty",
+    "duplicateNameHint": "A project with this name already exists. Consider binding a repo path to distinguish them.",
+    "noTemplates": "No templates available",
+    "templatePlaceholder": "Select a template",
+    "templatePickDir": "Select project repo directory",
+    "browseBtn": "Browse",
+    "creating": "Creating…",
+    "templateLabel": {
+      "labelCount": "Labels {{count}}",
+      "taskCount": "Starter tasks {{count}}",
+      "starterDocs": "Starter docs: {{titles}}"
+    },
+    "templateSelectPlaceholder": "Select a template",
+    "errors": {
+      "noTemplate": "Please select a template",
+      "emptyName": "Project name cannot be empty"
+    }
+  },
+  "promote": {
+    "title": "Promote to board project",
+    "fieldName": "Project name",
+    "fieldRepo": "Repo path",
+    "fieldRepoHint": "(from session project)",
+    "fieldTemplate": "Template",
+    "namePlaceholder": "Enter project name",
+    "templatePlaceholder": "Select template",
+    "loadingTemplates": "Loading templates…",
+    "promoting": "Promoting…",
+    "promote": "Promote",
+    "existingTitle": "This repo is already promoted to project \"{{name}}\".",
+    "existingHint": "One repo maps to one project to avoid duplicates. Sessions will still be linked to this project.",
+    "openExisting": "Open \"{{name}}\"",
+    "errors": {
+      "noTemplate": "Please select a template",
+      "emptyName": "Project name cannot be empty"
+    }
+  },
+  "fromSession": {
+    "title": "Create task from session",
+    "fieldTitle": "Task title",
+    "fieldProject": "Target project",
+    "titlePlaceholder": "Enter task title",
+    "projectPlaceholder": "Select target project",
+    "repoMatch": "(repo match)",
+    "sourceLabel": "Source session:",
+    "noProjects": "No board projects yet — promote a session project to a board project first.",
+    "creating": "Creating…",
+    "createBtn": "Create task",
+    "errors": {
+      "noProject": "Select a target project first (promote a session project to a board project first)",
+      "emptyTitle": "Task title cannot be empty",
+      "noStates": "This project has no state columns — create one first"
+    }
+  },
+  "workspace": {
+    "backAriaLabel": "Back",
+    "openPath": "Open location",
+    "importPlan": "Import plan",
+    "projectSettings": "Project settings",
+    "tabs": {
+      "overview": "Overview",
+      "sessions": "Sessions",
+      "commits": "Commits",
+      "board": "Board",
+      "docs": "Docs",
+      "processes": "Processes",
+      "activity": "Activity",
+      "ai": "AI"
+    },
+    "toast": {
+      "openPathError": "Failed to open location: {{msg}}"
+    },
+    "overview": {
+      "statTaskTotal": "Total tasks",
+      "projectInfo": "Project info",
+      "noDescription": "No project description.",
+      "fieldRepo": "Repo path",
+      "fieldRepoMissing": "Not bound (session / git links unavailable)",
+      "fieldTasks": "Tasks",
+      "fieldTasksUnit": "{{count}}",
+      "fieldDocs": "Docs",
+      "fieldDocsUnit": "{{count}}",
+      "fieldLinkedSessions": "Linked sessions",
+      "fieldLinkedSessionsUnit": "{{count}}",
+      "fieldStatesLabels": "States / Labels",
+      "fieldCreated": "Created",
+      "fieldUpdated": "Last updated",
+      "upcomingTitle": "Upcoming deadlines",
+      "eventsTitle": "Upcoming events"
+    },
+    "noRepo": "This project has no repo path — fill in repo_path in \"Project Settings\" to link local sessions.",
+    "noRepoCommits": "This project has no repo path."
+  },
+  "projectSheet": {
+    "title": "Project settings",
+    "desc": "Edit basic info, state columns, and labels.",
+    "noProject": "No project is open.",
+    "basicInfo": "Basic info",
+    "fieldName": "Name",
+    "fieldDesc": "Description",
+    "fieldRepo": "Repo path",
+    "namePlaceholder": "Project name",
+    "descPlaceholder": "Project description (optional — click \"AI generate\" to auto-summarize)",
+    "aiGenerate": "AI generate",
+    "aiGenerating": "Generating…",
+    "archived": "Archived",
+    "archivedHint": "(archived projects are hidden from the board list)",
+    "deleteProject": "Delete project",
+    "deleteNeedArchive": "Archive the project first before deleting (to prevent accidental deletion).",
+    "statesSection": "State columns",
+    "labelsSection": "Labels",
+    "statePlaceholder": "State name",
+    "newStatePlaceholder": "New state name",
+    "labelPlaceholder": "Label name",
+    "newLabelPlaceholder": "New label name",
+    "addBtn": "Add",
+    "stateColorAriaLabel": "{{name}} color",
+    "newStateColorAriaLabel": "New state color",
+    "labelColorAriaLabel": "{{name}} color",
+    "newLabelColorAriaLabel": "New label color",
+    "moveUpAriaLabel": "Move up",
+    "moveDownAriaLabel": "Move down",
+    "deleteStateAriaLabel": "Delete state",
+    "deleteLabelAriaLabel": "Delete label {{name}}",
+    "deleteLabelTitle": "Delete label?",
+    "deleteLabelDesc": "Label {{name}} will be removed from this project and unlinked from any tasks using it.",
+    "deleteLabelAction": "Delete label",
+    "deleteProjectTitle": "Delete project \"{{name}}\"?",
+    "deleteProjectDesc1": "This will permanently delete the project, its tasks, state columns, and labels. This cannot be undone.",
+    "deleteProjectDesc2": "Local repo files, git history, and session records will not be deleted. Linked docs will only be unlinked by default.",
+    "deleteProjectDocs": "Also delete this project's docs",
+    "deleteProjectDocsHint": "Only docs that belong exclusively to this project will be deleted; docs shared with other projects will only be unlinked.",
+    "deleteProjectAction": "Delete project",
+    "deleting": "Deleting…",
+    "toast": {
+      "aiGenerateSuccess": "Description generated by AI",
+      "aiGenerateError": "AI generation failed: {{msg}}",
+      "noAiKey": "AI service not configured (add an API Key in Settings, or switch to a local CLI provider)"
+    }
+  },
+  "importPlan": {
+    "title": "Import plan to board",
+    "desc": "Scans common spec-driven tool directories (superpowers / Spec Kit / Kiro, recursive), parsing ### Task or - [ ] checkbox tasks into cards (idempotent — existing cards are skipped). You can also select a custom directory.",
+    "fileCount": "{{count}} plan files found",
+    "pickDir": "Select other directory…",
+    "empty": "No plan files found. Try \"Select other directory\" to point to your plan location.",
+    "parsedCount": "{{count}} tasks parsed",
+    "withSpec": "Also save design spec ({{name}}) as a project doc",
+    "importing": "Importing…",
+    "importBtn": "Import {{count}} tasks",
+    "pickDirTitle": "Select plan directory",
+    "toast": {
+      "noPlanFiles": "No .md files found in this directory",
+      "pickDirError": "Failed to select directory: {{msg}}",
+      "readError": "Read failed: {{msg}}",
+      "importSuccess": "Created {{created}} cards, skipped {{skipped}} existing{{docMsg}}",
+      "specSaved": ", spec saved as doc",
+      "specError": ", failed to save spec as doc: {{msg}}",
+      "importError": "Import failed: {{msg}}"
+    }
+  },
+  "sessions": {
+    "linkedCount": "{{count}} linked sessions",
+    "noRepo": "This project has no repo path — bind a repo in \"Project Settings\" to create or link local CLI sessions.",
+    "empty": "This project has no linked local sessions.",
+    "emptyHint": "Start one below — it will launch a CLI session in this project directory and appear here automatically.",
+    "newClaude": "+ Claude session",
+    "newCodex": "+ Codex session",
+    "toast": {
+      "startSuccess": "Started {{provider}} session in terminal (will appear here after a conversation)",
+      "startError": "Start failed: {{msg}}"
+    }
+  },
+  "commits": {
+    "loading": "Loading commits…",
+    "empty": "No commits in the last 30 days (or this path is not a git repo).",
+    "hook": {
+      "enabled": "🎯 Session tracing enabled",
+      "disabled": "When enabled, new commits in this repo will automatically include a Rework-Session trailer (for precise session linking)",
+      "foreignHook": "(will coexist with existing prepare-commit-msg hook)",
+      "enableBtn": "Enable session tracing",
+      "disableBtn": "Disable",
+      "toast": {
+        "enabled": "Enabled: future commits will automatically include the session trailer",
+        "disabled": "Session tracing disabled",
+        "error": "Action failed: {{msg}}"
+      }
+    },
+    "trailerFrom": "🎯 From session:",
+    "maybeFrom": "🕐 Possibly from:",
+    "noLinked": "No linked session",
+    "sessionTitle": "Go to session ({{kind}})",
+    "kindTrailer": "precise",
+    "kindWindow": "possibly related"
+  },
+  "activity": {
+    "loading": "Loading activity history…",
+    "empty": "No activity yet — actions by external AI (claude / codex) via MCP on this project will appear here in real time.",
+    "sessionBtn": "Session",
+    "sessionBtnTitle": "View session",
+    "actionLabel": {
+      "write": "Write",
+      "read": "Read",
+      "run": "Run",
+      "search": "Search"
+    },
+    "statusError": "Error"
+  },
+  "processes": {
+    "globalDesc": "{{count}} managed processes (across all projects). To start a new process, go to a specific project's \"Processes\" tab.",
+    "refreshBtn": "Refresh",
+    "cleanBtn": "Clean stopped/exited",
+    "startPlaceholder": "Start a process in this project directory, e.g. npm run dev / cargo run",
+    "startBtn": "Start",
+    "startBtnRefreshTitle": "Refresh process list now",
+    "loading": "Loading…",
+    "emptyGlobal": "No processes managed by Keelson.",
+    "emptyProject": "No processes managed for this project. Start one above, or let Claude Code start a long-running process to auto-manage.",
+    "running": "Running",
+    "restartBtn": "Restart",
+    "stopBtn": "Stop",
+    "removeBtn": "Remove",
+    "sessionBadge": "↻ From session",
+    "sessionBadgeTitle": "Started from session {{id}}, click to view",
+    "selectProcess": "Select a process on the left to view logs",
+    "logHeader": "{{name}} · Last {{count}} log entries",
+    "noLogs": "No logs yet.",
+    "toast": {
+      "stop": "Stopped {{name}}",
+      "restart": "Restarted {{name}}",
+      "remove": "Removed {{name}}",
+      "error": "Action failed: {{msg}}",
+      "cleanSuccess": "Cleaned {{processes}} stopped/exited records · {{logs}} old log files",
+      "cleanError": "Cleanup failed: {{msg}}",
+      "startSuccess": "Started: {{cmd}}",
+      "startError": "Start failed: {{msg}}"
+    }
+  },
+  "git": {
+    "uncommitted": "{{count}} uncommitted"
+  },
+  "autoSync": {
+    "toast": {
+      "synced": "Auto-synced {{count}} new tasks to board"
+    }
+  },
+  "syncError": {
+    "noStates": "This project has no state columns — create one first"
+  },
+  "taskFallbackTitle": "Task {{id}}"
+}

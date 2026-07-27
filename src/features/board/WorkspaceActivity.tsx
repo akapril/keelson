@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Virtualizer } from "virtua";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Activity03Icon,
@@ -26,18 +27,18 @@ const ACTION_ICON: Record<ActivityAction, typeof Edit02Icon> = {
   search: Search01Icon,
 };
 
-// 动作 → 中文标签
-const ACTION_LABEL: Record<ActivityAction, string> = {
-  write: "写入",
-  read: "读取",
-  run: "执行",
-  search: "检索",
+// 动作标签键（渲染时通过 t() 翻译）
+const ACTION_LABEL_KEY: Record<ActivityAction, string> = {
+  write: "activity.actionLabel.write",
+  read: "activity.actionLabel.read",
+  run: "activity.actionLabel.run",
+  search: "activity.actionLabel.search",
 };
 
-function fmtTime(iso: string): string {
+function fmtTime(iso: string, locale: string): string {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleString("zh-CN", {
+    return new Date(iso).toLocaleString(locale, {
       month: "2-digit",
       day: "2-digit",
       hour: "2-digit",
@@ -58,6 +59,7 @@ export function mergeEvents(persisted: ActivityEvent[], live: ActivityEvent[]): 
 }
 
 export function WorkspaceActivity({ projectId }: { projectId: string }) {
+  const { t, i18n } = useTranslation("board");
   const navigate = useNavigate();
   const [persisted, setPersisted] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +94,7 @@ export function WorkspaceActivity({ projectId }: { projectId: string }) {
   if (loading && merged.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        加载活动历史…
+        {t("activity.loading")}
       </div>
     );
   }
@@ -101,7 +103,7 @@ export function WorkspaceActivity({ projectId }: { projectId: string }) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
         <HugeiconsIcon icon={Activity03Icon} strokeWidth={1.5} className="size-8 opacity-50" />
-        <span className="text-sm">暂无活动 —— 外部 AI（claude / codex）经 MCP 操作本项目时会实时出现在这里。</span>
+        <span className="text-sm">{t("activity.empty")}</span>
       </div>
     );
   }
@@ -127,11 +129,11 @@ export function WorkspaceActivity({ projectId }: { projectId: string }) {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-foreground">{ev.summary}</div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                  <span className="rounded bg-muted px-1">{ACTION_LABEL[ev.action] ?? ev.action}</span>
+                  <span className="rounded bg-muted px-1">{t(ACTION_LABEL_KEY[ev.action] ?? ev.action)}</span>
                   <span className="rounded bg-muted px-1">{ev.tool}</span>
                   {ev.provider && <span>{ev.provider}</span>}
-                  {ev.status === "error" && <span className="text-destructive">失败</span>}
-                  <span>{fmtTime(ev.ts)}</span>
+                  {ev.status === "error" && <span className="text-destructive">{t("activity.statusError")}</span>}
+                  <span>{fmtTime(ev.ts, i18n.language)}</span>
                 </div>
               </div>
               {ev.session_id && (
@@ -139,9 +141,9 @@ export function WorkspaceActivity({ projectId }: { projectId: string }) {
                   type="button"
                   onClick={() => navigate("/sessions")}
                   className="shrink-0 self-start rounded px-1.5 py-0.5 text-[11px] text-primary hover:bg-accent"
-                  title="查看会话"
+                  title={t("activity.sessionBtnTitle")}
                 >
-                  会话
+                  {t("activity.sessionBtn")}
                 </button>
               )}
             </li>

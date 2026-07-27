@@ -2,6 +2,7 @@
 // 勾选后在同项目同状态列创建（看板无父子字段，作为兄弟任务，描述标注来源任务）。
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import {
   Dialog,
@@ -33,6 +34,7 @@ export function TaskBreakdownDialog({
   onClose: () => void;
   onCreated?: () => void;
 }) {
+  const { t } = useTranslation("board");
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string | null>(null);
   const [subs, setSubs] = useState<TaskCandidate[]>([]);
@@ -47,7 +49,7 @@ export function TaskBreakdownDialog({
       const cfg = useSettingsStore.getState().aiConfig;
       if (!cfg.api_key) {
         if (!cancelled) {
-          setError("尚未配置 AI 服务（请在设置页填写 API Key）");
+          setError(t("breakdown.noApiKey"));
           setPhase("error");
         }
         return;
@@ -91,19 +93,19 @@ export function TaskBreakdownDialog({
     setError(null);
     try {
       const chosen = [...sel].map((i) => subs[i]);
-      for (const s of chosen) {
-        const desc = [s.description?.trim(), `↳ 拆解自「${task.title}」`]
+      for (const sub of chosen) {
+        const desc = [sub.description?.trim(), t("breakdown.sourceRef", { title: task.title })]
           .filter(Boolean)
           .join("\n");
         await useBoardStore.getState().createTask({
           project: task.project,
           state: task.state,
-          title: s.title,
+          title: sub.title,
           description: desc,
-          priority: s.priority,
+          priority: sub.priority,
         });
       }
-      toast.success(`已创建 ${chosen.length} 个子任务`);
+      toast.success(t("breakdown.toast.created", { count: chosen.length }));
       onCreated?.();
       onClose();
     } catch (e) {
@@ -116,14 +118,14 @@ export function TaskBreakdownDialog({
     <Dialog open={!!task} onOpenChange={(o) => !o && phase !== "committing" && onClose()}>
       <DialogContent className="flex max-h-[80vh] w-full max-w-lg flex-col">
         <DialogHeader>
-          <DialogTitle>AI 拆解任务</DialogTitle>
+          <DialogTitle>{t("breakdown.dialogTitle")}</DialogTitle>
           <DialogDescription>
-            拆成可执行子任务，勾选后在同一状态列创建（标注来源任务）。
+            {t("breakdown.dialogDesc")}
           </DialogDescription>
         </DialogHeader>
 
         {phase === "loading" && (
-          <div className="py-10 text-center text-sm text-muted-foreground">正在拆解…</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">{t("breakdown.loading")}</div>
         )}
         {phase === "error" && (
           <div className="py-10 text-center text-sm text-destructive">{error}</div>
@@ -134,7 +136,7 @@ export function TaskBreakdownDialog({
             <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto py-1">
               {subs.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  未生成子任务。
+                  {t("breakdown.empty")}
                 </p>
               ) : (
                 subs.map((s, i) => (
@@ -168,13 +170,13 @@ export function TaskBreakdownDialog({
             {error && <p className="shrink-0 text-xs text-destructive">{error}</p>}
             <DialogFooter>
               <Button variant="outline" onClick={onClose} disabled={phase === "committing"}>
-                取消
+                {t("common:action.cancel")}
               </Button>
               <Button
                 onClick={() => void commit()}
                 disabled={phase === "committing" || sel.size === 0}
               >
-                {phase === "committing" ? "创建中…" : `创建 ${sel.size} 个子任务`}
+                {phase === "committing" ? t("breakdown.creating") : t("breakdown.createBtn", { count: sel.size })}
               </Button>
             </DialogFooter>
           </>

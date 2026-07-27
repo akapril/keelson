@@ -12,6 +12,7 @@ import { COL } from "@/lib/pb/collections";
 import { currentUserId } from "@/lib/pb";
 import { nextRank } from "@/store/board-rank";
 import type { BoardTask, BoardState, StateCategory } from "@/types/board";
+import i18n from "../../i18n";
 
 /** 会话任务状态 → 看板状态类别。 */
 function categoryOf(status: string): StateCategory {
@@ -50,7 +51,7 @@ export async function syncSessionTasks(
     listStates(projectId),
     listTasks(projectId),
   ]);
-  if (states.length === 0) throw new Error("该项目没有状态列，无法同步");
+  if (states.length === 0) throw new Error(i18n.t("syncError.noStates", { ns: "board" }));
 
   // 某类别的目标状态列：优先同类别，退回 pending，再退回首列
   const stateOfCat = (cat: StateCategory): BoardState =>
@@ -87,7 +88,7 @@ export async function syncSessionTasks(
       await createRecord<BoardTask>(COL.boardTasks, {
         project: projectId,
         state: target.id,
-        title: t.subject || `任务 ${t.id}`,
+        title: t.subject || i18n.t("taskFallbackTitle", { ns: "board", id: t.id }),
         description: t.description || undefined,
         priority: "none",
         rank,
