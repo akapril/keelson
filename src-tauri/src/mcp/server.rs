@@ -398,7 +398,7 @@ impl ReworkMcpHandler {
             .app
             .notification()
             .builder()
-            .title("rework")
+            .title("Keelson")
             .body(&text)
             .show();
     }
