@@ -1,0 +1,50 @@
+{
+  "page": {
+    "title": "{{month}} {{year}}",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "today": "Today",
+    "create": "New",
+    "loading": "Loading…",
+    "weekdays": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  },
+  "event": {
+    "contextEdit": "Edit",
+    "contextDelete": "Delete",
+    "taskTooltip": "Task: {{title}} (drag to reschedule)"
+  },
+  "dialog": {
+    "titleCreate": "New Event",
+    "titleEdit": "Edit Event",
+    "fieldTitle": "Title",
+    "fieldTitlePlaceholder": "Event title",
+    "fieldStart": "Start date",
+    "fieldEnd": "End date",
+    "fieldAllDay": "All day",
+    "fieldColor": "Color",
+    "fieldRepeat": "Repeat",
+    "fieldRepeatInterval": "Repeat interval",
+    "fieldRepeatEvery": "Every",
+    "fieldRepeatUnitDay": "day(s)",
+    "fieldRepeatUnitWeek": "week(s)",
+    "fieldRepeatUnitMonth": "month(s)",
+    "fieldRepeatUnitYear": "year(s)",
+    "fieldProject": "Link project (optional)",
+    "fieldProjectNone": "None",
+    "fieldDesc": "Description",
+    "fieldDescPlaceholder": "Additional notes (optional)"
+  },
+  "repeat": {
+    "none": "No repeat",
+    "daily": "Every N days",
+    "weekly": "Every N weeks",
+    "monthly": "Every N months",
+    "yearly": "Every N years"
+  },
+  "toast": {
+    "createError": "Create failed: {{msg}}",
+    "updateError": "Update failed: {{msg}}",
+    "deleteError": "Delete failed: {{msg}}",
+    "moveError": "Move failed: {{msg}}"
+  }
+}
