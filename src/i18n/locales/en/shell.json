@@ -243,12 +243,14 @@
       "btnTitle": "Insert prompt (from library)",
       "btnAriaLabel": "Insert prompt",
       "dialogTitle": "Insert Prompt",
-      "searchPlaceholder": "Search prompts…"
+      "searchPlaceholder": "Search prompts…",
+      "empty": "No prompts. Go to <1>prompt library</1> to create one."
     }
   },
   "report": {
     "title": "Work Report",
     "description": "Summarize commits, completed tasks and session activity over a period — AI generates a shareable work report.",
+    "goToSettings": "Go to Settings",
     "rangeLabel": "Time range",
     "rangeThisWeek": "This week",
     "rangeLastWeek": "Last week",

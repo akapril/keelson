@@ -26,8 +26,7 @@ export function UpdateSection() {
       <div>
         <h2 className="text-sm font-medium">{t("updater.title")}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {/* 说明文字保留中文注释风格，正文已迁移 */}
-          启动时会自动检查更新；发现新版本时头部会显示红点提示。也可在此手动检查。
+          {t("updater.desc")}
         </p>
       </div>
 

@@ -148,6 +148,7 @@
   },
   "distill": {
     "title": "AI 提炼沉淀",
+    "dialogDesc": "从此会话提炼可留存的任务与文档，勾选后写入所选项目（任务带来源回链）。",
     "loadingText": "正在提炼会话内容…",
     "errorFallback": "无法提炼",
     "noAiService": "尚未配置 AI 服务（请在设置页填写 API Key，或改用本地 CLI provider）",

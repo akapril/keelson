@@ -171,6 +171,7 @@
   },
   "updater": {
     "title": "软件更新",
+    "desc": "启动时会自动检查更新；发现新版本时头部会显示红点提示。也可在此手动检查。",
     "checkBtn": "检查更新",
     "checking": "检查中…",
     "installBtn": "下载 v{{version}} 并重启",

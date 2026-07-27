@@ -148,6 +148,7 @@
   },
   "distill": {
     "title": "AI Distill & Settle",
+    "dialogDesc": "Distill reusable tasks and docs from this session; check the items you want and they will be written to the selected project (tasks include a source backlink).",
     "loadingText": "Extracting session content…",
     "errorFallback": "Unable to extract",
     "noAiService": "AI service not configured (add an API Key in Settings, or use local CLI provider)",

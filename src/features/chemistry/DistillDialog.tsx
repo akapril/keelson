@@ -195,8 +195,7 @@ export function DistillDialog({
         <DialogHeader>
           <DialogTitle>{t("distill.title")}</DialogTitle>
           <DialogDescription>
-            {/* 说明文案保留原意 */}
-            从此会话提炼可留存的任务与文档，勾选后写入所选项目（任务带来源回链）。
+            {t("distill.dialogDesc")}
           </DialogDescription>
         </DialogHeader>
 

@@ -243,12 +243,14 @@
       "btnTitle": "插入指令（指令库）",
       "btnAriaLabel": "插入指令",
       "dialogTitle": "插入指令",
-      "searchPlaceholder": "搜索指令…"
+      "searchPlaceholder": "搜索指令…",
+      "empty": "无指令。去 <1>指令库</1> 新建。"
     }
   },
   "report": {
     "title": "工作报告",
     "description": "汇总一段时间的提交、完成任务与会话活动，AI 生成可分享的工作报告。",
+    "goToSettings": "去设置",
     "rangeLabel": "时间范围",
     "rangeThisWeek": "本周",
     "rangeLastWeek": "上周",

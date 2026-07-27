@@ -3,7 +3,7 @@
 //   输入框 onKeyDown 先调 pi.onKeyDown(e)，返回 true 说明已被斜杠浮层消费；
 //   把输入框包在 relative 容器里渲染 {pi.overlay}；旁边放 {pi.button}。
 import { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CommandIcon } from "@hugeicons/core-free-icons";
@@ -176,15 +176,19 @@ export function usePromptInsert({
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto py-1">
             {filteredPicker.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                无指令。去{" "}
-                <Link
-                  to="/prompts"
-                  className="text-primary hover:underline"
-                  onClick={() => setPickerOpen(false)}
-                >
-                  指令库
-                </Link>{" "}
-                新建。
+                <Trans
+                  i18nKey="prompts.insert.empty"
+                  ns="shell"
+                  components={{
+                    1: (
+                      <Link
+                        to="/prompts"
+                        className="text-primary hover:underline"
+                        onClick={() => setPickerOpen(false)}
+                      />
+                    ),
+                  }}
+                />
               </p>
             ) : (
               filteredPicker.map((p) => (

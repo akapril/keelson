@@ -154,7 +154,7 @@
   },
   "backend": {
     "title": "Backend / Remote PocketBase",
-    "desc": "By default, the built-in local PocketBase is used (no login required). Enter a remote URL to connect to a remote instance with email/password login,",
+    "desc": "By default, the built-in local PocketBase is used (no login required). Enter a remote URL to connect to a remote instance with email/password login, enabling multi-device sharing. A reload is required to take effect.",
     "urlLabel": "Remote PocketBase URL",
     "applyBtn": "Apply & Reload",
     "switchLocalBtn": "Switch to local",
@@ -171,6 +171,7 @@
   },
   "updater": {
     "title": "Software Updates",
+    "desc": "Updates are checked automatically at startup; a red dot appears in the header when a new version is found. You can also check manually here.",
     "checkBtn": "Check for updates",
     "checking": "Checking…",
     "installBtn": "Download v{{version}} and restart",
