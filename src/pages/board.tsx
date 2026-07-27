@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon } from "@hugeicons/core-free-icons";
@@ -17,6 +18,7 @@ import { ProjectWorkspace } from "@/features/board/ProjectWorkspace";
  * 支持 ?open=<projectId> 深链接（来自会话中枢「提升为看板项目」/ 卡片跳转）。
  */
 export default function Board() {
+  const { t } = useTranslation("board");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   // 是否显示已归档项目（默认隐藏，让列表清爽；删除归档项目时切开来找）
   const [showArchived, setShowArchived] = useState(false);
@@ -52,9 +54,9 @@ export default function Board() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
       <div className="mb-6 flex shrink-0 items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold">项目</h1>
+          <h1 className="text-lg font-semibold">{t("page.title")}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            每个项目 = 它的会话、看板、文档与 git，集中在一处工作台。
+            {t("page.description")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -66,12 +68,12 @@ export default function Board() {
               aria-pressed={showArchived}
               className={showArchived ? "text-primary" : "text-muted-foreground"}
             >
-              {showArchived ? "隐藏归档" : `显示归档（${archivedCount}）`}
+              {showArchived ? t("page.hideArchived") : t("page.showArchived", { count: archivedCount })}
             </Button>
           )}
           <Button onClick={() => setShowCreateDialog(true)}>
             <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-            新建项目
+            {t("createProject.title")}
           </Button>
         </div>
       </div>

@@ -2,6 +2,7 @@
 // （与全局 /docs 统一同一套专业写作体验：斜杠菜单 / KaTeX / AI / 大纲 TOC）。
 // 保留：新建（挂当前项目）、从文档建任务、删除。标题/正文/所属项目编辑均在全页完成。
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, File01Icon } from "@hugeicons/core-free-icons";
@@ -38,6 +39,8 @@ export function DocsPanel({
   /** 深链接定位的文档 id（来自 ⌘K 文档搜索）；加载后自动跳到全页编辑器。 */
   initialDocId?: string;
 }) {
+  const { t } = useTranslation("board");
+  const { t: tCommon } = useTranslation("common");
   const navigate = useNavigate();
   const docs = useDocsStore((s) => s.docs);
   const loading = useDocsStore((s) => s.loading);
@@ -59,10 +62,10 @@ export function DocsPanel({
 
   async function handleCreate() {
     try {
-      const doc = await useDocsStore.getState().createDoc(projectId, "未命名文档");
+      const doc = await useDocsStore.getState().createDoc(projectId, t("docsPanel.fallbackTitle"));
       navigate(`/docs/${doc.id}`);
     } catch (e) {
-      toast.error(`创建失败：${String(e)}`);
+      toast.error(t("docsPanel.toast.createError", { msg: String(e) }));
     }
   }
 
@@ -70,7 +73,7 @@ export function DocsPanel({
     try {
       await useDocsStore.getState().deleteDoc(id);
     } catch (e) {
-      toast.error(`删除失败：${String(e)}`);
+      toast.error(t("docsPanel.toast.deleteError", { msg: String(e) }));
     }
   }
 
@@ -78,42 +81,44 @@ export function DocsPanel({
   async function handleCreateTask(doc: BoardDoc) {
     const first = useBoardStore.getState().states[0];
     if (!first) {
-      toast.error("该项目暂无状态列，无法创建任务");
+      toast.error(t("docsPanel.toast.noStates"));
       return;
     }
     try {
       await useBoardStore.getState().createTask({
         project: projectId,
         state: first.id,
-        title: doc.title || "未命名文档",
+        title: doc.title || t("docsPanel.fallbackTitle"),
         description: doc.content.slice(0, 500) || undefined,
       });
-      toast.success("已从文档创建任务");
+      toast.success(t("docsPanel.toast.createTaskSuccess"));
     } catch (e) {
-      toast.error(`创建任务失败：${String(e)}`);
+      toast.error(t("docsPanel.toast.createTaskError", { msg: String(e) }));
     }
   }
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col gap-3">
       <div className="flex shrink-0 items-center justify-between">
-        <span className="text-xs text-muted-foreground">{docs.length} 篇文档</span>
+        <span className="text-xs text-muted-foreground">
+          {t("docsPanel.count", { count: docs.length })}
+        </span>
         <Button size="sm" variant="outline" onClick={() => void handleCreate()}>
           <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-          新建文档
+          {tCommon("action.create")}
         </Button>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
         {loading && docs.length === 0 ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">加载中…</p>
+          <p className="py-10 text-center text-sm text-muted-foreground">{t("docsPanel.loading")}</p>
         ) : docs.length === 0 ? (
           <button
             type="button"
             onClick={() => void handleCreate()}
             className="rounded-xl border border-dashed py-10 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
           >
-            + 新建第一篇文档
+            + {tCommon("action.create")}
           </button>
         ) : (
           docs.map((doc) => (
@@ -131,7 +136,7 @@ export function DocsPanel({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-foreground">
-                      {doc.title || "未命名文档"}
+                      {doc.title || t("docsPanel.fallbackTitle")}
                     </span>
                     {doc.content && (
                       <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
@@ -143,7 +148,7 @@ export function DocsPanel({
               </ContextMenuTrigger>
               <ContextMenuContent>
                 <ContextMenuItem onSelect={() => navigate(`/docs/${doc.id}`)}>
-                  打开
+                  {tCommon("action.edit")}
                 </ContextMenuItem>
                 <ContextMenuItem onSelect={() => void openDocWindow(doc.id, doc.title)}>
                   在新窗口打开
@@ -153,7 +158,7 @@ export function DocsPanel({
                 </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem variant="destructive" onSelect={() => setPendingDelete(doc)}>
-                  删除
+                  {tCommon("action.delete")}
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
@@ -168,13 +173,13 @@ export function DocsPanel({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除此文档？</AlertDialogTitle>
+            <AlertDialogTitle>{t("docsPanel.confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              「{pendingDelete?.title || "未命名文档"}」将被永久删除，无法恢复。
+              {t("docsPanel.confirmDeleteDesc", { title: pendingDelete?.title || t("docsPanel.fallbackTitle") })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("docsPanel.confirmDeleteCancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
@@ -182,7 +187,7 @@ export function DocsPanel({
                 setPendingDelete(null);
               }}
             >
-              删除
+              {tCommon("action.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

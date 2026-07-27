@@ -151,5 +151,48 @@
       "MCP": "MCP (external agent actions)",
       "Loop": "Loop (inbox recurring tasks)"
     }
+  },
+  "backend": {
+    "title": "Backend / Remote PocketBase",
+    "desc": "By default, the built-in local PocketBase is used (no login required). Enter a remote URL to connect to a remote instance with email/password login,",
+    "urlLabel": "Remote PocketBase URL",
+    "applyBtn": "Apply & Reload",
+    "switchLocalBtn": "Switch to local",
+    "openDirBtn": "Open data directory",
+    "currentLabel": "Current: ",
+    "localLabel": "Local built-in",
+    "dataDir": "Local data directory (pb_data)",
+    "note": "Note (minimal): Session metadata sync still writes to local PB; Board / Docs / Reading / Calendar / Notifications and other data use the selected backend.",
+    "toast": {
+      "switchRemote": "Switched to remote PocketBase, reloading…",
+      "switchLocal": "Switched back to local, reloading…",
+      "openDirError": "Failed to open data directory: {{msg}}"
+    }
+  },
+  "updater": {
+    "title": "Software Updates",
+    "checkBtn": "Check for updates",
+    "checking": "Checking…",
+    "installBtn": "Download v{{version}} and restart",
+    "installing": "Installing…",
+    "newVersion": "New version v{{version}} found",
+    "upToDate": "You're up to date (or update source not configured).",
+    "checkError": "Check failed: {{error}}",
+    "toast": {
+      "loading": "Downloading and installing update…",
+      "error": "Update failed: {{error}}"
+    }
+  },
+  "export": {
+    "title": "Data Export",
+    "desc": "JSON is a full backup; Markdown is human-readable / archivable.",
+    "exportJson": "Export JSON",
+    "exportMd": "Export Markdown",
+    "exporting": "Exporting…",
+    "toast": {
+      "empty": "No projects to export",
+      "success": "Exported {{count}} projects (board + docs)",
+      "error": "Export failed: {{msg}}"
+    }
   }
 }

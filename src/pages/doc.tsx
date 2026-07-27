@@ -1,6 +1,7 @@
 // 全页文档编辑器 /docs/:id —— 专业写作页：标题 + Milkdown(斜杠菜单/KaTeX/AI) + 右侧大纲 TOC。
 // /docs 列表与项目「文档」标签点开均跳此页；改动防抖自动保存；所属项目多选(0..N)。
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -57,23 +58,24 @@ import type { BoardProject } from "@/types/board";
 // 独立窗口控制按钮（最小化 / 最大化-还原 / 关闭）——无原生边框时替代原生按钮。
 // 内联 SVG，零图标依赖；不放进拖拽区（按钮自身可点，周围空白仍可拖拽）。
 function WindowControls() {
+  const { t } = useTranslation("shell");
   const btn =
     "inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
   return (
     <div className="ml-1 flex items-center gap-0.5">
-      <button type="button" aria-label="最小化" className={btn} onClick={() => void minimizeThisWindow()}>
+      <button type="button" aria-label={t("doc.ariaMinimize")} className={btn} onClick={() => void minimizeThisWindow()}>
         <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
           <line x1="0" y1="5.5" x2="10" y2="5.5" stroke="currentColor" strokeWidth="1" />
         </svg>
       </button>
-      <button type="button" aria-label="最大化 / 还原" className={btn} onClick={() => void toggleMaximizeThisWindow()}>
+      <button type="button" aria-label={t("doc.ariaMaximize")} className={btn} onClick={() => void toggleMaximizeThisWindow()}>
         <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
           <rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1" />
         </svg>
       </button>
       <button
         type="button"
-        aria-label="关闭"
+        aria-label={t("doc.ariaClose")}
         className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-white"
         onClick={() => void closeThisWindow()}
       >
@@ -87,6 +89,8 @@ function WindowControls() {
 }
 
 export default function DocPage({ windowMode = false }: { windowMode?: boolean }) {
+  const { t } = useTranslation("shell");
+  const { t: tCommon } = useTranslation("common");
   const { id = "" } = useParams();
   const navigate = useNavigate();
 
@@ -133,15 +137,15 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
   useEffect(() => {
     if (loadState !== "ready") return;
     if (title === savedRef.current.title && content === savedRef.current.content) return;
-    const t = setTimeout(() => {
-      void updateDocRecord(id, { title: title.trim() || "未命名文档", content })
+    const timer = setTimeout(() => {
+      void updateDocRecord(id, { title: title.trim() || t("doc.fallbackTitle"), content })
         .then((updated) => {
           savedRef.current = { title: updated.title, content: updated.content };
         })
-        .catch((e) => toast.error(`保存失败：${String(e)}`));
+        .catch((e) => toast.error(t("doc.toast.saveError", { msg: String(e) })));
     }, 700);
-    return () => clearTimeout(t);
-  }, [title, content, id, loadState]);
+    return () => clearTimeout(timer);
+  }, [title, content, id, loadState, t]);
 
   // 切换文档与某项目的链接（可挂多个、也可全解绑变游离档）
   const toggleProject = (pid: string) => {
@@ -150,7 +154,7 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
       : [...projectIds, pid];
     setProjectIds(next);
     void updateDocRecord(id, { projects: next }).catch((e) =>
-      toast.error(`更新归属失败：${String(e)}`),
+      toast.error(t("doc.toast.linkError", { msg: String(e) })),
     );
   };
 
@@ -160,7 +164,7 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
       if (windowMode) void closeThisWindow();
       else navigate("/docs");
     } catch (e) {
-      toast.error(`删除失败：${String(e)}`);
+      toast.error(t("doc.toast.deleteError", { msg: String(e) }));
     }
   };
 
@@ -222,20 +226,20 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
   if (loadState === "loading") {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        加载文档中…
+        {tCommon("state.loading")}
       </div>
     );
   }
   if (loadState === "missing" || !doc) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-        <span>文档不存在或已被删除。</span>
+        <span>{t("doc.notFound")}</span>
         <Button
           variant="outline"
           size="sm"
           onClick={() => (windowMode ? void closeThisWindow() : navigate("/docs"))}
         >
-          {windowMode ? "关闭窗口" : "返回文档列表"}
+          {windowMode ? t("doc.closeWindow") : t("doc.backToList")}
         </Button>
       </div>
     );
@@ -255,7 +259,7 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
             variant="ghost"
             size="icon-sm"
             onClick={() => navigate(-1)}
-            aria-label="返回"
+            aria-label={t("doc.ariaBack")}
           >
             <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
           </Button>
@@ -263,7 +267,7 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="文档标题"
+          placeholder={t("doc.titlePlaceholder")}
           className="h-9 flex-1 border-0 bg-transparent px-1 text-base font-semibold shadow-none focus-visible:ring-0"
         />
         {/* 新窗口打开（仅主窗口内；独立窗口里自身即窗口，不再显示） */}
@@ -271,8 +275,8 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="在新窗口打开"
-            title="在独立窗口打开"
+            aria-label={t("doc.ariaNewWindow")}
+            title={t("doc.titleNewWindow")}
             onClick={() => void openDocWindow(id, title)}
           >
             <HugeiconsIcon icon={LinkSquare02Icon} strokeWidth={2} />
@@ -283,13 +287,15 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground">
               <HugeiconsIcon icon={FolderOpenIcon} strokeWidth={2} />
-              {projectIds.length === 0 ? "未归类" : `${projectIds.length} 个项目`}
+              {projectIds.length === 0
+                ? t("doc.noProject")
+                : t("doc.projectCount", { count: projectIds.length })}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
-            <DropdownMenuLabel>链接到项目（可不选=未归类）</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("doc.linkProject")}</DropdownMenuLabel>
             {projects.length === 0 ? (
-              <p className="px-2 py-1.5 text-xs text-muted-foreground">暂无项目</p>
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("doc.noProjects")}</p>
             ) : (
               projects.map((p) => (
                 <DropdownMenuCheckboxItem
@@ -309,7 +315,7 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
             <Button
               size="icon-sm"
               variant="ghost"
-              aria-label="删除文档"
+              aria-label={t("doc.ariaDelete")}
               className="text-muted-foreground hover:text-destructive"
             >
               <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
@@ -317,15 +323,15 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>删除此文档？</AlertDialogTitle>
+              <AlertDialogTitle>{t("doc.confirmDeleteTitle")}</AlertDialogTitle>
               <AlertDialogDescription>
-                「{title || "未命名文档"}」将被永久删除，无法恢复。
+                {t("doc.confirmDeleteDesc", { title: title || t("doc.fallbackTitle") })}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogCancel>{t("doc.confirmDeleteCancel")}</AlertDialogCancel>
               <AlertDialogAction variant="destructive" onClick={() => void handleDelete()}>
-                删除
+                {tCommon("action.delete")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -342,7 +348,7 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
               key={pid}
               className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
             >
-              {projectName.get(pid) ?? "未知项目"}
+              {projectName.get(pid) ?? t("doc.unknownProject")}
             </span>
           ))}
         </div>
@@ -371,7 +377,8 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
               <div>
                 <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   <HugeiconsIcon icon={ListViewIcon} strokeWidth={2} className="size-3.5" />
-                  大纲
+                  {/* 大纲标题不需要翻译（短的功能词，英文下依然清晰） */}
+                  TOC
                 </div>
                 <ul className="flex flex-col gap-0.5">
                   {headings.map((h) => (
@@ -395,7 +402,7 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
             {outLinks.length > 0 && (
               <div>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  出链 · [[…]]
+                  {t("doc.outLinks")}
                 </div>
                 <ul className="flex flex-col gap-0.5">
                   {outLinks.map((l, i) =>
@@ -414,9 +421,9 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
                       <li
                         key={`${l.target}-${i}`}
                         className="truncate px-2 py-1 text-xs text-muted-foreground/50"
-                        title="未找到同名文档"
+                        title={t("doc.outLinkMissingTitle")}
                       >
-                        {l.target}（未创建）
+                        {l.target}{t("doc.outLinkMissing")}
                       </li>
                     ),
                   )}
@@ -428,7 +435,7 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
             {backLinks.length > 0 && (
               <div>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  反向链接（{backLinks.length}）
+                  {t("doc.backLinks", { count: backLinks.length })}
                 </div>
                 <ul className="flex flex-col gap-0.5">
                   {backLinks.map((d) => (
@@ -439,7 +446,7 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
                         className="block w-full truncate rounded-md px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         title={d.title}
                       >
-                        {d.title || "未命名文档"}
+                        {d.title || t("doc.fallbackTitle")}
                       </button>
                     </li>
                   ))}

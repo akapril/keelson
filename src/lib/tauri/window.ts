@@ -1,5 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import i18n from "@/i18n";
 export const thisWindowLabel = () => getCurrentWindow().label;
 export const hideThisWindow = () => getCurrentWindow().hide();
 export const showThisWindow = () => getCurrentWindow().show();
@@ -20,7 +21,7 @@ export async function openDocWindow(id: string, title?: string): Promise<void> {
   }
   const win = new WebviewWindow(label, {
     url: `index.html#/doc-window/${id}`,
-    title: title ? `${title} — Keelson` : "Keelson 文档",
+    title: title ? `${title} — Keelson` : i18n.t("app.docWindowTitle", { ns: "shell" }),
     width: 900,
     height: 720,
     minWidth: 480,

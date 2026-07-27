@@ -1,11 +1,13 @@
 // SpotlightInput.tsx — 搜索输入框，挂载时及窗口每次获得焦点时自动聚焦
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SearchIcon } from "@hugeicons/core-free-icons";
 import { useSpotlightStore } from "../../store/spotlight";
 
 export function SpotlightInput() {
+  const { t } = useTranslation("shell");
   const query = useSpotlightStore((s) => s.query);
   const setQuery = useSpotlightStore((s) => s.setQuery);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -58,7 +60,7 @@ export function SpotlightInput() {
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜索会话，↵ 恢复 · Tab 切换模式"
+        placeholder={t("spotlight.inputPlaceholder")}
         autoComplete="off"
         spellCheck={false}
         className="w-full border-none bg-transparent text-lg text-foreground caret-primary outline-none placeholder:text-muted-foreground/70"

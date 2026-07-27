@@ -6,6 +6,7 @@ import { generateReport, type ReportScope } from "@/features/report/generateRepo
 import type { DateRange } from "@/features/report/report-range";
 import type { AiConfig } from "@/types/ai";
 import { useNotificationsStore } from "./notifications";
+import i18n from "@/i18n";
 
 export type ReportJobStatus = "idle" | "running" | "done" | "error";
 
@@ -48,7 +49,7 @@ export const useReportJobStore = create<ReportJobState>((set, get) => ({
         void useNotificationsStore
           .getState()
           .add({
-            title: "工作报告已生成",
+            title: i18n.t("notif.reportDone", { ns: "shell" }),
             body: range.label,
             kind: "success",
             source: "工作报告",
@@ -62,7 +63,7 @@ export const useReportJobStore = create<ReportJobState>((set, get) => ({
         void useNotificationsStore
           .getState()
           .add({
-            title: "工作报告生成失败",
+            title: i18n.t("notif.reportError", { ns: "shell" }),
             body: msg.slice(0, 120),
             kind: "error",
             source: "工作报告",

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { useSessionsStore } from "../store/sessions";
 import { useSessionMetaStore } from "../store/session-meta";
@@ -13,6 +14,7 @@ import type { Session } from "../types/session";
  * 挂载时同时加载会话列表和收藏/笔记 meta 数据。
  */
 export default function Sessions() {
+  const { t } = useTranslation("shell");
   // 当前预览的会话
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const sessions = useSessionsStore((s) => s.sessions);
@@ -40,7 +42,7 @@ export default function Sessions() {
     <div className="flex h-full min-h-0 gap-0 overflow-hidden">
       {/* 左侧：会话列表（固定宽度，可滚动） */}
       <aside className="flex w-80 shrink-0 flex-col border-r border-border p-4">
-        <h1 className="mb-4 shrink-0 text-base font-semibold">会话中枢</h1>
+        <h1 className="mb-4 shrink-0 text-base font-semibold">{t("sessions.pageTitle")}</h1>
         <div className="min-h-0 flex-1">
           <SessionListView
             selectedId={selectedSession?.session_id ?? null}

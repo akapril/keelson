@@ -1,5 +1,6 @@
 // 设置页「数据导出」区：一键把看板 + 文档导出为 JSON（备份）或 Markdown（可读）。
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { save } from "@tauri-apps/plugin-dialog";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -47,6 +48,7 @@ function stamp(now: Date): string {
 }
 
 export function ExportSection() {
+  const { t } = useTranslation("settings");
   const [busy, setBusy] = useState<null | "json" | "md">(null);
 
   async function run(format: "json" | "md") {
@@ -57,7 +59,7 @@ export function ExportSection() {
       const bundle = await gatherExport(now.toISOString());
       const projectCount = bundle.projects.length;
       if (projectCount === 0) {
-        toast.info("暂无项目可导出");
+        toast.info(t("export.toast.empty"));
         return;
       }
       const saved =
@@ -75,10 +77,10 @@ export function ExportSection() {
               "md",
             );
       if (saved) {
-        toast.success(`已导出 ${projectCount} 个项目的看板与文档`);
+        toast.success(t("export.toast.success", { count: projectCount }));
       }
     } catch (e) {
-      toast.error(`导出失败：${String(e)}`);
+      toast.error(t("export.toast.error", { msg: String(e) }));
     } finally {
       setBusy(null);
     }
@@ -87,10 +89,9 @@ export function ExportSection() {
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-sm font-medium">数据导出</h2>
+        <h2 className="text-sm font-medium">{t("export.title")}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          导出全部项目的看板与文档（会话记录已存在于本地文件，无需导出）。
-          JSON 为完整备份，Markdown 便于阅读/归档。
+          {t("export.desc")}
         </p>
       </div>
 
@@ -102,7 +103,7 @@ export function ExportSection() {
           onClick={() => void run("json")}
         >
           <HugeiconsIcon icon={Download04Icon} strokeWidth={2} />
-          {busy === "json" ? "导出中…" : "导出 JSON"}
+          {busy === "json" ? t("export.exporting") : t("export.exportJson")}
         </Button>
         <Button
           variant="outline"
@@ -111,7 +112,7 @@ export function ExportSection() {
           onClick={() => void run("md")}
         >
           <HugeiconsIcon icon={Download04Icon} strokeWidth={2} />
-          {busy === "md" ? "导出中…" : "导出 Markdown"}
+          {busy === "md" ? t("export.exporting") : t("export.exportMd")}
         </Button>
       </div>
     </section>

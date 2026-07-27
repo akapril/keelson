@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { ThemeProvider } from "./components/theme-provider";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/sonner";
@@ -11,6 +12,7 @@ import { LoginScreen } from "./features/auth/LoginScreen";
 import { TitleBar } from "./components/title-bar";
 
 export default function App() {
+  const { t } = useTranslation("shell");
   const { ready, authed, error, init } = useAuthStore();
 
   useEffect(() => {
@@ -49,11 +51,11 @@ export default function App() {
                   <div className="space-y-2 text-center">
                     {error ? (
                       <>
-                        <div className="text-destructive">错误</div>
+                        <div className="text-destructive">{t("app.error")}</div>
                         <div className="text-sm text-muted-foreground">{error}</div>
                       </>
                     ) : (
-                      <div className="text-sm text-muted-foreground">启动中…</div>
+                      <div className="text-sm text-muted-foreground">{t("app.loading")}</div>
                     )}
                   </div>
                 </div>

@@ -56,8 +56,9 @@ export function AppHeader() {
     "/usage": t("header.usageTitle"),
     "/inbox": t("header.inboxTitle"),
   };
-  const currentTitle =
-    currentNav?.title ?? EXTRA_TITLES[location.pathname] ?? "Keelson";
+  const currentTitle = currentNav
+    ? t(currentNav.titleKey)
+    : EXTRA_TITLES[location.pathname] ?? "Keelson";
   const initials = (user?.name?.charAt(0) ?? "U").toUpperCase();
 
   return (
@@ -73,11 +74,11 @@ export function AppHeader() {
           <BreadcrumbItem>
             <BreadcrumbPage>{currentTitle}</BreadcrumbPage>
           </BreadcrumbItem>
-          {currentNav?.description && (
+          {currentNav?.descriptionKey && (
             <>
               <BreadcrumbSeparator className="hidden sm:block" />
               <BreadcrumbItem className="hidden text-muted-foreground sm:block">
-                {currentNav.description}
+                {t(currentNav.descriptionKey)}
               </BreadcrumbItem>
             </>
           )}

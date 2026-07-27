@@ -435,5 +435,26 @@
   "syncError": {
     "noStates": "该项目没有状态列，无法同步"
   },
-  "taskFallbackTitle": "任务 {{id}}"
+  "taskFallbackTitle": "任务 {{id}}",
+  "page": {
+    "title": "项目",
+    "description": "每个项目 = 它的会话、看板、文档与 git，集中在一处工作台。",
+    "showArchived": "显示归档（{{count}}）",
+    "hideArchived": "隐藏归档"
+  },
+  "docsPanel": {
+    "count": "{{count}} 篇文档",
+    "loading": "加载中…",
+    "fallbackTitle": "未命名文档",
+    "confirmDeleteTitle": "删除此文档？",
+    "confirmDeleteDesc": "「{{title}}」将被永久删除，无法恢复。",
+    "confirmDeleteCancel": "取消",
+    "toast": {
+      "createError": "创建失败：{{msg}}",
+      "deleteError": "删除失败：{{msg}}",
+      "noStates": "该项目暂无状态列，无法创建任务",
+      "createTaskSuccess": "已从文档创建任务",
+      "createTaskError": "创建任务失败：{{msg}}"
+    }
+  }
 }

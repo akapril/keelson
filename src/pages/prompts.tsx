@@ -1,6 +1,7 @@
 // 指令库 —— 可复用 prompt/片段的管理：搜索 + 标签筛选 + 增删改 + 复制。
 // 插入到会话/AI 面板由 PromptPicker（按钮）与斜杠补全负责（见 features/prompts）。
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -13,7 +14,7 @@ import {
   deletePromptRecord,
 } from "@/lib/pb/prompts";
 import { currentUserId } from "@/lib/pb";
-import { splitTags, promptType, PROMPT_TYPE_LABEL } from "@/features/prompts/prompt-utils";
+import { splitTags, promptType } from "@/features/prompts/prompt-utils";
 import { ensureDefaultPromptsSeeded } from "@/features/prompts/seed-defaults";
 import { PromptEditDialog } from "@/features/prompts/PromptEditDialog";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,8 @@ import {
 import type { Prompt } from "@/types/prompt";
 
 export default function PromptsPage() {
+  const { t } = useTranslation("shell");
+  const { t: tCommon } = useTranslation("common");
   const [searchParams] = useSearchParams();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +67,7 @@ export default function PromptsPage() {
 
   const allTags = useMemo(() => {
     const s = new Set<string>();
-    for (const p of prompts) for (const t of splitTags(p.tags)) s.add(t);
+    for (const p of prompts) for (const tg of splitTags(p.tags)) s.add(tg);
     return [...s].sort();
   }, [prompts]);
 
@@ -100,43 +103,43 @@ export default function PromptsPage() {
     try {
       await deletePromptRecord(p.id);
     } catch (e) {
-      toast.error(`删除失败：${String(e)}`);
+      toast.error(t("prompts.toast.deleteError", { msg: String(e) }));
       load();
     }
   };
 
   const copy = (p: Prompt) =>
     void navigator.clipboard.writeText(p.content).then(
-      () => toast.success("已复制指令"),
-      () => toast.error("复制失败"),
+      () => toast.success(t("prompts.toast.copySuccess")),
+      () => toast.error(t("prompts.toast.copyError")),
     );
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col gap-4 p-6">
       <header className="flex shrink-0 items-start justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold">指令库</h1>
+          <h1 className="text-lg font-semibold">{t("prompts.title")}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            可复用 prompt：<b>片段</b>（会话/AI 面板插入，支持 {`{{project}}`} 变量）与
-            <b>报告模板</b>（工作报告的格式）。
+            {t("prompts.description")}<b>{t("prompts.descSnippet")}</b>{t("prompts.descSnippetDetail")}
+            {t("prompts.descReport")}<b>{t("prompts.descReport")}</b>{t("prompts.descReportDetail")}
           </p>
         </div>
         <Button size="sm" onClick={() => setEditing(null)}>
           <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-          新建指令
+          {t("prompts.edit.titleCreate")}
         </Button>
       </header>
 
       <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜索指令（标题 + 正文）…"
+        placeholder={t("prompts.searchPlaceholder")}
         className="shrink-0"
       />
 
       {/* 类型筛选：全部 / 片段 / 报告模板 */}
       <div className="flex shrink-0 gap-1.5">
-        {([["all", "全部"], ["snippet", PROMPT_TYPE_LABEL.snippet], ["report", PROMPT_TYPE_LABEL.report]] as const).map(
+        {([["all", t("prompts.filterAll")], ["snippet", t("prompts.typeSnippet")], ["report", t("prompts.typeReport")]] as const).map(
           ([k, label]) => (
             <button
               key={k}
@@ -165,18 +168,18 @@ export default function PromptsPage() {
               tag === null ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"
             }`}
           >
-            全部
+            {t("prompts.filterAll")}
           </button>
-          {allTags.map((t) => (
+          {allTags.map((tg) => (
             <button
-              key={t}
+              key={tg}
               type="button"
-              onClick={() => setTag(t)}
+              onClick={() => setTag(tg)}
               className={`rounded-full px-2.5 py-0.5 text-xs transition-colors ${
-                tag === t ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"
+                tag === tg ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"
               }`}
             >
-              {t}
+              {tg}
             </button>
           ))}
         </div>
@@ -184,10 +187,10 @@ export default function PromptsPage() {
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
         {loading ? (
-          <p className="py-16 text-center text-sm text-muted-foreground">加载中…</p>
+          <p className="py-16 text-center text-sm text-muted-foreground">{t("prompts.loading")}</p>
         ) : visible.length === 0 ? (
           <p className="py-16 text-center text-sm text-muted-foreground">
-            {prompts.length === 0 ? "还没有指令，点右上「新建指令」开始。" : "没有匹配的指令。"}
+            {prompts.length === 0 ? t("prompts.empty") : t("prompts.noMatch")}
           </p>
         ) : (
           visible.map((p) => (
@@ -203,7 +206,7 @@ export default function PromptsPage() {
                         : "bg-muted text-muted-foreground",
                     )}
                   >
-                    {PROMPT_TYPE_LABEL[promptType(p)]}
+                    {promptType(p) === "snippet" ? t("prompts.typeSnippet") : t("prompts.typeReport")}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                     {p.title}
@@ -211,10 +214,10 @@ export default function PromptsPage() {
                 </span>
                 <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   <Button size="xs" variant="ghost" onClick={() => copy(p)}>
-                    复制
+                    {tCommon("action.copy")}
                   </Button>
                   <Button size="xs" variant="ghost" onClick={() => setEditing(p)}>
-                    编辑
+                    {tCommon("action.edit")}
                   </Button>
                   <Button
                     size="xs"
@@ -222,7 +225,7 @@ export default function PromptsPage() {
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => setPendingDelete(p)}
                   >
-                    删除
+                    {tCommon("action.delete")}
                   </Button>
                 </div>
               </div>
@@ -231,9 +234,9 @@ export default function PromptsPage() {
               </p>
               {splitTags(p.tags).length > 0 && (
                 <div className="mt-1.5 flex flex-wrap gap-1">
-                  {splitTags(p.tags).map((t) => (
-                    <span key={t} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      {t}
+                  {splitTags(p.tags).map((tg) => (
+                    <span key={tg} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {tg}
                     </span>
                   ))}
                 </div>
@@ -255,13 +258,13 @@ export default function PromptsPage() {
       <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除此指令？</AlertDialogTitle>
+            <AlertDialogTitle>{t("prompts.confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              「{pendingDelete?.title}」将被永久删除，无法恢复。
+              {t("prompts.confirmDeleteDesc", { title: pendingDelete?.title })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("prompts.confirmDeleteCancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
@@ -269,7 +272,7 @@ export default function PromptsPage() {
                 setPendingDelete(null);
               }}
             >
-              删除
+              {tCommon("action.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

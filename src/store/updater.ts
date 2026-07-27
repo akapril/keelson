@@ -7,6 +7,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useNotificationsStore } from "./notifications";
 import { osNotify } from "../lib/os-notify";
 import { isTypeEnabled } from "./notification-prefs";
+import i18n from "@/i18n";
 
 // 待安装的 Update 句柄（非可序列化，模块级持有）
 let pending: Update | null = null;
@@ -28,8 +29,8 @@ async function pushUpdateNotification(version: string, notes: string) {
     await useNotificationsStore
       .getState()
       .add({
-        title: `有新版本 ${version}`,
-        body: notes.slice(0, 120) || "前往设置更新到最新版",
+        title: i18n.t("notif.updateAvailable", { ns: "shell", version }),
+        body: notes.slice(0, 120) || i18n.t("notif.updateBody", { ns: "shell" }),
         kind: "info",
         source: "更新",
         link: `/settings?${mark}`,
@@ -38,7 +39,10 @@ async function pushUpdateNotification(version: string, notes: string) {
   }
   // 桌面弹窗遵循"更新"类型偏好
   if (isTypeEnabled("更新")) {
-    void osNotify("Keelson 有新版本", `v${version} 可更新`);
+    void osNotify(
+      i18n.t("notif.updateOs", { ns: "shell" }),
+      i18n.t("notif.updateOsBody", { ns: "shell", version }),
+    );
   }
 }
 

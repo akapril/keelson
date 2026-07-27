@@ -1,4 +1,5 @@
 // 侧栏导航数据（数据驱动，结构移植自 workavera，内容改为 rework 路由）。
+// title/description/label 存储 shell ns i18n key，由组件翻译展示。
 import type { IconSvgElement } from "@hugeicons/react";
 import {
   Home01Icon,
@@ -14,85 +15,88 @@ import {
 } from "@hugeicons/core-free-icons";
 
 export type NavItem = {
-  title: string;
+  /** shell ns i18n key（如 "nav.dashboard.title"） */
+  titleKey: string;
   url: string;
   icon: IconSvgElement;
-  description?: string;
+  /** shell ns i18n key（如 "nav.dashboard.description"） */
+  descriptionKey?: string;
 };
 
 export type NavGroup = {
-  label: string;
+  /** shell ns i18n key（如 "nav.groupWorkspace"） */
+  labelKey: string;
   items: NavItem[];
 };
 
 export const navGroups: NavGroup[] = [
   {
-    label: "工作区",
+    labelKey: "nav.groupWorkspace",
     items: [
       {
-        title: "总览",
+        titleKey: "nav.dashboard.title",
         url: "/dashboard",
         icon: Home01Icon,
-        description: "会话 · 看板 · 阅读 · 日程一览",
+        descriptionKey: "nav.dashboard.description",
       },
       {
-        title: "会话中枢",
+        titleKey: "nav.sessions.title",
         url: "/sessions",
         icon: Chat01Icon,
-        description: "本地 AI CLI 会话的浏览、检索与恢复",
+        descriptionKey: "nav.sessions.description",
       },
       {
-        title: "项目",
+        titleKey: "nav.board.title",
         url: "/board",
         icon: DashboardSquare02Icon,
-        description: "项目工作台：会话 · 看板 · 文档 · git",
+        descriptionKey: "nav.board.description",
       },
       {
-        title: "文档",
+        titleKey: "nav.docs.title",
         url: "/docs",
         icon: File01Icon,
-        description: "跨项目文档汇总与搜索",
+        descriptionKey: "nav.docs.description",
       },
       {
-        title: "阅读",
+        titleKey: "nav.reading.title",
         url: "/reading",
         icon: BookOpen01Icon,
-        description: "个人书签 / 稍后读",
+        descriptionKey: "nav.reading.description",
       },
       {
-        title: "日历",
+        titleKey: "nav.calendar.title",
         url: "/calendar",
         icon: Calendar03Icon,
-        description: "个人日程 / 事件",
+        descriptionKey: "nav.calendar.description",
       },
       {
-        title: "记忆账本",
+        titleKey: "nav.memory.title",
         url: "/memory",
         icon: BrainIcon,
-        description: "跨厂商提炼的可复用记忆",
+        descriptionKey: "nav.memory.description",
       },
       {
-        title: "指令库",
+        titleKey: "nav.prompts.title",
         url: "/prompts",
         icon: CommandIcon,
-        description: "可复用 prompt / 片段，支持变量与一键插入",
+        descriptionKey: "nav.prompts.description",
       },
     ],
   },
   {
-    label: "系统",
+    labelKey: "nav.groupSystem",
     items: [
       {
-        title: "进程",
+        titleKey: "nav.processes.title",
         url: "/processes",
         icon: TerminalIcon,
-        description: "跨项目托管进程一览：日志 · 停止 · 删除 · 清理",
+        descriptionKey: "nav.processes.description",
       },
       {
-        title: "设置",
+        titleKey: "nav.settings.title",
         url: "/settings",
         icon: Settings02Icon,
-        description: "偏好与账户设置",
+        descriptionKey: "nav.settings.description",
       },
     ],
   },

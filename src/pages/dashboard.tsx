@@ -1,5 +1,6 @@
 // 首页总览 Dashboard —— 把会话 / 看板 / 阅读 / 日历聚合到一处，各项可点跳转。
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Analytics01Icon } from "@hugeicons/core-free-icons";
@@ -14,6 +15,7 @@ import { workspaceRecordUrl } from "@/lib/workspace-navigation";
 import type { BoardTask } from "@/types/board";
 import type { CalendarEvent } from "@/types/calendar";
 import type { ReadingItem } from "@/types/reading";
+import i18n from "@/i18n";
 
 function startOfToday(): number {
   const d = new Date();
@@ -23,13 +25,14 @@ function startOfToday(): number {
 function fmtDay(iso?: string): string {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
+    return new Date(iso).toLocaleDateString(i18n.language, { month: "short", day: "numeric" });
   } catch {
     return "";
   }
 }
 
 export default function Dashboard() {
+  const { t } = useTranslation("shell");
   const navigate = useNavigate();
   const sessions = useSessionsStore((s) => s.sessions);
   const projects = useBoardStore((s) => s.projects);
@@ -82,25 +85,25 @@ export default function Dashboard() {
     <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">总览</h1>
+          <h1 className="text-lg font-semibold">{t("dashboard.title")}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            会话、看板、阅读与日程一览。
+            {t("nav.dashboard.description")}
           </p>
         </div>
         {/* 工作报告入口（低频动作，不占侧栏，从这里进） */}
         <Button variant="outline" size="sm" onClick={() => navigate("/report")}>
           <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} />
-          生成工作报告
+          {t("commandPalette.actionReport")}
         </Button>
       </header>
 
       {/* 统计卡片 */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="项目" value={projects.length} onClick={() => navigate("/board")} />
-        <StatCard label="会话" value={sessions.length} onClick={() => navigate("/sessions")} />
-        <StatCard label="未读阅读" value={unreadCount} onClick={() => navigate("/reading")} />
+        <StatCard label={t("dashboard.statProjects")} value={projects.length} onClick={() => navigate("/board")} />
+        <StatCard label={t("dashboard.statSessions")} value={sessions.length} onClick={() => navigate("/sessions")} />
+        <StatCard label={t("dashboard.statUnreadReading")} value={unreadCount} onClick={() => navigate("/reading")} />
         <StatCard
-          label="近期事件"
+          label={t("dashboard.statUpcoming")}
           value={upcomingEvents.length}
           onClick={() => navigate("/calendar")}
         />
@@ -108,9 +111,9 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 近期会话 */}
-        <Panel title="近期会话" onMore={() => navigate("/sessions")}>
+        <Panel title={t("dashboard.panelRecentSessions")} onMore={() => navigate("/sessions")}>
           {recentSessions.length === 0 ? (
-            <Empty text="暂无会话" />
+            <Empty text={t("dashboard.panelEmptySessions")} />
           ) : (
             recentSessions.map((s) => (
               <Row
@@ -125,25 +128,25 @@ export default function Dashboard() {
         </Panel>
 
         {/* 近期截止任务 */}
-        <Panel title="近期截止" onMore={() => navigate("/board")}>
+        <Panel title={t("dashboard.panelRecentDue")} onMore={() => navigate("/board")}>
           {upcomingTasks.length === 0 ? (
-            <Empty text="暂无临近截止的任务" />
+            <Empty text={t("dashboard.panelEmptyDue")} />
           ) : (
-            upcomingTasks.map((t) => (
+            upcomingTasks.map((task) => (
               <Row
-                key={t.id}
-                onClick={() => navigate(workspaceRecordUrl("board", t.project))}
-                title={t.title}
-                meta={fmtDay(t.due_date)}
+                key={task.id}
+                onClick={() => navigate(workspaceRecordUrl("board", task.project))}
+                title={task.title}
+                meta={fmtDay(task.due_date)}
               />
             ))
           )}
         </Panel>
 
         {/* 近期事件 */}
-        <Panel title="近期事件" onMore={() => navigate("/calendar")}>
+        <Panel title={t("dashboard.panelRecentEvents")} onMore={() => navigate("/calendar")}>
           {upcomingEvents.length === 0 ? (
-            <Empty text="暂无近期事件" />
+            <Empty text={t("dashboard.panelEmptyEvents")} />
           ) : (
             upcomingEvents.map((e) => (
               <Row
@@ -158,16 +161,16 @@ export default function Dashboard() {
         </Panel>
 
         {/* 阅读队列 */}
-        <Panel title="阅读队列" onMore={() => navigate("/reading")}>
+        <Panel title={t("dashboard.panelReadingQueue")} onMore={() => navigate("/reading")}>
           {readingQueue.length === 0 ? (
-            <Empty text="阅读队列为空" />
+            <Empty text={t("dashboard.panelEmptyReading")} />
           ) : (
             readingQueue.map((r) => (
               <Row
                 key={r.id}
                 onClick={() => navigate("/reading")}
                 title={r.title}
-                meta={r.status === "unread" ? "未读" : "在读"}
+                meta={r.status === "unread" ? t("dashboard.statusUnread") : t("dashboard.statusReading")}
               />
             ))
           )}
@@ -207,6 +210,7 @@ function Panel({
   onMore?: () => void;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation("common");
   return (
     <section className="rounded-xl border border-border bg-card p-4">
       <div className="mb-2 flex items-center justify-between">
@@ -217,7 +221,7 @@ function Panel({
             onClick={onMore}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
-            查看全部
+            {t("action.viewAll")}
           </button>
         )}
       </div>
