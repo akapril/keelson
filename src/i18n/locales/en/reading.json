@@ -54,7 +54,8 @@
     "aiResummarize": "Re-summarize with AI",
     "createTask": "Create task",
     "markAs": "Mark as {{label}}",
-    "copyLink": "Copy link"
+    "copyLink": "Copy link",
+    "delete": "Delete"
   },
   "detail": {
     "defaultTitle": "Reading item",
@@ -66,7 +67,6 @@
     "tagClickToRemove": "Click to remove",
     "tagPlaceholder": "Add tag, press Enter or comma",
     "keyPoints": "Key Points",
-    "noSummary": "No AI summary yet.",
     "noSummaryWithLink": "No AI summary yet. Click \"AI Summary\" in the top right to fetch and generate one.",
     "noSummaryNoLink": "No AI summary yet. This item has no link.",
     "note": "Note",
@@ -99,5 +99,10 @@
     "summarizeDoneWithTags": "\"{{title}}\" summarized (with {{n}} suggested tags)",
     "summarizeDone": "\"{{title}}\" summarized",
     "summarizeFailed": "\"{{title}}\" summarize failed: {{msg}}"
+  },
+  "summarizeError": {
+    "noLink": "This item has no link to summarize",
+    "noContent": "Could not fetch page content",
+    "parseFailed": "Failed to parse AI summary (no valid JSON)"
   }
 }
