@@ -1,5 +1,6 @@
 // 登录/注册界面 —— bootstrap 完成但未认证（用户已登出/切换）时展示。
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FolderLibraryIcon } from "@hugeicons/core-free-icons";
 
@@ -10,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/auth";
 
 export function LoginScreen() {
+  const { t } = useTranslation("shell");
   const login = useAuthStore((s) => s.login);
   const register = useAuthStore((s) => s.register);
 
@@ -29,7 +31,7 @@ export function LoginScreen() {
       if (tab === "login") {
         await login(identity, password);
       } else {
-        if (password.length < 8) throw new Error("密码至少 8 位");
+        if (password.length < 8) throw new Error(t("auth.errorPasswordMin"));
         await register(email, password, name);
       }
       // 成功后 authed=true，App 自动切换到主界面
@@ -50,21 +52,21 @@ export function LoginScreen() {
           </div>
           <div className="text-center">
             <div className="text-lg font-semibold">Keelson</div>
-            <div className="text-xs text-muted-foreground">会话 · 项目 · 看板</div>
+            <div className="text-xs text-muted-foreground">{t("auth.tagline")}</div>
           </div>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
           <Tabs value={tab} onValueChange={(v) => { setTab(v); setError(undefined); }}>
             <TabsList className="mb-4 w-full">
-              <TabsTrigger value="login">登录</TabsTrigger>
-              <TabsTrigger value="register">注册</TabsTrigger>
+              <TabsTrigger value="login">{t("auth.tabLogin")}</TabsTrigger>
+              <TabsTrigger value="register">{t("auth.tabRegister")}</TabsTrigger>
             </TabsList>
 
             <form onSubmit={submit} className="flex flex-col gap-4">
               <TabsContent value="login" className="m-0 flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="lg-id">邮箱</Label>
+                  <Label htmlFor="lg-id">{t("auth.fieldEmail")}</Label>
                   <Input
                     id="lg-id"
                     type="email"
@@ -79,7 +81,7 @@ export function LoginScreen() {
 
               <TabsContent value="register" className="m-0 flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="rg-email">邮箱</Label>
+                  <Label htmlFor="rg-email">{t("auth.fieldEmail")}</Label>
                   <Input
                     id="rg-email"
                     type="email"
@@ -91,27 +93,27 @@ export function LoginScreen() {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="rg-name">昵称</Label>
+                  <Label htmlFor="rg-name">{t("auth.fieldNickname")}</Label>
                   <Input
                     id="rg-name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="显示名称"
+                    placeholder={t("auth.nicknamePlaceholder")}
                   />
                 </div>
               </TabsContent>
 
               {/* 密码（两个 tab 共用） */}
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="pw">密码</Label>
+                <Label htmlFor="pw">{t("auth.fieldPassword")}</Label>
                 <Input
                   id="pw"
                   type="password"
                   autoComplete={tab === "login" ? "current-password" : "new-password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={tab === "register" ? "至少 8 位" : "••••••••"}
+                  placeholder={tab === "register" ? t("auth.passwordPlaceholderMin") : t("auth.passwordPlaceholderHide")}
                   required
                 />
               </div>
@@ -127,10 +129,10 @@ export function LoginScreen() {
 
               <Button type="submit" disabled={loading} className="w-full">
                 {loading
-                  ? "请稍候…"
+                  ? t("auth.submitLoading")
                   : tab === "login"
-                    ? "登录"
-                    : "注册并登录"}
+                    ? t("auth.submitLogin")
+                    : t("auth.submitRegister")}
               </Button>
             </form>
           </Tabs>

@@ -1,6 +1,7 @@
 // 成本控制塔：用量趋势（按天 token）+ provider 分布 + 成本估算 + 单价编辑。
 // 数据源为本地会话（total_tokens 近似），成本按用户配置的每百万 token 单价估算。
 import { memo, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -8,12 +9,6 @@ import { useSessionsStore } from "@/store/sessions";
 import { useCostStore } from "@/store/cost";
 import { aggregateUsage, type DailyPoint } from "@/features/usage/aggregate";
 import { Input } from "@/components/ui/input";
-
-const RANGES = [
-  { label: "近 7 天", days: 7 },
-  { label: "近 30 天", days: 30 },
-  { label: "全部", days: 3650 },
-];
 
 function fmtTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
@@ -85,10 +80,17 @@ const TokenBar = memo(function TokenBar({
 });
 
 export default function UsagePage() {
+  const { t } = useTranslation("shell");
   const sessions = useSessionsStore((s) => s.sessions);
   const load = useSessionsStore((s) => s.load);
   const { config, setRate, setModelRate } = useCostStore();
   const [days, setDays] = useState(30);
+
+  const RANGES = [
+    { label: t("usage.rangeLast7"), days: 7 },
+    { label: t("usage.rangeLast30"), days: 30 },
+    { label: t("usage.rangeAll"), days: 3650 },
+  ];
 
   useEffect(() => {
     void load();
@@ -111,9 +113,9 @@ export default function UsagePage() {
     <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-5 overflow-y-auto p-6">
       <header className="flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold">成本控制塔</h1>
+          <h1 className="text-lg font-semibold">{t("usage.title")}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            按总 token 估算（暂无 input/output 拆分）。单价可在下方编辑，仅本机保存。
+            {t("usage.description")}
           </p>
         </div>
         <div className="flex gap-1">
@@ -134,20 +136,20 @@ export default function UsagePage() {
 
       {/* 概览卡片 */}
       <div className="grid grid-cols-3 gap-3">
-        <Stat label="会话数" value={String(summary.totalSessions)} />
-        <Stat label="总 Token" value={fmtTokens(summary.totalTokens)} />
-        <Stat label="估算成本" value={`${cur}${summary.totalCost.toFixed(2)}`} />
+        <Stat label={t("usage.statSessions")} value={String(summary.totalSessions)} />
+        <Stat label={t("usage.statTokens")} value={fmtTokens(summary.totalTokens)} />
+        <Stat label={t("usage.statCost")} value={`${cur}${summary.totalCost.toFixed(2)}`} />
       </div>
 
       {/* 按天趋势 */}
       <section className="rounded-xl border border-border bg-card p-4">
-        <h2 className="mb-3 text-sm font-medium">每日 Token 趋势</h2>
+        <h2 className="mb-3 text-sm font-medium">{t("usage.chartTitle")}</h2>
         <DailyTrend data={tokenData.daily} />
       </section>
 
       {/* 按 provider 分布 + 单价编辑 */}
       <section className="rounded-xl border border-border bg-card p-4">
-        <h2 className="mb-3 text-sm font-medium">按 Provider</h2>
+        <h2 className="mb-3 text-sm font-medium">{t("usage.providerTitle")}</h2>
         <TokenBar data={tokenData.byProvider} xKey="provider" />
 
         <div className="mt-4 space-y-2">
@@ -159,7 +161,7 @@ export default function UsagePage() {
                 {p.cost.toFixed(2)}
               </span>
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                单价 {cur}/百万
+                {t("usage.priceLabel", { cur })}
                 <Input
                   type="number"
                   value={config.rates[p.provider] ?? 0}
@@ -170,14 +172,14 @@ export default function UsagePage() {
             </div>
           ))}
           {summary.byProvider.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">该时间范围内暂无会话数据</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("usage.emptyData")}</p>
           )}
         </div>
       </section>
 
       {/* 按项目分布（哪个项目最烧钱） */}
       <section className="rounded-xl border border-border bg-card p-4">
-        <h2 className="mb-3 text-sm font-medium">按项目</h2>
+        <h2 className="mb-3 text-sm font-medium">{t("usage.projectTitle")}</h2>
         <TokenBar data={tokenData.byProject} xKey="project_name" limit={12} angle={-20} height={50} />
 
         <div className="mt-4 space-y-2">
@@ -186,7 +188,9 @@ export default function UsagePage() {
               <span className="min-w-0 flex-1 truncate font-medium" title={p.project_path}>
                 {p.project_name}
               </span>
-              <span className="w-20 shrink-0 text-right text-muted-foreground">{p.sessions} 会话</span>
+              <span className="w-20 shrink-0 text-right text-muted-foreground">
+                {t("usage.sessionUnit", { count: p.sessions })}
+              </span>
               <span className="w-32 shrink-0 text-right text-muted-foreground">
                 {fmtTokens(p.tokens)} · {cur}
                 {p.cost.toFixed(2)}
@@ -194,16 +198,16 @@ export default function UsagePage() {
             </div>
           ))}
           {summary.byProject.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">该时间范围内暂无会话数据</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("usage.emptyData")}</p>
           )}
         </div>
       </section>
 
       {/* 按模型分布 + 单价编辑（opus/sonnet 单价差 5 倍，分开才看得清） */}
       <section className="rounded-xl border border-border bg-card p-4">
-        <h2 className="mb-1 text-sm font-medium">按模型</h2>
+        <h2 className="mb-1 text-sm font-medium">{t("usage.modelTitle")}</h2>
         <p className="mb-3 text-xs text-muted-foreground">
-          token 含 input/output/cache 各类（同口径）；单价优先按模型，未设则回退 provider 单价。
+          {t("usage.modelDesc")}
         </p>
         <TokenBar data={tokenData.byModel} xKey="model" limit={12} angle={-20} height={56} fontSize={10} />
 
@@ -218,7 +222,7 @@ export default function UsagePage() {
                 {m.cost.toFixed(2)}
               </span>
               <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                单价 {cur}/百万
+                {t("usage.priceLabel", { cur })}
                 <Input
                   type="number"
                   value={config.modelRates[m.model] ?? ""}
@@ -230,7 +234,7 @@ export default function UsagePage() {
             </div>
           ))}
           {summary.byModel.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">该时间范围内暂无会话数据</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("usage.emptyData")}</p>
           )}
         </div>
       </section>

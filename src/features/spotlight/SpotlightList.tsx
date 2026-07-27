@@ -1,5 +1,6 @@
 // SpotlightList.tsx — 候选项列表：键盘/鼠标高亮、鼠标悬停跟随选中、点击恢复会话。
 import { useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowTurnBackwardIcon, InboxIcon } from "@hugeicons/core-free-icons";
 import { useSpotlightStore } from "../../store/spotlight";
@@ -7,6 +8,7 @@ import { activateItem } from "./activate";
 import { cn } from "../../lib/utils";
 
 export function SpotlightList() {
+  const { t } = useTranslation("shell");
   const items = useSpotlightStore((s) => s.items);
   const selectedIndex = useSpotlightStore((s) => s.selectedIndex);
   const asTab = useSpotlightStore((s) => s.asTab);
@@ -25,7 +27,7 @@ export function SpotlightList() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-10 text-muted-foreground">
         <HugeiconsIcon icon={InboxIcon} strokeWidth={1.5} className="size-8 opacity-50" />
-        <span className="text-sm">没有匹配项</span>
+        <span className="text-sm">{t("spotlight.empty")}</span>
       </div>
     );
   }
@@ -81,7 +83,7 @@ export function SpotlightList() {
                       : "bg-violet-500/15 text-violet-600 dark:text-violet-400",
                   )}
                 >
-                  {item.kind === "task" ? "任务" : "文档"}
+                  {item.kind === "task" ? t("spotlight.kindTask") : t("spotlight.kindDoc")}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-medium text-foreground">{item.label}</div>

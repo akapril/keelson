@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
 import { cn } from "@/lib/utils";
+import i18n from "@/i18n";
 
 // 单个 mermaid 图块：异步渲染为 SVG；失败则回退显示源码 + 错误。
 function MermaidBlock({ code }: { code: string }) {
@@ -41,7 +42,7 @@ function MermaidBlock({ code }: { code: string }) {
   if (err) {
     return (
       <pre className="my-3 overflow-x-auto rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-        {`⚠ mermaid 渲染失败：${err}\n\n${code}`}
+        {`${i18n.t("doc.mermaidError", { ns: "shell", err })}\n\n${code}`}
       </pre>
     );
   }

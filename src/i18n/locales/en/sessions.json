@@ -146,6 +146,26 @@
     "collapse": "Collapse",
     "expand": "Expand"
   },
+  "distill": {
+    "title": "AI Distill & Settle",
+    "loadingText": "Extracting session content…",
+    "errorFallback": "Unable to extract",
+    "noAiService": "AI service not configured (add an API Key in Settings, or use local CLI provider)",
+    "noFirstState": "Target project has no state columns, cannot create tasks",
+    "projectLabel": "Write to project",
+    "projectPlaceholder": "Select target project",
+    "projectFallback": "project",
+    "taskSection": "Candidate tasks ({{selected}}/{{total}})",
+    "docSection": "Candidate docs ({{selected}}/{{total}})",
+    "commitBtn": "Writing…",
+    "commitBtnCount": "Settle {{count}} items",
+    "toast": {
+      "success": "Settled {{tasks}} tasks and {{docs}} docs",
+      "notifTitle": "Settled {{tasks}} tasks · {{docs}} docs from session",
+      "notifBody": "Source: {{session}} ({{provider}}) → {{project}}",
+      "notifSource": "Distill"
+    }
+  },
   "ask": {
     "placeholder": "Ask about past sessions, e.g. \"how did I fix the PB 400 error last time\"",
     "searching": "Searching…",

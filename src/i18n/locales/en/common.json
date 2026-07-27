@@ -1,4 +1,4 @@
 {
-  "action": { "save": "Save", "cancel": "Cancel", "delete": "Delete", "confirm": "Confirm", "close": "Close", "edit": "Edit", "create": "New" },
+  "action": { "save": "Save", "cancel": "Cancel", "delete": "Delete", "confirm": "Confirm", "close": "Close", "edit": "Edit", "create": "New", "viewAll": "View all", "copy": "Copy" },
   "state": { "loading": "Loading…", "empty": "No data", "error": "Something went wrong" }
 }

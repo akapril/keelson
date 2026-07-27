@@ -435,5 +435,26 @@
   "syncError": {
     "noStates": "This project has no state columns — create one first"
   },
-  "taskFallbackTitle": "Task {{id}}"
+  "taskFallbackTitle": "Task {{id}}",
+  "page": {
+    "title": "Projects",
+    "description": "Each project = its sessions, board, docs and git — all in one workspace.",
+    "showArchived": "Show archived ({{count}})",
+    "hideArchived": "Hide archived"
+  },
+  "docsPanel": {
+    "count": "{{count}} docs",
+    "loading": "Loading…",
+    "fallbackTitle": "Untitled document",
+    "confirmDeleteTitle": "Delete this document?",
+    "confirmDeleteDesc": "\"{{title}}\" will be permanently deleted and cannot be recovered.",
+    "confirmDeleteCancel": "Cancel",
+    "toast": {
+      "createError": "Create failed: {{msg}}",
+      "deleteError": "Delete failed: {{msg}}",
+      "noStates": "This project has no state columns, cannot create task",
+      "createTaskSuccess": "Task created from document",
+      "createTaskError": "Failed to create task: {{msg}}"
+    }
+  }
 }

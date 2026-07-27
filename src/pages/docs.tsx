@@ -1,6 +1,7 @@
 // 全局「文档」页 —— 跨项目汇总所有文档：搜索 + 分组（含「未归类」）+ 内嵌编辑。
 // 文档可属 0..N 个项目：无项目=未归类，仍可直接在本页编辑；编辑器内可随时改所属项目。
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -45,6 +46,8 @@ function snippet(content: string, q: string): string {
 }
 
 export default function DocsPage() {
+  const { t } = useTranslation("shell");
+  const { t: tCommon } = useTranslation("common");
   const navigate = useNavigate();
   const [docs, setDocs] = useState<BoardDoc[]>([]);
   const [projects, setProjects] = useState<BoardProject[]>([]);
@@ -125,12 +128,12 @@ export default function DocsPage() {
       const doc = await createDocRecord({
         owner: currentUserId(),
         projects: [],
-        title: "未命名文档",
+        title: t("docs.fallbackTitle"),
         content: "",
       });
       navigate(`/docs/${doc.id}`);
     } catch (e) {
-      toast.error(`创建失败：${String(e)}`);
+      toast.error(t("docs.toast.createError", { msg: String(e) }));
     } finally {
       setCreating(false);
     }
@@ -141,7 +144,7 @@ export default function DocsPage() {
       await deleteDocRecord(d.id);
       setDocs((prev) => prev.filter((x) => x.id !== d.id));
     } catch (e) {
-      toast.error(`删除失败：${String(e)}`);
+      toast.error(t("docs.toast.deleteError", { msg: String(e) }));
     }
   };
 
@@ -149,9 +152,9 @@ export default function DocsPage() {
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 p-6">
       <header className="flex shrink-0 items-start justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold">文档</h1>
+          <h1 className="text-lg font-semibold">{t("docs.title")}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            跨项目汇总，搜索标题与正文。文档可不属任何项目（未归类），也可挂到一个或多个项目。
+            {t("nav.docs.description")}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -163,12 +166,14 @@ export default function DocsPage() {
               aria-pressed={showArchived}
               className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              {showArchived ? "隐藏归档项目文档" : `显示已归档项目文档（${hiddenCount}）`}
+              {showArchived
+                ? t("docs.hideArchived")
+                : t("docs.showArchived", { count: hiddenCount })}
             </button>
           )}
           <Button size="sm" disabled={creating} onClick={() => void createDoc()}>
             <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-            新建文档
+            {tCommon("action.create")}
           </Button>
         </div>
       </header>
@@ -176,7 +181,7 @@ export default function DocsPage() {
       <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜索文档（标题 + 正文）…"
+        placeholder={t("docs.searchPlaceholder")}
         className="shrink-0"
       />
 
@@ -184,19 +189,19 @@ export default function DocsPage() {
         {groups.length === 0 ? (
           <p className="py-16 text-center text-sm text-muted-foreground">
             {docs.length === 0
-              ? "暂无文档，点右上「新建文档」开始"
+              ? t("docs.emptyNew")
               : !q && !showArchived && hiddenCount > 0
-                ? `已隐藏 ${hiddenCount} 篇归档项目的文档，点右上「显示已归档项目文档」查看`
-                : "没有匹配的文档"}
+                ? t("docs.emptyHidden", { count: hiddenCount })
+                : t("docs.emptyNoMatch")}
           </p>
         ) : (
           groups.map(([projectId, list]) => (
             <section key={projectId || "__none__"}>
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {projectId === NONE
-                  ? "未归类"
-                  : (projectName.get(projectId) ?? "未知项目")}
-                （{list.length}）
+                  ? t("docs.groupUncategorized")
+                  : (projectName.get(projectId) ?? t("docs.groupUnknown"))}
+                {t("docs.groupCount", { count: list.length })}
               </h2>
               <div className="flex flex-col gap-1.5">
                 {list.map((d) => (
@@ -214,7 +219,7 @@ export default function DocsPage() {
                         />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium text-foreground">
-                            {d.title || "未命名文档"}
+                            {d.title || t("docs.fallbackTitle")}
                           </span>
                           {d.content && (
                             <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
@@ -226,14 +231,14 @@ export default function DocsPage() {
                     </ContextMenuTrigger>
                     <ContextMenuContent>
                       <ContextMenuItem onSelect={() => navigate(`/docs/${d.id}`)}>
-                        编辑
+                        {tCommon("action.edit")}
                       </ContextMenuItem>
                       <ContextMenuItem onSelect={() => void openDocWindow(d.id, d.title)}>
-                        在新窗口打开
+                        {t("doc.ariaNewWindow")}
                       </ContextMenuItem>
                       <ContextMenuSeparator />
                       <ContextMenuItem variant="destructive" onSelect={() => setPendingDelete(d)}>
-                        删除
+                        {tCommon("action.delete")}
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
@@ -251,13 +256,13 @@ export default function DocsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除此文档？</AlertDialogTitle>
+            <AlertDialogTitle>{t("docs.confirmDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              「{pendingDelete?.title || "未命名文档"}」将被永久删除，无法恢复。
+              {t("docs.confirmDeleteDesc", { title: pendingDelete?.title || t("docs.fallbackTitle") })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("docs.confirmDeleteCancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
@@ -265,7 +270,7 @@ export default function DocsPage() {
                 setPendingDelete(null);
               }}
             >
-              删除
+              {tCommon("action.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

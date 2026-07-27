@@ -3,6 +3,7 @@
 //   输入框 onKeyDown 先调 pi.onKeyDown(e)，返回 true 说明已被斜杠浮层消费；
 //   把输入框包在 relative 容器里渲染 {pi.overlay}；旁边放 {pi.button}。
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CommandIcon } from "@hugeicons/core-free-icons";
@@ -31,6 +32,7 @@ export function usePromptInsert({
   ctx: PromptVarCtx;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation("shell");
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -114,7 +116,7 @@ export function usePromptInsert({
   const overlay = slashActive ? (
     <div className="absolute bottom-full left-0 z-20 mb-1 w-full overflow-hidden rounded-lg border border-border bg-popover shadow-md">
       <div className="border-b border-border px-2.5 py-1 text-[10px] text-muted-foreground">
-        指令库 · ↑↓ 选择 · Enter 插入 · Esc 取消
+        {t("prompts.insert.footerHint")}
       </div>
       <ul className="max-h-56 overflow-y-auto py-1">
         {slashMatches.map((p, i) => (
@@ -153,8 +155,8 @@ export function usePromptInsert({
       <Button
         variant="ghost"
         size="icon"
-        title="插入指令（指令库）"
-        aria-label="插入指令"
+        title={t("prompts.insert.btnTitle")}
+        aria-label={t("prompts.insert.btnAriaLabel")}
         disabled={disabled}
         onClick={() => setPickerOpen(true)}
       >
@@ -163,13 +165,13 @@ export function usePromptInsert({
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
         <DialogContent className="flex max-h-[70vh] w-full max-w-md flex-col">
           <DialogHeader>
-            <DialogTitle>插入指令</DialogTitle>
+            <DialogTitle>{t("prompts.insert.dialogTitle")}</DialogTitle>
           </DialogHeader>
           <Input
             autoFocus
             value={pickerQuery}
             onChange={(e) => setPickerQuery(e.target.value)}
-            placeholder="搜索指令…"
+            placeholder={t("prompts.insert.searchPlaceholder")}
           />
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto py-1">
             {filteredPicker.length === 0 ? (

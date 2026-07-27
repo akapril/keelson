@@ -5,6 +5,7 @@
 import { listDueTasks, listAllStates } from "@/lib/pb/board";
 import { listEvents } from "@/lib/pb/calendar";
 import { useNotificationsStore } from "@/store/notifications";
+import i18n from "@/i18n";
 
 /** 逾期回看窗(天):比这更久远的逾期项不再提醒,避免首次运行刷屏。 */
 const LOOKBACK_DAYS = 14;
@@ -69,8 +70,10 @@ export async function syncDueReminders(): Promise<void> {
       if (hasMark(mark)) continue;
       const overdue = due < today;
       await useNotificationsStore.getState().add({
-        title: `任务截止：${t.title}`,
-        body: overdue ? `已逾期（截止 ${due}）` : "今天截止",
+        title: i18n.t("notif.dueSoon", { ns: "shell", title: t.title }),
+        body: overdue
+          ? i18n.t("notif.overdueBody", { ns: "shell", date: due })
+          : i18n.t("notif.dueBody", { ns: "shell" }),
         kind: overdue ? "warning" : "info",
         source: "截止提醒",
         link: `/board?open=${t.project}&tab=board&${mark}`,
@@ -90,8 +93,10 @@ export async function syncDueReminders(): Promise<void> {
       if (hasMark(mark)) continue;
       const overdue = day < today;
       await useNotificationsStore.getState().add({
-        title: `事件：${e.title}`,
-        body: overdue ? `已过期（${day}）` : "今天",
+        title: i18n.t("notif.eventSoon", { ns: "shell", title: e.title }),
+        body: overdue
+          ? i18n.t("notif.eventOverdueBody", { ns: "shell", date: day })
+          : i18n.t("notif.eventBody", { ns: "shell" }),
         kind: overdue ? "warning" : "info",
         source: "截止提醒",
         link: `/calendar?${mark}`,

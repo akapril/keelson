@@ -116,16 +116,19 @@ export function CommandPalette() {
         </CommandGroup>
 
         <CommandGroup heading={t("commandPalette.groupPages")}>
-          {flatNavItems.map((it) => (
-            <CommandItem
-              key={it.url}
-              value={`页面 ${it.title}`}
-              onSelect={() => go(it.url)}
-            >
-              <HugeiconsIcon icon={it.icon} strokeWidth={2} className="size-4" />
-              {it.title}
-            </CommandItem>
-          ))}
+          {flatNavItems.map((it) => {
+            const title = t(it.titleKey);
+            return (
+              <CommandItem
+                key={it.url}
+                value={`${t("commandPalette.groupPages")} ${title}`}
+                onSelect={() => go(it.url)}
+              >
+                <HugeiconsIcon icon={it.icon} strokeWidth={2} className="size-4" />
+                {title}
+              </CommandItem>
+            );
+          })}
         </CommandGroup>
 
         {projects.length > 0 && (
@@ -133,7 +136,7 @@ export function CommandPalette() {
             {projects.map((p) => (
               <CommandItem
                 key={p.id}
-                value={`项目 ${p.name}`}
+                value={`${t("commandPalette.groupProjects")} ${p.name}`}
                 onSelect={() => go(workspaceRecordUrl("board", p.id))}
               >
                 {p.name}
@@ -148,7 +151,7 @@ export function CommandPalette() {
               <CommandItem
                 key={d.id}
                 // value 含 query，确保 cmdk 不会按其模糊算法把已匹配项过滤掉
-                value={`文档 ${query} ${d.title} ${d.id}`}
+                value={`${t("commandPalette.groupDocs")} ${query} ${d.title} ${d.id}`}
                 onSelect={() =>
                   go(workspaceRecordUrl("board", d.projects[0] ?? "", { tab: "docs", doc: d.id }))
                 }
@@ -169,7 +172,7 @@ export function CommandPalette() {
             {sessions.slice(0, 50).map((s) => (
               <CommandItem
                 key={s.session_id}
-                value={`会话 ${s.project_name} ${s.last_prompt} ${s.first_prompt}`}
+                value={`${t("commandPalette.groupSessions")} ${s.project_name} ${s.last_prompt} ${s.first_prompt}`}
                 onSelect={() => go(`/sessions?session=${s.session_id}`)}
               >
                 <span className="min-w-0 truncate">
@@ -185,7 +188,7 @@ export function CommandPalette() {
             {reading.map((r) => (
               <CommandItem
                 key={r.id}
-                value={`阅读 ${r.title}`}
+                value={`${t("commandPalette.groupReading")} ${r.title}`}
                 onSelect={() => go("/reading")}
               >
                 <span className="min-w-0 truncate">{r.title}</span>

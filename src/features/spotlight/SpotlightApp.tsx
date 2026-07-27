@@ -1,6 +1,7 @@
 // SpotlightApp.tsx — Spotlight 窗口根组件
 // 玻璃面板（glass panel），使用 CSS 变量实现透明模糊效果，支持明暗主题
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSpotlightStore } from "../../store/spotlight";
 import { useSessionsStore } from "../../store/sessions";
 import { buildItems } from "./utils";
@@ -14,6 +15,7 @@ import { useSpotlightKeys } from "./useSpotlightKeys";
 
 /** Spotlight 主容器：玻璃面板 + 输入框 + 候选项列表 */
 export function SpotlightApp() {
+  const { t } = useTranslation("shell");
   // 加载会话数据
   const sessions = useSessionsStore((s) => s.sessions);
   const loadSessions = useSessionsStore((s) => s.load);
@@ -46,7 +48,7 @@ export function SpotlightApp() {
     // 故去掉外层留白，让面板占满窗口，从根上消除"边框太宽"。
     <div
       role="dialog"
-      aria-label="Spotlight 搜索"
+      aria-label={t("spotlight.ariaLabel")}
       style={{
         width: "100vw",
         height: "100vh",
@@ -68,11 +70,11 @@ export function SpotlightApp() {
         className="flex items-center justify-between px-4 py-2 text-[11px] text-muted-foreground"
         style={{ borderTop: "1px solid var(--glass-border)" }}
       >
-        <span>{itemCount} 项</span>
+        <span>{t("spotlight.itemCount", { count: itemCount })}</span>
         <div className="flex items-center gap-3">
-          <span>↑↓ 选择 · ↵ 恢复 · esc 关闭</span>
+          <span>{t("spotlight.hint")}</span>
           <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground/80">
-            Tab：{asTab ? "标签页" : "新终端"}
+            {t("spotlight.tabPrefix")}{asTab ? t("spotlight.modeTab") : t("spotlight.modeTerminal")}
           </span>
         </div>
       </div>

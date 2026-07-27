@@ -146,6 +146,26 @@
     "collapse": "收起",
     "expand": "展开"
   },
+  "distill": {
+    "title": "AI 提炼沉淀",
+    "loadingText": "正在提炼会话内容…",
+    "errorFallback": "无法提炼",
+    "noAiService": "尚未配置 AI 服务（请在设置页填写 API Key，或改用本地 CLI provider）",
+    "noFirstState": "目标项目暂无状态列，无法创建任务",
+    "projectLabel": "写入项目",
+    "projectPlaceholder": "选择目标项目",
+    "projectFallback": "项目",
+    "taskSection": "候选任务（{{selected}}/{{total}}）",
+    "docSection": "候选文档（{{selected}}/{{total}}）",
+    "commitBtn": "写入中…",
+    "commitBtnCount": "沉淀 {{count}} 项",
+    "toast": {
+      "success": "已沉淀 {{tasks}} 个任务、{{docs}} 篇文档",
+      "notifTitle": "已从会话沉淀 {{tasks}} 任务 · {{docs}} 文档",
+      "notifBody": "来源：{{session}}（{{provider}}）→ {{project}}",
+      "notifSource": "沉淀"
+    }
+  },
   "ask": {
     "placeholder": "问历史会话，如「上次我怎么修的 PB 400 错误」",
     "searching": "检索中…",

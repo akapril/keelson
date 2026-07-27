@@ -151,5 +151,48 @@
       "MCP": "MCP（外部 Agent 动作）",
       "Loop": "Loop（收件箱循环任务）"
     }
+  },
+  "backend": {
+    "title": "后端 / 远程 PocketBase",
+    "desc": "默认使用本地内置 PocketBase（免登录）。填写远程地址后将连接远程并要求邮箱/密码登录，",
+    "urlLabel": "远程 PocketBase 地址",
+    "applyBtn": "应用并重载",
+    "switchLocalBtn": "切回本地",
+    "openDirBtn": "打开数据目录",
+    "currentLabel": "当前：",
+    "localLabel": "本地内置",
+    "dataDir": "本地数据目录（pb_data）",
+    "note": "注意（最小版）：会话元数据同步仍写入本地 PB；看板 / 文档 / 阅读 / 日历 / 通知等数据走所选后端。",
+    "toast": {
+      "switchRemote": "已切换到远程 PocketBase，即将重载…",
+      "switchLocal": "已切回本地，即将重载…",
+      "openDirError": "打开数据目录失败：{{msg}}"
+    }
+  },
+  "updater": {
+    "title": "软件更新",
+    "checkBtn": "检查更新",
+    "checking": "检查中…",
+    "installBtn": "下载 v{{version}} 并重启",
+    "installing": "安装中…",
+    "newVersion": "发现新版本 v{{version}}",
+    "upToDate": "已是最新版本（或更新源未配置）。",
+    "checkError": "检查失败：{{error}}",
+    "toast": {
+      "loading": "正在下载并安装更新…",
+      "error": "更新失败：{{error}}"
+    }
+  },
+  "export": {
+    "title": "数据导出",
+    "desc": "JSON 为完整备份，Markdown 便于阅读/归档。",
+    "exportJson": "导出 JSON",
+    "exportMd": "导出 Markdown",
+    "exporting": "导出中…",
+    "toast": {
+      "empty": "暂无项目可导出",
+      "success": "已导出 {{count}} 个项目的看板与文档",
+      "error": "导出失败：{{msg}}"
+    }
   }
 }

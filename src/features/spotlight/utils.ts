@@ -8,6 +8,7 @@ import type {
   NavSpotlightItem,
 } from "../../store/spotlight";
 import { workspaceRecordUrl } from "../../lib/workspace-navigation";
+import i18n from "../../i18n";
 
 /** 每类候选在搜索结果里的上限（避免某类刷屏）。 */
 const PER_KIND_LIMIT = 8;
@@ -62,7 +63,7 @@ export function taskToItem(task: BoardTask): NavSpotlightItem {
 export function docToItem(doc: BoardDoc): NavSpotlightItem {
   return {
     kind: "doc",
-    label: doc.title || "(无标题文档)",
+    label: doc.title || i18n.t("commandPalette.unnamedDoc", { ns: "shell" }),
     path: workspaceRecordUrl("board", doc.projects[0] ?? "", { tab: "docs", doc: doc.id }),
   };
 }

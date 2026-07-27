@@ -72,6 +72,8 @@ import {
   UndoIcon,
 } from "@hugeicons/core-free-icons"
 
+import { useTranslation } from "react-i18next"
+import i18n from "@/i18n"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -228,7 +230,7 @@ function MilkdownEditorBody({
       .addFeature(cursor)
       .addFeature(listItem)
       .addFeature(linkTooltip)
-      .addFeature(placeholder, { text: "输入 / 唤出块菜单，或直接开始写…" })
+      .addFeature(placeholder, { text: i18n.t("editor.placeholder", { ns: "shell" }) })
       .addFeature(table)
       .addFeature(codeMirror, { languages: CODE_LANGUAGES })
       // 斜杠菜单：/ 唤出「插入块」菜单 + 段落左侧拖拽块柄（专业写作核心交互）
@@ -292,7 +294,7 @@ function MilkdownEditorBody({
       {mode === "preview" && (
         <Suspense
           fallback={
-            <p className="px-5 py-4 text-sm text-muted-foreground">加载预览…</p>
+            <p className="px-5 py-4 text-sm text-muted-foreground">{i18n.t("editor.previewLoading", { ns: "shell" })}</p>
           }
         >
           <DocPreview content={value} />
@@ -336,6 +338,7 @@ function MilkdownToolbar({
   onModeChange: (mode: DocumentEditorMode) => void
   onToggleFullscreen: () => void
 }) {
+  const { t } = useTranslation("shell")
   const [loading, getEditor] = useInstance()
   const run = (command: { key: unknown }, payload?: unknown) => {
     if (loading || mode !== "rich-text") return
@@ -458,7 +461,7 @@ function MilkdownToolbar({
       <div className="milkdown-toolbar-fixed flex items-center gap-0.5">
         {/* 文内 AI：选中文本后点此输入指令，流式改写并以 diff 供接受/拒绝 */}
         <ToolbarButton
-          label={aiUsable ? "AI 改写/续写（先选中文本）" : "AI 未配置：去设置填服务商/密钥"}
+          label={aiUsable ? t("editor.aiButtonUsable") : t("editor.aiButtonDisabled")}
           disabled={disabled || !aiUsable}
           onClick={() => setAiOpen(true)}
           icon={AiChat02Icon}
@@ -486,7 +489,7 @@ function MilkdownToolbar({
           icon={FileDiffIcon}
         />
         <ModeButton
-          label="预览（渲染 Mermaid 图表）"
+          label={t("editor.previewLabel")}
           active={mode === "preview"}
           onClick={() => onModeChange("preview")}
           icon={EyeIcon}
@@ -505,10 +508,10 @@ function MilkdownToolbar({
       {/* 插入链接对话框（替代原生 prompt） */}
       <PromptDialog
         open={linkOpen}
-        title="插入链接"
-        label="链接地址"
+        title={t("editor.insertLinkTitle")}
+        label={t("editor.insertLinkLabel")}
         placeholder="https://…"
-        confirmText="插入"
+        confirmText={t("editor.insertLinkConfirm")}
         allowEmpty={false}
         onResult={(value) => {
           setLinkOpen(false)
@@ -520,10 +523,10 @@ function MilkdownToolbar({
       {/* 文内 AI 指令对话框：确认后触发 runAICmd（流式改写 + diff 接受/拒绝） */}
       <PromptDialog
         open={aiOpen}
-        title="AI 改写 / 续写"
-        label="告诉 AI 想怎么处理（基于选中内容 / 上下文）"
-        placeholder="如：润色这段 / 翻译成英文 / 基于上文续写一段"
-        confirmText="生成"
+        title={t("editor.aiRewriteDialogTitle")}
+        label={t("editor.aiRewriteDialogLabel")}
+        placeholder={t("editor.aiRewriteDialogPlaceholder")}
+        confirmText={t("editor.aiRewriteConfirm")}
         allowEmpty={false}
         onResult={(value) => {
           setAiOpen(false)
@@ -550,6 +553,7 @@ function EditorContextMenu({
   onModeChange: (mode: DocumentEditorMode) => void
   onToggleFullscreen: () => void
 }) {
+  const { t } = useTranslation("shell")
   const [loading, getEditor] = useInstance()
   const aiUsable = useSettingsStore((s) => aiConfigUsable(s.aiConfig))
   const [aiOpen, setAiOpen] = useState(false)
@@ -563,8 +567,8 @@ function EditorContextMenu({
   const copyAll = () => {
     const md = getMd()
     void navigator.clipboard.writeText(md).then(
-      () => toast.success("已复制全文"),
-      () => toast.error("复制失败"),
+      () => toast.success(t("editor.toast.copySuccess")),
+      () => toast.error(t("editor.toast.copyError")),
     )
   }
   const exportMd = () => {
@@ -586,43 +590,43 @@ function EditorContextMenu({
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-48">
         <ContextMenuItem disabled={!aiUsable || loading} onSelect={() => setAiOpen(true)}>
-          AI 改写 / 续写
+          {t("editor.aiRewrite")}
         </ContextMenuItem>
         <ContextMenuSub>
-          <ContextMenuSubTrigger disabled={loading}>插入</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger disabled={loading}>{t("editor.insertLabel")}</ContextMenuSubTrigger>
           <ContextMenuSubContent>
-            <ContextMenuItem onSelect={() => run(wrapInHeadingCommand, 1)}>标题</ContextMenuItem>
-            <ContextMenuItem onSelect={() => run(wrapInBulletListCommand)}>无序列表</ContextMenuItem>
-            <ContextMenuItem onSelect={() => run(wrapInOrderedListCommand)}>有序列表</ContextMenuItem>
-            <ContextMenuItem onSelect={() => run(insertTableCommand, { row: 3, col: 3 })}>表格</ContextMenuItem>
-            <ContextMenuItem onSelect={() => run(createCodeBlockCommand)}>代码块</ContextMenuItem>
-            <ContextMenuItem onSelect={() => run(insertHrCommand)}>分割线</ContextMenuItem>
+            <ContextMenuItem onSelect={() => run(wrapInHeadingCommand, 1)}>{t("editor.insertHeading")}</ContextMenuItem>
+            <ContextMenuItem onSelect={() => run(wrapInBulletListCommand)}>{t("editor.insertBulletList")}</ContextMenuItem>
+            <ContextMenuItem onSelect={() => run(wrapInOrderedListCommand)}>{t("editor.insertOrderedList")}</ContextMenuItem>
+            <ContextMenuItem onSelect={() => run(insertTableCommand, { row: 3, col: 3 })}>{t("editor.insertTable")}</ContextMenuItem>
+            <ContextMenuItem onSelect={() => run(createCodeBlockCommand)}>{t("editor.insertCodeBlock")}</ContextMenuItem>
+            <ContextMenuItem onSelect={() => run(insertHrCommand)}>{t("editor.insertHr")}</ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
         <ContextMenuSub>
-          <ContextMenuSubTrigger>视图</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger>{t("editor.viewLabel")}</ContextMenuSubTrigger>
           <ContextMenuSubContent>
-            <ContextMenuItem onSelect={() => onModeChange("rich-text")}>富文本</ContextMenuItem>
-            <ContextMenuItem onSelect={() => onModeChange("source")}>源码</ContextMenuItem>
+            <ContextMenuItem onSelect={() => onModeChange("rich-text")}>{t("editor.viewRichText")}</ContextMenuItem>
+            <ContextMenuItem onSelect={() => onModeChange("source")}>{t("editor.viewSource")}</ContextMenuItem>
             <ContextMenuItem onSelect={() => onModeChange("diff")}>Diff</ContextMenuItem>
-            <ContextMenuItem onSelect={() => onModeChange("preview")}>预览（Mermaid）</ContextMenuItem>
+            <ContextMenuItem onSelect={() => onModeChange("preview")}>{t("editor.viewPreview")}</ContextMenuItem>
             <ContextMenuItem onSelect={onToggleFullscreen}>
-              {fullscreen ? "退出全屏" : "全屏"}
+              {fullscreen ? t("editor.viewExitFullscreen") : t("editor.viewFullscreen")}
             </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
         <ContextMenuSeparator />
-        <ContextMenuItem disabled={loading} onSelect={copyAll}>复制全文</ContextMenuItem>
-        <ContextMenuItem disabled={loading} onSelect={exportMd}>导出 Markdown</ContextMenuItem>
+        <ContextMenuItem disabled={loading} onSelect={copyAll}>{t("editor.copyAll")}</ContextMenuItem>
+        <ContextMenuItem disabled={loading} onSelect={exportMd}>{t("editor.exportMd")}</ContextMenuItem>
       </ContextMenuContent>
 
       {/* AI 指令对话框（与工具栏 AI 同一 runAICmd 流程） */}
       <PromptDialog
         open={aiOpen}
-        title="AI 改写 / 续写"
-        label="告诉 AI 想怎么处理（基于选中内容 / 上下文）"
-        placeholder="如：润色这段 / 翻译成英文 / 基于上文续写一段"
-        confirmText="生成"
+        title={t("editor.aiRewriteDialogTitle")}
+        label={t("editor.aiRewriteDialogLabel")}
+        placeholder={t("editor.aiRewriteDialogPlaceholder")}
+        confirmText={t("editor.aiRewriteConfirm")}
         allowEmpty={false}
         onResult={(value) => {
           setAiOpen(false)

@@ -154,15 +154,15 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
         {navGroups.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+          <SidebarGroup key={group.labelKey}>
+            <SidebarGroupLabel>{t(group.labelKey)}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
+                  <SidebarMenuItem key={item.titleKey}>
                     <SidebarMenuButton
                       asChild
-                      tooltip={item.title}
+                      tooltip={t(item.titleKey)}
                       isActive={
                         pathname === item.url ||
                         pathname.startsWith(item.url + "/")
@@ -170,7 +170,7 @@ export function AppSidebar() {
                     >
                       <NavLink to={item.url}>
                         <HugeiconsIcon icon={item.icon} strokeWidth={2} />
-                        <span>{item.title}</span>
+                        <span>{t(item.titleKey)}</span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

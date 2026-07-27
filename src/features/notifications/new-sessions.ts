@@ -2,6 +2,7 @@
 // 低噪声设计:一次/会话、只推摘要(不逐条)、首次运行只播种不提醒、只进应用内(不弹系统)、可关。
 import { useSessionsStore } from "@/store/sessions";
 import { useNotificationsStore } from "@/store/notifications";
+import i18n from "@/i18n";
 
 const SEEN_KEY = "rework-seen-session-ids";
 const PREF_KEY = "rework-notify-new-sessions"; // "0" = 关,其它/缺省 = 开
@@ -71,8 +72,8 @@ export async function syncNewSessionsReminder(): Promise<void> {
   await useNotificationsStore
     .getState()
     .add({
-      title: `发现 ${newIds.length} 条新会话`,
-      body: "本地 CLI 会话有更新，点开查看",
+      title: i18n.t("notif.newSessions", { ns: "shell", count: newIds.length }),
+      body: i18n.t("notif.newSessionsBody", { ns: "shell" }),
       kind: "info",
       source: "会话",
       link: "/sessions",
