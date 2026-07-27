@@ -1,12 +1,13 @@
 <div align="center">
   <img src="public/keelson.svg" width="72" height="72" alt="Keelson" />
   <h1>Keelson</h1>
-  <p><b>本地优先的 AI 工作台</b> —— 把散落的 AI-CLI 会话、项目、任务、文档收拢到一条稳定主干上。</p>
+  <p><b>本地优先的 AI 工作台</b> —— 把散落的 AI-CLI 会话、项目、任务、文档收拢到一处。</p>
+  <p><sub>简体中文 · <a href="README.en.md">English</a></sub></p>
 </div>
 
 ---
 
-Keelson（内部代号 `rework`）融合两条产品线：**retalk**（本地 AI-CLI 会话管理）与 **workavera**（AI 工作空间）。它是一个跨平台桌面应用，数据默认留在本机——会话正文不进数据库、AI 检索倾向本地 embedding、正文不发第三方。
+Keelson 是一个本地优先的跨平台桌面应用，把散落的 AI-CLI 会话、项目、任务、文档收拢到一处。数据默认留在本机——会话正文不进数据库、AI 检索倾向本地 embedding、正文不发第三方。
 
 ## 核心能力
 
