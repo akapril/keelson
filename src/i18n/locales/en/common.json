@@ -1,0 +1,4 @@
+{
+  "action": { "save": "Save", "cancel": "Cancel", "delete": "Delete", "confirm": "Confirm", "close": "Close", "edit": "Edit", "create": "New" },
+  "state": { "loading": "Loading…", "empty": "No data", "error": "Something went wrong" }
+}
