@@ -149,19 +149,16 @@ describe("MemoryEditDialog i18n – memory 命名空间", () => {
 
   it("英文 kind 标签：preference→「Preference」", () => {
     const val = i18n.t("kind.preference", { ns: "memory", lng: "en" });
-    expect(val).toBeTruthy();
-    expect(val).not.toBe("kind.preference");
+    expect(val).toBe("Preference");
   });
 
   it("英文 kind 标签：decision→「Decision」", () => {
     const val = i18n.t("kind.decision", { ns: "memory", lng: "en" });
-    expect(val).toBeTruthy();
-    expect(val).not.toBe("kind.decision");
+    expect(val).toBe("Decision");
   });
 
   it("英文 kind 标签：convention→「Convention」", () => {
     const val = i18n.t("kind.convention", { ns: "memory", lng: "en" });
-    expect(val).toBeTruthy();
-    expect(val).not.toBe("kind.convention");
+    expect(val).toBe("Convention");
   });
 });
