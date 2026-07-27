@@ -1,0 +1,78 @@
+name: Release
+
+# 推送 v* 标签时触发：四平台交叉构建 Keelson 安装包，签名生成自动更新产物，汇总到同一个 Release（草稿）。
+# 例：git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags:
+      - "v*"
+
+# 创建 Release / 上传产物需要写权限
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false # 单平台失败不牵连其余平台
+      matrix:
+        include:
+          - platform: macos-latest # Apple Silicon（arm64）
+            target: aarch64-apple-darwin
+          - platform: macos-13 # Intel（x64）
+            target: x86_64-apple-darwin
+          - platform: ubuntu-22.04 # Linux x64（webkit2gtk 4.1 需 22.04+）
+            target: x86_64-unknown-linux-gnu
+          - platform: windows-latest # Windows x64
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: 安装 Rust（含目标三元组）
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust 编译缓存
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # Tauri v2 在 Linux 编译/打包所需系统库
+      - name: 安装 Linux 系统依赖
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev
+
+      - name: 安装前端依赖
+        run: pnpm install
+
+      # tauri-action 会调用 beforeBuildCommand=`pnpm build`，其 prebuild 钩子
+      # 自动按当前平台三元组下载 PocketBase sidecar（host==target，无交叉，命名天然匹配）。
+      - name: 构建并发布
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 自动更新签名私钥（空密码，见 README「发布」章节的 secret 配置）
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Keelson ${{ github.ref_name }}"
+          releaseBody: "各平台安装包见下方 Assets。已启用应用内自动更新——手动 Publish 本 Release 后，旧版本即可检测到更新。"
+          releaseDraft: true # 草稿：四平台产物汇齐后由你人工 Publish（updater 只认已发布的 latest）
+          prerelease: false
+          args: --target ${{ matrix.target }}

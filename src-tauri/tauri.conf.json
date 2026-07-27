@@ -41,14 +41,15 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/OWNER/REPO/releases/latest/download/latest.json"
+        "https://github.com/akapril/keelson/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVENzc0ODI2RTRCOTY1QgpSV1JibGt0dWduVFhEczBYMUpWRFZWWG1EL0FGdS9rZzdkMVM5Y25FbTNhWjJNZG9uYWN5c1ZoUgo="
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM2QUMwMzM4OTkzNTNGNzYKUldSMlB6V1pPQU9zeHNvNElEaEtlZm1mclcrNkR4T2V2T0srUmFXODJXNlpFa2JzVTl3czlUaDMK"
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
