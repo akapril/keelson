@@ -5,7 +5,6 @@
   },
   "filter": {
     "unreadOnly": "只看未读",
-    "unreadOnlyActive": "只看未读 ✓",
     "allSources": "全部来源"
   },
   "bulk": {

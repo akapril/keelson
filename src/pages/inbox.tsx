@@ -26,7 +26,7 @@ const KIND_DOT: Record<NotificationKind, string> = {
 /** 相对时间简版（复用 MM-DD HH:mm 兜底）。 */
 function whenLabel(
   iso: string,
-  tFn: (key: string, opts: Record<string, number>) => string,
+  tFn: (key: string, opts: Record<string, unknown>) => string,
 ): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -115,7 +115,7 @@ export default function InboxPage() {
             unreadOnly ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
           }`}
         >
-          {unreadOnly ? t("inbox:filter.unreadOnlyActive") : t("inbox:filter.unreadOnly")}
+          {t("inbox:filter.unreadOnly")}{unreadOnly ? " ✓" : ""}
         </button>
         <Select value={sourceFilter} onValueChange={setSourceFilter}>
           <SelectTrigger size="sm" className="w-36">

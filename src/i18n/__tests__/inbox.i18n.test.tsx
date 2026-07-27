@@ -196,23 +196,20 @@ describe("InboxPage i18n – inbox 命名空间", () => {
     expect(val).toBe("标记已读失败：超时");
   });
 
-  it("zh/en key 结构对称（inbox:page 下所有 zh key 在 en 中都存在）", () => {
-    const zhKeys = Object.keys(
-      (i18n.getResourceBundle("zh", "inbox") as Record<string, Record<string, string>>)?.page ?? {},
-    );
-    const enKeys = Object.keys(
-      (i18n.getResourceBundle("en", "inbox") as Record<string, Record<string, string>>)?.page ?? {},
-    );
-    expect(zhKeys.sort()).toEqual(enKeys.sort());
-  });
+  // 遍历所有顶层 section 的通用对称断言
+  it("zh/en key 结构完全对称（inbox 命名空间所有顶层 section）", () => {
+    type InboxBundle = Record<string, Record<string, string>>;
+    const zh = i18n.getResourceBundle("zh", "inbox") as InboxBundle;
+    const en = i18n.getResourceBundle("en", "inbox") as InboxBundle;
 
-  it("zh/en key 结构对称（inbox:time 下所有 zh key 在 en 中都存在）", () => {
-    const zhKeys = Object.keys(
-      (i18n.getResourceBundle("zh", "inbox") as Record<string, Record<string, string>>)?.time ?? {},
-    );
-    const enKeys = Object.keys(
-      (i18n.getResourceBundle("en", "inbox") as Record<string, Record<string, string>>)?.time ?? {},
-    );
-    expect(zhKeys.sort()).toEqual(enKeys.sort());
+    // 顶层 section 集合相同
+    expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort());
+
+    // 每个 section 内的键集合相同
+    for (const section of Object.keys(zh)) {
+      const zhSectionKeys = Object.keys(zh[section] ?? {}).sort();
+      const enSectionKeys = Object.keys(en[section] ?? {}).sort();
+      expect(enSectionKeys, `inbox:${section} zh/en key 不对称`).toEqual(zhSectionKeys);
+    }
   });
 });

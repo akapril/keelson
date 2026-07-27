@@ -5,13 +5,12 @@
   },
   "filter": {
     "unreadOnly": "Unread only",
-    "unreadOnlyActive": "Unread only ✓",
     "allSources": "All sources"
   },
   "bulk": {
     "selectAll": "Select all",
     "markRead": "Mark read",
-    "markReadError": "Failed to mark as read: {{msg}}",
+    "markReadError": "Failed to bulk mark as read: {{msg}}",
     "deleteError": "Failed to delete: {{msg}}"
   },
   "item": {
