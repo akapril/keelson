@@ -189,12 +189,12 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     use tauri::menu::{Menu, MenuItem};
     use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
-    let show = MenuItem::with_id(app, "tray_show", "显示 rework", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "tray_show", "显示 Keelson", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "tray_quit", "退出", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &quit])?;
 
     let mut builder = TrayIconBuilder::new()
-        .tooltip("rework")
+        .tooltip("Keelson")
         .menu(&menu)
         // 左键点击唤起窗口，不弹菜单；菜单走右键
         .show_menu_on_left_click(false)
