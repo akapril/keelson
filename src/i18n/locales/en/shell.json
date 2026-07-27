@@ -62,9 +62,6 @@
     "installNow": "Download & Install",
     "downloadingProgress": "Downloading {{progress}}%"
   },
-  "layout": {
-    "loading": "Loading…"
-  },
   "errorBoundary": {
     "title": "Something went wrong",
     "retry": "Retry"
@@ -85,8 +82,5 @@
     "groupReading": "Reading",
     "unnamedDoc": "Untitled doc",
     "docFallbackGroup": "Docs"
-  },
-  "promptDialog": {
-    "cancel": "Cancel"
   }
 }

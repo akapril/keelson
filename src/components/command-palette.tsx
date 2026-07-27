@@ -108,7 +108,8 @@ export function CommandPalette() {
         <CommandEmpty>{t("commandPalette.empty")}</CommandEmpty>
 
         <CommandGroup heading={t("commandPalette.groupActions")}>
-          <CommandItem value="操作 生成工作报告 周报 日报" onSelect={() => go("/report")}>
+          {/* value 随语言对齐可见文本，确保英文模式下关键词可搜到 */}
+          <CommandItem value={t("commandPalette.actionReport")} onSelect={() => go("/report")}>
             <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} className="size-4" />
             {t("commandPalette.actionReport")}
           </CommandItem>

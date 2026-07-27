@@ -11,6 +11,7 @@ import {
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -46,7 +47,8 @@ function makeShortTime(t: (key: string, opts?: Record<string, unknown>) => strin
     if (min < 60) return t("activity.timeMinutesAgo", { n: min });
     const hr = Math.floor(min / 60);
     if (hr < 24) return t("activity.timeHoursAgo", { n: hr });
-    return new Date(iso).toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
+    // 随当前语言格式化日期（避免切换英文时仍输出 zh-CN 格式）
+    return new Date(iso).toLocaleDateString(i18n.language, { month: "short", day: "numeric" });
   };
 }
 
