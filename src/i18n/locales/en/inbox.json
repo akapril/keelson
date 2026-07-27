@@ -1,0 +1,30 @@
+{
+  "page": {
+    "title": "Inbox",
+    "subtitle": "Deadlines, new sessions, external actions, updates — all in one place for batch processing."
+  },
+  "filter": {
+    "unreadOnly": "Unread only",
+    "unreadOnlyActive": "Unread only ✓",
+    "allSources": "All sources"
+  },
+  "bulk": {
+    "selectAll": "Select all",
+    "markRead": "Mark read",
+    "markReadError": "Failed to mark as read: {{msg}}",
+    "deleteError": "Failed to delete: {{msg}}"
+  },
+  "item": {
+    "selectAriaLabel": "Select",
+    "markReadError": "Failed to mark as read: {{msg}}"
+  },
+  "empty": {
+    "unread": "No unread notifications",
+    "all": "No notifications"
+  },
+  "time": {
+    "minutesAgo": "{{count}} min ago",
+    "hoursAgo": "{{count}} hr ago",
+    "daysAgo": "{{count}} d ago"
+  }
+}
