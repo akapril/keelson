@@ -52,34 +52,6 @@ pnpm tauri build    # 产物在 src-tauri/target/release/bundle/
 
 PocketBase sidecar 由 `scripts/fetch-pocketbase.mjs` 在 `prebuild` 阶段按当前平台三元组自动获取，并以 Tauri sidecar 命名规则放入 `src-tauri/binaries/`。
 
-## 发布（自动更新）
-
-推送 `v*` 标签即触发 [`.github/workflows/release.yml`](.github/workflows/release.yml)：在 macOS（arm64 + Intel）、Linux x64、Windows x64 四平台交叉构建，签名生成自动更新产物，汇总到一个**草稿 Release**。
-
-```bash
-# 版本号需与 src-tauri/tauri.conf.json 的 version 一致
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-四平台产物齐了之后，在 GitHub 手动 **Publish** 该 Release —— 应用内自动更新只认已发布的 `latest`。
-
-### 首次配置签名 Secret（一次性）
-
-自动更新依赖 minisign 签名。私钥**绝不入库**，需配到仓库 Secret：
-
-1. 取本机已生成的私钥内容：
-
-   ```bash
-   cat ~/.tauri/keelson.key
-   ```
-
-2. 到 GitHub 仓库 → Settings → Secrets and variables → Actions，新建：
-   - `TAURI_SIGNING_PRIVATE_KEY` = 上一步输出的整段私钥
-   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` = 空（本密钥无密码，值留空即可）
-
-对应公钥已写入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。**丢失私钥将无法再签署更新**，请妥善备份 `~/.tauri/keelson.key`。
-
 ## 隐私边界
 
 会话正文留在磁盘，仅元数据入 PocketBase；AI 检索倾向本地 embedding，正文不发送第三方；破坏性操作不注册为 AI 工具（服务端 access-rules 即授权边界）。
