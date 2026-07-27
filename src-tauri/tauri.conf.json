@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "rework",
+  "productName": "Keelson",
   "version": "0.1.0",
   "identifier": "com.rework.app",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "rework",
+        "title": "Keelson",
         "width": 1200,
         "height": 800,
         "minWidth": 920,
@@ -22,7 +22,7 @@
       },
       {
         "label": "spotlight",
-        "title": "rework spotlight",
+        "title": "Keelson Spotlight",
         "visible": false,
         "decorations": false,
         "alwaysOnTop": true,

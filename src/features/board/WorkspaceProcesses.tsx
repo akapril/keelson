@@ -217,7 +217,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
           ) : procs.length === 0 ? (
             <p className="py-8 text-center text-xs text-muted-foreground">
               {global
-                ? "暂无由 rework 托管的进程。"
+                ? "暂无由 Keelson 托管的进程。"
                 : "本项目暂无正在托管的进程。在上方输入框启动一个，或让 Claude Code 起长驻进程自动托管。"}
             </p>
           ) : (

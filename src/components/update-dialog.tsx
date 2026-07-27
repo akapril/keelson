@@ -28,7 +28,7 @@ export function UpdateDialog() {
         <DialogHeader>
           <DialogTitle>发现新版本</DialogTitle>
           <DialogDescription>
-            rework {version} 已发布
+            Keelson {version} 已发布
             {currentVersion ? `，当前版本为 ${currentVersion}` : ""}。
           </DialogDescription>
         </DialogHeader>

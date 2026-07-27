@@ -49,7 +49,7 @@ export function LoginScreen() {
             <HugeiconsIcon icon={FolderLibraryIcon} strokeWidth={2} className="size-5" />
           </div>
           <div className="text-center">
-            <div className="text-lg font-semibold">rework</div>
+            <div className="text-lg font-semibold">Keelson</div>
             <div className="text-xs text-muted-foreground">会话 · 项目 · 看板</div>
           </div>
         </div>

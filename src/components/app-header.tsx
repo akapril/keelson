@@ -55,7 +55,7 @@ export function AppHeader() {
     "/inbox": "收件箱",
   };
   const currentTitle =
-    currentNav?.title ?? EXTRA_TITLES[location.pathname] ?? "rework";
+    currentNav?.title ?? EXTRA_TITLES[location.pathname] ?? "Keelson";
   const initials = (user?.name?.charAt(0) ?? "U").toUpperCase();
 
   return (

@@ -73,7 +73,7 @@ export function McpSection() {
 
       <p className="text-xs text-muted-foreground">
         提示：secret 已持久化，端口固定 47600，接入一次长期有效（除非端口被占用回退）。
-        仅本机（127.0.0.1）；需 rework 应用开着。
+        仅本机（127.0.0.1）；需 Keelson 应用开着。
       </p>
     </section>
   );
