@@ -2,6 +2,7 @@
 // 预填名称（路径末段）+ 只读仓库路径，用户选择模板后调用 store.createProject，
 // 成功后打开该项目并跳转到看板路由。组件不直接调用 invoke / pb.collection，一律走 store。
 import { useEffect, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useBoardStore } from "../../store/board";
 import { workspaceRecordUrl } from "../../lib/workspace-navigation";
@@ -47,6 +48,7 @@ export function PromoteToProjectDialog({
   projectPath,
   onClose,
 }: PromoteToProjectDialogProps) {
+  const { t } = useTranslation("board");
   const templates = useBoardStore((s) => s.templates);
   const loadTemplates = useBoardStore((s) => s.loadTemplates);
   const projects = useBoardStore((s) => s.projects);
@@ -94,13 +96,13 @@ export function PromoteToProjectDialog({
     setError(undefined);
 
     // 找到所选模板对象
-    const template = templates.find((t) => t.id === templateId);
+    const template = templates.find((tmpl) => tmpl.id === templateId);
     if (!template) {
-      setError("请选择一个模板");
+      setError(t("promote.errors.noTemplate"));
       return;
     }
     if (!name.trim()) {
-      setError("项目名称不能为空");
+      setError(t("promote.errors.emptyName"));
       return;
     }
 
@@ -135,7 +137,7 @@ export function PromoteToProjectDialog({
       <DialogContent aria-labelledby="promote-project-title">
         {/* 标题区 */}
         <DialogHeader>
-          <DialogTitle id="promote-project-title">提升为看板项目</DialogTitle>
+          <DialogTitle id="promote-project-title">{t("promote.title")}</DialogTitle>
         </DialogHeader>
 
         {existing ? (
@@ -143,22 +145,21 @@ export function PromoteToProjectDialog({
           <div className="flex flex-col gap-4">
             <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
               <p className="text-foreground">
-                此仓库已提升为项目「
-                <span className="font-medium">{existing.name}</span>」。
+                {t("promote.existingTitle", { name: existing.name })}
               </p>
               <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
                 {projectPath}
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                一个仓库对应一个项目，避免重复。会话仍会关联到该项目。
+                {t("promote.existingHint")}
               </p>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>
-                取消
+                {t("common:action.cancel")}
               </Button>
               <Button type="button" onClick={() => void openExisting(existing.id)}>
-                打开「{existing.name}」
+                {t("promote.openExisting", { name: existing.name })}
               </Button>
             </DialogFooter>
           </div>
@@ -168,7 +169,7 @@ export function PromoteToProjectDialog({
           {/* 项目名称（必填，预填路径末段） */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="pp-name">
-              项目名称
+              {t("promote.fieldName")}
               <span className="text-destructive">*</span>
             </Label>
             <Input
@@ -177,7 +178,7 @@ export function PromoteToProjectDialog({
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="输入项目名称"
+              placeholder={t("promote.namePlaceholder")}
               disabled={loading}
             />
           </div>
@@ -185,9 +186,9 @@ export function PromoteToProjectDialog({
           {/* 仓库路径（只读，固定为会话项目路径） */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="pp-repo">
-              仓库路径
+              {t("promote.fieldRepo")}
               <span className="text-xs font-normal text-muted-foreground">
-                （来自会话项目）
+                {t("promote.fieldRepoHint")}
               </span>
             </Label>
             <Input
@@ -204,11 +205,11 @@ export function PromoteToProjectDialog({
           {/* 模板选择 */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="pp-template">
-              模板
+              {t("promote.fieldTemplate")}
               <span className="text-destructive">*</span>
             </Label>
             {templates.length === 0 ? (
-              <p className="text-sm text-muted-foreground">加载模板中…</p>
+              <p className="text-sm text-muted-foreground">{t("promote.loadingTemplates")}</p>
             ) : (
               <Select
                 value={templateId}
@@ -216,13 +217,13 @@ export function PromoteToProjectDialog({
                 disabled={loading}
               >
                 <SelectTrigger id="pp-template" className="w-full">
-                  <SelectValue placeholder="选择模板" />
+                  <SelectValue placeholder={t("promote.templatePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                      {t.description ? ` — ${t.description}` : ""}
+                  {templates.map((tmpl) => (
+                    <SelectItem key={tmpl.id} value={tmpl.id}>
+                      {tmpl.name}
+                      {tmpl.description ? ` — ${tmpl.description}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -248,10 +249,10 @@ export function PromoteToProjectDialog({
               onClick={onClose}
               disabled={loading}
             >
-              取消
+              {t("common:action.cancel")}
             </Button>
             <Button type="submit" disabled={loading || templates.length === 0}>
-              {loading ? "提升中…" : "提升"}
+              {loading ? t("promote.promoting") : t("promote.promote")}
             </Button>
           </DialogFooter>
         </form>

@@ -4,6 +4,7 @@
 // 从此会话建任务时，CreateTaskFromSessionDialog 会默认命中 repo_path 匹配的本项目。
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useSessionsStore } from "@/store/sessions";
 import { ipc } from "@/lib/tauri/ipc";
 import type { Session } from "@/types/session";
@@ -12,31 +13,32 @@ import { SessionPreviewPane } from "@/features/sessions/SessionPreviewPane";
 
 /** 「新建会话」控件：在项目仓库目录就地起 claude / codex 的两个按钮。 */
 function NewSessionButtons({ repoPath }: { repoPath: string }) {
+  const { t } = useTranslation("board");
   const start = (provider: "claude" | "codex") => {
+    const providerLabel = provider === "claude" ? "Claude" : "Codex";
     void ipc
       .startSession(provider, repoPath)
       .then(() =>
-        toast.success(
-          `已在终端启动 ${provider === "claude" ? "Claude" : "Codex"} 会话（对话后会自动出现在此）`,
-        ),
+        toast.success(t("sessions.toast.startSuccess", { provider: providerLabel })),
       )
-      .catch((e) => toast.error(`启动失败：${String(e)}`));
+      .catch((e) => toast.error(t("sessions.toast.startError", { msg: String(e) })));
   };
   const cls =
     "rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground";
   return (
     <div className="flex items-center gap-2">
       <button type="button" className={cls} onClick={() => start("claude")}>
-        + Claude 会话
+        {t("sessions.newClaude")}
       </button>
       <button type="button" className={cls} onClick={() => start("codex")}>
-        + Codex 会话
+        {t("sessions.newCodex")}
       </button>
     </div>
   );
 }
 
 export function WorkspaceSessions({ repoPath }: { repoPath: string }) {
+  const { t } = useTranslation("board");
   const sessions = useSessionsStore((s) => s.sessions);
   const linked = sessions.filter((s) => s.project_path === repoPath);
   const [selected, setSelected] = useState<Session | null>(null);
@@ -61,7 +63,7 @@ export function WorkspaceSessions({ repoPath }: { repoPath: string }) {
   if (!repoPath) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-        本项目未绑定仓库路径——先在「项目设置」绑定仓库，才能新建 / 关联本地 CLI 会话。
+        {t("sessions.noRepo")}
       </div>
     );
   }
@@ -69,8 +71,8 @@ export function WorkspaceSessions({ repoPath }: { repoPath: string }) {
   if (linked.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
-        <p>该项目暂无关联的本地会话。</p>
-        <p className="text-xs">在下方新建一个——会在此项目目录起 CLI 会话，对话后自动出现在这里。</p>
+        <p>{t("sessions.empty")}</p>
+        <p className="text-xs">{t("sessions.emptyHint")}</p>
         <NewSessionButtons repoPath={repoPath} />
       </div>
     );
@@ -81,7 +83,7 @@ export function WorkspaceSessions({ repoPath }: { repoPath: string }) {
       {/* 左：关联会话列表（可选中） */}
       <div className="flex w-80 shrink-0 flex-col gap-2 overflow-y-auto pr-1">
         <div className="flex shrink-0 items-center justify-between gap-2 px-0.5">
-          <span className="text-xs text-muted-foreground">{linked.length} 个关联会话</span>
+          <span className="text-xs text-muted-foreground">{t("sessions.linkedCount", { count: linked.length })}</span>
           <NewSessionButtons repoPath={repoPath} />
         </div>
         {linked.map((s) => (

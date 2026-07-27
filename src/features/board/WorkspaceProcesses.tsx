@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { ipc } from "@/lib/tauri/ipc";
 import { on } from "@/lib/tauri/events";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ function logText(l: RuntimeLog): string {
 // repoPath 有值=项目模式（按仓库路径过滤 + 可在本目录启动）；
 // 无值=全局模式（侧边栏「进程」页：显示所有托管进程，不过滤，不提供启动，附清理入口）。
 export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
+  const { t } = useTranslation("board");
   const global = !repoPath;
   const navigate = useNavigate();
   const [procs, setProcs] = useState<RuntimeProcess[]>([]);
@@ -97,12 +99,16 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
       if (action === "stop") await ipc.runtimeStop(name);
       else if (action === "restart") await ipc.runtimeRestart(name);
       else await ipc.runtimeRemove(name);
-      const verb = action === "stop" ? "停止" : action === "restart" ? "重启" : "删除";
-      toast.success(`已${verb} ${name}`);
+      const successMsg = action === "stop"
+        ? t("processes.toast.stop", { name })
+        : action === "restart"
+        ? t("processes.toast.restart", { name })
+        : t("processes.toast.remove", { name });
+      toast.success(successMsg);
       if (selected === name && action === "remove") setSelected(null);
       await refresh();
     } catch (e) {
-      toast.error(`操作失败：${String(e)}`);
+      toast.error(t("processes.toast.error", { msg: String(e) }));
     } finally {
       setBusy(false);
     }
@@ -113,11 +119,11 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
     setBusy(true);
     try {
       const r = await ipc.runtimeClean(7);
-      toast.success(`已清理 ${r.processes_removed} 条停止/退出记录 · ${r.log_files_deleted} 个旧日志`);
+      toast.success(t("processes.toast.cleanSuccess", { processes: r.processes_removed, logs: r.log_files_deleted }));
       if (selected) setSelected(null);
       await refresh();
     } catch (e) {
-      toast.error(`清理失败：${String(e)}`);
+      toast.error(t("processes.toast.cleanError", { msg: String(e) }));
     } finally {
       setBusy(false);
     }
@@ -131,11 +137,11 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
       // name 默认取命令首词 + 时间无关的简短标识（daemon 会去重/覆盖）
       const name = command.split(/\s+/)[0] || "proc";
       await ipc.runtimeStart(command, name, repoPath);
-      toast.success(`已启动：${command}`);
+      toast.success(t("processes.toast.startSuccess", { cmd: command }));
       setCmd("");
       await refresh();
     } catch (e) {
-      toast.error(`启动失败：${String(e)}`);
+      toast.error(t("processes.toast.startError", { msg: String(e) }));
     } finally {
       setBusy(false);
     }
@@ -166,14 +172,14 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
         // 全局模式：不提供启动（启动属具体项目），改提供刷新 + 清理停止/退出记录
         <div className="flex shrink-0 items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            共 {procs.length} 个托管进程（跨项目）。启动新进程请到具体项目的「进程」标签。
+            {t("processes.globalDesc", { count: procs.length })}
           </span>
           <div className="ml-auto flex gap-2">
             <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void refresh()}>
-              刷新
+              {t("processes.refreshBtn")}
             </Button>
             <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void cleanup()}>
-              清理已停止/退出
+              {t("processes.cleanBtn")}
             </Button>
           </div>
         </div>
@@ -189,22 +195,22 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
           <Input
             value={cmd}
             onChange={(e) => setCmd(e.target.value)}
-            placeholder="在本项目目录启动进程，如 npm run dev / cargo run"
+            placeholder={t("processes.startPlaceholder")}
             className="flex-1"
             disabled={busy}
           />
           <Button type="submit" disabled={busy || !cmd.trim()}>
-            启动
+            {t("processes.startBtn")}
           </Button>
           {/* 手动刷新：已自动刷新，此处即时刷新 */}
           <Button
             type="button"
             variant="outline"
             disabled={busy}
-            title="立即刷新进程列表"
+            title={t("processes.startBtnRefreshTitle")}
             onClick={() => void refresh()}
           >
-            刷新
+            {t("processes.refreshBtn")}
           </Button>
         </form>
       )}
@@ -213,12 +219,12 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
         {/* 进程列表 */}
         <div className="flex w-72 shrink-0 flex-col gap-1.5 overflow-y-auto">
           {!loaded ? (
-            <p className="py-8 text-center text-xs text-muted-foreground">加载中…</p>
+            <p className="py-8 text-center text-xs text-muted-foreground">{t("processes.loading")}</p>
           ) : procs.length === 0 ? (
             <p className="py-8 text-center text-xs text-muted-foreground">
               {global
-                ? "暂无由 Keelson 托管的进程。"
-                : "本项目暂无正在托管的进程。在上方输入框启动一个，或让 Claude Code 起长驻进程自动托管。"}
+                ? t("processes.emptyGlobal")
+                : t("processes.emptyProject")}
             </p>
           ) : (
             procs.map((p) => {
@@ -265,7 +271,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                     <span
                       role="button"
                       tabIndex={0}
-                      title={`起自会话 ${p.session_id}，点击查看`}
+                      title={t("processes.sessionBadgeTitle", { id: p.session_id })}
                       onClick={(e) => {
                         e.stopPropagation();
                         const params = new URLSearchParams({ session: p.session_id! });
@@ -274,12 +280,12 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                       }}
                       className="w-fit rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary hover:bg-primary/20"
                     >
-                      ↻ 来自会话
+                      {t("processes.sessionBadge")}
                     </span>
                   )}
                   <div className="flex items-center gap-1.5 pt-0.5">
                     <span className="text-[10px] text-muted-foreground">
-                      {running ? "运行中" : p.status}
+                      {running ? t("processes.running") : p.status}
                       {p.health && p.health !== "unknown" ? ` · ${p.health}` : ""}
                     </span>
                     <span className="ml-auto flex gap-1">
@@ -292,7 +298,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                         }}
                         className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
                       >
-                        重启
+                        {t("processes.restartBtn")}
                       </span>
                       {running ? (
                         <span
@@ -304,7 +310,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                           }}
                           className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         >
-                          停止
+                          {t("processes.stopBtn")}
                         </span>
                       ) : (
                         // 已退出/停止：允许删除记录（连同日志文件）
@@ -317,7 +323,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                           }}
                           className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         >
-                          删除
+                          {t("processes.removeBtn")}
                         </span>
                       )}
                     </span>
@@ -332,12 +338,12 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
         <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
           {!selected ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              选择左侧进程查看日志
+              {t("processes.selectProcess")}
             </div>
           ) : (
             <div className="flex h-full flex-col">
               <div className="shrink-0 border-b border-border px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                {selected} · 最近 {selectedLogs.length} 条日志
+                {t("processes.logHeader", { name: selected, count: selectedLogs.length })}
               </div>
               <div
                 ref={logScrollRef}
@@ -351,7 +357,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                 className="min-h-0 flex-1 overflow-auto p-3"
               >
                 {selectedLogs.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">暂无日志。</p>
+                  <p className="text-xs text-muted-foreground">{t("processes.noLogs")}</p>
                 ) : (
                   <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-foreground">
                     {selectedLogs.join("\n")}

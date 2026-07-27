@@ -4,6 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Calendar03Icon,
@@ -33,8 +34,8 @@ import { PRIORITY_META, PRIORITY_ORDER } from "./board-meta";
 import { isCliSynced, toggleInject, getInjectSet } from "./cli-task-source";
 
 // ── 日期格式化 ────────────────────────────────────────────────
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("zh-CN", {
+function formatDate(dateStr: string, locale: string): string {
+  return new Date(dateStr).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
   });
@@ -85,12 +86,13 @@ function TaskCardInner({
   const deleteTask = useBoardStore((s) => s.deleteTask);
   const moveTask = useBoardStore((s) => s.moveTask);
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation("board");
 
   // 右键菜单：改优先级（同优先级不重复写）
   const setPriority = (p: BoardTask["priority"]) => {
     if (p === task.priority) return;
     void updateTask(task.id, { priority: p }).catch((e) =>
-      toast.error(`修改优先级失败：${String(e)}`),
+      toast.error(t("task.toast.priorityError", { msg: String(e) })),
     );
   };
   // 右键菜单：移动到目标状态列（追加到末尾）
@@ -100,16 +102,16 @@ function TaskCardInner({
     // 导致任一任务变动全体卡片重渲。
     const toIndex = useBoardStore
       .getState()
-      .tasks.filter((t) => t.state === stateId).length;
+      .tasks.filter((tk) => tk.state === stateId).length;
     void moveTask(task.id, stateId, toIndex).catch((e) =>
-      toast.error(`移动失败：${String(e)}`),
+      toast.error(t("task.toast.moveError", { msg: String(e) })),
     );
   };
   // 右键菜单：删除
   const remove = () => {
     void deleteTask(task.id)
-      .then(() => toast.success("已删除任务"))
-      .catch((e) => toast.error(`删除失败：${String(e)}`));
+      .then(() => toast.success(t("task.toast.deleteSuccess")))
+      .catch((e) => toast.error(t("task.toast.deleteError", { msg: String(e) })));
   };
   // 右键菜单：跳转来源会话（不经卡片点击事件）
   const goSource = () => {
@@ -194,7 +196,7 @@ function TaskCardInner({
       {/* 已归档角标 */}
       {task.archived && (
         <span className="absolute right-2 top-2 z-10 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-          已归档
+          {t("task.archived")}
         </span>
       )}
       {/* 多选模式：左上角勾选图标 */}
@@ -256,7 +258,7 @@ function TaskCardInner({
             className={cn("h-4.5 gap-1 px-1.5 text-[10px]", priority.badge)}
           >
             <span className={cn("size-1.5 rounded-full", priority.dot)} />
-            {priority.label}
+            {t(`meta.priority.${task.priority}`)}
           </Badge>
         )}
 
@@ -273,7 +275,7 @@ function TaskCardInner({
               strokeWidth={2}
               className="size-3"
             />
-            {formatDate(task.due_date)}
+            {formatDate(task.due_date, i18n.language)}
           </span>
         )}
 
@@ -282,11 +284,11 @@ function TaskCardInner({
           <button
             type="button"
             onClick={handleSourceClick}
-            aria-label="跳转到来源会话"
+            aria-label={t("task.sourceSessionAriaLabel")}
             title={
               cliSynced
-                ? `CLI 同步任务，来源会话：${task.source_session_id}`
-                : `来源会话：${task.source_session_id}`
+                ? t("task.sourceSessionCliTitle", { id: task.source_session_id })
+                : t("task.sourceSessionTitle", { id: task.source_session_id })
             }
             className={cn(
               "ml-auto flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] transition-colors focus:outline-none focus:ring-2 focus:ring-ring",
@@ -296,7 +298,7 @@ function TaskCardInner({
             )}
           >
             <HugeiconsIcon icon={Message01Icon} strokeWidth={2} className="size-3" />
-            {cliSynced ? "↻会话" : "来源"}
+            {cliSynced ? t("task.sourceSessionCli") : t("task.sourceSession")}
           </button>
         )}
       </div>
@@ -306,19 +308,19 @@ function TaskCardInner({
       {/* 右键菜单：选择（进入多选）/ 编辑 / 优先级 / 移动 / 来源会话 / 删除 */}
       <ContextMenuContent>
         {/* 「选择」：进入多选模式并将本卡片设为已选 */}
-        <ContextMenuItem onSelect={() => onEnterSelect?.(task.id)}>选择</ContextMenuItem>
+        <ContextMenuItem onSelect={() => onEnterSelect?.(task.id)}>{t("task.ctxMenu.select")}</ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => onEdit?.(task)}>编辑</ContextMenuItem>
+        <ContextMenuItem onSelect={() => onEdit?.(task)}>{t("task.ctxMenu.edit")}</ContextMenuItem>
 
         <ContextMenuSub>
-          <ContextMenuSubTrigger>优先级</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger>{t("task.ctxMenu.priority")}</ContextMenuSubTrigger>
           <ContextMenuSubContent>
             {PRIORITY_ORDER.map((p) => (
               <ContextMenuItem key={p} onSelect={() => setPriority(p)}>
                 <span className={cn("size-1.5 rounded-full", PRIORITY_META[p].dot)} />
-                {PRIORITY_META[p].label}
+                {t(`meta.priority.${p}`)}
                 {p === task.priority && (
-                  <span className="ml-auto text-xs text-muted-foreground">当前</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{t("task.ctxMenu.current")}</span>
                 )}
               </ContextMenuItem>
             ))}
@@ -326,10 +328,10 @@ function TaskCardInner({
         </ContextMenuSub>
 
         <ContextMenuSub>
-          <ContextMenuSubTrigger>移动到</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger>{t("task.ctxMenu.moveTo")}</ContextMenuSubTrigger>
           <ContextMenuSubContent>
             {states.length === 0 ? (
-              <ContextMenuLabel>无可用状态列</ContextMenuLabel>
+              <ContextMenuLabel>{t("task.ctxMenu.noStates")}</ContextMenuLabel>
             ) : (
               states.map((st) => (
                 <ContextMenuItem
@@ -340,7 +342,7 @@ function TaskCardInner({
                   <span className="size-1.5 rounded-full" style={{ backgroundColor: st.color }} />
                   {st.name}
                   {st.id === task.state && (
-                    <span className="ml-auto text-xs text-muted-foreground">当前</span>
+                    <span className="ml-auto text-xs text-muted-foreground">{t("task.ctxMenu.current")}</span>
                   )}
                 </ContextMenuItem>
               ))
@@ -352,7 +354,7 @@ function TaskCardInner({
           <>
             <ContextMenuSeparator />
             <ContextMenuItem onSelect={goSource}>
-              跳转来源会话
+              {t("task.ctxMenu.gotoSource")}
             </ContextMenuItem>
           </>
         )}
@@ -362,7 +364,7 @@ function TaskCardInner({
           <>
             <ContextMenuSeparator />
             <ContextMenuItem onSelect={toggleInjectSet}>
-              {inInjectSet ? "移出 CLI 注入集" : "加入 CLI 注入集"}
+              {inInjectSet ? t("task.ctxMenu.removeFromInjectSet") : t("task.ctxMenu.addToInjectSet")}
             </ContextMenuItem>
           </>
         )}
@@ -372,14 +374,14 @@ function TaskCardInner({
         <ContextMenuItem
           onSelect={() =>
             void updateTask(task.id, { archived: !task.archived }).catch((e) =>
-              toast.error(`操作失败：${String(e)}`),
+              toast.error(t("task.toast.archiveError", { msg: String(e) })),
             )
           }
         >
-          {task.archived ? "取消归档" : "归档"}
+          {task.archived ? t("task.ctxMenu.unarchive") : t("task.ctxMenu.archive")}
         </ContextMenuItem>
         <ContextMenuItem variant="destructive" onSelect={remove}>
-          删除
+          {t("common:action.delete")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

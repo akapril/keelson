@@ -6,6 +6,7 @@ import { listProjects } from "@/lib/pb/board";
 import { syncSessionTasks } from "./sync-session-tasks";
 import { getAutoSyncTasks } from "./auto-sync-pref";
 import type { ActivityEvent } from "@/types/activity";
+import i18n from "../../i18n";
 
 // 触发同步的工具（大小写不敏感匹配，防后端归一化差异）
 const TASK_TOOLS = new Set(["taskcreate", "taskupdate"]);
@@ -53,7 +54,7 @@ async function runSync(
     const r = await syncSessionTasks(sessionId, provider, pid);
     // 低打扰：仅「新建了卡片」时轻提示；纯状态更新（卡片移列）不弹，靠看板实时渲染呈现
     if (r.created > 0) {
-      toast.message(`已自动同步 ${r.created} 个新任务到看板`);
+      toast.message(i18n.t("autoSync.toast.synced", { ns: "board", count: r.created }));
     }
   } catch {
     // 自动同步失败静默（手动「同步任务」按钮仍可兜底）

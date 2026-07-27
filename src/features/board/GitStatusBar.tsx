@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ipc } from "../../lib/tauri/ipc";
 
 // ── 类型：git_info 命令返回结构（镜像 Rust GitInfo） ──────────
@@ -20,6 +21,7 @@ interface GitStatusBarProps {
  * - 非仓库（!is_repo）或出错时不渲染任何内容（返回 null）。
  */
 export function GitStatusBar({ repoPath }: GitStatusBarProps) {
+  const { t } = useTranslation("board");
   // info === undefined 表示尚未加载完成；null 表示不应渲染（非仓库/出错）
   const [info, setInfo] = useState<GitInfo | null | undefined>(undefined);
 
@@ -58,7 +60,7 @@ export function GitStatusBar({ repoPath }: GitStatusBarProps) {
       {/* ⎇ 分支名 · N 未提交 */}
       <span className="font-mono">⎇ {info.branch ?? "(detached)"}</span>
       <span>·</span>
-      <span>{info.dirty_count} 未提交</span>
+      <span>{t("git.uncommitted", { count: info.dirty_count })}</span>
     </div>
   );
 }

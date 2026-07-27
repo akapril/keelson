@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Virtualizer } from "virtua";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { GitCommitIcon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 
@@ -15,6 +16,7 @@ import { commitLinkedSessions } from "@/features/sessions/commit-correlate";
 
 /** 会话溯源钩子状态条：启用后新提交自动带 Rework-Session trailer（精确关联）。 */
 function HookBar({ repoPath }: { repoPath: string }) {
+  const { t } = useTranslation("board");
   const [status, setStatus] = useState<HookStatus | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -32,14 +34,14 @@ function HookBar({ repoPath }: { repoPath: string }) {
     try {
       if (status.installed) {
         await ipc.uninstallSessionTrailerHook(repoPath);
-        toast.success("已停用会话溯源");
+        toast.success(t("commits.hook.toast.disabled"));
       } else {
         await ipc.installSessionTrailerHook(repoPath);
-        toast.success("已启用：之后的新提交将自动带会话溯源 trailer");
+        toast.success(t("commits.hook.toast.enabled"));
       }
       refresh();
     } catch (e) {
-      toast.error(`操作失败：${String(e)}`);
+      toast.error(t("commits.hook.toast.error", { msg: String(e) }));
     } finally {
       setBusy(false);
     }
@@ -50,18 +52,18 @@ function HookBar({ repoPath }: { repoPath: string }) {
     <div className="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs">
       {status.installed ? (
         <span className="rounded-full bg-primary/15 px-1.5 py-0.5 font-medium text-primary">
-          🎯 会话溯源已启用
+          {t("commits.hook.enabled")}
         </span>
       ) : (
         <span className="text-muted-foreground">
-          启用后，此仓库的新提交将自动打上 Rework-Session trailer（精确关联会话）
+          {t("commits.hook.disabled")}
         </span>
       )}
       {status.foreign_hook_present && !status.installed && (
-        <span className="text-muted-foreground/70">（将与已有 prepare-commit-msg 钩子共存）</span>
+        <span className="text-muted-foreground/70">{t("commits.hook.foreignHook")}</span>
       )}
       <Button variant="ghost" size="xs" className="ml-auto" disabled={busy} onClick={() => void toggle()}>
-        {status.installed ? "停用" : "启用会话溯源"}
+        {status.installed ? t("commits.hook.disableBtn") : t("commits.hook.enableBtn")}
       </Button>
     </div>
   );
@@ -76,6 +78,7 @@ function shortWhen(iso: string): string {
 }
 
 export function WorkspaceCommits({ repoPath }: { repoPath: string }) {
+  const { t } = useTranslation("board");
   const navigate = useNavigate();
   const sessions = useSessionsStore((s) => s.sessions);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
@@ -113,11 +116,11 @@ export function WorkspaceCommits({ repoPath }: { repoPath: string }) {
       <HookBar repoPath={repoPath} />
       {loading ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-          加载提交…
+          {t("commits.loading")}
         </div>
       ) : commits.length === 0 ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-          近 30 天无提交记录（或该路径非 git 仓库）。
+          {t("commits.empty")}
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -148,14 +151,14 @@ export function WorkspaceCommits({ repoPath }: { repoPath: string }) {
               {links.length > 0 ? (
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-6">
                   <span className="text-[10px] text-muted-foreground">
-                    {links[0].kind === "trailer" ? "🎯 来自会话：" : "🕐 可能来自："}
+                    {links[0].kind === "trailer" ? t("commits.trailerFrom") : t("commits.maybeFrom")}
                   </span>
                   {links.map(({ session, kind }) => (
                     <button
                       key={session.session_id}
                       type="button"
                       onClick={() => navigate(`/sessions?session=${session.session_id}`)}
-                      title={`跳到会话（${kind === "trailer" ? "精确" : "可能相关"}）`}
+                      title={t("commits.sessionTitle", { kind: kind === "trailer" ? t("commits.kindTrailer") : t("commits.kindWindow") })}
                       className="group inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                     >
                       <span className="max-w-40 truncate">
@@ -171,7 +174,7 @@ export function WorkspaceCommits({ repoPath }: { repoPath: string }) {
                 </div>
               ) : (
                 <div className="mt-1 pl-6 text-[10px] text-muted-foreground/60">
-                  无关联会话
+                  {t("commits.noLinked")}
                 </div>
               )}
             </div>

@@ -3,6 +3,7 @@
 // 但完全走本仓库的 useBoardStore，本组件不直接访问 PB / invoke。
 import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowUp01Icon,
@@ -49,7 +50,7 @@ import {
 
 import { useBoardStore } from "@/store/board"
 import { normalizeSortOrders } from "@/store/board-rank"
-import { STATE_CATEGORY_META, STATE_CATEGORY_ORDER } from "@/features/board/board-meta"
+import { STATE_CATEGORY_ORDER } from "@/features/board/board-meta"
 import type { BoardState, BoardLabel, StateCategory } from "@/types/board"
 
 // ── Props（board 页面依赖此签名，勿改） ─────────────────────────
@@ -60,12 +61,8 @@ interface ProjectSheetProps {
   onClose: () => void
 }
 
-// 状态类别下拉的固定顺序（复用共享元数据的中文标签）
-const CATEGORY_OPTIONS: { value: StateCategory; label: string }[] =
-  STATE_CATEGORY_ORDER.map((value) => ({
-    value,
-    label: STATE_CATEGORY_META[value].label,
-  }))
+// 状态类别下拉的固定顺序（渲染时通过 t() 动态翻译；此处仅保留 value 占位）
+const CATEGORY_VALUES: StateCategory[] = STATE_CATEGORY_ORDER;
 
 // 新增行的默认颜色（中性灰）
 const DEFAULT_COLOR = "#64748b"
@@ -75,6 +72,7 @@ const DEFAULT_COLOR = "#64748b"
  * 顶部承接子区块抛出的错误（如删除守卫），统一以 alert 展示。
  */
 export function ProjectSheet({ open, onClose }: ProjectSheetProps) {
+  const { t } = useTranslation("board")
   const openedProjectId = useBoardStore((s) => s.openedProjectId)
   const projects = useBoardStore((s) => s.projects)
   const closeProject = useBoardStore((s) => s.closeProject)
@@ -98,8 +96,8 @@ export function ProjectSheet({ open, onClose }: ProjectSheetProps) {
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent side="right" className="w-full gap-0 sm:max-w-lg!">
         <SheetHeader>
-          <SheetTitle>项目设置</SheetTitle>
-          <SheetDescription>编辑项目的基础信息、状态列与标签。</SheetDescription>
+          <SheetTitle>{t("projectSheet.title")}</SheetTitle>
+          <SheetDescription>{t("projectSheet.desc")}</SheetDescription>
         </SheetHeader>
 
         {/* 顶层错误横幅 */}
@@ -116,7 +114,7 @@ export function ProjectSheet({ open, onClose }: ProjectSheetProps) {
 
         {!project ? (
           <div className="px-6 py-8 text-sm text-muted-foreground">
-            未打开任何项目。
+            {t("projectSheet.noProject")}
           </div>
         ) : (
           <div className="flex flex-col gap-6 overflow-y-auto px-6 pb-6">
@@ -131,12 +129,12 @@ export function ProjectSheet({ open, onClose }: ProjectSheetProps) {
             <Separator />
 
             {/* ── 区块 2：状态列 ─────────────────────────────── */}
-            <StatesSection onError={setError} />
+            <StatesSection onError={setError} t={t} />
 
             <Separator />
 
             {/* ── 区块 3：标签 ───────────────────────────────── */}
-            <LabelsSection onError={setError} />
+            <LabelsSection onError={setError} t={t} />
           </div>
         )}
       </SheetContent>
@@ -163,6 +161,7 @@ function ProjectFields({
   /** 删除成功后的回调（关抽屉 + 关项目） */
   onDeleted: () => void
 }) {
+  const { t } = useTranslation("board")
   const projects = useBoardStore((s) => s.projects)
   const updateProject = useBoardStore((s) => s.updateProject)
   const deleteProject = useBoardStore((s) => s.deleteProject)
@@ -221,7 +220,7 @@ function ProjectFields({
     const cfg = useSettingsStore.getState().aiConfig
     const isCli = cfg.provider === "claude-cli" || cfg.provider === "codex-cli"
     if (!isCli && !cfg.api_key) {
-      onError("尚未配置 AI 服务（在设置页填 API Key，或改用本地 CLI provider）")
+      onError(t("projectSheet.toast.noAiKey"))
       return
     }
     setAiBusy(true)
@@ -244,10 +243,10 @@ function ProjectFields({
       if (desc) {
         setDescription(desc)
         void patch({ description: desc })
-        toast.success("已由 AI 生成描述")
+        toast.success(t("projectSheet.toast.aiGenerateSuccess"))
       }
     } catch (e) {
-      onError(`AI 生成失败：${errMessage(e)}`)
+      onError(t("projectSheet.toast.aiGenerateError", { msg: errMessage(e) }))
     } finally {
       setAiBusy(false)
     }
@@ -270,17 +269,17 @@ function ProjectFields({
 
   return (
     <section className="flex flex-col gap-3">
-      <Label className="text-sm font-semibold">基础信息</Label>
+      <Label className="text-sm font-semibold">{t("projectSheet.basicInfo")}</Label>
 
       {/* 名称 */}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="ps-name" className="text-xs text-muted-foreground">
-          名称
+          {t("projectSheet.fieldName")}
         </Label>
         <Input
           id="ps-name"
           value={name}
-          placeholder="项目名称"
+          placeholder={t("projectSheet.namePlaceholder")}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => saveField("name", name, project.name)}
         />
@@ -290,7 +289,7 @@ function ProjectFields({
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <Label htmlFor="ps-desc" className="text-xs text-muted-foreground">
-            描述
+            {t("projectSheet.fieldDesc")}
           </Label>
           <Button
             type="button"
@@ -299,16 +298,15 @@ function ProjectFields({
             disabled={aiBusy}
             onClick={() => void generateDescription()}
             className="gap-1 text-xs text-muted-foreground hover:text-primary"
-            title="根据项目文档与关联会话，AI 概括项目在做什么"
           >
             <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} className="size-3.5" />
-            {aiBusy ? "生成中…" : "AI 生成"}
+            {aiBusy ? t("projectSheet.aiGenerating") : t("projectSheet.aiGenerate")}
           </Button>
         </div>
         <Textarea
           id="ps-desc"
           value={description}
-          placeholder="项目描述（可选，可点「AI 生成」自动概括）"
+          placeholder={t("projectSheet.descPlaceholder")}
           onChange={(e) => setDescription(e.target.value)}
           onBlur={() =>
             saveField("description", description, project.description ?? "")
@@ -319,7 +317,7 @@ function ProjectFields({
       {/* 仓库路径 */}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="ps-repo" className="text-xs text-muted-foreground">
-          仓库路径
+          {t("projectSheet.fieldRepo")}
         </Label>
         <Input
           id="ps-repo"
@@ -338,9 +336,9 @@ function ProjectFields({
           onChange={(e) => void patch({ archived: e.target.checked })}
           className="size-4 cursor-pointer rounded border-input accent-primary"
         />
-        <span>已归档</span>
+        <span>{t("projectSheet.archived")}</span>
         <span className="text-xs text-muted-foreground">
-          （归档后项目将从看板列表隐藏）
+          {t("projectSheet.archivedHint")}
         </span>
       </label>
 
@@ -358,12 +356,12 @@ function ProjectFields({
             className="text-destructive hover:text-destructive"
           >
             <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
-            删除项目
+            {t("projectSheet.deleteProject")}
           </Button>
         </div>
       ) : (
         <p className="pt-1 text-xs text-muted-foreground/70">
-          需先「归档」项目，才能删除（防误删）。
+          {t("projectSheet.deleteNeedArchive")}
         </p>
       )}
 
@@ -371,12 +369,12 @@ function ProjectFields({
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除项目「{project.name}」？</AlertDialogTitle>
+            <AlertDialogTitle>{t("projectSheet.deleteProjectTitle", { name: project.name })}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-1.5">
-                <p>将永久删除该项目及其任务、状态列、标签，无法撤销。</p>
+                <p>{t("projectSheet.deleteProjectDesc1")}</p>
                 <p className="text-foreground">
-                  不会删除本地仓库文件 / git / 会话记录。关联文档默认<strong>仅解除关联、保留</strong>。
+                  {t("projectSheet.deleteProjectDesc2")}
                 </p>
               </div>
             </AlertDialogDescription>
@@ -392,15 +390,15 @@ function ProjectFields({
               className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-input accent-destructive"
             />
             <span>
-              同时删除本项目的文档
+              {t("projectSheet.deleteProjectDocs")}
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                仅删除<strong>只属于本项目</strong>的文档；与其他项目共享的文档仍只解除关联、不删除。
+                {t("projectSheet.deleteProjectDocsHint")}
               </span>
             </span>
           </label>
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("common:action.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={(e) => {
@@ -408,7 +406,7 @@ function ProjectFields({
                 void handleDelete()
               }}
             >
-              {deleting ? "删除中…" : "删除项目"}
+              {deleting ? t("projectSheet.deleting") : t("projectSheet.deleteProjectAction")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -418,7 +416,7 @@ function ProjectFields({
 }
 
 // ── 子组件：状态列区块 ───────────────────────────────────────────
-function StatesSection({ onError }: { onError: OnError }) {
+function StatesSection({ onError, t }: { onError: OnError; t: (key: string) => string }) {
   const states = useBoardStore((s) => s.states)
   const createState = useBoardStore((s) => s.createState)
 
@@ -430,7 +428,7 @@ function StatesSection({ onError }: { onError: OnError }) {
 
   return (
     <section className="flex flex-col gap-3">
-      <Label className="text-sm font-semibold">状态列</Label>
+      <Label className="text-sm font-semibold">{t("projectSheet.statesSection")}</Label>
       <div className="flex flex-col gap-2">
         {ordered.map((state, index) => (
           <StateRow
@@ -440,6 +438,7 @@ function StatesSection({ onError }: { onError: OnError }) {
             total={ordered.length}
             ordered={ordered}
             onError={onError}
+            t={t}
           />
         ))}
         <AddStateRow
@@ -451,6 +450,7 @@ function StatesSection({ onError }: { onError: OnError }) {
               onError(errMessage(e))
             }
           }}
+          t={t}
         />
       </div>
     </section>
@@ -464,12 +464,14 @@ function StateRow({
   total,
   ordered,
   onError,
+  t,
 }: {
   state: BoardState
   index: number
   total: number
   ordered: BoardState[]
   onError: OnError
+  t: (key: string, opts?: Record<string, unknown>) => string
 }) {
   const updateState = useBoardStore((s) => s.updateState)
   const deleteState = useBoardStore((s) => s.deleteState)
@@ -549,11 +551,11 @@ function StateRow({
           value={color}
           onChange={setColor}
           size={24}
-          aria-label={`${state.name} 颜色`}
+          aria-label={t("projectSheet.stateColorAriaLabel", { name: state.name })}
         />
         <Input
           value={name}
-          placeholder="状态名称"
+          placeholder={t("projectSheet.statePlaceholder")}
           onChange={(e) => setName(e.target.value)}
         />
       </div>
@@ -567,9 +569,9 @@ function StateRow({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {CATEGORY_OPTIONS.map((c) => (
-            <SelectItem key={c.value} value={c.value}>
-              {c.label}
+          {CATEGORY_VALUES.map((val) => (
+            <SelectItem key={val} value={val}>
+              {t(`meta.stateCategory.${val}`)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -582,7 +584,7 @@ function StateRow({
           size="icon-sm"
           disabled={index === 0}
           onClick={() => void handleMove(-1)}
-          aria-label="上移"
+          aria-label={t("projectSheet.moveUpAriaLabel")}
         >
           <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={2} />
         </Button>
@@ -591,7 +593,7 @@ function StateRow({
           size="icon-sm"
           disabled={index === total - 1}
           onClick={() => void handleMove(1)}
-          aria-label="下移"
+          aria-label={t("projectSheet.moveDownAriaLabel")}
         >
           <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} />
         </Button>
@@ -601,14 +603,14 @@ function StateRow({
           disabled={!name.trim() || !dirty || saving}
           onClick={() => void handleSave()}
         >
-          保存
+          {t("common:action.save")}
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
           className="text-destructive hover:text-destructive"
           onClick={() => void handleDelete()}
-          aria-label="删除状态"
+          aria-label={t("projectSheet.deleteStateAriaLabel")}
         >
           <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
         </Button>
@@ -620,12 +622,14 @@ function StateRow({
 // ── 子组件：新增状态行 ───────────────────────────────────────────
 function AddStateRow({
   onAdd,
+  t,
 }: {
   onAdd: (input: {
     name: string
     color: string
     category: StateCategory
   }) => Promise<void>
+  t: (key: string, opts?: Record<string, unknown>) => string
 }) {
   const [name, setName] = useState("")
   const [color, setColor] = useState(DEFAULT_COLOR)
@@ -646,11 +650,11 @@ function AddStateRow({
           value={color}
           onChange={setColor}
           size={24}
-          aria-label="新状态颜色"
+          aria-label={t("projectSheet.newStateColorAriaLabel")}
         />
         <Input
           value={name}
-          placeholder="新状态名称"
+          placeholder={t("projectSheet.newStatePlaceholder")}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") void handleAdd()
@@ -665,9 +669,9 @@ function AddStateRow({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {CATEGORY_OPTIONS.map((c) => (
-            <SelectItem key={c.value} value={c.value}>
-              {c.label}
+          {CATEGORY_VALUES.map((val) => (
+            <SelectItem key={val} value={val}>
+              {t(`meta.stateCategory.${val}`)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -675,7 +679,7 @@ function AddStateRow({
       <div className="flex items-center justify-end">
         <Button size="sm" disabled={!name.trim()} onClick={() => void handleAdd()}>
           <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-          添加
+          {t("projectSheet.addBtn")}
         </Button>
       </div>
     </div>
@@ -683,16 +687,16 @@ function AddStateRow({
 }
 
 // ── 子组件：标签区块 ─────────────────────────────────────────────
-function LabelsSection({ onError }: { onError: OnError }) {
+function LabelsSection({ onError, t }: { onError: OnError; t: (key: string, opts?: Record<string, unknown>) => string }) {
   const labels = useBoardStore((s) => s.labels)
   const createLabel = useBoardStore((s) => s.createLabel)
 
   return (
     <section className="flex flex-col gap-3">
-      <Label className="text-sm font-semibold">标签</Label>
+      <Label className="text-sm font-semibold">{t("projectSheet.labelsSection")}</Label>
       <div className="flex flex-col gap-2">
         {labels.map((label) => (
-          <LabelRow key={label.id} label={label} onError={onError} />
+          <LabelRow key={label.id} label={label} onError={onError} t={t} />
         ))}
         <AddLabelRow
           onAdd={async (input) => {
@@ -703,6 +707,7 @@ function LabelsSection({ onError }: { onError: OnError }) {
               onError(errMessage(e))
             }
           }}
+          t={t}
         />
       </div>
     </section>
@@ -713,9 +718,11 @@ function LabelsSection({ onError }: { onError: OnError }) {
 function LabelRow({
   label,
   onError,
+  t,
 }: {
   label: BoardLabel
   onError: OnError
+  t: (key: string, opts?: Record<string, unknown>) => string
 }) {
   const updateLabel = useBoardStore((s) => s.updateLabel)
   const deleteLabel = useBoardStore((s) => s.deleteLabel)
@@ -761,11 +768,11 @@ function LabelRow({
         value={color}
         onChange={setColor}
         size={24}
-        aria-label={`${label.name} 颜色`}
+        aria-label={t("projectSheet.labelColorAriaLabel", { name: label.name })}
       />
       <Input
         value={name}
-        placeholder="标签名称"
+        placeholder={t("projectSheet.labelPlaceholder")}
         onChange={(e) => setName(e.target.value)}
       />
       <Button
@@ -774,14 +781,14 @@ function LabelRow({
         disabled={!name.trim() || !dirty || saving}
         onClick={() => void handleSave()}
       >
-        保存
+        {t("common:action.save")}
       </Button>
       <Button
         variant="ghost"
         size="icon-sm"
         className="text-destructive hover:text-destructive"
         onClick={() => setConfirmOpen(true)}
-        aria-label={`删除标签 ${label.name}`}
+        aria-label={t("projectSheet.deleteLabelAriaLabel", { name: label.name })}
       >
         <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
       </Button>
@@ -793,13 +800,13 @@ function LabelRow({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除标签？</AlertDialogTitle>
+            <AlertDialogTitle>{t("projectSheet.deleteLabelTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              标签 <strong>{label.name}</strong> 将从本项目移除，使用该标签的任务也会解除关联。
+              {t("projectSheet.deleteLabelDesc", { name: label.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:action.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={(e) => {
@@ -808,7 +815,7 @@ function LabelRow({
                 void handleDelete()
               }}
             >
-              删除标签
+              {t("projectSheet.deleteLabelAction")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -820,8 +827,10 @@ function LabelRow({
 // ── 子组件：新增标签行 ───────────────────────────────────────────
 function AddLabelRow({
   onAdd,
+  t,
 }: {
   onAdd: (input: { name: string; color: string }) => Promise<void>
+  t: (key: string, opts?: Record<string, unknown>) => string
 }) {
   const [name, setName] = useState("")
   const [color, setColor] = useState(DEFAULT_COLOR)
@@ -839,11 +848,11 @@ function AddLabelRow({
         value={color}
         onChange={setColor}
         size={24}
-        aria-label="新标签颜色"
+        aria-label={t("projectSheet.newLabelColorAriaLabel")}
       />
       <Input
         value={name}
-        placeholder="新标签名称"
+        placeholder={t("projectSheet.newLabelPlaceholder")}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") void handleAdd()
@@ -851,7 +860,7 @@ function AddLabelRow({
       />
       <Button size="sm" disabled={!name.trim()} onClick={() => void handleAdd()}>
         <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-        添加
+        {t("projectSheet.addBtn")}
       </Button>
     </div>
   )

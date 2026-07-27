@@ -3,6 +3,7 @@
 // 会话 tab 通过 repo_path == session.project_path 关联本地 CLI 会话（两级项目模型）。
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
@@ -31,11 +32,12 @@ import { WorkspaceProcesses } from "./WorkspaceProcesses";
 import { ImportPlanDialog } from "./ImportPlanDialog";
 import { DocsPanel } from "@/features/docs/DocsPanel";
 import { AiChatPanel } from "@/features/ai/AiChatPanel";
-import { STATE_CATEGORY_META } from "./board-meta";
+// STATE_CATEGORY_META は t("meta.stateCategory.*") で翻訳するため削除
 import { MemoryFilesBar } from "@/features/memory/MemoryFilesBar";
 import { resolveInitialTab, rememberProjectTab } from "./project-tab-pref";
 
 export function ProjectWorkspace() {
+  const { t, i18n } = useTranslation("board");
   const openedProjectId = useBoardStore((s) => s.openedProjectId);
   const projects = useBoardStore((s) => s.projects);
   const closeProject = useBoardStore((s) => s.closeProject);
@@ -144,14 +146,14 @@ export function ProjectWorkspace() {
             closeProject();
             if (deep) navigate(-1);
           }}
-          aria-label="返回"
+          aria-label={t("workspace.backAriaLabel")}
         >
           <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
         </Button>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-lg font-semibold">{project.name}</h1>
-            {project.archived && <Badge variant="secondary">已归档</Badge>}
+            {project.archived && <Badge variant="secondary">{t("project.archived")}</Badge>}
           </div>
           {repoPath && (
             <div className="mt-0.5">
@@ -166,21 +168,21 @@ export function ProjectWorkspace() {
             onClick={() =>
               void ipc
                 .openPath(repoPath)
-                .catch((e) => toast.error(`打开位置失败：${String(e)}`))
+                .catch((e) => toast.error(t("workspace.toast.openPathError", { msg: String(e) })))
             }
           >
             <HugeiconsIcon icon={FolderOpenIcon} strokeWidth={2} />
-            打开位置
+            {t("workspace.openPath")}
           </Button>
         )}
         {repoPath && (
           <Button variant="outline" size="sm" onClick={() => setShowImport(true)}>
-            导入计划
+            {t("workspace.importPlan")}
           </Button>
         )}
         <Button variant="outline" size="sm" onClick={() => setShowSheet(true)}>
           <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} />
-          项目设置
+          {t("workspace.projectSettings")}
         </Button>
       </div>
 
@@ -195,16 +197,16 @@ export function ProjectWorkspace() {
         className="min-h-0 flex-1"
       >
         <TabsList className="shrink-0">
-          <TabsTrigger value="overview">概览</TabsTrigger>
-          <TabsTrigger value="sessions">会话</TabsTrigger>
+          <TabsTrigger value="overview">{t("workspace.tabs.overview")}</TabsTrigger>
+          <TabsTrigger value="sessions">{t("workspace.tabs.sessions")}</TabsTrigger>
           {/* 提交面仅在绑定了仓库路径时有意义 */}
-          {repoPath && <TabsTrigger value="commits">提交</TabsTrigger>}
-          <TabsTrigger value="board">看板</TabsTrigger>
-          <TabsTrigger value="docs">文档</TabsTrigger>
+          {repoPath && <TabsTrigger value="commits">{t("workspace.tabs.commits")}</TabsTrigger>}
+          <TabsTrigger value="board">{t("workspace.tabs.board")}</TabsTrigger>
+          <TabsTrigger value="docs">{t("workspace.tabs.docs")}</TabsTrigger>
           {/* 进程面仅在绑定仓库时有意义（按 repo_path 过滤本项目进程） */}
-          {repoPath && <TabsTrigger value="processes">进程</TabsTrigger>}
-          <TabsTrigger value="activity">活动</TabsTrigger>
-          <TabsTrigger value="ai">AI</TabsTrigger>
+          {repoPath && <TabsTrigger value="processes">{t("workspace.tabs.processes")}</TabsTrigger>}
+          <TabsTrigger value="activity">{t("workspace.tabs.activity")}</TabsTrigger>
+          <TabsTrigger value="ai">{t("workspace.tabs.ai")}</TabsTrigger>
         </TabsList>
 
         {/* 概览 */}
@@ -212,17 +214,17 @@ export function ProjectWorkspace() {
           <div className="flex flex-col gap-4">
             {/* 统计卡片 */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCard label="任务总数" value={activeTasks.length} />
+              <StatCard label={t("workspace.overview.statTaskTotal")} value={activeTasks.length} />
               <StatCard
-                label={STATE_CATEGORY_META.pending.label}
+                label={t("meta.stateCategory.pending")}
                 value={catCounts.pending}
               />
               <StatCard
-                label={STATE_CATEGORY_META.active.label}
+                label={t("meta.stateCategory.active")}
                 value={catCounts.active}
               />
               <StatCard
-                label={STATE_CATEGORY_META.completed.label}
+                label={t("meta.stateCategory.completed")}
                 value={catCounts.completed}
               />
             </div>
@@ -230,7 +232,7 @@ export function ProjectWorkspace() {
             {/* 项目信息 */}
             <div className="rounded-xl border border-border bg-card p-4">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-foreground">项目信息</h3>
+                <h3 className="text-sm font-semibold text-foreground">{t("workspace.overview.projectInfo")}</h3>
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 text-xs",
@@ -239,7 +241,7 @@ export function ProjectWorkspace() {
                       : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                   )}
                 >
-                  {project.archived ? "已归档" : "活跃"}
+                  {project.archived ? t("project.archived") : t("project.active")}
                 </span>
               </div>
 
@@ -249,28 +251,28 @@ export function ProjectWorkspace() {
                   {project.description}
                 </p>
               ) : (
-                <p className="mb-3 text-sm text-muted-foreground">暂无项目描述。</p>
+                <p className="mb-3 text-sm text-muted-foreground">{t("workspace.overview.noDescription")}</p>
               )}
 
               {/* 关键信息键值网格 */}
               <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
-                <InfoItem label="仓库路径" full>
+                <InfoItem label={t("workspace.overview.fieldRepo")} full>
                   {repoPath ? (
                     <span className="break-all font-mono text-foreground">{repoPath}</span>
                   ) : (
                     <span className="text-muted-foreground">
-                      未绑定（会话 / git 关联不可用）
+                      {t("workspace.overview.fieldRepoMissing")}
                     </span>
                   )}
                 </InfoItem>
-                <InfoItem label="任务">{activeTasks.length} 个</InfoItem>
-                <InfoItem label="文档">{docCount} 篇</InfoItem>
-                <InfoItem label="关联会话">{linkedCount} 个</InfoItem>
-                <InfoItem label="状态列 / 标签">
+                <InfoItem label={t("workspace.overview.fieldTasks")}>{t("workspace.overview.fieldTasksUnit", { count: activeTasks.length })}</InfoItem>
+                <InfoItem label={t("workspace.overview.fieldDocs")}>{t("workspace.overview.fieldDocsUnit", { count: docCount })}</InfoItem>
+                <InfoItem label={t("workspace.overview.fieldLinkedSessions")}>{t("workspace.overview.fieldLinkedSessionsUnit", { count: linkedCount })}</InfoItem>
+                <InfoItem label={t("workspace.overview.fieldStatesLabels")}>
                   {states.length} / {labels.length}
                 </InfoItem>
-                <InfoItem label="创建于">{fmtDate(project.created)}</InfoItem>
-                <InfoItem label="最近更新">{fmtDate(project.updated)}</InfoItem>
+                <InfoItem label={t("workspace.overview.fieldCreated")}>{fmtDate(project.created, i18n.language)}</InfoItem>
+                <InfoItem label={t("workspace.overview.fieldUpdated")}>{fmtDate(project.updated, i18n.language)}</InfoItem>
               </dl>
             </div>
 
@@ -281,13 +283,13 @@ export function ProjectWorkspace() {
             {upcomingTasks.length > 0 && (
               <div className="rounded-xl border border-border bg-card p-4">
                 <h3 className="mb-2 text-sm font-semibold text-foreground">
-                  近期截止
+                  {t("workspace.overview.upcomingTitle")}
                 </h3>
                 <ul className="flex flex-col">
-                  {upcomingTasks.map((t) => {
-                    const st = states.find((s) => s.id === t.state);
+                  {upcomingTasks.map((task) => {
+                    const st = states.find((s) => s.id === task.state);
                     return (
-                      <li key={t.id}>
+                      <li key={task.id}>
                         <button
                           type="button"
                           onClick={() => setTab("board")}
@@ -300,12 +302,12 @@ export function ProjectWorkspace() {
                             />
                           )}
                           <span className="min-w-0 flex-1 truncate text-foreground">
-                            {t.title}
+                            {task.title}
                           </span>
                           <span className="shrink-0 text-xs text-muted-foreground">
-                            {t.due_date
-                              ? new Date(t.due_date).toLocaleDateString(
-                                  "zh-CN",
+                            {task.due_date
+                              ? new Date(task.due_date).toLocaleDateString(
+                                  i18n.language,
                                   { month: "short", day: "numeric" },
                                 )
                               : ""}
@@ -322,7 +324,7 @@ export function ProjectWorkspace() {
             {upcomingEvents.length > 0 && (
               <div className="rounded-xl border border-border bg-card p-4">
                 <h3 className="mb-2 text-sm font-semibold text-foreground">
-                  近期事件
+                  {t("workspace.overview.eventsTitle")}
                 </h3>
                 <ul className="flex flex-col">
                   {upcomingEvents.map((ev) => (
@@ -343,7 +345,7 @@ export function ProjectWorkspace() {
                         </span>
                         <span className="shrink-0 text-xs text-muted-foreground">
                           {ev.start
-                            ? new Date(ev.start).toLocaleDateString("zh-CN", {
+                            ? new Date(ev.start).toLocaleDateString(i18n.language, {
                                 month: "short",
                                 day: "numeric",
                               })
@@ -364,7 +366,7 @@ export function ProjectWorkspace() {
             <WorkspaceSessions repoPath={repoPath} />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              该项目未绑定仓库路径 —— 在「项目设置」填写 repo_path 后即可关联本地会话。
+              {t("workspace.noRepo")}
             </div>
           )}
         </TabsContent>
@@ -375,7 +377,7 @@ export function ProjectWorkspace() {
             <WorkspaceCommits repoPath={repoPath} />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              该项目未绑定仓库路径。
+              {t("workspace.noRepoCommits")}
             </div>
           )}
         </TabsContent>
@@ -448,10 +450,10 @@ function InfoItem({
 }
 
 // 日期格式化：yyyy/MM/dd HH:mm（本地化），解析失败回退原串
-function fmtDate(iso: string): string {
+function fmtDate(iso: string, locale: string): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleString("zh-CN", {
+    return new Date(iso).toLocaleString(locale, {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
