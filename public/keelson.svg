@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Keelson">
+  <!-- 底板：深板岩色 -->
+  <rect x="3" y="5" width="26" height="22" rx="6" fill="#0f172a"/>
+  <!-- 龙骨梁 + 三根肋条：浅色镂空 -->
+  <rect x="8" y="10" width="16" height="2.6" rx="1.3" fill="#f1f5f9"/>
+  <rect x="9.4" y="10" width="2.6" height="11.5" rx="1.3" fill="#f1f5f9"/>
+  <rect x="14.7" y="10" width="2.6" height="7.5" rx="1.3" fill="#f1f5f9"/>
+  <rect x="20" y="10" width="2.6" height="9.5" rx="1.3" fill="#f1f5f9"/>
+</svg>
