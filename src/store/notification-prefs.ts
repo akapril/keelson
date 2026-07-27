@@ -7,7 +7,10 @@ import { create } from "zustand";
 // 已知通知类型
 // ─────────────────────────────────────────────
 
-/** 已知通知来源定义（source 值 + 用户可读 label）。 */
+/**
+ * 已知通知来源定义（source 值 + 用户可读 label）。
+ * ⚠️ source 值不得含 `.`（i18next 将 `.` 作路径分隔符，含 `.` 会静默断裂 i18n 查询）。
+ */
 export const NOTIF_TYPES: { source: string; label: string }[] = [
   { source: "沉淀",     label: "沉淀（AI 提炼结果）" },
   { source: "截止提醒", label: "截止提醒（任务/事件到期）" },
