@@ -1,5 +1,6 @@
-// rework 品牌标记 —— 圆角方块「看板」内嵌三根高低不一的列（隐喻看板/进度）。
-// 采用 workavera 同款技法：实心前景形状 + 背景色负空间镂空，前景色填充、无底色方块。
+// Keelson 品牌标记 —— 一根横向「龙骨梁」把三根高低不一的肋条(会话/进度)串到一条主线上。
+// 隐喻 keelson：龙骨之上的加强纵梁，把散落的肋条收拢成稳定主干。
+// 沿用同款技法：实心前景圆角方块 + 背景色负空间镂空，自动适配明暗主题。
 export function Logo({ className }: { className?: string }) {
   return (
     <svg
@@ -7,12 +8,13 @@ export function Logo({ className }: { className?: string }) {
       viewBox="0 0 32 32"
       aria-hidden="true"
     >
-      {/* 看板底板 */}
+      {/* 底板 */}
       <rect x="3" y="5" width="26" height="22" rx="6" className="fill-foreground" />
-      {/* 三根列（背景色镂空，高低错落，隐喻进行中的看板） */}
-      <rect x="7.5" y="10" width="4" height="12" rx="1.6" className="fill-background" />
-      <rect x="14" y="10" width="4" height="7.5" rx="1.6" className="fill-background" />
-      <rect x="20.5" y="10" width="4" height="10" rx="1.6" className="fill-background" />
+      {/* 龙骨梁(横向主线) + 三根肋条(高低错落，自梁上垂下)，背景色镂空为一体 */}
+      <rect x="8" y="10" width="16" height="2.6" rx="1.3" className="fill-background" />
+      <rect x="9.4" y="10" width="2.6" height="11.5" rx="1.3" className="fill-background" />
+      <rect x="14.7" y="10" width="2.6" height="7.5" rx="1.3" className="fill-background" />
+      <rect x="20" y="10" width="2.6" height="9.5" rx="1.3" className="fill-background" />
     </svg>
   );
 }

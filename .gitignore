@@ -35,3 +35,7 @@ Thumbs.db
 
 # Claude Code 本地配置
 .claude/
+
+# tauri icon 生成的移动端图标(桌面项目未用)
+src-tauri/icons/android/
+src-tauri/icons/ios/
