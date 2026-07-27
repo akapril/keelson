@@ -1,0 +1,50 @@
+{
+  "page": {
+    "title": "{{year}} 年 {{month}} 月",
+    "prevMonth": "上个月",
+    "nextMonth": "下个月",
+    "today": "今天",
+    "create": "新建",
+    "loading": "加载中…",
+    "weekdays": ["日", "一", "二", "三", "四", "五", "六"]
+  },
+  "event": {
+    "contextEdit": "编辑",
+    "contextDelete": "删除",
+    "taskTooltip": "任务：{{title}}（可拖到其它日期改期）"
+  },
+  "dialog": {
+    "titleCreate": "新建事件",
+    "titleEdit": "编辑事件",
+    "fieldTitle": "标题",
+    "fieldTitlePlaceholder": "事件标题",
+    "fieldStart": "开始日期",
+    "fieldEnd": "结束日期",
+    "fieldAllDay": "全天",
+    "fieldColor": "颜色",
+    "fieldRepeat": "重复",
+    "fieldRepeatInterval": "重复步长",
+    "fieldRepeatEvery": "每",
+    "fieldRepeatUnitDay": "天",
+    "fieldRepeatUnitWeek": "周",
+    "fieldRepeatUnitMonth": "月",
+    "fieldRepeatUnitYear": "年",
+    "fieldProject": "关联项目（可选）",
+    "fieldProjectNone": "不关联",
+    "fieldDesc": "描述",
+    "fieldDescPlaceholder": "补充说明（可选）"
+  },
+  "repeat": {
+    "none": "不重复",
+    "daily": "每 N 天",
+    "weekly": "每 N 周",
+    "monthly": "每 N 月",
+    "yearly": "每 N 年"
+  },
+  "toast": {
+    "createError": "新建失败：{{msg}}",
+    "updateError": "更新失败：{{msg}}",
+    "deleteError": "删除失败：{{msg}}",
+    "moveError": "移动失败：{{msg}}"
+  }
+}

@@ -2,6 +2,8 @@
 // 组件仅调用 store；数据访问由 store 收口，绝不直接触碰 invoke / pb。
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import {
   startOfMonth,
   endOfMonth,
@@ -65,9 +67,6 @@ import {
   buildRepeat,
 } from "./recurrence";
 
-// 星期表头（周日起，与 startOfWeek 默认 weekStartsOn=0 对齐）
-const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"] as const;
-
 // 弹窗默认颜色（十六进制，供 <input type="color"> 使用）
 const DEFAULT_COLOR = "#6366f1";
 
@@ -118,10 +117,10 @@ function eventCoversDay(ev: CalendarEvent, day: Date): boolean {
 }
 
 /** 判断带 due_date 的任务是否落在某一天（安全解析）。 */
-function taskOnDay(t: BoardTask, day: Date): boolean {
-  if (!t.due_date) return false;
+function taskOnDay(task: BoardTask, day: Date): boolean {
+  if (!task.due_date) return false;
   try {
-    return isSameDay(startOfDay(parseISO(t.due_date)), startOfDay(day));
+    return isSameDay(startOfDay(parseISO(task.due_date)), startOfDay(day));
   } catch {
     return false;
   }
@@ -168,7 +167,20 @@ function initialForm(state: DialogState): FormState {
   };
 }
 
+/** 根据当前语言格式化月份标题（中文：yyyy 年 M 月；英文：MMMM yyyy） */
+function formatMonthTitle(date: Date): string {
+  if (i18n.language.startsWith("zh")) {
+    return format(date, "yyyy") + " 年 " + format(date, "M") + " 月";
+  }
+  return format(date, "MMMM yyyy");
+}
+
 export default function CalendarPage() {
+  const { t } = useTranslation("calendar");
+
+  // 星期表头（周日起，与 startOfWeek 默认 weekStartsOn=0 对齐）
+  const weekdays = t("page.weekdays", { returnObjects: true }) as string[];
+
   const events = useCalendarStore((s) => s.events);
   const loading = useCalendarStore((s) => s.loading);
   const error = useCalendarStore((s) => s.error);
@@ -273,7 +285,8 @@ export default function CalendarPage() {
       }
     } catch (e) {
       // 更新/新建失败时弹 toast，不关闭弹窗让用户可以重试
-      toast.error(`${dialog.editing ? "更新" : "新建"}失败：${String(e)}`);
+      const key = dialog.editing ? "toast.updateError" : "toast.createError";
+      toast.error(t(key, { msg: String(e) }));
       return;
     }
     closeDialog();
@@ -286,7 +299,7 @@ export default function CalendarPage() {
       await removeEvent(dialog.editing.id);
     } catch (e) {
       // 删除失败时弹 toast，不关闭弹窗让用户可以重试
-      toast.error(`删除失败：${String(e)}`);
+      toast.error(t("toast.deleteError", { msg: String(e) }));
       return;
     }
     closeDialog();
@@ -304,7 +317,7 @@ export default function CalendarPage() {
       const prev = dueTasks;
       // 乐观：本地先把该任务移到目标日
       setDueTasks((ts) =>
-        ts.map((t) => (t.id === d.id ? { ...t, due_date: dayStr } : t)),
+        ts.map((tk) => (tk.id === d.id ? { ...tk, due_date: dayStr } : tk)),
       );
       try {
         await updateTaskDueDate(d.id, dayStr);
@@ -328,7 +341,18 @@ export default function CalendarPage() {
       await updateEvent(d.id, patch);
     } catch (e) {
       // 拖拽移动事件失败时提示
-      toast.error(`移动失败：${String(e)}`);
+      toast.error(t("toast.moveError", { msg: String(e) }));
+    }
+  };
+
+  // 重复单位对应的步长单位文案
+  const repeatUnitLabel = (unit: string): string => {
+    switch (unit) {
+      case "daily": return t("dialog.fieldRepeatUnitDay");
+      case "weekly": return t("dialog.fieldRepeatUnitWeek");
+      case "monthly": return t("dialog.fieldRepeatUnitMonth");
+      case "yearly": return t("dialog.fieldRepeatUnitYear");
+      default: return "";
     }
   };
 
@@ -337,13 +361,13 @@ export default function CalendarPage() {
       {/* 头部：当前月份标题 + 月份切换 + 新建 */}
       <header className="mb-4 flex shrink-0 items-center justify-between gap-3">
         <h1 className="font-heading text-xl font-semibold text-foreground">
-          {format(viewDate, "yyyy 年 M 月")}
+          {formatMonthTitle(viewDate)}
         </h1>
 
         <div className="flex items-center gap-2">
           {/* 加载 / 错误状态（低调展示于按钮区左侧） */}
           {loading && (
-            <span className="text-xs text-muted-foreground">加载中…</span>
+            <span className="text-xs text-muted-foreground">{t("page.loading")}</span>
           )}
           {error && (
             <span className="text-xs text-destructive" role="alert">
@@ -354,32 +378,32 @@ export default function CalendarPage() {
           <Button
             variant="outline"
             size="icon"
-            aria-label="上个月"
+            aria-label={t("page.prevMonth")}
             onClick={() => setViewDate(addMonths(viewDate, -1))}
           >
             <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
           </Button>
           <Button variant="outline" onClick={() => setViewDate(new Date())}>
-            今天
+            {t("page.today")}
           </Button>
           <Button
             variant="outline"
             size="icon"
-            aria-label="下个月"
+            aria-label={t("page.nextMonth")}
             onClick={() => setViewDate(addMonths(viewDate, 1))}
           >
             <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
           </Button>
           <Button onClick={() => openAdd(format(new Date(), "yyyy-MM-dd"))}>
             <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-            新建
+            {t("page.create")}
           </Button>
         </div>
       </header>
 
       {/* 星期表头：7 列 */}
       <div className="grid shrink-0 grid-cols-7 border-b border-border">
-        {WEEKDAYS.map((w) => (
+        {weekdays.map((w) => (
           <div
             key={w}
             className="py-2 text-center text-xs font-medium text-muted-foreground"
@@ -396,7 +420,7 @@ export default function CalendarPage() {
           const today = isToday(day);
           // 该天覆盖的事件（跳过非法日期）
           const dayEvents = expandedEvents.filter((ev) => eventCoversDay(ev, day));
-          const dayTasks = dueTasks.filter((t) => taskOnDay(t, day));
+          const dayTasks = dueTasks.filter((tk) => taskOnDay(tk, day));
 
           const dayKey = format(day, "yyyy-MM-dd");
           return (
@@ -466,30 +490,30 @@ export default function CalendarPage() {
                       </button>
                     </ContextMenuTrigger>
                     <ContextMenuContent>
-                      <ContextMenuItem onSelect={() => openEdit(ev)}>编辑</ContextMenuItem>
+                      <ContextMenuItem onSelect={() => openEdit(ev)}>{t("event.contextEdit")}</ContextMenuItem>
                       <ContextMenuItem
                         variant="destructive"
                         onSelect={() =>
                           void removeEvent(ev.id).catch((e) =>
-                            toast.error(`删除失败：${String(e)}`),
+                            toast.error(t("toast.deleteError", { msg: String(e) })),
                           )
                         }
                       >
-                        删除
+                        {t("event.contextDelete")}
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
                 ))}
 
                 {/* 看板任务 due_date（只读叠加，点击跳到该任务的项目工作台） */}
-                {dayTasks.map((t) => (
+                {dayTasks.map((tk) => (
                   <button
-                    key={t.id}
+                    key={tk.id}
                     type="button"
                     draggable
                     onDragStart={(e) => {
                       e.stopPropagation();
-                      setDrag({ kind: "task", id: t.id });
+                      setDrag({ kind: "task", id: tk.id });
                     }}
                     onDragEnd={() => {
                       setDrag(null);
@@ -497,10 +521,10 @@ export default function CalendarPage() {
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/board?open=${t.project}`);
+                      navigate(`/board?open=${tk.project}`);
                     }}
                     className="flex items-center gap-1 rounded px-1 py-0.5 text-left text-xs hover:bg-muted"
-                    title={`任务：${t.title}（可拖到其它日期改期）`}
+                    title={t("event.taskTooltip", { title: tk.title })}
                   >
                     <HugeiconsIcon
                       icon={KanbanIcon}
@@ -508,7 +532,7 @@ export default function CalendarPage() {
                       className="size-3 shrink-0 text-muted-foreground"
                     />
                     <span className="truncate text-muted-foreground">
-                      {t.title}
+                      {tk.title}
                     </span>
                   </button>
                 ))}
@@ -527,7 +551,7 @@ export default function CalendarPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{dialog.editing ? "编辑事件" : "新建事件"}</DialogTitle>
+            <DialogTitle>{dialog.editing ? t("dialog.titleEdit") : t("dialog.titleCreate")}</DialogTitle>
           </DialogHeader>
 
           <form
@@ -539,12 +563,12 @@ export default function CalendarPage() {
           >
             {/* 标题（必填） */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="cal-title">标题</Label>
+              <Label htmlFor="cal-title">{t("dialog.fieldTitle")}</Label>
               <Input
                 id="cal-title"
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="事件标题"
+                placeholder={t("dialog.fieldTitlePlaceholder")}
                 required
               />
             </div>
@@ -552,7 +576,7 @@ export default function CalendarPage() {
             {/* 开始 / 结束日期 */}
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="cal-start">开始日期</Label>
+                <Label htmlFor="cal-start">{t("dialog.fieldStart")}</Label>
                 <Input
                   id="cal-start"
                   type="date"
@@ -564,7 +588,7 @@ export default function CalendarPage() {
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="cal-end">结束日期</Label>
+                <Label htmlFor="cal-end">{t("dialog.fieldEnd")}</Label>
                 <Input
                   id="cal-end"
                   type="date"
@@ -588,10 +612,10 @@ export default function CalendarPage() {
                   }
                   className="size-4 accent-primary"
                 />
-                全天
+                {t("dialog.fieldAllDay")}
               </Label>
               <Label htmlFor="cal-color" className="cursor-pointer">
-                颜色
+                {t("dialog.fieldColor")}
                 <input
                   id="cal-color"
                   type="color"
@@ -606,7 +630,7 @@ export default function CalendarPage() {
 
             {/* 重复（轻量循环：单位 + 每 N 步长，仅展开显示） */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="cal-repeat">重复</Label>
+              <Label htmlFor="cal-repeat">{t("dialog.fieldRepeat")}</Label>
               <div className="flex items-center gap-2">
                 <Select
                   value={form.repeatUnit || "none"}
@@ -615,12 +639,12 @@ export default function CalendarPage() {
                   }
                 >
                   <SelectTrigger id="cal-repeat" className="flex-1">
-                    <SelectValue placeholder="不重复" />
+                    <SelectValue placeholder={t("repeat.none")} />
                   </SelectTrigger>
                   <SelectContent>
                     {REPEAT_OPTIONS.map((o) => (
                       <SelectItem key={o.value || "none"} value={o.value || "none"}>
-                        {o.label}
+                        {t(`repeat.${o.value || "none"}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -628,7 +652,7 @@ export default function CalendarPage() {
                 {/* 选了单位才显示「每 N」步长输入 */}
                 {form.repeatUnit && (
                   <div className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
-                    <span>每</span>
+                    <span>{t("dialog.fieldRepeatEvery")}</span>
                     <Input
                       type="number"
                       min={1}
@@ -640,17 +664,9 @@ export default function CalendarPage() {
                         }))
                       }
                       className="w-16"
-                      aria-label="重复步长"
+                      aria-label={t("dialog.fieldRepeatInterval")}
                     />
-                    <span>
-                      {form.repeatUnit === "daily"
-                        ? "天"
-                        : form.repeatUnit === "weekly"
-                          ? "周"
-                          : form.repeatUnit === "monthly"
-                            ? "月"
-                            : "年"}
-                    </span>
+                    <span>{repeatUnitLabel(form.repeatUnit)}</span>
                   </div>
                 )}
               </div>
@@ -658,7 +674,7 @@ export default function CalendarPage() {
 
             {/* 关联项目（可选） */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="cal-project">关联项目（可选）</Label>
+              <Label htmlFor="cal-project">{t("dialog.fieldProject")}</Label>
               <Select
                 value={form.project || "none"}
                 onValueChange={(v) =>
@@ -666,10 +682,10 @@ export default function CalendarPage() {
                 }
               >
                 <SelectTrigger id="cal-project" className="w-full">
-                  <SelectValue placeholder="不关联" />
+                  <SelectValue placeholder={t("dialog.fieldProjectNone")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">不关联</SelectItem>
+                  <SelectItem value="none">{t("dialog.fieldProjectNone")}</SelectItem>
                   {projects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
@@ -681,14 +697,14 @@ export default function CalendarPage() {
 
             {/* 描述 */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="cal-desc">描述</Label>
+              <Label htmlFor="cal-desc">{t("dialog.fieldDesc")}</Label>
               <Textarea
                 id="cal-desc"
                 value={form.description}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, description: e.target.value }))
                 }
-                placeholder="补充说明（可选）"
+                placeholder={t("dialog.fieldDescPlaceholder")}
               />
             </div>
 
@@ -702,14 +718,14 @@ export default function CalendarPage() {
                   onClick={() => void handleDelete()}
                 >
                   <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
-                  删除
+                  {t("common:action.delete")}
                 </Button>
               )}
               <Button type="button" variant="outline" onClick={closeDialog}>
-                取消
+                {t("common:action.cancel")}
               </Button>
               <Button type="submit" disabled={!form.title.trim()}>
-                保存
+                {t("common:action.save")}
               </Button>
             </DialogFooter>
           </form>
