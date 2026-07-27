@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
 import type { Session } from "../../types/session";
@@ -23,21 +24,39 @@ export function truncate(text: string, maxLen = 80): string {
 }
 
 /**
- * 相对时间：刚刚 / N 分钟前 / N 小时前 / N 天前 / MM-DD（超 7 天）。
- * 解析失败返回空串（不显示）。纯函数、可测。
+ * 相对时间差值（毫秒和时段）：供 SessionCard 内部使用 t() 格式化。
+ * 解析失败返回 null。纯函数、可测。
  */
-export function relativeTime(iso: string, now: number = Date.now()): string {
+export function relativeTimeParts(
+  iso: string,
+  now: number = Date.now(),
+): { kind: "justNow" | "minutes" | "hours" | "days" | "date"; n?: number; dateStr?: string } | null {
   const t = Date.parse(iso);
-  if (Number.isNaN(t)) return "";
+  if (Number.isNaN(t)) return null;
   const diff = Math.max(0, now - t);
   const min = 60_000, hour = 3_600_000, day = 86_400_000;
-  if (diff < min) return "刚刚";
-  if (diff < hour) return `${Math.floor(diff / min)} 分钟前`;
-  if (diff < day) return `${Math.floor(diff / hour)} 小时前`;
-  if (diff < 7 * day) return `${Math.floor(diff / day)} 天前`;
+  if (diff < min) return { kind: "justNow" };
+  if (diff < hour) return { kind: "minutes", n: Math.floor(diff / min) };
+  if (diff < day) return { kind: "hours", n: Math.floor(diff / hour) };
+  if (diff < 7 * day) return { kind: "days", n: Math.floor(diff / day) };
   const d = new Date(t);
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return { kind: "date", dateStr: `${p(d.getMonth() + 1)}-${p(d.getDate())}` };
+}
+
+/**
+ * 相对时间：刚刚 / N 分钟前 / N 小时前 / N 天前 / MM-DD（超 7 天）。
+ * 解析失败返回空串（不显示）。纯函数、可测。
+ * @deprecated 测试用兼容导出；组件内部使用 relativeTimeParts + t()
+ */
+export function relativeTime(iso: string, now: number = Date.now()): string {
+  const parts = relativeTimeParts(iso, now);
+  if (!parts) return "";
+  if (parts.kind === "justNow") return "刚刚";
+  if (parts.kind === "minutes") return `${parts.n} 分钟前`;
+  if (parts.kind === "hours") return `${parts.n} 小时前`;
+  if (parts.kind === "days") return `${parts.n} 天前`;
+  return parts.dateStr ?? "";
 }
 
 // ── Props ──────────────────────────────────────────────────
@@ -67,6 +86,8 @@ function SessionCardImpl({
   checked = false,
   onToggleCheck,
 }: SessionCardProps) {
+  const { t } = useTranslation("sessions");
+
   // 性能：按本卡 session_id 精确订阅（返回布尔/字符串），只有自身值变化才重渲染，
   // 避免任一会话的收藏/隐藏/改名触发整列表所有卡片重渲染。动作函数引用稳定。
   const isFav = useSessionMetaStore((s) => s.favorites.has(session.session_id));
@@ -88,12 +109,23 @@ function SessionCardImpl({
   // 显示名：自定义名优先，否则 Rust 序列化的 project_name
   const displayName = customName || session.project_name;
 
+  // 相对时间：根据时间差选对应 i18n key
+  function formatRelativeTime(iso: string): string {
+    const parts = relativeTimeParts(iso);
+    if (!parts) return "";
+    if (parts.kind === "justNow") return t("card.timeJustNow");
+    if (parts.kind === "minutes") return t("card.timeMinutesAgo", { n: parts.n });
+    if (parts.kind === "hours") return t("card.timeHoursAgo", { n: parts.n });
+    if (parts.kind === "days") return t("card.timeDaysAgo", { n: parts.n });
+    return parts.dateStr ?? "";
+  }
+
   // 改名：风格化对话框；取消(null)不动，空串=清除自定义名恢复默认
   function handleRenameResult(value: string | null) {
     setRenameOpen(false);
     if (value === null) return;
     void setCustomName(session.session_id, value).catch((e) =>
-      toast.error(`保存名称失败：${String(e)}`),
+      toast.error(t("card.toast.saveNameError", { msg: String(e) })),
     );
   }
 
@@ -101,7 +133,7 @@ function SessionCardImpl({
     // 阻止冒泡，避免同时触发 onSelect
     e.stopPropagation();
     void toggleFavorite(session.session_id).catch((e) =>
-      toast.error(`收藏失败：${String(e)}`),
+      toast.error(t("card.toast.favoriteError", { msg: String(e) })),
     );
   }
 
@@ -116,6 +148,8 @@ function SessionCardImpl({
     e.stopPropagation();
     setTaskDialogOpen(true);
   }
+
+  const relTime = formatRelativeTime(session.updated_at);
 
   return (
     <>
@@ -151,7 +185,7 @@ function SessionCardImpl({
               checked={checked}
               readOnly
               className="size-3.5 shrink-0 rounded border-input accent-primary"
-              aria-label="选择会话"
+              aria-label={t("card.selectSession")}
             />
           )}
           <span
@@ -163,23 +197,23 @@ function SessionCardImpl({
           <div className="flex shrink-0 items-center gap-1.5">
             {/* 建任务按钮：打开"从会话建任务"对话框（阻止冒泡避免选中卡片） */}
             <button
-              aria-label="从会话建任务"
+              aria-label={t("card.createTask")}
               onClick={handleCreateTaskClick}
               className="rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             >
-              建任务
+              {t("card.createTask")}
             </button>
             {/* 恢复按钮：打开恢复对话框 */}
             <button
-              aria-label="恢复会话"
+              aria-label={t("card.restore")}
               onClick={handleRestoreClick}
               className="rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             >
-              恢复
+              {t("card.restore")}
             </button>
             {/* 收藏星标 */}
             <button
-              aria-label={isFav ? "取消收藏" : "收藏"}
+              aria-label={isFav ? t("card.unfavorite") : t("card.favorite")}
               onClick={handleStarClick}
               className="text-base leading-none text-muted-foreground transition-colors hover:text-primary"
             >
@@ -192,10 +226,10 @@ function SessionCardImpl({
         {/* 第二行：provider 标签 + 消息数量 + 相对时间（更新时间） */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{session.provider}</span>
-          <span>{session.message_count} 条消息</span>
-          {relativeTime(session.updated_at) && (
+          <span>{t("card.messageCount", { n: session.message_count })}</span>
+          {relTime && (
             <span className="ml-auto shrink-0" title={session.updated_at}>
-              {relativeTime(session.updated_at)}
+              {relTime}
             </span>
           )}
         </div>
@@ -210,58 +244,58 @@ function SessionCardImpl({
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onSelect={() => setRestoreTarget(session)}>
-          恢复会话
+          {t("card.ctx.restoreSession")}
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => setTaskDialogOpen(true)}>建任务</ContextMenuItem>
-        <ContextMenuItem onSelect={() => setMemoryOpen(true)}>提炼记忆</ContextMenuItem>
+        <ContextMenuItem onSelect={() => setTaskDialogOpen(true)}>{t("card.ctx.createTask")}</ContextMenuItem>
+        <ContextMenuItem onSelect={() => setMemoryOpen(true)}>{t("card.ctx.distillMemory")}</ContextMenuItem>
         <ContextMenuItem
           onSelect={() =>
             void toggleFavorite(session.session_id).catch((e) =>
-              toast.error(`收藏失败：${String(e)}`),
+              toast.error(t("card.toast.favoriteError", { msg: String(e) })),
             )
           }
         >
-          {isFav ? "取消收藏" : "收藏"}
+          {isFav ? t("card.ctx.unfavorite") : t("card.ctx.favorite")}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => setRenameOpen(true)}>
-          {customName ? "重命名 / 恢复默认" : "重命名"}
+          {customName ? t("card.ctx.renameOrReset") : t("card.ctx.rename")}
         </ContextMenuItem>
         <ContextMenuItem
           onSelect={() =>
             void toggleHidden(session.session_id).catch((e) =>
-              toast.error(`隐藏操作失败：${String(e)}`),
+              toast.error(t("card.toast.hideError", { msg: String(e) })),
             )
           }
         >
-          {isHidden ? "取消隐藏" : "隐藏"}
+          {isHidden ? t("card.ctx.unhide") : t("card.ctx.hide")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={() =>
             void ipc
               .openPath(session.project_path)
-              .catch((e) => toast.error(`打开位置失败：${String(e)}`))
+              .catch((e) => toast.error(t("card.toast.openLocationError", { msg: String(e) })))
           }
         >
-          打开项目位置
+          {t("card.ctx.openLocation")}
         </ContextMenuItem>
         <ContextMenuItem
           onSelect={() =>
             void navigator.clipboard
               .writeText(session.project_path)
-              .then(() => toast.success("已复制项目路径"))
+              .then(() => toast.success(t("card.toast.copiedPath")))
           }
         >
-          复制项目路径
+          {t("card.ctx.copyPath")}
         </ContextMenuItem>
         <ContextMenuItem
           onSelect={() =>
             void navigator.clipboard
               .writeText(session.session_id)
-              .then(() => toast.success("已复制会话 ID"))
+              .then(() => toast.success(t("card.toast.copiedId")))
           }
         >
-          复制会话 ID
+          {t("card.ctx.copyId")}
         </ContextMenuItem>
       </ContextMenuContent>
       </ContextMenu>
@@ -286,12 +320,12 @@ function SessionCardImpl({
       {renameOpen && (
         <PromptDialog
           open
-          title="重命名会话"
-          description="给会话起个好认的名字；留空恢复默认（项目名）。"
-          label="会话名称"
-          placeholder="如：支付重构排障"
+          title={t("rename.title")}
+          description={t("rename.description")}
+          label={t("rename.label")}
+          placeholder={t("rename.placeholder")}
           defaultValue={customName ?? ""}
-          confirmText="保存"
+          confirmText={t("common:action.save")}
           onResult={handleRenameResult}
         />
       )}

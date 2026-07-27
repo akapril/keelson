@@ -1,6 +1,7 @@
 // 会话中枢「问」模式：语义召回历史会话片段（永远先给列表），配了 AI 再综合答案带 [n] 引用。
 // 召回为空（索引未建/失效）时回退关键词检索（sessions_search）。
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
@@ -33,6 +34,7 @@ function hasRealEmbedding(cfg: ReturnType<typeof embedConfig>): boolean {
 type Retrieval = "" | "semantic" | "kw-fallback" | "kw-only";
 
 export function AskPane() {
+  const { t } = useTranslation("sessions");
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<RagHit[]>([]);
@@ -47,8 +49,8 @@ export function AskPane() {
   const copyAnswer = () => {
     void navigator.clipboard
       .writeText(answer)
-      .then(() => toast.success("已复制答案"))
-      .catch(() => toast.error("复制失败"));
+      .then(() => toast.success(t("ask.toast.copiedAnswer")))
+      .catch(() => toast.error(t("ask.toast.copyError")));
   };
 
   // 存为文档（落「速记」项目，含问题 + 答案 + 来源片段）
@@ -61,23 +63,23 @@ export function AskPane() {
         .map((h, i) => `[${i + 1}] (${h.provider}) ${h.snippet}`)
         .join("\n\n");
       const content =
-        `# ${q}\n\n${answer}\n` + (sources ? `\n---\n\n**来源会话片段**\n\n${sources}\n` : "");
+        `# ${q}\n\n${answer}\n` + (sources ? `\n---\n\n**${t("ask.docSourcesHeader")}**\n\n${sources}\n` : "");
       const inbox = await ensureInboxProject();
       const rec = await createDocRecord({
         owner: currentUserId(),
         project: inbox.id,
-        title: q.slice(0, 60) || "历史问答",
+        title: q.slice(0, 60) || t("ask.docTitle"),
         content,
       });
-      toast.success("已存为文档（速记）", {
+      toast.success(t("ask.toast.savedDoc"), {
         action: {
-          label: "打开",
+          label: t("ask.toast.openDoc"),
           onClick: () =>
             navigate(workspaceRecordUrl("board", inbox.id, { tab: "docs", doc: rec.id })),
         },
       });
     } catch (e) {
-      toast.error(`存文档失败：${String(e)}`);
+      toast.error(t("ask.toast.saveDocError", { msg: String(e) }));
     } finally {
       setSaving(false);
     }
@@ -134,7 +136,7 @@ export function AskPane() {
         setAnswer(reply);
       }
     } catch (e) {
-      setAnswer(`检索失败：${String(e)}`);
+      setAnswer(t("ask.toast.retrieveError", { msg: String(e) }));
     } finally {
       setLoading(false);
     }
@@ -152,11 +154,11 @@ export function AskPane() {
               void ask();
             }
           }}
-          placeholder="问历史会话，如「上次我怎么修的 PB 400 错误」"
+          placeholder={t("ask.placeholder")}
           className="min-h-12 flex-1"
         />
         <Button onClick={() => void ask()} disabled={loading || !query.trim()}>
-          {loading ? "检索中…" : "问"}
+          {loading ? t("ask.searching") : t("ask.ask")}
         </Button>
       </div>
 
@@ -167,21 +169,21 @@ export function AskPane() {
             {/* 沉淀操作：复制 / 存为文档（闭合 问→沉淀 闭环） */}
             <div className="mt-2 flex items-center gap-2 border-t border-border/60 pt-2">
               <Button variant="ghost" size="xs" onClick={copyAnswer}>
-                复制
+                {t("ask.copyAnswer")}
               </Button>
               <Button variant="ghost" size="xs" disabled={saving} onClick={() => void saveAsDoc()}>
-                {saving ? "保存中…" : "存为文档"}
+                {saving ? t("ask.saving") : t("ask.saveAsDoc")}
               </Button>
             </div>
           </div>
         )}
         {retrieval === "kw-only" && (
           <p className="text-xs text-muted-foreground">
-            关键词检索（未配置语义嵌入 —— 可在「设置 → 检索 / 嵌入」切换 api / local 启用语义）
+            {t("ask.kwOnly")}
           </p>
         )}
         {retrieval === "kw-fallback" && hits.length > 0 && (
-          <p className="text-xs text-muted-foreground">（语义索引未就绪，已回退关键词检索）</p>
+          <p className="text-xs text-muted-foreground">{t("ask.kwFallback")}</p>
         )}
         {hits.map((h, i) => (
           <button
@@ -193,13 +195,13 @@ export function AskPane() {
             <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
               <span className="rounded bg-muted px-1.5 py-0.5">[{i + 1}]</span>
               <span>{h.provider}</span>
-              <span>· {retrieval === "semantic" ? "相似度" : "相关度"} {h.score.toFixed(2)}</span>
+              <span>· {retrieval === "semantic" ? t("ask.similarity") : t("ask.relevance")} {h.score.toFixed(2)}</span>
             </div>
             <p className="line-clamp-3 text-sm">{h.snippet}</p>
           </button>
         ))}
         {!loading && hits.length === 0 && (
-          <p className="py-12 text-center text-sm text-muted-foreground">输入问题，检索你的历史会话</p>
+          <p className="py-12 text-center text-sm text-muted-foreground">{t("ask.emptyHint")}</p>
         )}
       </div>
     </div>

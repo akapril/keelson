@@ -1,0 +1,172 @@
+{
+  "card": {
+    "selectSession": "Select session",
+    "createTask": "Create task",
+    "restore": "Restore",
+    "unfavorite": "Unfavorite",
+    "favorite": "Favorite",
+    "messageCount": "{{n}} messages",
+    "timeJustNow": "just now",
+    "timeMinutesAgo": "{{n}} min ago",
+    "timeHoursAgo": "{{n}} hr ago",
+    "timeDaysAgo": "{{n}} d ago",
+    "ctx": {
+      "restoreSession": "Restore session",
+      "createTask": "Create task",
+      "distillMemory": "Distill memory",
+      "unfavorite": "Unfavorite",
+      "favorite": "Favorite",
+      "renameOrReset": "Rename / Reset name",
+      "rename": "Rename",
+      "unhide": "Unhide",
+      "hide": "Hide",
+      "openLocation": "Open project location",
+      "copyPath": "Copy project path",
+      "copyId": "Copy session ID"
+    },
+    "toast": {
+      "saveNameError": "Failed to save name: {{msg}}",
+      "favoriteError": "Failed to favorite: {{msg}}",
+      "hideError": "Hide operation failed: {{msg}}",
+      "openLocationError": "Failed to open location: {{msg}}",
+      "copiedPath": "Project path copied",
+      "copiedId": "Session ID copied"
+    }
+  },
+  "rename": {
+    "title": "Rename session",
+    "description": "Give the session a recognizable name. Leave blank to restore the default (project name).",
+    "label": "Session name",
+    "placeholder": "e.g. Payment refactor debug"
+  },
+  "restore": {
+    "title": "Restore session",
+    "loading": "Restoring…",
+    "openNewWindow": "Restore in new terminal",
+    "openAsTab": "Open as tab",
+    "error": "Restore failed: {{msg}}"
+  },
+  "list": {
+    "modeSearch": "Search",
+    "modeAsk": "Ask history",
+    "searchPlaceholder": "Search sessions…",
+    "searchAriaLabel": "Search sessions",
+    "favOnlyTitle": "Favorites only",
+    "showAllTitle": "Show all sessions",
+    "showHiddenActive": "Hidden✓",
+    "showHidden": "Hidden",
+    "showHiddenTitleActive": "Hide hidden sessions",
+    "showHiddenTitle": "Show hidden sessions",
+    "batchSelect": "Batch",
+    "batchSelectTitle": "Batch select sessions",
+    "batchSelectedCount": "{{n}} selected",
+    "batchFavorite": "Favorite",
+    "batchHide": "Hide",
+    "batchUnhide": "Unhide",
+    "batchDone": "Done",
+    "collapseTitle": "Collapse",
+    "expandTitle": "Expand",
+    "promoteTitle": "Promote to board project",
+    "loading": "Loading…",
+    "searching": "Searching…",
+    "emptyFav": "No favorited sessions",
+    "emptySearch": "No matching sessions found",
+    "emptyScanning": "Scanning local sessions…",
+    "empty": "No sessions yet",
+    "toast": {
+      "favoriteError": "Failed to favorite: {{msg}}",
+      "hideError": "Hide operation failed: {{msg}}"
+    }
+  },
+  "preview": {
+    "selectHint": "Select a session to preview",
+    "aiDistill": "AI Distill",
+    "distillTitle": "Use AI to distill tasks and docs from this session, then write to the project",
+    "distillMemory": "Distill memory",
+    "distillMemoryTitle": "Distill reusable memories (facts/preferences/decisions/conventions) from this session, deduplicated and saved to memory ledger",
+    "createTask": "Create task",
+    "createTaskTitle": "Create a board task from this session",
+    "syncTasks": "Sync tasks",
+    "syncingTasks": "Syncing…",
+    "syncTasksTitle": "Sync planned tasks (Claude Task tool status) from this session to its linked board project",
+    "restore": "Restore",
+    "restoreTitle": "Restore this CLI session in terminal",
+    "messageCount": "{{n}} messages",
+    "notePlaceholder": "Session notes (auto-saved)",
+    "toast": {
+      "noProject": "This session has no linked board project — promote it first from the session list",
+      "noTasks": "This session has no planned tasks (no Task tool used)",
+      "syncSuccess": "Synced to \"{{proj}}\": created {{created}}, updated {{updated}} (total {{total}})",
+      "syncError": "Sync failed: {{msg}}",
+      "saveNoteError": "Failed to save note: {{msg}}"
+    }
+  },
+  "chat": {
+    "loadingHistory": "Loading session messages…",
+    "emptyHistory": "No messages in this session yet. Start chatting below.",
+    "showEarlier": "Show {{n}} earlier messages",
+    "noAiConfig": "AI service not configured",
+    "goSettings": "Go to settings",
+    "continueMode": "Continue mode",
+    "modeInapp": "In-app",
+    "modeTerminal": "Terminal",
+    "modeInappDesc": "Continue in-app (replays context, does not write back to original session)",
+    "modeTerminalDesc": "True resume via CLI --resume (writes back to disk, fully synced)",
+    "terminalHint": "Truly continue this {{provider}} session in terminal — messages written to disk, synced after Keelson rescan.",
+    "resumeInTerminal": "Resume in terminal",
+    "inputPlaceholder": "Continue chatting, Enter to send, / to open prompt library",
+    "send": "Send",
+    "stop": "Stop",
+    "loadHistoryError": "Failed to load history: {{msg}}",
+    "requestError": "Request failed: {{msg}}",
+    "noReply": "(no reply)",
+    "resumeError": "Failed to restore to terminal: {{msg}}"
+  },
+  "commits": {
+    "loading": "Looking up associated commits…",
+    "empty": "No associated commits.",
+    "exactMatch": "🎯 Exact",
+    "exactMatchTitle": "Commit has Rework-Session trailer — exact match",
+    "likelyRelated": "🕐 Likely",
+    "likelyRelatedTitle": "Inferred by commit time falling within the session window — may be related"
+  },
+  "fileChanges": {
+    "loading": "Reading files changed in this session…",
+    "empty": "No file change records (or not a Claude session).",
+    "editsCount": "{{n}} edits"
+  },
+  "linkedTasks": {
+    "empty": "No linked tasks.",
+    "jumpTitle": "Jump to the board project for this task"
+  },
+  "provenance": {
+    "commits": "Commits",
+    "files": "Changes",
+    "tasks": "Tasks",
+    "collapse": "Collapse",
+    "expand": "Expand"
+  },
+  "ask": {
+    "placeholder": "Ask about past sessions, e.g. \"how did I fix the PB 400 error last time\"",
+    "searching": "Searching…",
+    "ask": "Ask",
+    "copyAnswer": "Copy",
+    "saveAsDoc": "Save as doc",
+    "saving": "Saving…",
+    "kwOnly": "Keyword search (semantic embedding not configured — go to Settings → Retrieval / Embedding to enable api / local)",
+    "kwFallback": "(Semantic index not ready, fell back to keyword search)",
+    "similarity": "similarity",
+    "relevance": "relevance",
+    "emptyHint": "Enter a question to search your session history",
+    "toast": {
+      "copiedAnswer": "Answer copied",
+      "copyError": "Copy failed",
+      "savedDoc": "Saved as doc (quick note)",
+      "openDoc": "Open",
+      "saveDocError": "Failed to save doc: {{msg}}",
+      "retrieveError": "Retrieval failed: {{msg}}"
+    },
+    "docTitle": "Historical Q&A",
+    "docSourcesHeader": "Source session snippets"
+  }
+}
