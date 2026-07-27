@@ -1,0 +1,43 @@
+{
+  "editDialog": {
+    "title": "编辑记忆",
+    "description": "支持 markdown；内容会喂回 CLI，尽量简洁。",
+    "tabEdit": "编辑",
+    "tabPreview": "预览",
+    "placeholder": "记忆内容（支持 markdown）",
+    "emptyPreview": "无内容可预览"
+  },
+  "reviewDialog": {
+    "title": "提炼记忆",
+    "description": "从此会话提炼可长期复用的事实/偏好/决策/约定；已有的自动标为重复。勾选后存入记忆账本（带来源）。",
+    "loading": "正在提炼记忆…",
+    "errorFallback": "无法提炼",
+    "errorNoAi": "尚未配置 AI 服务（请在设置页填写 API Key，或改用本地 CLI provider）",
+    "emptyResult": "未发现可沉淀的记忆。",
+    "scopeGlobal": "全局",
+    "scopeProject": "项目",
+    "confidence": "把握 {{value}}",
+    "dupExisting": "已有类似记忆",
+    "dupBatch": "本批重复",
+    "committing": "写入中…",
+    "commitButton": "沉淀 {{count}} 条",
+    "footerCount": "{{fresh}} 条新 · 已选 {{selected}}",
+    "toastSuccess": "已沉淀 {{count}} 条记忆"
+  },
+  "filesBar": {
+    "syncedLabel": "🧠 记忆已注入 CLAUDE.md/AGENTS.md",
+    "unsyncedDesc": "把「全局 + 本项目」记忆写进 CLAUDE.md / AGENTS.md（受管块，喂回 CLI）",
+    "busyButton": "同步中…",
+    "resyncButton": "重新同步",
+    "syncButton": "同步记忆到文件",
+    "toastSynced": "已同步 {{count}} 条记忆到 {{files}} 个文件",
+    "toastEmpty": "无可注入记忆，已清空受管块",
+    "toastError": "同步失败：{{msg}}"
+  },
+  "kind": {
+    "fact": "事实",
+    "preference": "偏好",
+    "decision": "决策",
+    "convention": "约定"
+  }
+}

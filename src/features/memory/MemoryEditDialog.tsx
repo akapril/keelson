@@ -1,6 +1,7 @@
 // MemoryEditDialog —— 记忆内容的 markdown 编辑器：源码编辑 + 实时预览切换。
 // 与 PromptDialog 同接口（open/defaultValue/onResult），便于替换。
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ export function MemoryEditDialog({
   /** 保存返回新内容；取消返回 null。 */
   onResult: (value: string | null) => void;
 }) {
+  const { t } = useTranslation(["memory", "common"]);
   const [value, setValue] = useState(defaultValue);
   const [tab, setTab] = useState<"edit" | "preview">("edit");
 
@@ -49,19 +51,19 @@ export function MemoryEditDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onResult(null)}>
       <DialogContent className="flex max-h-[80vh] w-full max-w-2xl flex-col">
         <DialogHeader>
-          <DialogTitle>编辑记忆</DialogTitle>
+          <DialogTitle>{t("memory:editDialog.title")}</DialogTitle>
           <DialogDescription>
-            支持 markdown；内容会喂回 CLI，尽量简洁。
+            {t("memory:editDialog.description")}
           </DialogDescription>
         </DialogHeader>
 
         {/* 编辑 / 预览切换 */}
         <div className="flex shrink-0 gap-1">
           <button type="button" className={tabCls(tab === "edit")} onClick={() => setTab("edit")}>
-            编辑
+            {t("memory:editDialog.tabEdit")}
           </button>
           <button type="button" className={tabCls(tab === "preview")} onClick={() => setTab("preview")}>
-            预览
+            {t("memory:editDialog.tabPreview")}
           </button>
         </div>
 
@@ -70,7 +72,7 @@ export function MemoryEditDialog({
             <Textarea
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder="记忆内容（支持 markdown）"
+              placeholder={t("memory:editDialog.placeholder")}
               className="min-h-48 font-mono text-sm"
               // 有意 autofocus：编辑弹窗打开即聚焦正文输入（jsx-a11y 规则暂未启用）
               autoFocus
@@ -80,16 +82,16 @@ export function MemoryEditDialog({
               <Markdown content={value} />
             </div>
           ) : (
-            <p className="py-8 text-center text-sm text-muted-foreground">无内容可预览</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("memory:editDialog.emptyPreview")}</p>
           )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onResult(null)}>
-            取消
+            {t("common:action.cancel")}
           </Button>
           <Button onClick={save} disabled={!value.trim()}>
-            保存
+            {t("common:action.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

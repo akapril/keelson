@@ -16,6 +16,7 @@ function hasRealEmbedding(c: ReturnType<typeof readEmbedConfig>): boolean {
 }
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import {
@@ -38,10 +39,13 @@ import {
   classifyCandidates,
   type ClassifiedCandidate,
 } from "./extract";
-import { MEMORY_KIND_LABEL, type Memory } from "@/types/memory";
+import type { Memory } from "@/types/memory";
 import type { Session } from "@/types/session";
 
 type Phase = "loading" | "idle" | "review" | "committing";
+
+// 错误哨兵键：setError 存 i18n key，渲染时统一经 t() 转换
+const ERR_NO_AI = "reviewDialog.errorNoAi";
 
 export function MemoryReviewDialog({
   session,
@@ -50,7 +54,9 @@ export function MemoryReviewDialog({
   session: Session | null;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("memory");
   const [phase, setPhase] = useState<Phase>("idle");
+  // error 字段存 i18n key（ERR_NO_AI）或 String(e) 原始错误（非中文，不需翻译）
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<ClassifiedCandidate[]>([]);
   const [sel, setSel] = useState<Set<number>>(new Set());
@@ -67,7 +73,8 @@ export function MemoryReviewDialog({
       const isCli = cfg.provider === "claude-cli" || cfg.provider === "codex-cli";
       if (!isCli && !cfg.api_key) {
         if (!cancelled) {
-          setError("尚未配置 AI 服务（请在设置页填写 API Key，或改用本地 CLI provider）");
+          // 存哨兵 key，渲染时经 t() 翻译
+          setError(ERR_NO_AI);
           setPhase("idle");
         }
         return;
@@ -150,7 +157,7 @@ export function MemoryReviewDialog({
           source_provider: session.provider,
         });
       }
-      toast.success(`已沉淀 ${chosen.length} 条记忆`);
+      toast.success(t("reviewDialog.toastSuccess", { count: chosen.length }));
       onClose();
     } catch (e) {
       setError(String(e));
@@ -160,19 +167,26 @@ export function MemoryReviewDialog({
 
   const freshCount = items.filter((c) => c.duplicateOf === null).length;
 
+  // 将 error 字段翻译：若是哨兵 key 则走 t()，否则直接显示原始错误信息
+  const errorDisplay = error === ERR_NO_AI ? t(ERR_NO_AI) : error;
+
   return (
     <Dialog open={!!session} onOpenChange={(o) => !o && phase !== "committing" && onClose()}>
       <DialogContent className="flex max-h-[80vh] w-full max-w-2xl flex-col">
         <DialogHeader>
-          <DialogTitle>提炼记忆</DialogTitle>
+          <DialogTitle>{t("reviewDialog.title")}</DialogTitle>
           <DialogDescription>
-            从此会话提炼可长期复用的事实/偏好/决策/约定；已有的自动标为重复。勾选后存入记忆账本（带来源）。
+            {t("reviewDialog.description")}
           </DialogDescription>
         </DialogHeader>
 
         {(phase === "loading" || phase === "idle") && (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-            {phase === "loading" ? <span>正在提炼记忆…</span> : <span className="text-destructive">{error ?? "无法提炼"}</span>}
+            {phase === "loading" ? (
+              <span>{t("reviewDialog.loading")}</span>
+            ) : (
+              <span className="text-destructive">{errorDisplay ?? t("reviewDialog.errorFallback")}</span>
+            )}
           </div>
         )}
 
@@ -180,10 +194,10 @@ export function MemoryReviewDialog({
           <>
             <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto py-1">
               {items.length === 0 && (
-                <p className="py-8 text-center text-sm text-muted-foreground">未发现可沉淀的记忆。</p>
+                <p className="py-8 text-center text-sm text-muted-foreground">{t("reviewDialog.emptyResult")}</p>
               )}
-              {items.map((c, i) => {
-                const dup = c.duplicateOf !== null;
+              {items.map((item, i) => {
+                const dup = item.duplicateOf !== null;
                 return (
                   <label
                     key={i}
@@ -198,14 +212,16 @@ export function MemoryReviewDialog({
                       className="mt-0.5 size-3.5 accent-primary"
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="text-foreground">{c.candidate.content}</span>
+                      <span className="text-foreground">{item.candidate.content}</span>
                       <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                        <span className="rounded bg-muted px-1">{MEMORY_KIND_LABEL[c.candidate.kind]}</span>
-                        <span className="rounded bg-muted px-1">{c.candidate.scope === "global" ? "全局" : "项目"}</span>
-                        <span>把握 {c.candidate.confidence}</span>
+                        <span className="rounded bg-muted px-1">{t(`kind.${item.candidate.kind}`)}</span>
+                        <span className="rounded bg-muted px-1">
+                          {item.candidate.scope === "global" ? t("reviewDialog.scopeGlobal") : t("reviewDialog.scopeProject")}
+                        </span>
+                        <span>{t("reviewDialog.confidence", { value: item.candidate.confidence })}</span>
                         {dup && (
                           <span className="text-amber-600 dark:text-amber-400">
-                            {c.duplicateOf ? "已有类似记忆" : "本批重复"}
+                            {item.duplicateOf ? t("reviewDialog.dupExisting") : t("reviewDialog.dupBatch")}
                           </span>
                         )}
                       </span>
@@ -215,17 +231,17 @@ export function MemoryReviewDialog({
               })}
             </div>
 
-            {error && <p className="shrink-0 text-xs text-destructive">{error}</p>}
+            {error && <p className="shrink-0 text-xs text-destructive">{errorDisplay}</p>}
 
             <DialogFooter className="items-center">
               <span className="mr-auto text-xs text-muted-foreground">
-                {freshCount} 条新 · 已选 {sel.size}
+                {t("reviewDialog.footerCount", { fresh: freshCount, selected: sel.size })}
               </span>
               <Button variant="outline" onClick={onClose} disabled={phase === "committing"}>
-                取消
+                {t("common:action.cancel")}
               </Button>
               <Button onClick={() => void commit()} disabled={phase === "committing" || sel.size === 0}>
-                {phase === "committing" ? "写入中…" : `沉淀 ${sel.size} 条`}
+                {phase === "committing" ? t("reviewDialog.committing") : t("reviewDialog.commitButton", { count: sel.size })}
               </Button>
             </DialogFooter>
           </>
