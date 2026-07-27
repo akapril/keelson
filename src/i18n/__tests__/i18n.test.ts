@@ -20,5 +20,7 @@ describe("i18n 地基", () => {
     await i18n.changeLanguage("zh");
     // 不存在的 key 返回 fallback 行为：返回 key 本身，不抛
     expect(() => i18n.t("nonexistent.key.xyz")).not.toThrow();
+    // 回退可观测：i18next 缺 key 时返回 key 字符串本身
+    expect(i18n.t("nonexistent.key.xyz")).toBe("nonexistent.key.xyz");
   });
 });
