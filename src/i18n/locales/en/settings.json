@@ -156,6 +156,7 @@
     "title": "Backend / Remote PocketBase",
     "desc": "By default, the built-in local PocketBase is used (no login required). Enter a remote URL to connect to a remote instance with email/password login, enabling multi-device sharing. A reload is required to take effect.",
     "urlLabel": "Remote PocketBase URL",
+    "urlPlaceholder": "https://pb.example.com (leave empty for local)",
     "applyBtn": "Apply & Reload",
     "switchLocalBtn": "Switch to local",
     "openDirBtn": "Open data directory",

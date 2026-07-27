@@ -156,6 +156,7 @@
     "title": "后端 / 远程 PocketBase",
     "desc": "默认使用本地内置 PocketBase（免登录）。填写远程地址后将连接远程并要求邮箱/密码登录，",
     "urlLabel": "远程 PocketBase 地址",
+    "urlPlaceholder": "https://pb.example.com（留空用本地）",
     "applyBtn": "应用并重载",
     "switchLocalBtn": "切回本地",
     "openDirBtn": "打开数据目录",
