@@ -1,6 +1,5 @@
 {
   "page": {
-    "title": "{{month}} {{year}}",
     "prevMonth": "Previous month",
     "nextMonth": "Next month",
     "today": "Today",

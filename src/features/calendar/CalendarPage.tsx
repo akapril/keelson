@@ -403,9 +403,9 @@ export default function CalendarPage() {
 
       {/* 星期表头：7 列 */}
       <div className="grid shrink-0 grid-cols-7 border-b border-border">
-        {weekdays.map((w) => (
+        {weekdays.map((w, i) => (
           <div
-            key={w}
+            key={i}
             className="py-2 text-center text-xs font-medium text-muted-foreground"
           >
             {w}
