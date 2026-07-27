@@ -1,6 +1,7 @@
 // AI agent 工具层：给当前项目的 AI 一组「读 + 建/改」看板任务与文档的工具（无删除，安全）。
 // 工具执行走 store/PB（用户 token → PB access rules 授权）。中性 schema 交 Rust 按 provider 转换。
 // agent loop：ipc.aiChatTools → 若工具调用则本地执行 → 结果回传 → 再调，直到最终文本或达上限。
+import i18n from "@/i18n";
 import { ipc } from "@/lib/tauri/ipc";
 import { useBoardStore } from "@/store/board";
 import { useDocsStore } from "@/store/docs";
@@ -105,7 +106,7 @@ export async function executeTool(
   try {
     args = argsJson ? (JSON.parse(argsJson) as Record<string, unknown>) : {};
   } catch {
-    return JSON.stringify({ ok: false, error: "参数不是合法 JSON" });
+    return JSON.stringify({ ok: false, error: "invalid JSON args" });
   }
   const board = useBoardStore.getState();
   const docs = useDocsStore.getState();
@@ -130,7 +131,7 @@ export async function executeTool(
       case "create_task": {
         const state_id = str(args.state_id);
         const title = str(args.title);
-        if (!state_id || !title) return err("缺少 state_id 或 title");
+        if (!state_id || !title) return err("missing state_id or title");
         const task = await board.createTask({
           project: ctx.projectId,
           state: state_id,
@@ -143,7 +144,7 @@ export async function executeTool(
       }
       case "update_task": {
         const task_id = str(args.task_id);
-        if (!task_id) return err("缺少 task_id");
+        if (!task_id) return err("missing task_id");
         const patch: Record<string, unknown> = {};
         if (args.title != null) patch.title = str(args.title);
         if (args.description != null) patch.description = str(args.description);
@@ -159,7 +160,7 @@ export async function executeTool(
       }
       case "create_doc": {
         const title = str(args.title);
-        if (!title) return err("缺少 title");
+        if (!title) return err("missing title");
         const doc = await docs.createDoc(ctx.projectId, title);
         const content = str(args.content);
         if (content) await docs.updateDoc(doc.id, { content });
@@ -167,7 +168,7 @@ export async function executeTool(
       }
       case "update_doc": {
         const doc_id = str(args.doc_id);
-        if (!doc_id) return err("缺少 doc_id");
+        if (!doc_id) return err("missing doc_id");
         const patch: { title?: string; content?: string } = {};
         if (args.title != null) patch.title = str(args.title);
         if (args.content != null) patch.content = str(args.content);
@@ -175,7 +176,7 @@ export async function executeTool(
         return JSON.stringify({ ok: true, id: doc_id });
       }
       default:
-        return err(`未知工具：${name}`);
+        return err(`unknown tool: ${name}`);
     }
   } catch (e) {
     return err(String(e));
@@ -232,5 +233,5 @@ export async function runAgent(
       convo.push({ role: "tool", tool_call_id: call.id, content: result });
     }
   }
-  return "（已达工具调用上限，请细化你的要求后重试）";
+  return i18n.t("chat.toolLimitReached", { ns: "ai" });
 }

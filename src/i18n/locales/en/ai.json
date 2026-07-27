@@ -1,0 +1,22 @@
+{
+  "chat": {
+    "emptyHint": "Ask the AI assistant for \"{{projectName}}\"",
+    "noConfigTitle": "AI service not configured",
+    "noConfigDesc": "Go to Settings and enter your API Key to start chatting with the project AI.",
+    "goSettings": "Go to Settings",
+    "includeContext": "Include project context (docs + related sessions)",
+    "toolMode": "Tool mode (allow AI to create/edit board tasks and docs)",
+    "cliToolHint": "CLI will autonomously invoke installed MCP tools (fully automatic, may read/write files or run commands)",
+    "clear": "Clear",
+    "placeholder": "Type a message, Enter to send, / for prompts",
+    "running": "Running…",
+    "stop": "Stop",
+    "send": "Send",
+    "noReply": "(No reply)",
+    "done": "(Done)",
+    "requestError": "Request failed: {{msg}}",
+    "toolDone": "done",
+    "toolFailed": "failed",
+    "toolLimitReached": "(Tool call limit reached — please refine your request and try again)"
+  }
+}
