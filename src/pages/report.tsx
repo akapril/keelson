@@ -256,7 +256,7 @@ export default function ReportPage() {
             {t("report.noAiDesc")}
           </p>
           <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/settings")}>
-            {tCommon("action.close")}
+            {t("report.goToSettings")}
           </Button>
         </div>
       )}
