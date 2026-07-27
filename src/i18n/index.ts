@@ -26,7 +26,8 @@ void i18n
     supportedLngs: ["zh", "en"],
     fallbackLng: "en",
     defaultNS: "common",
-    ns: Object.keys(resources.en ?? { common: {} }),
+    // 取所有语言键的并集，避免某命名空间仅在部分语言中存在时漏注册
+    ns: [...new Set(Object.values(resources).flatMap((r) => Object.keys(r)))],
     detection: { order: ["localStorage", "navigator"], caches: ["localStorage"] },
     interpolation: { escapeValue: false }, // React 已防 XSS
   })
