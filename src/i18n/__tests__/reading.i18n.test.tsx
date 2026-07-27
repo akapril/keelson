@@ -171,4 +171,33 @@ describe("ReadingPage i18n – reading 命名空间", () => {
     const val = i18n.t("row.readingMinutes", { ns: "reading", lng: "en", n: 5 });
     expect(val).toBe("· ~5 min");
   });
+
+  // sentinel 路径端到端：中文模式 summarizeFailed {{msg}} 插值含中文错误文本
+  it("中文模式：toast.summarizeFailed + summarizeError.noLink 插值含中文", () => {
+    const errMsg = i18n.t("summarizeError.noLink", { ns: "reading", lng: "zh" });
+    const val = i18n.t("toast.summarizeFailed", { ns: "reading", lng: "zh", title: "X", msg: errMsg });
+    expect(val).toContain("该条目无链接");
+    expect(val).toContain("X");
+  });
+
+  // sentinel 路径端到端：英文模式 summarizeFailed {{msg}} 插值含英文错误文本
+  it("英文模式：toast.summarizeFailed + summarizeError.noLink 插值含英文", () => {
+    const errMsg = i18n.t("summarizeError.noLink", { ns: "reading", lng: "en" });
+    const val = i18n.t("toast.summarizeFailed", { ns: "reading", lng: "en", title: "X", msg: errMsg });
+    expect(val).toContain("no link");
+    expect(val).toContain("X");
+  });
+
+  // summarizeError 键在两种语言下均存在且非 fallback 键名
+  it("中文：summarizeError.noContent 有翻译", () => {
+    const val = i18n.t("summarizeError.noContent", { ns: "reading", lng: "zh" });
+    expect(val).not.toBe("summarizeError.noContent");
+    expect(val).toBeTruthy();
+  });
+
+  it("英文：summarizeError.parseFailed 有翻译", () => {
+    const val = i18n.t("summarizeError.parseFailed", { ns: "reading", lng: "en" });
+    expect(val).not.toBe("summarizeError.parseFailed");
+    expect(val).toBeTruthy();
+  });
 });

@@ -54,7 +54,8 @@
     "aiResummarize": "重新 AI 摘要",
     "createTask": "建任务",
     "markAs": "标记为{{label}}",
-    "copyLink": "复制链接"
+    "copyLink": "复制链接",
+    "delete": "删除"
   },
   "detail": {
     "defaultTitle": "阅读条目",
@@ -66,7 +67,6 @@
     "tagClickToRemove": "点击删除",
     "tagPlaceholder": "加标签，回车/逗号确认",
     "keyPoints": "关键要点",
-    "noSummary": "暂无 AI 摘要。",
     "noSummaryWithLink": "暂无 AI 摘要。点右上「AI 摘要」抓取网页并生成。",
     "noSummaryNoLink": "暂无 AI 摘要。该条目无链接。",
     "note": "备注",
@@ -99,5 +99,10 @@
     "summarizeDoneWithTags": "「{{title}}」摘要完成（含 {{n}} 个推荐标签）",
     "summarizeDone": "「{{title}}」摘要完成",
     "summarizeFailed": "「{{title}}」摘要失败：{{msg}}"
+  },
+  "summarizeError": {
+    "noLink": "该条目无链接，无法摘要",
+    "noContent": "未能抓取到网页正文",
+    "parseFailed": "AI 摘要解析失败（未返回有效 JSON）"
   }
 }

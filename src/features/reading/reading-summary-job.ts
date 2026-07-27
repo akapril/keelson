@@ -57,7 +57,15 @@ export const useReadingSummaryJob = create<ReadingSummaryJobState>((set, get) =>
         );
       })
       .catch((e) => {
-        toast.error(i18n.t("toast.summarizeFailed", { ns: "reading", title: item.title, msg: String(e instanceof Error ? e.message : e) }));
+        // 将 summarize.ts 的英文 sentinel 映射到 i18n key，避免中文错误串直接露给用户
+        const SENTINEL: Record<string, string> = {
+          NO_LINK: "summarizeError.noLink",
+          NO_CONTENT: "summarizeError.noContent",
+          PARSE_FAILED: "summarizeError.parseFailed",
+        };
+        const raw = e instanceof Error ? e.message : String(e);
+        const msg = SENTINEL[raw] ? i18n.t(SENTINEL[raw], { ns: "reading" }) : raw;
+        toast.error(i18n.t("toast.summarizeFailed", { ns: "reading", title: item.title, msg }));
       })
       .finally(() => {
         set((s) => {

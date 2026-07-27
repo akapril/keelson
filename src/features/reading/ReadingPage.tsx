@@ -305,7 +305,7 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
             )
           }
         >
-          {t("row.deleteAriaLabel")}
+          {t("context.delete")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

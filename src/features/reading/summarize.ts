@@ -26,9 +26,11 @@ export async function summarizeReadingItem(
   item: ReadingItem,
   cfg: AiConfig,
 ): Promise<{ summary: string; key_points: string[]; tags: string[]; content_text: string }> {
-  if (!item.url) throw new Error("该条目无链接,无法摘要");
+  // 该条目无链接，无法摘要 → sentinel，由调用方映射 i18n key
+  if (!item.url) throw new Error("NO_LINK");
   const content_text = (await ipc.fetchUrlText(item.url)).trim();
-  if (!content_text) throw new Error("未能抓取到网页正文");
+  // 未能抓取到网页正文 → sentinel
+  if (!content_text) throw new Error("NO_CONTENT");
 
   const input =
     content_text.length > MAX_INPUT ? content_text.slice(0, MAX_INPUT) : content_text;
@@ -38,7 +40,8 @@ export async function summarizeReadingItem(
   ];
   const reply = (await ipc.aiChat(cfg, msgs)).trim();
   const parsed = parseSummary(reply);
-  if (!parsed) throw new Error("AI 摘要解析失败(未返回有效 JSON)");
+  // AI 摘要解析失败（未返回有效 JSON） → sentinel
+  if (!parsed) throw new Error("PARSE_FAILED");
 
   return {
     summary: parsed.summary,
