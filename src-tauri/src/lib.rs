@@ -32,6 +32,8 @@ pub mod rag;
 mod mcp;
 // 进程管理内核（从 claude-runtime 融入，headless，进程内起 daemon）
 pub mod runtime;
+// Rust 侧用户可见文案的中英映射（托盘菜单 / MCP 通知）
+mod i18n;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
@@ -107,6 +109,11 @@ pub struct AppState {
     /// AI 流式对话的取消标志表（stream_id → 取消位），供「停止生成」使用
     pub ai_cancels:
         Arc<Mutex<std::collections::HashMap<String, Arc<std::sync::atomic::AtomicBool>>>>,
+    /// 当前界面语言（"zh"/"en"），由前端 set_locale 同步，供托盘/通知取文案
+    pub locale: Arc<Mutex<String>>,
+    /// 托盘菜单项句柄：语言切换时更新其文案
+    pub tray_show: Arc<Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>>,
+    pub tray_quit: Arc<Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>>,
 }
 
 impl Default for AppState {
@@ -123,6 +130,9 @@ impl Default for AppState {
             config: Arc::new(Mutex::new(cfg)),
             pb_child: Arc::new(Mutex::new(None)),
             ai_cancels: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            locale: Arc::new(Mutex::new("en".to_string())),
+            tray_show: Arc::new(Mutex::new(None)),
+            tray_quit: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -184,14 +194,32 @@ fn spotlight_open(app: tauri::AppHandle, path: String) {
     }
 }
 
+/// 前端语言变更时同步给 Rust：更新当前语言并即时重建托盘菜单文案。
+#[tauri::command]
+fn set_locale(state: tauri::State<AppState>, locale: String) -> Result<(), String> {
+    *state.locale.lock() = locale.clone();
+    if let Some(item) = state.tray_show.lock().as_ref() {
+        let _ = item.set_text(i18n::t(&locale, "tray.show"));
+    }
+    if let Some(item) = state.tray_quit.lock().as_ref() {
+        let _ = item.set_text(i18n::t(&locale, "tray.quit"));
+    }
+    Ok(())
+}
+
 /// 创建系统托盘：图标 + 菜单（显示 / 退出）+ 左键点击唤起主窗口。
 fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     use tauri::menu::{Menu, MenuItem};
     use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
-    let show = MenuItem::with_id(app, "tray_show", "显示 Keelson", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "tray_quit", "退出", true, None::<&str>)?;
+    // 按当前语言构建托盘文案（state 已在 .manage 阶段注册，此处可直接取）
+    let loc = app.state::<AppState>().locale.lock().clone();
+    let show = MenuItem::with_id(app, "tray_show", i18n::t(&loc, "tray.show"), true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "tray_quit", i18n::t(&loc, "tray.quit"), true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &quit])?;
+    // 存句柄供 set_locale 更新文案
+    *app.state::<AppState>().tray_show.lock() = Some(show.clone());
+    *app.state::<AppState>().tray_quit.lock() = Some(quit.clone());
 
     let mut builder = TrayIconBuilder::new()
         .tooltip("Keelson")
@@ -297,6 +325,7 @@ pub fn run() {
             // 基础命令
             get_bootstrap_auth,
             spotlight_open,
+            set_locale,
             commands::ping,
             // 会话相关（Task 16 - sessions.rs）
             commands::sessions::sessions_list,
