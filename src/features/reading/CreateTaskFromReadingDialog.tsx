@@ -3,6 +3,7 @@
 // 提交时解析该项目首个状态列，调用 createTask 落入首列。
 // 注意：不写入 source_session_id（该溯源字段仅用于会话来源）。
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { useBoardStore } from "@/store/board";
 import type { ReadingItem } from "@/types/reading";
 import {
@@ -39,6 +40,7 @@ export function CreateTaskFromReadingDialog({
   item,
   onClose,
 }: CreateTaskFromReadingDialogProps) {
+  const { t } = useTranslation(["reading", "common"]);
   const projects = useBoardStore((s) => s.projects);
   const loadProjects = useBoardStore((s) => s.loadProjects);
 
@@ -73,11 +75,11 @@ export function CreateTaskFromReadingDialog({
     setError(undefined);
 
     if (!projectId) {
-      setError("请先在「项目」中创建一个看板项目");
+      setError(t("reading:createTask.errorNoProject"));
       return;
     }
     if (!title.trim()) {
-      setError("任务标题不能为空");
+      setError(t("reading:createTask.errorEmptyTitle"));
       return;
     }
 
@@ -88,7 +90,7 @@ export function CreateTaskFromReadingDialog({
       await store.openProject(projectId);
       const firstState = useBoardStore.getState().states[0];
       if (!firstState) {
-        setError("该项目暂无状态列，无法创建任务");
+        setError(t("reading:createTask.errorNoState"));
         setLoading(false);
         return;
       }
@@ -120,7 +122,7 @@ export function CreateTaskFromReadingDialog({
       <DialogContent>
         {/* 标题区 */}
         <DialogHeader>
-          <DialogTitle>从阅读条目建任务</DialogTitle>
+          <DialogTitle>{t("reading:createTask.dialogTitle")}</DialogTitle>
         </DialogHeader>
 
         {/* 表单 */}
@@ -128,7 +130,7 @@ export function CreateTaskFromReadingDialog({
           {/* 任务标题（必填，预填自阅读条目标题） */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ctr-title">
-              标题
+              {t("reading:createTask.titleLabel")}
               <span className="ml-1 text-destructive">*</span>
             </Label>
             <Input
@@ -137,7 +139,7 @@ export function CreateTaskFromReadingDialog({
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="输入任务标题"
+              placeholder={t("reading:createTask.titlePlaceholder")}
               disabled={loading}
             />
           </div>
@@ -145,13 +147,13 @@ export function CreateTaskFromReadingDialog({
           {/* 目标项目选择 */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ctr-project">
-              目标项目
+              {t("reading:createTask.projectLabel")}
               <span className="ml-1 text-destructive">*</span>
             </Label>
             {projects.length === 0 ? (
               // 无看板项目时提示先创建项目
               <p className="text-sm text-muted-foreground">
-                请先在「项目」中创建一个看板项目
+                {t("reading:createTask.noProject")}
               </p>
             ) : (
               <Select
@@ -160,7 +162,7 @@ export function CreateTaskFromReadingDialog({
                 disabled={loading}
               >
                 <SelectTrigger id="ctr-project" className="w-full">
-                  <SelectValue placeholder="选择目标项目" />
+                  <SelectValue placeholder={t("reading:createTask.projectPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((p) => (
@@ -176,7 +178,7 @@ export function CreateTaskFromReadingDialog({
           {/* 来源链接（只读展示，仅在有值时） */}
           {item.url && (
             <p className="truncate text-xs text-muted-foreground">
-              来源链接：
+              {t("reading:createTask.sourceLink")}
               <span className="ml-1 font-mono">{item.url}</span>
             </p>
           )}
@@ -199,10 +201,10 @@ export function CreateTaskFromReadingDialog({
               onClick={onClose}
               disabled={loading}
             >
-              取消
+              {t("common:action.cancel")}
             </Button>
             <Button type="submit" disabled={loading || projects.length === 0}>
-              {loading ? "创建中…" : "创建任务"}
+              {loading ? t("reading:createTask.creating") : t("reading:createTask.submit")}
             </Button>
           </DialogFooter>
         </form>
