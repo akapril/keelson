@@ -1,0 +1,30 @@
+{
+  "page": {
+    "title": "收件箱",
+    "subtitle": "截止提醒、新会话、外部动作、更新等汇聚一处，可批量处理。"
+  },
+  "filter": {
+    "unreadOnly": "只看未读",
+    "unreadOnlyActive": "只看未读 ✓",
+    "allSources": "全部来源"
+  },
+  "bulk": {
+    "selectAll": "全选",
+    "markRead": "标记已读",
+    "markReadError": "批量已读失败：{{msg}}",
+    "deleteError": "批量删除失败：{{msg}}"
+  },
+  "item": {
+    "selectAriaLabel": "选择",
+    "markReadError": "标记已读失败：{{msg}}"
+  },
+  "empty": {
+    "unread": "没有未读通知",
+    "all": "暂无通知"
+  },
+  "time": {
+    "minutesAgo": "{{count}} 分钟前",
+    "hoursAgo": "{{count}} 小时前",
+    "daysAgo": "{{count}} 天前"
+  }
+}

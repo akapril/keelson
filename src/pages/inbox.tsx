@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Virtualizer } from "virtua";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useNotificationsStore } from "@/store/notifications";
 import { useNotifPrefsStore } from "@/store/notification-prefs";
 import type { AppNotification, NotificationKind } from "@/types/notifications";
@@ -23,19 +24,23 @@ const KIND_DOT: Record<NotificationKind, string> = {
 };
 
 /** 相对时间简版（复用 MM-DD HH:mm 兜底）。 */
-function whenLabel(iso: string): string {
+function whenLabel(
+  iso: string,
+  tFn: (key: string, opts: Record<string, number>) => string,
+): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const diff = Date.now() - d.getTime();
   const min = 60_000, hour = 3_600_000, day = 86_400_000;
-  if (diff < hour) return `${Math.max(1, Math.floor(diff / min))} 分钟前`;
-  if (diff < day) return `${Math.floor(diff / hour)} 小时前`;
-  if (diff < 7 * day) return `${Math.floor(diff / day)} 天前`;
+  if (diff < hour) return tFn("time.minutesAgo", { count: Math.max(1, Math.floor(diff / min)) });
+  if (diff < day) return tFn("time.hoursAgo", { count: Math.floor(diff / hour) });
+  if (diff < 7 * day) return tFn("time.daysAgo", { count: Math.floor(diff / day) });
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 export default function InboxPage() {
+  const { t } = useTranslation(["inbox", "common"]);
   const navigate = useNavigate();
   const allItems = useNotificationsStore((s) => s.items);
   const load = useNotificationsStore((s) => s.load);
@@ -88,16 +93,16 @@ export default function InboxPage() {
   const selectedIds = [...checked].filter((id) => visible.some((n) => n.id === id));
 
   const openItem = (n: AppNotification) => {
-    if (!n.read) void markRead(n.id).catch((e) => toast.error(`标记已读失败：${String(e)}`));
+    if (!n.read) void markRead(n.id).catch((e) => toast.error(t("inbox:item.markReadError", { msg: String(e) })));
     if (n.link) navigate(n.link);
   };
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
       <header className="mb-4 shrink-0">
-        <h1 className="font-heading text-xl font-semibold text-foreground">收件箱</h1>
+        <h1 className="font-heading text-xl font-semibold text-foreground">{t("inbox:page.title")}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          截止提醒、新会话、外部动作、更新等汇聚一处，可批量处理。
+          {t("inbox:page.subtitle")}
         </p>
       </header>
 
@@ -110,14 +115,14 @@ export default function InboxPage() {
             unreadOnly ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
           }`}
         >
-          {unreadOnly ? "只看未读 ✓" : "只看未读"}
+          {unreadOnly ? t("inbox:filter.unreadOnlyActive") : t("inbox:filter.unreadOnly")}
         </button>
         <Select value={sourceFilter} onValueChange={setSourceFilter}>
           <SelectTrigger size="sm" className="w-36">
-            <SelectValue placeholder="全部来源" />
+            <SelectValue placeholder={t("inbox:filter.allSources")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全部来源</SelectItem>
+            <SelectItem value="all">{t("inbox:filter.allSources")}</SelectItem>
             {sources.map((s) => (
               <SelectItem key={s} value={s}>
                 {s}
@@ -129,7 +134,7 @@ export default function InboxPage() {
         <div className="ml-auto flex items-center gap-1.5">
           <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
             <input type="checkbox" checked={allChecked} onChange={toggleAll} className="size-3.5 accent-primary" />
-            全选
+            {t("inbox:bulk.selectAll")}
           </label>
           <Button
             variant="ghost"
@@ -137,11 +142,11 @@ export default function InboxPage() {
             disabled={selectedIds.length === 0}
             onClick={() =>
               void markManyRead(selectedIds).catch((e) =>
-                toast.error(`批量已读失败：${String(e)}`),
+                toast.error(t("inbox:bulk.markReadError", { msg: String(e) })),
               )
             }
           >
-            标记已读
+            {t("inbox:bulk.markRead")}
           </Button>
           <Button
             variant="ghost"
@@ -149,12 +154,12 @@ export default function InboxPage() {
             disabled={selectedIds.length === 0}
             onClick={() => {
               void removeMany(selectedIds).catch((e) =>
-                toast.error(`批量删除失败：${String(e)}`),
+                toast.error(t("inbox:bulk.deleteError", { msg: String(e) })),
               );
               setChecked(new Set());
             }}
           >
-            删除
+            {t("common:action.delete")}
           </Button>
         </div>
       </div>
@@ -163,7 +168,7 @@ export default function InboxPage() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {visible.length === 0 ? (
           <p className="py-16 text-center text-sm text-muted-foreground">
-            {unreadOnly ? "没有未读通知" : "暂无通知"}
+            {unreadOnly ? t("inbox:empty.unread") : t("inbox:empty.all")}
           </p>
         ) : (
           <Virtualizer>
@@ -179,7 +184,7 @@ export default function InboxPage() {
                   checked={checked.has(n.id)}
                   onChange={() => toggleOne(n.id)}
                   className="mt-1 size-3.5 shrink-0 accent-primary"
-                  aria-label="选择"
+                  aria-label={t("inbox:item.selectAriaLabel")}
                 />
                 <span className={`mt-1.5 size-2 shrink-0 rounded-full ${KIND_DOT[n.kind] ?? "bg-muted-foreground"}`} />
                 <button
@@ -197,7 +202,7 @@ export default function InboxPage() {
                       </span>
                     )}
                     <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/70">
-                      {whenLabel(n.created)}
+                      {whenLabel(n.created, (key, opts) => t(`inbox:${key}`, opts))}
                     </span>
                   </div>
                   {n.body && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.body}</p>}
