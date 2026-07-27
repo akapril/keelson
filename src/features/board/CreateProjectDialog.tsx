@@ -34,6 +34,18 @@ import type { BoardTemplate } from "../../types/board";
 // 分组展示顺序（未列出的类别排在已知之后、「其他」最末）
 const CATEGORY_ORDER = ["开发", "职场管理", "内容营销", "研究", "个人生活", "商业创业", "通用"];
 
+// PB 模板 category 是中文数据值；此表把预置分类映射到 i18n key（未知分类显示原值）
+const CATEGORY_I18N_KEY: Record<string, string> = {
+  "开发": "dev",
+  "职场管理": "workplace",
+  "内容营销": "contentMarketing",
+  "研究": "research",
+  "个人生活": "personal",
+  "商业创业": "business",
+  "通用": "general",
+  "其他": "other",
+};
+
 // ── Props ──────────────────────────────────────────────────────
 interface CreateProjectDialogProps {
   /** 关闭对话框的回调 */
@@ -240,7 +252,7 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
                 <SelectContent>
                   {grouped.map(([cat, list]) => (
                     <SelectGroup key={cat}>
-                      <SelectLabel>{cat}</SelectLabel>
+                      <SelectLabel>{CATEGORY_I18N_KEY[cat] ? t(`createProject.category.${CATEGORY_I18N_KEY[cat]}`) : cat}</SelectLabel>
                       {list.map((tmpl) => (
                         <SelectItem key={tmpl.id} value={tmpl.id}>
                           {tmpl.name}

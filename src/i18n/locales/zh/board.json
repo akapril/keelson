@@ -189,6 +189,16 @@
       "starterDocs": "起始文档：{{titles}}"
     },
     "templateSelectPlaceholder": "选择一个模板",
+    "category": {
+      "dev": "开发",
+      "workplace": "职场管理",
+      "contentMarketing": "内容营销",
+      "research": "研究",
+      "personal": "个人生活",
+      "business": "商业创业",
+      "general": "通用",
+      "other": "其他"
+    },
     "errors": {
       "noTemplate": "请选择一个模板",
       "emptyName": "项目名称不能为空"
