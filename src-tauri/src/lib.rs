@@ -30,6 +30,8 @@ pub mod scan_cache;
 pub mod rag;
 // 应用内 MCP server
 mod mcp;
+// Web Gateway：外网可达（绑 0.0.0.0）的 HTTP+WS server（Web 端 + 外网访问）
+mod web;
 // 进程管理内核（从 claude-runtime 融入，headless，进程内起 daemon）
 pub mod runtime;
 // Rust 侧用户可见文案的中英映射（托盘菜单 / MCP 通知）
@@ -114,6 +116,8 @@ pub struct AppState {
     /// 托盘菜单项句柄：语言切换时更新其文案
     pub tray_show: Arc<Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>>,
     pub tray_quit: Arc<Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>>,
+    /// Web Gateway 运行句柄（绑 0.0.0.0）；None=未启动。默认关闭，由设置命令开启。
+    pub web_gateway: Arc<Mutex<Option<web::server::GatewayHandle>>>,
 }
 
 impl Default for AppState {
@@ -133,6 +137,7 @@ impl Default for AppState {
             locale: Arc::new(Mutex::new("en".to_string())),
             tray_show: Arc::new(Mutex::new(None)),
             tray_quit: Arc::new(Mutex::new(None)),
+            web_gateway: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -389,6 +394,10 @@ pub fn run() {
             commands::fs::list_markdown_files,
             // 网页抓取（阅读「AI 解析」）
             commands::web::fetch_url_text,
+            // Web Gateway 起停/状态（绑 0.0.0.0；认证在后续 Task 加）
+            commands::web::web_gateway_start,
+            commands::web::web_gateway_stop,
+            commands::web::web_gateway_status,
         ])
         .build(tauri::generate_context!())
         .expect("构建 rework 失败")

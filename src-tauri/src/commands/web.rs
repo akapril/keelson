@@ -1,6 +1,64 @@
-// commands/web.rs — 网页正文抓取（供阅读「AI 解析」）。
-// 抓取 URL → 粗提取可读正文（去 script/style/标签、解实体、压空白、限长）→ 交前端喂给 AI 摘要。
+// commands/web.rs — Web 领域命令。
+// 1) 网页正文抓取（fetch_url_text，供阅读「AI 解析」）：抓取 URL → 粗提取可读正文
+//    （去 script/style/标签、解实体、压空白、限长）→ 交前端喂给 AI 摘要。
+// 2) Web Gateway 起停/状态（web_gateway_*，供「Web 端 + 外网访问」设置）：薄包装
+//    crate::web::server，管理 AppState.web_gateway 句柄。
+use crate::AppState;
 use std::time::Duration;
+use tauri::State;
+
+// ── Web Gateway 起停/状态命令 ─────────────────────────────────────────────
+// 说明：gateway 绑 0.0.0.0（外网可达），认证在 Task 3 加；Task 1 仅健康路由。
+
+/// 启动 Web Gateway（绑 0.0.0.0，端口由系统随机分配）。已在运行则返回现有端口（幂等）。
+///
+/// ⚠️ async command 里 `parking_lot::MutexGuard` 不能跨 await：
+/// - 先在独立作用域取锁判断「是否已在运行」，命中则早返回；离开作用域即释放锁。
+/// - bind（await）在锁外进行；成功后再取一次锁写回句柄。
+#[tauri::command]
+pub async fn web_gateway_start(state: State<'_, AppState>) -> Result<u16, String> {
+    // 1) 已在运行则复用现有端口（取锁→读端口→立即释放，不跨 await）。
+    {
+        let guard = state.web_gateway.lock();
+        if let Some(h) = guard.as_ref() {
+            return Ok(h.port);
+        }
+    }
+    // 2) 绑定 + 起 server（await 在锁外）。
+    let (port, handle) = crate::web::server::start(0).await?;
+    // 3) 写回句柄（重新取锁；此处已无 await）。
+    //    极小概率并发下另一次调用已抢先写入：以先到者为准，本次多起的 server
+    //    通过 drop handle（其 shutdown Sender drop）触发优雅关闭，避免端口泄漏。
+    {
+        let mut guard = state.web_gateway.lock();
+        if let Some(existing) = guard.as_ref() {
+            let existing_port = existing.port;
+            drop(handle); // 触发本次多余 server 的优雅关闭
+            return Ok(existing_port);
+        }
+        *guard = Some(handle);
+    }
+    Ok(port)
+}
+
+/// 停止 Web Gateway（若在运行）：取出句柄并发送优雅关闭信号。未运行则静默成功。
+#[tauri::command]
+pub fn web_gateway_stop(state: State<AppState>) -> Result<(), String> {
+    // take() 取出 Option 内的句柄（GatewayHandle 非 Clone），send(()) 触发关闭。
+    if let Some(h) = state.web_gateway.lock().take() {
+        let _ = h.shutdown.send(());
+    }
+    Ok(())
+}
+
+/// 查询 Web Gateway 状态：运行中返回 `Some(port)`，未运行返回 `None`。
+#[tauri::command]
+pub fn web_gateway_status(state: State<AppState>) -> Result<Option<u16>, String> {
+    Ok(state.web_gateway.lock().as_ref().map(|h| h.port))
+}
+
+// ── 网页正文抓取 ──────────────────────────────────────────────────────────
+
 
 /// 送入 AI 的正文字符上限（控制 token/费用）。
 const MAX_TEXT_CHARS: usize = 12000;
