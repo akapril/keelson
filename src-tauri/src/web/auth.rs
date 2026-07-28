@@ -205,11 +205,11 @@ pub fn revoke(state: &AuthState, device_id: &str) {
     devices.retain(|d| d.id != device_id);
 }
 
-/// 校验配对码：常量时间比对 + 失败限流。
+/// 校验配对码：常量时间比对 + 失败限流（只读校验，不轮换）。
 ///
-/// - 先查限流：若处于退避窗口内，直接拒绝（返回 false），不比对、不重置计数窗口起点。
-/// - 常量时间比对配对码（`ct_eq`，防时序侧信道）。
-/// - 成功清零限流；失败累加并施加退避。
+/// `/pair` handler 应改用 `check_and_rotate`（原子校验+轮换，消除 TOCTOU）。
+/// 此函数保留供单元测试与内部逻辑复用。
+#[allow(dead_code)]
 pub fn check_pairing(state: &AuthState, code: &str) -> bool {
     let now = now_ms();
     let mut fails = state.fails.lock();
@@ -239,10 +239,58 @@ pub fn check_pairing(state: &AuthState, code: &str) -> bool {
 
 /// 轮换配对码：生成新随机码替换旧码，旧码即刻失效（Task 2 转交项 2）。
 ///
-/// `/pair` 成功签发 token 后调用：防「泄露/被记录的旧配对码」被反复重放当永久后门。
-/// 多设备配对时，用户须从设置栏（Task 5）读取轮换后的新码来配下一台设备。
+/// 直接调用仅供内部/测试使用；`/pair` handler 应改用 `check_and_rotate`（原子操作）。
+#[allow(dead_code)]
 pub fn rotate_pairing_code(state: &AuthState) {
     *state.pairing_code.lock() = gen_pairing_code();
+}
+
+/// 原子「校验配对码 + 成功则立即轮换」：全程持 `pairing_code` 锁，杜绝并发同码换多个
+/// token 的 TOCTOU（I-2 安全修复）。返回 `true` 表示配对成功（且旧码已轮换作废）。
+///
+/// 流程：
+/// 1. 先查失败限流（持 `fails` 锁）：退避窗口内直接拒绝，不触碰配对码锁。
+/// 2. 持 `pairing_code` 锁：hash 两侧定长 32 字节常量时间比对。
+/// 3. **在同一 `pairing_code` 锁临界区内**：命中则立即换新随机码并返回 `true`。
+/// 4. 锁释放后：更新限流计数（持 `fails` 锁），成功清零/失败累加。
+///
+/// 关键保证：「比对通过 → 轮换」之间不释放 `pairing_code` 锁，并发到达的同码请求
+/// 要么在步骤 2 拿到旧锁被阻塞，等锁后拿到的是新码（比对失败）→ 返回 false。
+pub fn check_and_rotate(state: &AuthState, code: &str) -> bool {
+    let now = now_ms();
+
+    // 步骤 1：限流前置拦截（持 fails 锁；退避窗口内直接拒绝）。
+    {
+        let mut fails = state.fails.lock();
+        if fails.is_blocked(now) {
+            // 持续累加，防贴窗高频试探。
+            fails.record_failure(now);
+            return false;
+        }
+    }
+
+    // 步骤 2+3：持 pairing_code 锁做原子「比对 + 轮换」。
+    let ok = {
+        let mut current = state.pairing_code.lock();
+        let matched = bool::from(hash_token(code).ct_eq(&hash_token(&*current)));
+        if matched {
+            // 命中：在同一临界区内立即换码，旧码在锁释放前就已失效。
+            *current = gen_pairing_code();
+        }
+        matched
+    };
+
+    // 步骤 4：锁外更新限流计数（pairing_code 锁已释放，避免两把锁同时持有）。
+    {
+        let mut fails = state.fails.lock();
+        if ok {
+            fails.record_success(now);
+        } else {
+            fails.record_failure(now);
+        }
+    }
+
+    ok
 }
 
 /// 读取当前配对码明文（供 Task 5 设置栏展示，让用户抄给待配对设备）。
@@ -343,6 +391,28 @@ mod tests {
         // 新实例避免上一次失败触发的退避窗口。
         let c = AuthState::new_with_code(new_code.clone());
         assert!(check_pairing(&c, &new_code)); // 新码有效
+    }
+
+    #[test]
+    fn check_and_rotate_atomic_one_succeeds() {
+        // I-2 TOCTOU 修复验证：并发同一旧码只有一个请求能成功（原子比对+轮换）。
+        use std::sync::Arc;
+        use std::thread;
+
+        let a = Arc::new(AuthState::new_with_code("RACECODE".into()));
+        let mut handles = vec![];
+        for _ in 0..8 {
+            let a_clone = a.clone();
+            handles.push(thread::spawn(move || {
+                check_and_rotate(&a_clone, "RACECODE")
+            }));
+        }
+        let ok_count = handles
+            .into_iter()
+            .filter(|h| h.join().unwrap())
+            .count();
+        // 同一旧码并发 8 次，只有 1 次应成功（其余见到轮换后的新码，比对失败）。
+        assert_eq!(ok_count, 1, "同一旧码并发只应成功一次，实际成功 {ok_count} 次");
     }
 
     #[test]
