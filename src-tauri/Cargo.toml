@@ -38,6 +38,7 @@ rand = "0.8"
 dirs = "5"
 chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
+base64 = "0.22" # Web 认证：配对码/token 的 base64url 编码（Cargo.lock 已有 0.22.1 传递依赖，此处仅提升为直接依赖）
 hex = "0.4"
 notify = "7"
 tantivy = "0.22"

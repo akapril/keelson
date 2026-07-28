@@ -4700,6 +4700,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "base64 0.22.1",
  "bincode",
  "chrono",
  "dirs 5.0.1",
