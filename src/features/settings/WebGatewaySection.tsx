@@ -97,6 +97,7 @@ export function WebGatewaySection() {
       }
     } catch (e) {
       toast.error(t("webGateway.toggleError", { message: String(e) }));
+      throw e;
     } finally {
       setToggleBusy(false);
     }
