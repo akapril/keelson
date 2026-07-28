@@ -3,7 +3,10 @@
 //    （去 script/style/标签、解实体、压空白、限长）→ 交前端喂给 AI 摘要。
 // 2) Web Gateway 起停/状态（web_gateway_*，供「Web 端 + 外网访问」设置）：薄包装
 //    crate::web::server，管理 AppState.web_gateway 句柄。
+// 3) Web Gateway 认证/设备管理（web_pairing_code / web_regenerate_pairing_code /
+//    web_list_devices / web_revoke_device，供 Task 5 设置栏展示与操作）。
 use crate::AppState;
+use crate::web::auth::DeviceInfo;
 use std::time::Duration;
 use tauri::State;
 
@@ -56,6 +59,42 @@ pub fn web_gateway_stop(state: State<AppState>) -> Result<(), String> {
 #[tauri::command]
 pub fn web_gateway_status(state: State<AppState>) -> Result<Option<u16>, String> {
     Ok(state.web_gateway.lock().as_ref().map(|h| h.port))
+}
+
+// ── Web Gateway 认证 / 设备管理命令（Task 5 设置栏）────────────────────────
+
+/// 读取当前配对码明文（供设置栏展示，让用户抄给待配对设备）。
+///
+/// ⚠️ 仅在受信本机 Tauri UI 中调用；配对码是外网入口凭据，切勿写日志。
+#[tauri::command]
+pub fn web_pairing_code(state: State<AppState>) -> Result<String, String> {
+    Ok(crate::web::auth::current_pairing_code(&state.web_auth))
+}
+
+/// 手动轮换配对码：生成新随机码替换旧码，旧码立即失效，返回新码明文。
+///
+/// 用途：①用户想作废已泄露的码；②上一台配对完成后，手动为下一台刷新码。
+/// 注意：`/pair` handler 完成一次配对后已自动轮换（`check_and_rotate`），
+/// 此命令供用户在设置栏主动触发额外轮换。
+#[tauri::command]
+pub fn web_regenerate_pairing_code(state: State<AppState>) -> Result<String, String> {
+    crate::web::auth::rotate_pairing_code(&state.web_auth);
+    Ok(crate::web::auth::current_pairing_code(&state.web_auth))
+}
+
+/// 列出已配对设备（脱敏）：只返回 `{ id, label, paired_at }`，绝不下发 token_hash。
+#[tauri::command]
+pub fn web_list_devices(state: State<AppState>) -> Result<Vec<DeviceInfo>, String> {
+    Ok(crate::web::auth::list_devices(&state.web_auth))
+}
+
+/// 吊销指定设备：从设备表移除其 token hash，该 token 立即失效。
+///
+/// id 不存在时为 no-op（幂等），不报错。
+#[tauri::command]
+pub fn web_revoke_device(state: State<AppState>, id: String) -> Result<(), String> {
+    crate::web::auth::revoke(&state.web_auth, &id);
+    Ok(())
 }
 
 // ── 网页正文抓取 ──────────────────────────────────────────────────────────

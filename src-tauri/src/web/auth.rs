@@ -14,6 +14,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use parking_lot::Mutex;
 use rand::RngCore;
 use rand::rngs::OsRng;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 use subtle::ConstantTimeEq;
@@ -298,6 +299,32 @@ pub fn check_and_rotate(state: &AuthState, code: &str) -> bool {
 /// ⚠️ 仅在受信本机 UI 中调用；配对码是外网入口凭据，切勿写日志/回传外部。
 pub fn current_pairing_code(state: &AuthState) -> String {
     state.pairing_code.lock().clone()
+}
+
+/// 设备信息（对外脱敏版）：仅含可公开字段，绝不含 `token_hash`。
+/// 由 `list_devices` 返回，供设置栏展示已配对设备。
+#[derive(Debug, Clone, Serialize)]
+pub struct DeviceInfo {
+    /// 设备 ID（同 Device.id，非敏感；用于前端发起吊销请求）。
+    pub id: String,
+    /// 用户可读标签（如 "phone"、"laptop"）。
+    pub label: String,
+    /// 配对时间（与 Device.paired_at 相同格式）。
+    pub paired_at: String,
+}
+
+/// 列出已配对设备（脱敏）：只返回 `{ id, label, paired_at }`，不含 token_hash。
+pub fn list_devices(state: &AuthState) -> Vec<DeviceInfo> {
+    state
+        .devices
+        .lock()
+        .iter()
+        .map(|d| DeviceInfo {
+            id: d.id.clone(),
+            label: d.label.clone(),
+            paired_at: d.paired_at.clone(),
+        })
+        .collect()
 }
 
 #[cfg(test)]
