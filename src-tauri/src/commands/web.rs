@@ -25,7 +25,8 @@ pub async fn web_gateway_start(state: State<'_, AppState>) -> Result<u16, String
         }
     }
     // 2) 绑定 + 起 server（await 在锁外）。
-    let (port, handle) = crate::web::server::start(0).await?;
+    //    传入共享的 web_auth：gateway 认证中间件与设置栏（Task 5）用同一实例。
+    let (port, handle) = crate::web::server::start(0, state.web_auth.clone()).await?;
     // 3) 写回句柄（重新取锁；此处已无 await）。
     //    极小概率并发下另一次调用已抢先写入：以先到者为准，本次多起的 server
     //    通过 drop handle（其 shutdown Sender drop）触发优雅关闭，避免端口泄漏。

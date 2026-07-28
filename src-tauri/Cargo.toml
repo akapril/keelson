@@ -53,6 +53,9 @@ encoding_rs = "0.8" # 进程日志解码：GBK/GB18030 回退，修 Windows 中�
 fastembed = { version = "4", optional = true } # 本地嵌入（ONNX），仅 local-embed feature
 rmcp = { version = "0.16", features = ["server", "transport-streamable-http-server"] }
 axum = "0.8"
+# Web Gateway 静态前端 serve（dist）。仅启用 fs feature 取 ServeDir；
+# tower-http 已作为 axum 传递依赖存在于 Cargo.lock，此处仅提升为直接依赖并加 fs feature。
+tower-http = { version = "0.6", features = ["fs"] }
 
 [features]
 local-embed = ["dep:fastembed"]

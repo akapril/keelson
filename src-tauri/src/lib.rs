@@ -118,6 +118,10 @@ pub struct AppState {
     pub tray_quit: Arc<Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>>,
     /// Web Gateway 运行句柄（绑 0.0.0.0）；None=未启动。默认关闭，由设置命令开启。
     pub web_gateway: Arc<Mutex<Option<web::server::GatewayHandle>>>,
+    /// Web 认证状态（配对码/token/限流）。gateway `start` 与认证中间件共享同一实例，
+    /// 保证配对码轮换、token 签发/校验、设置栏展示（Task 5）状态一致。
+    /// 进程内长驻：重启即换新配对码（`AuthState::new` 随机生成）。
+    pub web_auth: Arc<web::auth::AuthState>,
 }
 
 impl Default for AppState {
@@ -138,6 +142,7 @@ impl Default for AppState {
             tray_show: Arc::new(Mutex::new(None)),
             tray_quit: Arc::new(Mutex::new(None)),
             web_gateway: Arc::new(Mutex::new(None)),
+            web_auth: Arc::new(web::auth::AuthState::new()),
         }
     }
 }
