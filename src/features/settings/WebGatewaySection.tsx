@@ -157,9 +157,19 @@ export function WebGatewaySection() {
               : t("webGateway.statusOff")}
           </span>
           {enabled && (
-            <span className="text-xs text-muted-foreground">
-              {t("webGateway.accessHint")}
-            </span>
+            <div className="flex flex-col gap-0.5">
+              {/* 本机直连地址（安全上下文例外，http 可用） */}
+              <span className="text-xs text-muted-foreground">
+                {t("webGateway.accessHintLocal")}
+              </span>
+              {/* 外网访问必须 HTTPS，否则 Secure cookie 被浏览器丢弃导致掉线 */}
+              <span className="text-xs text-muted-foreground">
+                {t("webGateway.accessHintRemote")}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {t("webGateway.accessHintPort")}
+              </span>
+            </div>
           )}
         </div>
         <Button
