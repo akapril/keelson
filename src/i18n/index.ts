@@ -4,6 +4,15 @@ import i18n, { type Resource } from "i18next";
 import { initReactI18next } from "react-i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { invoke } from "@tauri-apps/api/core";
+import { isTauri } from "@/lib/env";
+
+// 同步当前语言给 Rust 侧（托盘/通知）。web 环境无 Tauri IPC——invoke 会同步访问
+// window.__TAURI_INTERNALS__ 抛 TypeError（.catch 捕获不到同步抛），故必须先守卫跳过，
+// 否则 web 端启动即白屏（Cannot read properties of undefined reading 'metadata'）。
+function syncLocaleToRust(locale: string) {
+  if (!isTauri()) return;
+  void invoke("set_locale", { locale }).catch(() => {});
+}
 
 // 装载全部资源：路径形如 ./locales/zh/common.json
 const files = import.meta.glob("./locales/*/*.json", { eager: true }) as Record<
@@ -32,13 +41,13 @@ void i18n
     interpolation: { escapeValue: false }, // React 已防 XSS
   })
   .then(() => {
-    // 首次启动同步当前语言给 Rust（非 Tauri 环境静默失败）
-    void invoke("set_locale", { locale: i18n.language }).catch(() => {});
+    // 首次启动同步当前语言给 Rust
+    syncLocaleToRust(i18n.language);
   });
 
 // 后续切换同步
 i18n.on("languageChanged", (lng) => {
-  void invoke("set_locale", { locale: lng }).catch(() => {});
+  syncLocaleToRust(lng);
 });
 
 export default i18n;
