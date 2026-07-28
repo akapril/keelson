@@ -1,0 +1,23 @@
+{
+  "pair": {
+    "title": "连接到 Keelson",
+    "subtitle": "请输入设备上显示的配对码以建立连接",
+    "codePlaceholder": "输入配对码",
+    "submit": "连接",
+    "submitting": "连接中…",
+    "error": {
+      "invalid": "配对码无效，请重试",
+      "network": "网络错误，请检查连接后重试",
+      "unknown": "连接失败，请稍后重试"
+    }
+  },
+  "tabs": {
+    "workspace": "工作台",
+    "terminal": "终端",
+    "notifications": "通知",
+    "settings": "设置"
+  },
+  "placeholder": {
+    "comingSoon": "即将推出"
+  }
+}
