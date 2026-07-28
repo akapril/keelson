@@ -154,15 +154,15 @@ export function openTerminalWs(
       safeSend(JSON.stringify({ type: "resize", cols, rows }));
     },
 
-    /** 主动关闭，阻止重连 */
+    /** 主动关闭，阻止重连。onStatus("closed") 统一由 onclose handler 触发，避免双调用。 */
     close(): void {
       manualClose = true;
       cancelReconnect();
       if (ws) {
+        // 不在此处置 ws = null，让浏览器异步触发 onclose 后由 handler 完成清理。
+        // 不主动调 onStatus("closed")——onclose 的 manualClose 分支会调一次。
         ws.close();
-        ws = null;
       }
-      callbacks.onStatus("closed");
     },
   };
 }
