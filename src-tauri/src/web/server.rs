@@ -11,7 +11,7 @@
 //! 天然被拦。新增「公开路由」须显式改 `is_public_path`，属有意为之的评审点。
 //!
 //! 路由装配集中在 `build_router()` 一处，便于统一审计鉴权边界。
-use crate::web::auth::{check_pairing, issue_token, rotate_pairing_code, verify_token, AuthState};
+use crate::web::auth::{check_and_rotate, issue_token, verify_token, AuthState};
 use axum::{
     body::Body,
     extract::State,
@@ -61,37 +61,24 @@ fn extract_token_cookie(req: &Request<Body>) -> String {
     String::new()
 }
 
-/// 是否为「无需认证」的公开路径（白名单，默认拒绝之外的显式豁免）。
+/// 公开路径白名单（默认拒绝 allowlist）。
 ///
-/// ⚠️ 安全边界：仅以下三类放行——
-/// 1. `/healthz`：健康探针，返回常量，无敏感信息。
-/// 2. `/pair`：配对入口，本身受配对码 + 限流保护（认证前的唯一合法入口）。
-/// 3. 静态前端资源：GET 类的页面/JS/CSS/图标等，供未配对设备渲染配对页。
+/// 只放精确已知的公开资源，不按扩展名后缀放行——后缀放行会被
+/// `/%61pi/x.json`、`/API/x.json`、`//api/x.json`、`/a/../pb/x.css` 等编码/大小写/
+/// 路径归一化差异击穿（中间件不解码 path，下游 PB 反代会解码，解释层不一致 = CWE-436）。
+/// allowlist 的误判方向是 fail-safe（要求 token），不存在放行本应受保护的路径的风险。
 ///
-/// 其余一切（`/api /pb /ws` 及任何未知路径）返回 false → 需 token。
+/// dist/ 根静态清点（须未认证加载的首屏资源）：
+/// - `/vite.svg`：index.html `<link rel="icon">` 直接引用 → 加入白名单。
+/// - `/tauri.svg`、`/keelson.svg`：dist/ 中存在但 index.html 首屏未直接引用 → 不加。
+/// - `/assets/*`：前端构建产物目录（JS/CSS/map 等）→ 前缀匹配放行。
+///
 /// 新增公开路径须在此显式登记——这是刻意保留的评审卡点，而非疏漏窗口。
 fn is_public_path(path: &str) -> bool {
-    // 健康探针与配对入口：精确匹配。
-    if path == "/healthz" || path == "/pair" {
-        return true;
-    }
-    // 显式受保护的能力前缀：即便未来误配静态路由，也绝不当公开资源放行。
-    if path.starts_with("/api") || path.starts_with("/pb") || path.starts_with("/ws") {
-        return false;
-    }
-    // 静态前端：根路径、index、常见前端资源目录/扩展名。
-    if path == "/" || path == "/index.html" || path == "/favicon.ico" {
-        return true;
-    }
-    if path.starts_with("/assets/") {
-        return true;
-    }
-    // 按静态资源扩展名放行（前端构建产物）。
-    let static_ext = [
-        ".js", ".css", ".map", ".ico", ".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp",
-        ".woff", ".woff2", ".ttf", ".json", ".txt", ".html", ".wasm",
-    ];
-    static_ext.iter().any(|ext| path.ends_with(ext))
+    matches!(
+        path,
+        "/healthz" | "/pair" | "/" | "/index.html" | "/favicon.ico" | "/vite.svg"
+    ) || path.starts_with("/assets/")
 }
 
 /// 认证中间件：`build_router()` 的最外层 layer，对所有请求生效（默认拒绝）。
@@ -134,13 +121,14 @@ async fn pair_handler(
     State(auth): State<Arc<AuthState>>,
     axum::Json(body): axum::Json<PairReq>,
 ) -> Response {
-    if !check_pairing(&auth, &body.code) {
+    // check_and_rotate：原子「校验配对码 + 成功则立即轮换」——全程持 pairing_code 锁，
+    // 杜绝并发同一旧码换多个 token 的 TOCTOU（I-2 安全修复）。
+    if !check_and_rotate(&auth, &body.code) {
         // 配对码错误或处于限流退避窗口：统一 401，不泄露具体原因。
         return StatusCode::UNAUTHORIZED.into_response();
     }
-    // 校验通过：签发 token（明文仅此一次可见），随即轮换配对码使旧码失效。
+    // 校验通过：旧码已在 check_and_rotate 内轮换作废，现签发 token。
     let token = issue_token(&auth, "web".to_string());
-    rotate_pairing_code(&auth);
 
     // 手动构造 Set-Cookie：安全属性一次写全。
     let cookie = format!(
@@ -255,19 +243,43 @@ mod tests {
 
     #[test]
     fn public_path_whitelist_is_tight() {
-        // 白名单只放 healthz / pair / 静态资源；能力前缀一律受保护。
+        // 白名单只放精确登记的路径和 /assets/ 前缀；其余一律受保护。
         assert!(is_public_path("/healthz"));
         assert!(is_public_path("/pair"));
         assert!(is_public_path("/"));
         assert!(is_public_path("/index.html"));
+        assert!(is_public_path("/favicon.ico"));
+        assert!(is_public_path("/vite.svg")); // index.html <link rel="icon"> 首屏引用
         assert!(is_public_path("/assets/app.js"));
-        assert!(is_public_path("/logo.svg"));
-        // 能力/数据路径默认拒绝（即便带静态扩展名伪装也不放行）。
+        // 能力/数据路径默认拒绝——即便带静态扩展名伪装也不放行（纯 allowlist，无扩展名后缀规则）。
         assert!(!is_public_path("/api/ping"));
-        assert!(!is_public_path("/api/sessions.json")); // 扩展名伪装不生效：/api 前缀先判死
+        assert!(!is_public_path("/api/sessions.json"));
         assert!(!is_public_path("/pb/collections"));
         assert!(!is_public_path("/ws"));
-        assert!(!is_public_path("/secret")); // 未知路径默认拒绝
+        assert!(!is_public_path("/secret"));
+        // dist/ 根中存在但首屏未引用的 SVG —— 不加白名单（按需认证后加载）。
+        assert!(!is_public_path("/tauri.svg"));
+        assert!(!is_public_path("/keelson.svg"));
+    }
+
+    #[test]
+    fn public_whitelist_no_bypass() {
+        // 编码/大小写/双斜杠/路径穿越等绕过向量必须全部返回 false（fail-safe）。
+        // 纯 allowlist（无扩展名后缀规则）从根本上消除 CWE-436 解释层差异击穿。
+        for p in [
+            "/%61pi/x.json",     // URL 编码 'a'（%61）→ api
+            "/API/x.json",       // 大小写变体
+            "//api/x.json",      // 双斜杠规一化后 → /api
+            "/a/../pb/x.css",    // 路径穿越 → /pb/x.css
+            "/api/sessions.json",// 扩展名伪装（旧规则会放行，新 allowlist 不放行）
+            "/pb/x.js",
+            "/ws/t",
+        ] {
+            assert!(!is_public_path(p), "must NOT be public: {p}");
+        }
+        for p in ["/healthz", "/pair", "/", "/index.html", "/assets/app.js", "/vite.svg"] {
+            assert!(is_public_path(p), "must be public: {p}");
+        }
     }
 
     #[test]
