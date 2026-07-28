@@ -97,6 +97,17 @@ impl SessionProvider for CodexProvider {
         format!("codex resume {}", session_id)
     }
 
+    /// argv 版恢复命令：`["codex", "resume", <session_id>]`。
+    /// 注意 codex 用**子命令 `resume`**（非 `--resume`），故须覆写默认实现。
+    /// session_id 作独立 argv 元素，web 侧直传 CommandBuilder，不经 shell → 无注入面。
+    fn resume_argv(&self, _project_path: &str, session_id: &str) -> Vec<String> {
+        vec![
+            "codex".to_string(),
+            "resume".to_string(),
+            session_id.to_string(),
+        ]
+    }
+
     /// 读取指定会话的时间轴消息列表
     fn read_timeline(&self, session_id: &str) -> Vec<TimelineMessage> {
         read_codex_timeline(session_id)
@@ -503,6 +514,15 @@ mod tests {
             provider.resume_command("/home/user/project", "codex-session-abc123"),
             "codex resume codex-session-abc123"
         );
+    }
+
+    /// argv 版：codex 用子命令 `resume`；session_id 作独立 argv 元素整体保留。
+    #[test]
+    fn resume_argv_keeps_session_id_as_single_element() {
+        let provider = CodexProvider;
+        let argv = provider.resume_argv("/home/user/project", "x; rm -rf /");
+        assert_eq!(argv, vec!["codex", "resume", "x; rm -rf /"]);
+        assert_eq!(argv[2], "x; rm -rf /");
     }
 
     /// 验证 classify_event：~/.codex/sessions 下的 .jsonl → Incremental

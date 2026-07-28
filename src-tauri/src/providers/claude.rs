@@ -178,6 +178,16 @@ impl SessionProvider for ClaudeProvider {
         format!("claude --resume {}", session_id)
     }
 
+    /// argv 版恢复命令：`["claude", "--resume", <session_id>]`。
+    /// session_id 作独立 argv 元素，web 侧直传 CommandBuilder，不经 shell → 无注入面。
+    fn resume_argv(&self, _project_path: &str, session_id: &str) -> Vec<String> {
+        vec![
+            "claude".to_string(),
+            "--resume".to_string(),
+            session_id.to_string(),
+        ]
+    }
+
     /// 读取指定会话的时间轴消息列表
     fn read_timeline(&self, session_id: &str) -> Vec<TimelineMessage> {
         read_claude_timeline(session_id)
@@ -934,5 +944,15 @@ mod tests {
             provider.resume_command("D:\\workspace\\foo", "abc-123"),
             "claude --resume abc-123"
         );
+    }
+
+    /// argv 版：session_id 作独立 argv 元素，即便含 shell 元字符也整体保留、不被拆分。
+    #[test]
+    fn resume_argv_keeps_session_id_as_single_element() {
+        let provider = ClaudeProvider;
+        let argv = provider.resume_argv("D:\\workspace\\foo", "x; rm -rf /");
+        assert_eq!(argv, vec!["claude", "--resume", "x; rm -rf /"]);
+        // 恶意 session_id 整体落在 argv[2]，未被解析/拆分。
+        assert_eq!(argv[2], "x; rm -rf /");
     }
 }

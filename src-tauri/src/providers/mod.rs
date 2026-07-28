@@ -83,6 +83,35 @@ pub trait SessionProvider: Send + Sync {
         }
     }
 
+    /// argv 版恢复命令：直接返回参数向量，**不经 shell 解析**。
+    ///
+    /// 与字符串版 [`resume_command`](Self::resume_command) 的关键差异：
+    /// `session_id` 作为**独立 argv 元素**返回（不拼进命令字符串），
+    /// 供 `web/terminal.rs` 用 `CommandBuilder` 逐参数传递、**不经 `sh -c`/`cmd /C`**。
+    /// 由此 shell 元字符（`;|$()` 等）永远不会被解释 → 从根上消除命令注入面。
+    ///
+    /// 默认实现：`[provider_id, "--resume", session_id]`；provider 可覆写子命令形态。
+    fn resume_argv(&self, _project_path: &str, session_id: &str) -> Vec<String> {
+        vec![
+            self.id().to_string(),
+            "--resume".to_string(),
+            session_id.to_string(),
+        ]
+    }
+
+    /// argv 版新建命令：直接返回参数向量，**不经 shell 解析**。
+    ///
+    /// `initial_prompt` 作为**独立 argv 元素**（不拼字符串、不加引号），
+    /// 因此 prompt 里的空格/引号/元字符都原样透传给 CLI，不被 shell 解释。
+    ///
+    /// 默认实现：`[provider_id]`，有非空 prompt 时追加 `[provider_id, prompt]`。
+    fn start_argv(&self, initial_prompt: Option<&str>) -> Vec<String> {
+        match initial_prompt {
+            Some(p) if !p.trim().is_empty() => vec![self.id().to_string(), p.to_string()],
+            _ => vec![self.id().to_string()],
+        }
+    }
+
     /// 读取指定会话的时间轴消息列表（用于详情页展示）
     fn read_timeline(&self, session_id: &str) -> Vec<TimelineMessage>;
 }
