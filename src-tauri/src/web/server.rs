@@ -70,8 +70,9 @@ fn extract_token_cookie(req: &Request<Body>) -> String {
 /// allowlist 的误判方向是 fail-safe（要求 token），不存在放行本应受保护的路径的风险。
 ///
 /// dist/ 根静态清点（须未认证加载的首屏资源）：
-/// - `/vite.svg`：index.html `<link rel="icon">` 直接引用 → 加入白名单。
-/// - `/tauri.svg`、`/keelson.svg`：dist/ 中存在但 index.html 首屏未直接引用 → 不加。
+/// - `/keelson.svg`：index.html `<link rel="icon">` 引用作 favicon → 加入白名单。
+/// - `/vite.svg`：index.html 未直接引用，但 matches! 中保留（dist/ 静态资源兼容）。
+/// - `/tauri.svg`：dist/ 中存在但 index.html 首屏未直接引用 → 不加。
 /// - `/assets/*`：前端构建产物目录（JS/CSS/map 等）→ 前缀匹配放行。
 ///
 /// 新增公开路径须在此显式登记——这是刻意保留的评审卡点，而非疏漏窗口。
@@ -162,7 +163,7 @@ fn resolve_dist_dir() -> Option<PathBuf> {
 /// 找不到 dist 时的占位页：明确提示「web dist 未构建」，不 panic、不暴露内部路径。
 async fn dist_missing_placeholder() -> Response {
     let html = "<!doctype html><html lang=\"zh\"><head><meta charset=\"utf-8\">\
-<title>rework</title></head><body style=\"font-family:sans-serif;padding:2rem\">\
+<title>Keelson</title></head><body style=\"font-family:sans-serif;padding:2rem\">\
 <h1>web dist 未构建</h1><p>前端静态资源尚未构建。请运行前端构建后重启 Gateway。</p>\
 </body></html>";
     ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response()
@@ -273,7 +274,8 @@ mod tests {
         assert!(is_public_path("/"));
         assert!(is_public_path("/index.html"));
         assert!(is_public_path("/favicon.ico"));
-        assert!(is_public_path("/vite.svg")); // index.html <link rel="icon"> 首屏引用
+        assert!(is_public_path("/keelson.svg")); // index.html <link rel="icon"> 引用作 favicon → 白名单
+        assert!(is_public_path("/vite.svg"));   // matches! 登记保留（dist/ 中存在）
         assert!(is_public_path("/assets/app.js"));
         // 能力/数据路径默认拒绝——即便带静态扩展名伪装也不放行（纯 allowlist，无扩展名后缀规则）。
         assert!(!is_public_path("/api/ping"));
@@ -283,7 +285,6 @@ mod tests {
         assert!(!is_public_path("/secret"));
         // dist/ 根中存在但首屏未引用的 SVG —— 不加白名单（按需认证后加载）。
         assert!(!is_public_path("/tauri.svg"));
-        assert!(!is_public_path("/keelson.svg"));
     }
 
     #[test]
