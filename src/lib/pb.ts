@@ -1,5 +1,6 @@
 import PocketBase from "pocketbase";
 import { invoke } from "@tauri-apps/api/core";
+import { isTauri } from "@/lib/env";
 // 组件禁止直接 import 本文件的 pb 之外的东西；数据访问走 lib/pb/collections.ts
 export const pb = new PocketBase("http://127.0.0.1:0"); // 占位，init 时覆盖 baseURL
 // 桌面应用无需浏览器式的请求自动取消；关闭它，避免 StrictMode 双跑 effect /
@@ -73,7 +74,37 @@ export async function initPbAuth(): Promise<void> {
     return;
   }
 
-  // 本地模式：等待内置 sidecar bootstrap，免登录直接落 token。
+  // Web 环境（非 Tauri、非远程）：baseURL 指向 gateway /pb 反代；
+  // 从 /api/bootstrap_auth 取 PB token（受 kln_token cookie 闸保护）。
+  // ⚠️ 此分支绝不调 invoke——web 环境无 Tauri IPC，invoke 会同步抛出致白屏。
+  if (!isTauri()) {
+    // 经 gateway 同源反代访问 PocketBase（/pb/* → 127.0.0.1:<pb_port>/*）
+    pb.baseURL = `${location.origin}/pb`;
+    try {
+      // 从 gateway /api/bootstrap_auth 获取 PB token 和 userId
+      const { token, userId } = await fetch("/api/bootstrap_auth", {
+        credentials: "same-origin",
+      }).then((r) => {
+        if (!r.ok) throw new Error(`bootstrap_auth ${r.status}`);
+        return r.json() as Promise<{ token: string; userId: string }>;
+      });
+      // 用 PB token 填充 authStore，免登录（与桌面端行为对称）
+      pb.authStore.save(token, { id: userId, collectionName: "users" } as any);
+      // 尝试刷新拉取完整用户记录；失败时保留最小 token（web 端常见场景）
+      try {
+        await pb.collection("users").authRefresh();
+      } catch {
+        /* 忽略：token 仍可用，仅缺展示字段 */
+      }
+    } catch (e) {
+      // bootstrap_auth 失败（如 cookie 尚未配对）：清空 authStore，由登录界面接手
+      pb.authStore.clear();
+      console.warn("[pb] web 端 bootstrap_auth 失败，需重新配对:", e);
+    }
+    return;
+  }
+
+  // 本地模式（Tauri 桌面端）：等待内置 sidecar bootstrap，免登录直接落 token。
   const a = await waitForBootstrap();
   // v0.27+ 使用 baseURL（非弃用属性），兼容 brief 中的 baseUrl 字段名（来自 Rust）
   pb.baseURL = a.baseUrl;
