@@ -77,7 +77,7 @@ fn extract_token_cookie(req: &Request<Body>) -> String {
 fn is_public_path(path: &str) -> bool {
     matches!(
         path,
-        "/healthz" | "/pair" | "/" | "/index.html" | "/favicon.ico" | "/vite.svg"
+        "/healthz" | "/pair" | "/" | "/index.html" | "/favicon.ico" | "/vite.svg" | "/keelson.svg"
     ) || path.starts_with("/assets/")
 }
 
