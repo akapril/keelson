@@ -13,3 +13,4 @@ pub mod api;      // Task 7：受保护 API 路由 `/api/*`（bootstrap_auth 等
 pub mod auth;     // Task 2：认证 core（配对码/token 签发·校验·吊销·限流）
 pub mod pb_proxy; // Task 6：PB 同源反向代理 `/pb/*`（token 闸内，防 SSRF）
 pub mod server;
+pub mod terminal; // Task 10：内嵌 PTY 会话表（远程终端核心，供 Task 11 WS 双向泵）

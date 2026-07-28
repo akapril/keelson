@@ -125,6 +125,9 @@ pub struct AppState {
     /// PB bootstrap 认证信息（token/userId），供 gateway `/api/bootstrap_auth` 返回给
     /// 已配对 web 端。PB bootstrap 完成后写入；gateway 提前启动时此处为 None（返回 503）。
     pub web_api_state: web::api::ApiState,
+    /// 内嵌 PTY 会话表（Task 10）：远程终端核心。gateway 的 WS handler（Task 11）经此
+    /// 开/写/resize/读/杀伪终端会话。`Arc` 共享，供跨线程持有。
+    pub web_pty: Arc<web::terminal::PtyRegistry>,
 }
 
 impl Default for AppState {
@@ -147,6 +150,7 @@ impl Default for AppState {
             web_gateway: Arc::new(Mutex::new(None)),
             web_auth: Arc::new(web::auth::AuthState::new()),
             web_api_state: Arc::new(Mutex::new(None)),
+            web_pty: Arc::new(web::terminal::PtyRegistry::new()),
         }
     }
 }
