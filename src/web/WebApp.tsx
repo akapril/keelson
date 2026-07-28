@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -64,6 +64,18 @@ function TabIcon({ tab, active }: { tab: TabKey; active: boolean }) {
   }
 }
 
+/**
+ * Tab 内容容器：非激活时用 `hidden`（display:none）隐藏，而非从树上卸载。
+ *
+ * 终端面板尤其依赖此常驻语义：若切走 tab 就卸载 XtermView，会触发其清理
+ * `ws.close() + term.dispose()` —— WS 断开、xterm 滚动缓冲全丢（切回来黑屏），
+ * 且断连期间 agent 继续输出会灌满 PTY 内核缓冲致 writer 阻塞、agent 卡死。
+ * 保持挂载后切 tab 仅切显隐：WS 持续、缓冲保留、reader 一直在读，从根上避免上述问题。
+ */
+function TabPane({ active, children }: { active: boolean; children: ReactNode }) {
+  return <div className={active ? "h-full" : "hidden"}>{children}</div>;
+}
+
 /** 已配对后的 4 栏布局：大屏左侧栏（参考桌面侧栏），移动窄屏底部 tab。 */
 function MainLayout() {
   const { t } = useTranslation("web");
@@ -90,28 +102,6 @@ function MainLayout() {
   function handleOpenTerminal(session: Session) {
     setSelectedSession(session);
     setActiveTab("terminal");
-  }
-
-  /** 渲染当前 tab 的内容区 */
-  function renderTabContent() {
-    switch (activeTab) {
-      case "workspace":
-        return <Workbench onOpenTerminal={handleOpenTerminal} />;
-      case "terminal":
-        // Task 13：接入真实终端面板，传入当前选中会话
-        return <Terminal session={selectedSession} />;
-      case "notifications":
-        // PB 未就绪时展示加载态（initPbAuth 通常 <1s，失败时 pbReady 也置 true）
-        return <Notifications pbReady={pbReady} />;
-      default:
-        return (
-          <div className="mx-auto flex h-full max-w-3xl items-center justify-center px-4">
-            <p className="text-sm text-muted-foreground">
-              {t(`tabs.${activeTab}`)} — {t("placeholder.comingSoon")}
-            </p>
-          </div>
-        );
-    }
   }
 
   return (
@@ -149,7 +139,27 @@ function MainLayout() {
 
       {/* 内容区 + 窄屏底部 tab */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <main className="min-h-0 flex-1 overflow-hidden">{renderTabContent()}</main>
+        {/* 四栏内容区：全部常驻挂载，仅切显隐（见 TabPane 注释）。终端因此 WS 不断、缓冲不丢。 */}
+        <main className="min-h-0 flex-1 overflow-hidden">
+          <TabPane active={activeTab === "workspace"}>
+            <Workbench onOpenTerminal={handleOpenTerminal} />
+          </TabPane>
+          <TabPane active={activeTab === "terminal"}>
+            {/* Task 13：接入真实终端面板，传入当前选中会话 */}
+            <Terminal session={selectedSession} />
+          </TabPane>
+          <TabPane active={activeTab === "notifications"}>
+            {/* PB 未就绪时展示加载态（initPbAuth 通常 <1s，失败时 pbReady 也置 true） */}
+            <Notifications pbReady={pbReady} />
+          </TabPane>
+          <TabPane active={activeTab === "settings"}>
+            <div className="mx-auto flex h-full max-w-3xl items-center justify-center px-4">
+              <p className="text-sm text-muted-foreground">
+                {t("tabs.settings")} — {t("placeholder.comingSoon")}
+              </p>
+            </div>
+          </TabPane>
+        </main>
 
         {/* 移动窄屏：底部 tab 栏（<lg 显示，大屏用左侧栏） */}
         <nav
