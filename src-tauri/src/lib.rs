@@ -399,10 +399,15 @@ pub fn run() {
             commands::fs::list_markdown_files,
             // 网页抓取（阅读「AI 解析」）
             commands::web::fetch_url_text,
-            // Web Gateway 起停/状态（绑 0.0.0.0；认证在后续 Task 加）
+            // Web Gateway 起停/状态（绑 0.0.0.0）
             commands::web::web_gateway_start,
             commands::web::web_gateway_stop,
             commands::web::web_gateway_status,
+            // Web Gateway 认证 / 设备管理（Task 5 设置栏）
+            commands::web::web_pairing_code,
+            commands::web::web_regenerate_pairing_code,
+            commands::web::web_list_devices,
+            commands::web::web_revoke_device,
         ])
         .build(tauri::generate_context!())
         .expect("构建 rework 失败")

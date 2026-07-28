@@ -52,6 +52,22 @@ export const ipc = {
   /** 抓取 URL 并返回粗提取的可读正文（阅读「AI 解析」用） */
   fetchUrlText: (url: string) => invoke<string>("fetch_url_text", { url }),
 
+  // ── Web Gateway（外网访问）────────────────────────────────────
+  /** 启动 Web Gateway（幂等；已运行则返回现有端口） */
+  webGatewayStart: () => invoke<number>("web_gateway_start"),
+  /** 停止 Web Gateway（未运行则静默成功） */
+  webGatewayStop: () => invoke<void>("web_gateway_stop"),
+  /** 查询 Web Gateway 状态：运行中返回端口号，未运行返回 null */
+  webGatewayStatus: () => invoke<number | null>("web_gateway_status"),
+  /** 读取当前配对码（仅本机 UI 调用；切勿记录到日志/外传） */
+  webPairingCode: () => invoke<string>("web_pairing_code"),
+  /** 手动轮换配对码：作废旧码并返回新码（用于换新设备配对或作废泄露码） */
+  webRegeneratePairingCode: () => invoke<string>("web_regenerate_pairing_code"),
+  /** 列出已配对设备（脱敏：仅含 id / label / paired_at，不含 token） */
+  webListDevices: () => invoke<Array<{ id: string; label: string; paired_at: string }>>("web_list_devices"),
+  /** 吊销指定设备（id 不存在时幂等 no-op） */
+  webRevokeDevice: (id: string) => invoke<void>("web_revoke_device", { id }),
+
   // ── 会话列表 ──────────────────────────────────────────────
   /** 获取所有本地会话（Task 17） */
   listSessions: () => invoke<Session[]>("sessions_list"),

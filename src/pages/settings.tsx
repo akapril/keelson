@@ -17,6 +17,7 @@ import { McpSection } from "@/features/settings/McpSection";
 import { ClaudeIntegrationSection } from "@/features/settings/ClaudeIntegrationSection";
 import { AutoSyncTasksSection } from "@/features/settings/AutoSyncTasksSection";
 import { NotifyPrefsSection } from "@/features/settings/NotifyPrefsSection";
+import { WebGatewaySection } from "@/features/settings/WebGatewaySection";
 
 /** 分隔线（各设置区之间）。 */
 function Divider() {
@@ -75,6 +76,8 @@ export default function Settings() {
       <AutoSyncTasksSection />
       <Divider />
       <NotifyPrefsSection />
+      <Divider />
+      <WebGatewaySection />
       <Divider />
       <ExportSection />
       <Divider />
