@@ -1,0 +1,23 @@
+{
+  "pair": {
+    "title": "Connect to Keelson",
+    "subtitle": "Enter the pairing code shown on your device to establish a connection",
+    "codePlaceholder": "Enter pairing code",
+    "submit": "Connect",
+    "submitting": "Connecting…",
+    "error": {
+      "invalid": "Invalid pairing code, please try again",
+      "network": "Network error, please check your connection and retry",
+      "unknown": "Connection failed, please try again later"
+    }
+  },
+  "tabs": {
+    "workspace": "Workspace",
+    "terminal": "Terminal",
+    "notifications": "Notifications",
+    "settings": "Settings"
+  },
+  "placeholder": {
+    "comingSoon": "Coming soon"
+  }
+}
