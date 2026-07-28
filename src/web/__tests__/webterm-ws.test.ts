@@ -249,20 +249,27 @@ describe("openTerminalWs", () => {
   });
 
   // -------------------------------------------------------------------------
-  it("close() 主动关闭 → onStatus('closed')，不重连", () => {
+  it("close() 主动关闭 → onStatus('closed') 恰好一次，不重连", () => {
     vi.useFakeTimers();
     const cb = makeCb();
     const handle = openTerminalWs("s", { provider: "p", path: "/" }, cb);
     const ws = mockWsInstances[0];
     ws.simulateOpen();
 
+    // 主动关闭：先调 handle.close()，再模拟浏览器异步触发 onclose(1000)
     handle.close();
+    ws.simulateClose(1000); // 模拟浏览器 ws.close() 后触发的 onclose 事件
 
     vi.runAllTimers();
 
     // 主动关闭后不触发重连
     expect(mockWsInstances).toHaveLength(1);
-    expect(cb.onStatus).toHaveBeenCalledWith("closed");
+
+    // onStatus("closed") 恰好被调用一次（由 onclose 的 manualClose 分支触发）
+    const closedCalls = (cb.onStatus.mock.calls as [string][]).filter(
+      ([s]) => s === "closed"
+    );
+    expect(closedCalls).toHaveLength(1);
   });
 
   // -------------------------------------------------------------------------

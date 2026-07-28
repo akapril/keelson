@@ -85,6 +85,12 @@ export function XtermView({
 }: XtermViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // 用 ref 存最新回调，避免回调引用变化导致 effect 重跑（Terminal 重挂/闪烁）
+  const onExitRef = useRef(onExit);
+  onExitRef.current = onExit;
+  const onStatusChangeRef = useRef(onStatusChange);
+  onStatusChangeRef.current = onStatusChange;
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -110,7 +116,7 @@ export function XtermView({
     term.open(containerRef.current);
     fitAddon.fit();
 
-    // 连接 WS
+    // 连接 WS（回调经 ref 取最新值，不将函数引用纳入 effect deps）
     const ws = openTerminalWs(
       sessionId,
       { provider, path: projectPath },
@@ -120,10 +126,10 @@ export function XtermView({
         },
         onExit() {
           term.writeln("\r\n\x1b[2m[process exited]\x1b[0m");
-          onExit?.();
+          onExitRef.current?.();
         },
         onStatus(s) {
-          onStatusChange?.(s);
+          onStatusChangeRef.current?.(s);
         },
       }
     );
@@ -148,7 +154,8 @@ export function XtermView({
       ws.close();
       term.dispose();
     };
-  }, [sessionId, provider, projectPath, onExit, onStatusChange]);
+  // deps 仅保留会导致会话变化的值；onExit/onStatusChange 经 ref 传递，不纳入
+  }, [sessionId, provider, projectPath]);
 
   return (
     <div
