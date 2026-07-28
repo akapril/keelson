@@ -152,6 +152,14 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
         },
         onStatus(s) {
           onStatusChangeRef.current?.(s);
+          // WS 建立后立即把 xterm 实际尺寸同步给 PTY：否则 PTY 停留后端默认 80x24，
+          // agent 按 80 列换行而前端 xterm 实际宽度不同 → 换行错位/显示混乱。
+          // （挂载时 ResizeObserver 首帧的 resize 可能在 WS 尚未 open 时发出而丢失，
+          //  故必须在 connected 时补发一次权威尺寸。）
+          if (s === "connected") {
+            fitAddon.fit();
+            ws.resize(term.cols, term.rows);
+          }
         },
       }
     );
