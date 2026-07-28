@@ -284,6 +284,21 @@ pub fn is_valid_project_path(p: &str) -> bool {
     !p.trim().is_empty() && std::path::Path::new(p).is_absolute()
 }
 
+/// I-1 纵深防御：校验 project_path 是否属于已知项目集合（来自会话列表去重）。
+///
+/// 已鉴权的 WS 连接仍可传入任意绝对路径（如 `/`、`/etc`、`C:\Windows`）作为 PTY cwd，
+/// 本函数在第一道绝对路径校验之后追加第二道：path 必须出现在当前 sessions 的
+/// `project_path` 集合中，否则拒绝 open PTY。
+///
+/// 设计说明：
+/// - 集合来源：调用方在持有锁期间收集所有 `session.project_path`，**释放锁后**再调用本函数
+///   （不跨 await 持 parking_lot guard）。
+/// - 空集合拒绝：sessions 为空时集合为空，返回 false（fail-safe）。
+/// - 纯函数，无 IO，可 standalone 测。
+pub fn is_project_path_in_known_sessions(path: &str, known_paths: &std::collections::HashSet<String>) -> bool {
+    known_paths.contains(path)
+}
+
 // ── WS 协议帧解析（纯逻辑，抽出便于 standalone `rustc --test`）───────────────
 
 /// WS 入站帧经解析后的语义：控制指令或标准输入。
@@ -379,12 +394,23 @@ pub async fn ws_terminal_handler(
     if !is_valid_session_id(&id) {
         return (axum::http::StatusCode::BAD_REQUEST, "非法会话 id").into_response();
     }
-    // 3) project_path 合法性：非空 + 绝对路径。
+    // 3) project_path 合法性：非空 + 绝对路径（第一道）。
     if !is_valid_project_path(&q.path) {
         return (axum::http::StatusCode::BAD_REQUEST, "非法 project path").into_response();
     }
+    // 4) I-1 纵深防御：project_path 必须属于已知项目集合（第二道）。
+    //    先取锁收集 HashSet，判定后**释放锁**，再进 WS 升级（不跨 await 持 parking_lot guard）。
+    {
+        let known_paths: std::collections::HashSet<String> = {
+            let guard = st.sessions.lock();
+            guard.iter().map(|s| s.project_path.clone()).collect()
+        }; // guard 在此释放，不跨 await
+        if !is_project_path_in_known_sessions(&q.path, &known_paths) {
+            return (axum::http::StatusCode::BAD_REQUEST, "project path 不属于已知项目").into_response();
+        }
+    }
 
-    // 校验通过 → 升级。闭包捕获校验后的参数，在 WS 建立后接管双向泵。
+    // 全部校验通过 → 升级。闭包捕获校验后的参数，在 WS 建立后接管双向泵。
     ws.on_upgrade(move |socket| async move {
         run_terminal_ws(socket, id, q.provider, q.path, st).await;
     })
