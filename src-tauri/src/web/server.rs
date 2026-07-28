@@ -12,13 +12,14 @@
 //!
 //! 路由装配集中在 `build_router()` 一处，便于统一审计鉴权边界。
 use crate::web::auth::{check_and_rotate, issue_token, verify_token, AuthState};
+use crate::web::pb_proxy::{pb_proxy_handler, PbProxyState};
 use axum::{
     body::Body,
     extract::State,
     http::{header, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{any, get, post},
     Router,
 };
 use std::path::PathBuf;
@@ -171,19 +172,33 @@ async fn dist_missing_placeholder() -> Response {
 ///
 /// 结构：业务/静态路由 → 外层套 `require_token` 中间件（默认拒绝）。
 /// `auth` 由 gateway `start` 与中间件共享（同一 `Arc<AuthState>`）。
-fn build_router(auth: Arc<AuthState>) -> Router {
+///
+/// `pb_base`：PocketBase 服务根地址（形如 `http://127.0.0.1:<port>`），
+/// 由调用方从 `AppState.auth` 取出后传入，此处不做任何解析——仅透传给 `PbProxyState`。
+/// `/pb/{*path}` 路由**不在** `is_public_path` 白名单里，`require_token` layer 自动覆盖。
+fn build_router(auth: Arc<AuthState>, pb_base: String) -> Router {
     // 静态前端：dist 存在则 ServeDir，否则所有 GET 回落占位页。
     let static_service = match resolve_dist_dir() {
         Some(dir) => Router::new().fallback_service(ServeDir::new(dir)),
         None => Router::new().fallback(dist_missing_placeholder),
     };
 
+    // PB 反代子路由（独立 Router + with_state，避免与 AuthState 共用状态冲突）。
+    // `/pb/{*path}` axum 0.8 通配捕获语法；`any(...)` 接受所有 HTTP 方法（GET/POST/PATCH…）。
+    // 此路由**不**添加至公开白名单——进入此 Router 前已过 `require_token` layer。
+    let pb_proxy_state = PbProxyState::new(pb_base);
+    let pb_router = Router::new()
+        .route("/pb/{*path}", any(pb_proxy_handler))
+        .with_state(pb_proxy_state);
+
     Router::new()
         // 健康探针：常量 "ok"，无敏感信息（白名单公开）。
         .route("/healthz", get(|| async { "ok" }))
         // 配对入口：受配对码 + 限流保护，成功签发 token 并轮换旧码（白名单公开）。
         .route("/pair", post(pair_handler))
-        // 静态前端兜底（含占位页回落）。未来 `/api /pb /ws` 在此之前显式注册即受保护。
+        // PB 同源反向代理（token 闸内，防 SSRF）。
+        .merge(pb_router)
+        // 静态前端兜底（含占位页回落）。未来 `/api /ws` 在此之前显式注册即受保护。
         .merge(static_service)
         // ⚠️ 最外层默认拒绝：非白名单路径一律需有效 token。新增路由自动受此约束。
         .layer(middleware::from_fn_with_state(auth.clone(), require_token))
@@ -195,9 +210,18 @@ fn build_router(auth: Arc<AuthState>) -> Router {
 /// `auth` 由调用方（`AppState.web_auth`）传入，与认证中间件共享同一实例，
 /// 保证配对码/token 状态与设置栏展示（Task 5）一致。
 ///
+/// `pb_base`：PocketBase 服务根地址（形如 `http://127.0.0.1:<port>`），
+/// 由调用方从 `AppState.auth` 获取并传入，用于 `/pb/*` 反代路由。
+/// 若 PB 尚未就绪（`AppState.auth` 为 `None`），传入空串即可——gateway
+/// 会将所有 `/pb/*` 请求 502 返回，不会 panic 也不影响其他路由。
+///
 /// server 在后台 `tokio::spawn` 运行，通过 `oneshot` 接收优雅关闭信号；调用方拿到
 /// 端口后无需等待 server 结束。绑定（await）在同步取锁之外进行，避免持锁跨 await。
-pub async fn start(port: u16, auth: Arc<AuthState>) -> Result<(u16, GatewayHandle), String> {
+pub async fn start(
+    port: u16,
+    auth: Arc<AuthState>,
+    pb_base: String,
+) -> Result<(u16, GatewayHandle), String> {
     // 绑定 0.0.0.0：外网可达（详见文件顶部安全红线）。
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
         .await
@@ -209,7 +233,7 @@ pub async fn start(port: u16, auth: Arc<AuthState>) -> Result<(u16, GatewayHandl
         .port();
 
     let (tx, rx) = oneshot::channel::<()>();
-    let router = build_router(auth);
+    let router = build_router(auth, pb_base);
 
     // 后台运行：收到 shutdown 信号（rx 完成）后优雅退出。
     tokio::spawn(async move {
@@ -236,9 +260,9 @@ mod tests {
 
     #[test]
     fn router_builds() {
-        // build_router 应无 panic 地构造出 Router（含中间件与静态兜底）。
+        // build_router 应无 panic 地构造出 Router（含中间件、PB 反代路由与静态兜底）。
         let auth = Arc::new(AuthState::new());
-        let _router = build_router(auth);
+        let _router = build_router(auth, "http://127.0.0.1:8790".to_string());
     }
 
     #[test]
