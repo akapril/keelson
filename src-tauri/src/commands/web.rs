@@ -50,8 +50,12 @@ pub async fn web_gateway_start(state: State<'_, AppState>) -> Result<u16, String
         // I-1 纵深防御：WS handler 用此集合校验 project_path 属于已知项目（共享同一 Arc）。
         sessions: state.sessions.clone(),
     };
+    // Web Gateway 固定端口：内网穿透(tailscale/frp/cloudflared)需稳定端口定位，
+    // 故不用随机端口(0)。端口被占用时 bind 失败返回 Err，由用户关闭占用进程重试
+    // 或后续在设置里改端口(Task 14)。避开 MCP 的 47600，取相邻 47700。
+    const DEFAULT_WEB_PORT: u16 = 47700;
     let (port, handle) = crate::web::server::start(
-        0,
+        DEFAULT_WEB_PORT,
         state.web_auth.clone(),
         pb_base,
         state.web_api_state.clone(),
