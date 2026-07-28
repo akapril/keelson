@@ -218,8 +218,11 @@ pub fn check_pairing(state: &AuthState, code: &str) -> bool {
         return false;
     }
 
-    // 常量时间比对配对码（不用 `==`）。
-    let ok = bool::from(code.as_bytes().ct_eq(state.pairing_code.as_bytes()));
+    // 常量时间比对配对码：先对两侧 hash 到定长 32 字节，再做 ct_eq。
+    // 直接对原始 &[u8] 做 ct_eq 时，subtle 对不等长 slice 会短路返回 0，
+    // 攻击者可通过计时探测配对码长度（长度侧信道）。
+    // hash 到定长后两侧始终为 32 字节，消除该侧信道。
+    let ok = bool::from(hash_token(code).ct_eq(&hash_token(&state.pairing_code)));
 
     if ok {
         fails.record_success(now);
@@ -289,6 +292,18 @@ mod tests {
         assert!(!check_pairing(&a, "RIGHT"));
         // 计数应仍在累加（fail_count > THRESHOLD）。
         assert!(a.fails.lock().fail_count > RateLimit::THRESHOLD);
+    }
+
+    #[test]
+    fn pairing_reject_wrong_length_no_panic() {
+        // 不等长输入必须正确拒绝且不 panic：hash 到定长 32 字节后 ct_eq 不再短路。
+        let a = AuthState::new_with_code("SECRETCODE".into());
+        assert!(!check_pairing(&a, ""));            // 空字符串
+        assert!(!check_pairing(&a, "x"));           // 短于正确码
+        assert!(!check_pairing(&a, "SECRETCODE_extra_long_xxxxxxxxxxxxx")); // 长于正确码
+        // 正确码在未触发退避的首次检查中应通过（每个 AuthState 独立）。
+        let b = AuthState::new_with_code("SECRETCODE".into());
+        assert!(check_pairing(&b, "SECRETCODE"));
     }
 
     #[test]
