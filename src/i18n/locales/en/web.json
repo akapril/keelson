@@ -23,6 +23,18 @@
   "nav": {
     "main": "Main navigation"
   },
+  "pbInit": {
+    "error": "Failed to connect to local data store, some features may be unavailable"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "subtitle": "Read-only view — manage notifications on your desktop",
+    "loading": "Loading notifications…",
+    "empty": "No notifications",
+    "errorHint": "Failed to load notifications",
+    "errorSubtitle": "Please check your connection and try again",
+    "unreadBadgeLabel": "{{count}} unread"
+  },
   "workbench": {
     "title": "Workspace",
     "loading": "Loading sessions…",

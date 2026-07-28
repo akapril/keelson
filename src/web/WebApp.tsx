@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { Logo } from "@/components/logo";
+import { initPbAuth } from "@/lib/pb";
 import { PairScreen } from "./PairScreen";
 import { Workbench } from "./panels/Workbench";
+import { Notifications } from "./panels/Notifications";
 import type { Session } from "@/types/session";
 
 // 标识符：UI 标记，真凭证是 httpOnly cookie（JS 无法读取）
@@ -66,6 +69,21 @@ function MainLayout() {
   const [activeTab, setActiveTab] = useState<TabKey>("workspace");
   // 用户从工作台选中的会话（供终端 tab 占位显示；Task 13 实现真正的终端内容）
   const [_selectedSession, setSelectedSession] = useState<Session | null>(null);
+  // PB 初始化状态（web 分支全程 fetch，不调 invoke）
+  const [pbReady, setPbReady] = useState(false);
+
+  // mount 时初始化 PB 认证（web 分支：baseURL→/pb 反代 + /api/bootstrap_auth 取 token）
+  useEffect(() => {
+    initPbAuth()
+      .then(() => setPbReady(true))
+      .catch((e) => {
+        // PB 初始化失败：toast 提示，但允许工作台（走 /api 非 PB）继续使用
+        console.error("[WebApp] PB 初始化失败:", e);
+        toast.error(t("pbInit.error"));
+        // 标记 ready，使 tab 可切换（工作台不依赖 PB，通知栏内部会显示错误态）
+        setPbReady(true);
+      });
+  }, [t]);
 
   /** 工作台点击会话：记录选中 + 切换到终端 tab */
   function handleOpenTerminal(session: Session) {
@@ -78,6 +96,9 @@ function MainLayout() {
     switch (activeTab) {
       case "workspace":
         return <Workbench onOpenTerminal={handleOpenTerminal} />;
+      case "notifications":
+        // PB 未就绪时展示加载态（initPbAuth 通常 <1s，失败时 pbReady 也置 true）
+        return <Notifications pbReady={pbReady} />;
       default:
         return (
           <div className="mx-auto flex h-full max-w-3xl items-center justify-center px-4">

@@ -23,6 +23,18 @@
   "nav": {
     "main": "主导航"
   },
+  "pbInit": {
+    "error": "本地数据服务连接失败，部分功能可能不可用"
+  },
+  "notifications": {
+    "title": "通知",
+    "subtitle": "只读视图——请在桌面端管理通知",
+    "loading": "加载通知中…",
+    "empty": "暂无通知",
+    "errorHint": "通知加载失败",
+    "errorSubtitle": "请检查连接后重试",
+    "unreadBadgeLabel": "{{count}} 条未读"
+  },
   "workbench": {
     "title": "工作台",
     "loading": "加载会话中…",
