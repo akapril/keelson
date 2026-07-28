@@ -19,5 +19,8 @@
   },
   "placeholder": {
     "comingSoon": "即将推出"
+  },
+  "nav": {
+    "main": "主导航"
   }
 }
