@@ -11,6 +11,7 @@
 //! 天然被拦。新增「公开路由」须显式改 `is_public_path`，属有意为之的评审点。
 //!
 //! 路由装配集中在 `build_router()` 一处，便于统一审计鉴权边界。
+use crate::models::Session;
 use crate::web::api::{ApiState, BootstrapAuthResp};
 use crate::web::auth::{check_and_rotate, issue_token, verify_token, AuthState};
 use crate::web::pb_proxy::{pb_proxy_handler, PbProxyState};
@@ -23,10 +24,14 @@ use axum::{
     routing::{any, get, post},
     Router,
 };
+use parking_lot::Mutex;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tower_http::services::ServeDir;
+
+/// Gateway 侧会话缓存共享句柄（与 AppState.sessions 同一 Arc）。
+pub type SessionsState = Arc<Mutex<Vec<Session>>>;
 
 /// Gateway 运行句柄：持有实际端口 + 优雅关闭信号发送端。
 ///
@@ -181,7 +186,15 @@ async fn dist_missing_placeholder() -> Response {
 ///
 /// `api_state`：PB bootstrap 认证信息（token/userId），供 `/api/bootstrap_auth` 返回给
 /// 已配对 web 端。在 require_token layer 内，未配对设备无法到达。
-fn build_router(auth: Arc<AuthState>, pb_base: String, api_state: ApiState) -> Router {
+///
+/// `sessions_state`：会话缓存共享句柄（与 AppState.sessions 同一 Arc），供
+/// `/api/sessions_list` 返回给已配对 web 端（token 闸内）。
+fn build_router(
+    auth: Arc<AuthState>,
+    pb_base: String,
+    api_state: ApiState,
+    sessions_state: SessionsState,
+) -> Router {
     // 静态前端：dist 存在则 ServeDir，否则所有 GET 回落占位页。
     let static_service = match resolve_dist_dir() {
         Some(dir) => Router::new().fallback_service(ServeDir::new(dir)),
@@ -222,6 +235,18 @@ fn build_router(auth: Arc<AuthState>, pb_base: String, api_state: ApiState) -> R
         }
     };
 
+    // `/api/sessions_list`：闭包捕获 sessions_state，同 bootstrap_auth 模式（规避 axum 0.8
+    // Router<()> 类型推断限制）。调用 `sessions::list_core` 复用与 Tauri command 相同的读锁逻辑。
+    // 在 require_token layer 内，未配对设备无法到达此路由。
+    let sessions_state_clone = sessions_state;
+    let sessions_list_handler = move || {
+        let state = sessions_state_clone.clone();
+        async move {
+            let sessions = crate::commands::sessions::list_core(&state);
+            (StatusCode::OK, axum::Json(sessions)).into_response()
+        }
+    };
+
     Router::new()
         // 健康探针：常量 "ok"，无敏感信息（白名单公开）。
         .route("/healthz", get(|| async { "ok" }))
@@ -230,6 +255,9 @@ fn build_router(auth: Arc<AuthState>, pb_base: String, api_state: ApiState) -> R
         // 受保护 API 路由（/api/bootstrap_auth）：token 闸内，不在白名单。
         // 返回 PB token/userId 供 web 端初始化 PB SDK（不含 baseUrl，经 /pb 反代访问）。
         .route("/api/bootstrap_auth", post(bootstrap_auth_handler))
+        // 受保护 API 路由（/api/sessions_list）：token 闸内，不在白名单。
+        // 返回全量会话列表 Vec<Session> JSON（Task 8 工作台栏）。
+        .route("/api/sessions_list", post(sessions_list_handler))
         // PB 同源反向代理（token 闸内，防 SSRF）。
         .merge(pb_router)
         // 静态前端兜底（含占位页回落）。未来 `/ws` 在此之前显式注册即受保护。
@@ -252,6 +280,9 @@ fn build_router(auth: Arc<AuthState>, pb_base: String, api_state: ApiState) -> R
 /// `api_state`：PB bootstrap 认证信息（token/userId），写入后供 `/api/bootstrap_auth`
 /// 返回给已配对 web 端。PB 就绪前为 `None`，届时 bootstrap_auth 返回 503。
 ///
+/// `sessions_state`：会话缓存共享句柄（与 AppState.sessions 同一 Arc），
+/// 供 `/api/sessions_list` 返回给已配对 web 端（token 闸内）。
+///
 /// server 在后台 `tokio::spawn` 运行，通过 `oneshot` 接收优雅关闭信号；调用方拿到
 /// 端口后无需等待 server 结束。绑定（await）在同步取锁之外进行，避免持锁跨 await。
 pub async fn start(
@@ -259,6 +290,7 @@ pub async fn start(
     auth: Arc<AuthState>,
     pb_base: String,
     api_state: ApiState,
+    sessions_state: SessionsState,
 ) -> Result<(u16, GatewayHandle), String> {
     // 绑定 0.0.0.0：外网可达（详见文件顶部安全红线）。
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
@@ -271,7 +303,7 @@ pub async fn start(
         .port();
 
     let (tx, rx) = oneshot::channel::<()>();
-    let router = build_router(auth, pb_base, api_state);
+    let router = build_router(auth, pb_base, api_state, sessions_state);
 
     // 后台运行：收到 shutdown 信号（rx 完成）后优雅退出。
     tokio::spawn(async move {
@@ -299,11 +331,13 @@ mod tests {
     #[test]
     fn router_builds() {
         // build_router 应无 panic 地构造出 Router（含中间件、API 路由、PB 反代路由与静态兜底）。
+        use crate::models::Session;
         use crate::web::api::ApiState;
         use parking_lot::Mutex;
         let auth = Arc::new(AuthState::new());
         let api_state: ApiState = Arc::new(Mutex::new(None));
-        let _router = build_router(auth, "http://127.0.0.1:8790".to_string(), api_state);
+        let sessions_state: SessionsState = Arc::new(Mutex::new(Vec::<Session>::new()));
+        let _router = build_router(auth, "http://127.0.0.1:8790".to_string(), api_state, sessions_state);
     }
 
     #[test]

@@ -5,6 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { Logo } from "@/components/logo";
 import { PairScreen } from "./PairScreen";
+import { Workbench } from "./panels/Workbench";
+import type { Session } from "@/types/session";
 
 // 标识符：UI 标记，真凭证是 httpOnly cookie（JS 无法读取）
 const PAIRED_KEY = "kln_web_paired";
@@ -62,6 +64,30 @@ function TabIcon({ tab, active }: { tab: TabKey; active: boolean }) {
 function MainLayout() {
   const { t } = useTranslation("web");
   const [activeTab, setActiveTab] = useState<TabKey>("workspace");
+  // 用户从工作台选中的会话（供终端 tab 占位显示；Task 13 实现真正的终端内容）
+  const [_selectedSession, setSelectedSession] = useState<Session | null>(null);
+
+  /** 工作台点击会话：记录选中 + 切换到终端 tab */
+  function handleOpenTerminal(session: Session) {
+    setSelectedSession(session);
+    setActiveTab("terminal");
+  }
+
+  /** 渲染当前 tab 的内容区 */
+  function renderTabContent() {
+    switch (activeTab) {
+      case "workspace":
+        return <Workbench onOpenTerminal={handleOpenTerminal} />;
+      default:
+        return (
+          <div className="mx-auto flex h-full max-w-3xl items-center justify-center px-4">
+            <p className="text-sm text-muted-foreground">
+              {t(`tabs.${activeTab}`)} — {t("placeholder.comingSoon")}
+            </p>
+          </div>
+        );
+    }
+  }
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -98,13 +124,7 @@ function MainLayout() {
 
       {/* 内容区 + 窄屏底部 tab */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <main className="min-h-0 flex-1 overflow-auto">
-          <div className="mx-auto flex h-full max-w-3xl items-center justify-center px-4">
-            <p className="text-sm text-muted-foreground">
-              {t(`tabs.${activeTab}`)} — {t("placeholder.comingSoon")}
-            </p>
-          </div>
-        </main>
+        <main className="min-h-0 flex-1 overflow-hidden">{renderTabContent()}</main>
 
         {/* 移动窄屏：底部 tab 栏（<lg 显示，大屏用左侧栏） */}
         <nav
