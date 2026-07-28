@@ -22,5 +22,17 @@
   },
   "nav": {
     "main": "Main navigation"
+  },
+  "workbench": {
+    "title": "Workspace",
+    "loading": "Loading sessions…",
+    "empty": "No sessions yet",
+    "emptyHint": "Start a Claude or Codex session locally and it will appear here",
+    "errorHint": "Failed to load, please check your connection",
+    "openTerminal": "Open terminal",
+    "session": {
+      "updated": "Updated {{time}}",
+      "messages": "{{count}} messages"
+    }
   }
 }

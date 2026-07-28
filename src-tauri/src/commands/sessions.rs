@@ -29,13 +29,25 @@ pub fn distinct_project_paths(sessions: &[Session]) -> Vec<String> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Core 函数（不依赖 Tauri State，可被 gateway API handler 复用）
+// ─────────────────────────────────────────────────────────────
+
+/// 从 AppState 中读取缓存的全量会话列表。
+///
+/// 此函数是 `sessions_list` Tauri 命令与 `/api/sessions_list` gateway handler 的共同核心，
+/// 避免在两处重复读锁逻辑。两条路径均读同一 `Arc<Mutex<Vec<Session>>>`，无需额外同步。
+pub fn list_core(sessions: &parking_lot::Mutex<Vec<Session>>) -> Vec<Session> {
+    sessions.lock().clone()
+}
+
+// ─────────────────────────────────────────────────────────────
 // Tauri 命令
 // ─────────────────────────────────────────────────────────────
 
 /// 返回缓存的全量会话列表（由启动扫描 + Watcher 维护）。
 #[tauri::command]
 pub fn sessions_list(state: State<AppState>) -> Vec<Session> {
-    state.sessions.lock().clone()
+    list_core(&state.sessions)
 }
 
 /// 全文搜索会话，最多返回 SEARCH_LIMIT 条结果。

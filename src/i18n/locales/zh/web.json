@@ -22,5 +22,17 @@
   },
   "nav": {
     "main": "主导航"
+  },
+  "workbench": {
+    "title": "工作台",
+    "loading": "加载会话中…",
+    "empty": "暂无会话",
+    "emptyHint": "在本地启动 Claude 或 Codex 会话后即可在此查看",
+    "errorHint": "加载失败，请检查连接",
+    "openTerminal": "打开终端",
+    "session": {
+      "updated": "更新于 {{time}}",
+      "messages": "{{count}} 条消息"
+    }
   }
 }
