@@ -87,7 +87,10 @@ impl RateLimit {
 /// 字段私有，仅经方法访问，避免外部误改绕过安全约束。测试通过 `new_with_code` 构造。
 pub struct AuthState {
     /// 配对码明文（一次性配对流程用；外网仅短暂暴露给受信设备）。
-    pairing_code: String,
+    ///
+    /// Task 3 改为 `Mutex<String>`：`/pair` 成功签发 token 后立即 `rotate_pairing_code`
+    /// 轮换新码，旧码即刻失效——防「泄露的旧配对码 = 永久后门」（Task 2 转交项 2）。
+    pairing_code: Mutex<String>,
     /// 服务端 secret（32 字节，用于未来签名/派生；此处保留以满足接口约定）。
     #[allow(dead_code)]
     secret: [u8; 32],
@@ -142,7 +145,7 @@ impl AuthState {
         let mut secret = [0u8; 32];
         OsRng.fill_bytes(&mut secret);
         AuthState {
-            pairing_code,
+            pairing_code: Mutex::new(pairing_code),
             secret,
             devices: Mutex::new(Vec::new()),
             fails: Mutex::new(RateLimit::new()),
@@ -222,7 +225,9 @@ pub fn check_pairing(state: &AuthState, code: &str) -> bool {
     // 直接对原始 &[u8] 做 ct_eq 时，subtle 对不等长 slice 会短路返回 0，
     // 攻击者可通过计时探测配对码长度（长度侧信道）。
     // hash 到定长后两侧始终为 32 字节，消除该侧信道。
-    let ok = bool::from(hash_token(code).ct_eq(&hash_token(&state.pairing_code)));
+    // 取当前配对码明文（clone 出短生命周期串，随即释放锁；比对在锁外做）。
+    let current = state.pairing_code.lock().clone();
+    let ok = bool::from(hash_token(code).ct_eq(&hash_token(&current)));
 
     if ok {
         fails.record_success(now);
@@ -230,6 +235,21 @@ pub fn check_pairing(state: &AuthState, code: &str) -> bool {
         fails.record_failure(now);
     }
     ok
+}
+
+/// 轮换配对码：生成新随机码替换旧码，旧码即刻失效（Task 2 转交项 2）。
+///
+/// `/pair` 成功签发 token 后调用：防「泄露/被记录的旧配对码」被反复重放当永久后门。
+/// 多设备配对时，用户须从设置栏（Task 5）读取轮换后的新码来配下一台设备。
+pub fn rotate_pairing_code(state: &AuthState) {
+    *state.pairing_code.lock() = gen_pairing_code();
+}
+
+/// 读取当前配对码明文（供 Task 5 设置栏展示，让用户抄给待配对设备）。
+///
+/// ⚠️ 仅在受信本机 UI 中调用；配对码是外网入口凭据，切勿写日志/回传外部。
+pub fn current_pairing_code(state: &AuthState) -> String {
+    state.pairing_code.lock().clone()
 }
 
 #[cfg(test)]
@@ -304,6 +324,25 @@ mod tests {
         // 正确码在未触发退避的首次检查中应通过（每个 AuthState 独立）。
         let b = AuthState::new_with_code("SECRETCODE".into());
         assert!(check_pairing(&b, "SECRETCODE"));
+    }
+
+    #[test]
+    fn rotate_invalidates_old_pairing_code() {
+        // 轮换后旧码失效、新码生效：验证「一次性配对码」转交项 2 的语义。
+        let a = AuthState::new_with_code("OLD".into());
+        assert_eq!(current_pairing_code(&a), "OLD");
+        rotate_pairing_code(&a);
+        let fresh = current_pairing_code(&a);
+        assert_ne!(fresh, "OLD"); // 已换新
+        assert_eq!(fresh.len(), 43); // 新码为 32 字节 base64url
+        // 用一个独立实例避免退避干扰：旧码不再通过，新码通过。
+        let b = AuthState::new_with_code("OLD".into());
+        rotate_pairing_code(&b);
+        let new_code = current_pairing_code(&b);
+        assert!(!check_pairing(&b, "OLD")); // 旧码失效
+        // 新实例避免上一次失败触发的退避窗口。
+        let c = AuthState::new_with_code(new_code.clone());
+        assert!(check_pairing(&c, &new_code)); // 新码有效
     }
 
     #[test]
