@@ -98,8 +98,10 @@ pub struct AppState {
     pub auth: Arc<Mutex<Option<pb::bootstrap::BootstrapAuth>>>,
     /// 最近一次全量扫描的会话列表缓存（Task 16 命令层读取用）
     pub sessions: Arc<Mutex<Vec<crate::models::Session>>>,
-    /// Provider 注册表（claude + codex；启动后只读，无需 Mutex）
-    pub reg: providers::ProviderRegistry,
+    /// Provider 注册表（claude + codex；启动后只读，无需 Mutex）。
+    /// `Arc` 包裹：既保留 `state.reg.by_id(..)` 的 Deref 透明访问，又能廉价 clone
+    /// 一份句柄交给 gateway 的 WS handler（Task 11 /ws/terminal 需在 spawn 的 server 任务里查 provider）。
+    pub reg: Arc<providers::ProviderRegistry>,
     /// Tantivy 会话全文索引（启动时构建，搜索命令只读访问）
     pub index: Arc<Mutex<Option<indexer::SessionIndex>>>,
     /// 应用路径集合（home / app_data 等）
@@ -138,7 +140,7 @@ impl Default for AppState {
         Self {
             auth: Arc::new(Mutex::new(None)),
             sessions: Arc::new(Mutex::new(Vec::new())),
-            reg: providers::ProviderRegistry::new(),
+            reg: Arc::new(providers::ProviderRegistry::new()),
             index: Arc::new(Mutex::new(None)),
             paths,
             config: Arc::new(Mutex::new(cfg)),
@@ -429,6 +431,9 @@ pub fn run() {
                 if let Some(child) = child {
                     let _ = child.kill();
                 }
+                // Task 11 生命周期·退出清场：主动 kill 所有内嵌 PTY 会话，杜绝孤儿 CLI agent。
+                // WS 断连不杀 pty（允许重连接管），但 app 退出必须清空全表（Drop 是兜底，此处是主动钩子）。
+                state.web_pty.kill_all();
             }
         });
 }
