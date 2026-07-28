@@ -83,6 +83,7 @@ export async function initPbAuth(): Promise<void> {
     try {
       // 从 gateway /api/bootstrap_auth 获取 PB token 和 userId
       const { token, userId } = await fetch("/api/bootstrap_auth", {
+        method: "POST", // 服务端注册为 POST only；缺此则发 GET → 405，web 端永远认证失败
         credentials: "same-origin",
       }).then((r) => {
         if (!r.ok) throw new Error(`bootstrap_auth ${r.status}`);
