@@ -47,6 +47,8 @@ pub async fn web_gateway_start(state: State<'_, AppState>) -> Result<u16, String
     let ws_terminal = crate::web::server::WsTerminalState {
         pty: state.web_pty.clone(),
         reg: state.reg.clone(),
+        // I-1 纵深防御：WS handler 用此集合校验 project_path 属于已知项目（共享同一 Arc）。
+        sessions: state.sessions.clone(),
     };
     let (port, handle) = crate::web::server::start(
         0,

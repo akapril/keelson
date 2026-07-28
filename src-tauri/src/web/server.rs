@@ -33,16 +33,19 @@ use tower_http::services::ServeDir;
 /// Gateway 侧会话缓存共享句柄（与 AppState.sessions 同一 Arc）。
 pub type SessionsState = Arc<Mutex<Vec<Session>>>;
 
-/// `/ws/terminal/{id}` handler 的共享状态：PTY 会话表 + provider 注册表。
+/// `/ws/terminal/{id}` handler 的共享状态：PTY 会话表 + provider 注册表 + 已知会话集合。
 ///
-/// 两者均以 `Arc` 共享（与 `AppState.web_pty` / `AppState.reg` 同一实例），
+/// 三者均以 `Arc` 共享（与 `AppState.web_pty` / `AppState.reg` / `AppState.sessions` 同一实例），
 /// 供 WS handler 在 spawn 的 server 任务里 open/write/resize/read/kill PTY，并按 provider 路由命令。
+/// `sessions` 用于 I-1 纵深防御：project_path 必须属于已知项目集合，拒绝任意系统目录作 cwd。
 #[derive(Clone)]
 pub struct WsTerminalState {
     /// 内嵌 PTY 会话表（与 AppState.web_pty 同一 Arc）。
     pub pty: Arc<crate::web::terminal::PtyRegistry>,
     /// provider 注册表（与 AppState.reg 同一 Arc），供 `by_id` 白名单路由 + argv 命令生成。
     pub reg: Arc<crate::providers::ProviderRegistry>,
+    /// 已知会话列表（与 AppState.sessions 同一 Arc），供 project_path 集合校验（I-1）。
+    pub sessions: SessionsState,
 }
 
 /// Gateway 运行句柄：持有实际端口 + 优雅关闭信号发送端。
@@ -366,6 +369,7 @@ mod tests {
         let ws_terminal = WsTerminalState {
             pty: Arc::new(crate::web::terminal::PtyRegistry::new()),
             reg: Arc::new(crate::providers::ProviderRegistry::new()),
+            sessions: sessions_state.clone(),
         };
         let _router = build_router(
             auth,
