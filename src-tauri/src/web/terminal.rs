@@ -5,19 +5,25 @@
 //! spawn 进 PTY 的 slave 端，master 端持有其 stdin(writer)/stdout+stderr(reader)。
 //! 这样 Task 11 的 WebSocket handler 就能双向泵：浏览器键入 → `write`；PTY 输出 → reader。
 //!
-//! ## provider 命令复用
-//! provider registry 返回的是 **shell 命令字符串**（如 `claude --resume <id>`，可能含参数/引号）。
-//! 为避免手写命令行解析踩引号/空格坑，本模块**用系统 shell 包一层**复用该字符串：
-//! - Windows：`cmd.exe /C <cmd>`
-//! - Unix：  `sh -c <cmd>`
-//! shell 以 `cwd=project_path` 起，再由 shell 执行 provider 命令；CLI agent 继承 PTY 交互正常。
+//! ## provider 命令复用（argv 直传，不经 shell）
+//! provider registry 提供两套命令生成：字符串版（`resume_command`/`start_command`，
+//! 供**桌面** `commands/terminal.rs` 起系统终端窗口用）与 **argv 版**
+//! （`resume_argv`/`start_argv`，本模块专用）。
 //!
-//! ## 并发
+//! 本模块**不再经系统 shell**（`sh -c` / `cmd /C`），而是取 argv 向量后用
+//! `CommandBuilder::new(argv[0])` + `.arg(argv[1..])` 逐参数直传，`cwd=project_path`。
+//! session_id / prompt 作为**独立 argv 元素**传递，shell 元字符（`;|$()` 等）永远
+//! 不会被解析 → 从根上消除命令注入（Task 11 从 web 传入的 session_id 不再是攻击面）。
+//!
+//! ## session_id 白名单双保险
+//! 除 argv 化外，`open()` 在使用 session_id 前用 [`is_valid_session_id`] 校验
+//! `^[A-Za-z0-9_-]+$`（长度 ≤128）。claude UUID、codex session id 均满足；
+//! 不匹配直接 `Err`，绝不落到 spawn。
+//!
+//! ## 并发与回收
 //! 会话表用 parking_lot `Mutex`（项目惯例，`.lock()` 无 `unwrap`）。`PtyRegistry` 挂在
-//! `AppState` 上以 `Arc` 共享，供 gateway WS handler 访问。
-//!
-//! 「选 shell + 组装命令行 argv」被抽成纯函数 [`build_shell_argv`]，无任何 IO / PTY 依赖，
-//! 可 standalone（`rustc --test`）验证（参照 `web/auth.rs` 手法）。
+//! `AppState` 上以 `Arc` 共享，供 gateway WS handler 访问。`kill` 在终止后 `wait` 收尸；
+//! `Drop for PtyRegistry` 在 registry 释放（app 退出）时清场所有残留子进程，杜绝孤儿 agent。
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -75,10 +81,10 @@ impl PtyRegistry {
     /// - `reg`：provider 注册表（从 `AppState.reg` 传入引用，复用现有命令生成，不新造）。
     ///
     /// # 流程
-    /// 1. `native_pty_system().openpty(PtySize{rows,cols})` 得到 master/slave 对。
-    /// 2. 用 provider 命令字符串经 [`build_shell_argv`] 组装成「系统 shell + -c/-C + 命令」argv。
-    /// 3. `CommandBuilder` 起 shell、`cwd=project_path`，spawn 到 slave。
-    /// 4. 取 writer（仅一次）、存 master/writer/child 到会话表。
+    /// 1. 校验 session_id 白名单（若有），经 registry 取 provider 的 **argv 版**命令。
+    /// 2. `native_pty_system().openpty(PtySize{rows,cols})` 得到 master/slave 对。
+    /// 3. `CommandBuilder::new(argv[0])` + `.arg(argv[1..])`、`cwd=project_path`（**不经 shell**）。
+    /// 4. spawn 到 slave，取 writer（仅一次）、存 master/writer/child 到会话表。
     pub fn open(
         &self,
         id: &str,
@@ -92,17 +98,26 @@ impl PtyRegistry {
             return Err(format!("PTY 会话已存在: {id}"));
         }
 
-        // 1. 经 registry 路由 provider，生成命令字符串（复用现有 start/resume_command）。
+        // 1. 经 registry 路由 provider。
         let p = reg
             .by_id(provider)
             .ok_or_else(|| format!("未知 provider: {provider}"))?;
-        let cmd = match session_id {
-            Some(sid) => p.resume_command(project_path, sid),
-            None => p.start_command(None),
-        };
 
-        // 2. 选 shell + 组装 argv（纯函数，可 standalone 测）。
-        let argv = build_shell_argv(&cmd);
+        // 2. 生成 argv（**不经 shell**）。session_id 先过白名单双保险，再作独立 argv 元素传入。
+        let argv = match session_id {
+            Some(sid) => {
+                // 白名单：即便已 argv 化根除了 shell 注入，仍拒绝异常 session_id（纵深防御）。
+                if !is_valid_session_id(sid) {
+                    return Err(format!("非法 session_id（仅允许 A-Za-z0-9_- 且 ≤128 字符）: {sid}"));
+                }
+                p.resume_argv(project_path, sid)
+            }
+            None => p.start_argv(None),
+        };
+        // argv 至少要有可执行名，否则 CommandBuilder 无从起进程。
+        if argv.is_empty() {
+            return Err("provider 返回空 argv".to_string());
+        }
 
         // 3. 开 PTY。默认 80x24；前端连上后会立即 resize 到真实终端尺寸。
         let pair = native_pty_system()
@@ -114,7 +129,8 @@ impl PtyRegistry {
             })
             .map_err(|e| format!("openpty 失败: {e}"))?;
 
-        // 4. 组装 CommandBuilder：argv[0]=shell，其余为参数；cwd=项目目录。
+        // 4. 组装 CommandBuilder：argv[0]=CLI 二进制（claude/codex），其余为独立参数；cwd=项目目录。
+        //    直传 argv、不经 shell：session_id/prompt 中的元字符不会被解释 → 无注入。
         let mut builder = CommandBuilder::new(&argv[0]);
         for a in &argv[1..] {
             builder.arg(a);
@@ -184,12 +200,12 @@ impl PtyRegistry {
             .map_err(|e| format!("克隆 PTY reader 失败: {e}"))
     }
 
-    /// 终止会话：kill 子进程并从表中移除（连同 master/writer 一并 drop，释放 PTY）。
+    /// 终止会话：kill 子进程、`wait` 收尸并从表中移除（连同 master/writer 一并 drop，释放 PTY）。
     ///
-    /// 移除的会话被返回持有到函数末尾再析构：在持锁期间只做 `kill`（内部仅发信号/终止，不阻塞），
-    /// drop（可能触发 writer EOF / 句柄关闭）放到锁释放后，避免长时间持锁。
+    /// 摘出会话后在锁外 kill：`kill` 发终止信号；随后 `wait` 回收退出状态，避免留下僵尸进程
+    /// / 泄漏进程句柄（不 wait 的话 kill 只发信号，OS 仍保留进程表项直到父进程 reap）。
     pub fn kill(&self, id: &str) -> Result<(), String> {
-        // 先从表中摘出会话（持锁期间完成 remove + kill）。
+        // 先从表中摘出会话（仅 remove 在持锁期间完成）。
         let mut session = {
             let mut guard = self.sessions.lock();
             guard
@@ -198,73 +214,65 @@ impl PtyRegistry {
         };
         // kill 需 &mut self；子进程可能已自然退出，此时 kill 报错可忽略（视为已终止）。
         let res = session.child.kill().map_err(|e| format!("kill 子进程失败: {e}"));
+        // 收尸：wait 回收退出状态，杜绝僵尸/句柄泄漏（无论 kill 成败都要 reap）。
+        let _ = session.child.wait();
         // session 在此出作用域析构：master/writer 关闭，PTY 资源回收。
         res
     }
 }
 
-/// 纯函数：为「用系统 shell 执行一段命令字符串」组装 argv。
-///
-/// 返回的 `Vec<String>`：`argv[0]` = shell 可执行名，其余为参数，最后一个是原样透传的命令字符串。
-/// **不做任何命令行拆分**——正是为了避免手写解析踩引号/空格坑：让 shell 自己去解析。
-///
-/// - Windows：`["cmd.exe", "/C", <cmd>]`
-/// - 其他平台：`["sh", "-c", <cmd>]`
-///
-/// 该函数无 IO / PTY 依赖，可在 standalone `rustc --test` 中直接验证（含 `#[cfg]` 双平台断言）。
-pub fn build_shell_argv(cmd: &str) -> Vec<String> {
-    #[cfg(windows)]
-    {
-        // cmd.exe /C "<命令>"：/C 执行随后命令串并退出。命令串整体作为**一个** argv 元素透传，
-        // 由 cmd.exe 自行解析引号/空格，我方不拆分。
-        vec!["cmd.exe".to_string(), "/C".to_string(), cmd.to_string()]
+/// registry 释放（app 退出）时清场：遍历所有残留会话，逐个 kill + wait 收尸，
+/// 杜绝孤儿 CLI agent 进程。gateway stop / app exit 的**主动**清场钩子由 Task 11/lib.rs 接线，
+/// 本 Drop 是兜底：任何路径下只要 registry 被 drop，子进程都不会被遗留。
+impl Drop for PtyRegistry {
+    fn drop(&mut self) {
+        // Drop 独占 &mut self，无并发；直接取出会话表逐个终止。
+        let mut guard = self.sessions.lock();
+        for (_id, mut session) in guard.drain() {
+            let _ = session.child.kill(); // 已退出的报错可忽略
+            let _ = session.child.wait(); // 收尸，避免僵尸
+        }
     }
-    #[cfg(not(windows))]
-    {
-        // sh -c '<命令>'：-c 后整串作为一个参数交给 sh 解析。
-        vec!["sh".to_string(), "-c".to_string(), cmd.to_string()]
-    }
+}
+
+/// 校验 session_id 是否安全：仅允许 `A-Za-z0-9_-`，长度 1..=128。
+///
+/// 纵深防御第二层（第一层是 argv 化本身已不经 shell）：拒绝任何含空格/元字符/超长的
+/// session_id。claude UUID（如 `3b2d24c0-...`）、codex session id 均满足此约束。
+/// 纯函数，无 IO，可 standalone `rustc --test` 验证。
+pub fn is_valid_session_id(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 128
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// shell argv 组装：命令字符串整体作为最后一个 argv 元素透传（不拆分），
-    /// 引号/空格交给 shell 解析。双平台分别断言 shell 与开关。
+    /// 合法 session_id（claude UUID 风格、codex id）应通过白名单。
     #[test]
-    fn build_shell_argv_wraps_command_as_single_arg() {
-        let argv = build_shell_argv("claude --resume abc \"hi there\"");
-        // 恒为 3 段：shell + 开关 + 原样命令串。
-        assert_eq!(argv.len(), 3);
-        // 命令串原样透传，含引号与空格，未被拆分。
-        assert_eq!(argv[2], "claude --resume abc \"hi there\"");
-
-        #[cfg(windows)]
-        {
-            assert_eq!(argv[0], "cmd.exe");
-            assert_eq!(argv[1], "/C");
-        }
-        #[cfg(not(windows))]
-        {
-            assert_eq!(argv[0], "sh");
-            assert_eq!(argv[1], "-c");
-        }
+    fn valid_session_id_accepts_normal_ids() {
+        assert!(is_valid_session_id("3b2d24c0-parent-4a5f-9e3a-64f10dbb2ca4"));
+        assert!(is_valid_session_id("codex-session-abc123"));
+        assert!(is_valid_session_id("abc_123-XYZ"));
+        assert!(is_valid_session_id("a")); // 单字符合法
     }
 
-    /// 空命令串也应产出合法 3 段 argv（shell 会起一个空/交互 shell，不 panic）。
+    /// 含 shell 元字符 / 空格 / 空串 / 超长的 session_id 应被拒绝（纵深防御）。
     #[test]
-    fn build_shell_argv_handles_empty() {
-        let argv = build_shell_argv("");
-        assert_eq!(argv.len(), 3);
-        assert_eq!(argv[2], "");
-    }
-
-    /// 含分号/管道等 shell 元字符时同样原样透传——由 shell 解释，我方不干预。
-    #[test]
-    fn build_shell_argv_preserves_metachars() {
-        let cmd = "codex resume 'x y' && echo done";
-        let argv = build_shell_argv(cmd);
-        assert_eq!(argv[2], cmd);
+    fn valid_session_id_rejects_injection_and_edge_cases() {
+        // 命令注入载荷：含 ; 空格 / 等，必须拒绝。
+        assert!(!is_valid_session_id("x; rm -rf /"));
+        assert!(!is_valid_session_id("$(whoami)"));
+        assert!(!is_valid_session_id("a|b"));
+        assert!(!is_valid_session_id("a&&b"));
+        assert!(!is_valid_session_id("a b")); // 空格
+        assert!(!is_valid_session_id("")); // 空串
+        // 超长（129 字符）应被拒绝。
+        assert!(!is_valid_session_id(&"a".repeat(129)));
+        // 边界：128 字符恰好允许。
+        assert!(is_valid_session_id(&"a".repeat(128)));
     }
 }
