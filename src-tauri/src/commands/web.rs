@@ -27,10 +27,22 @@ pub async fn web_gateway_start(state: State<'_, AppState>) -> Result<u16, String
             return Ok(h.port);
         }
     }
-    // 2) 绑定 + 起 server（await 在锁外）。
+    // 2) 从 AppState.auth 取 PB base URL（PB 启动后才有值；未就绪则传空串，
+    //    gateway 会将 /pb/* 请求 502 返回，不影响其他路由，不 panic）。
+    //    取锁后立即 clone String 并释放锁，不跨 await 持锁。
+    let pb_base: String = {
+        let guard = state.auth.lock();
+        guard
+            .as_ref()
+            .map(|a| a.base_url.clone())
+            .unwrap_or_default()
+    };
+
+    // 3) 绑定 + 起 server（await 在锁外）。
     //    传入共享的 web_auth：gateway 认证中间件与设置栏（Task 5）用同一实例。
-    let (port, handle) = crate::web::server::start(0, state.web_auth.clone()).await?;
-    // 3) 写回句柄（重新取锁；此处已无 await）。
+    //    传入 pb_base：供 /pb/* 反代路由使用（目标硬编码本机，防 SSRF）。
+    let (port, handle) = crate::web::server::start(0, state.web_auth.clone(), pb_base).await?;
+    // 4) 写回句柄（重新取锁；此处已无 await）。
     //    极小概率并发下另一次调用已抢先写入：以先到者为准，本次多起的 server
     //    通过 drop handle（其 shutdown Sender drop）触发优雅关闭，避免端口泄漏。
     {
