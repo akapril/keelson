@@ -436,7 +436,8 @@ mod tests {
         }
         let ok_count = handles
             .into_iter()
-            .filter(|h| h.join().unwrap())
+            .map(|h| h.join().unwrap()) // into_iter 产 owned JoinHandle，可 join（filter 只给 &h 会 E0507）
+            .filter(|&ok| ok)
             .count();
         // 同一旧码并发 8 次，只有 1 次应成功（其余见到轮换后的新码，比对失败）。
         assert_eq!(ok_count, 1, "同一旧码并发只应成功一次，实际成功 {ok_count} 次");
