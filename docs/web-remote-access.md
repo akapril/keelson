@@ -141,7 +141,7 @@ Cloudflare Tunnel 会提供 HTTPS 终结，满足 Secure cookie 要求。配置 
 A: 大概率是用了明文 `http://` 访问非 localhost 地址，浏览器丢弃了 Secure cookie。请确认使用的是 `tailscale serve` 提供的 `https://` 地址。
 
 **Q: `tailscale serve` 命令提示权限错误。**  
-A: 在 Windows 上，Tailscale 客户端需要管理员权限，或在 Tailscale 图形界面中操作。也可以尝试：`tailscale serve --tcp 443 tcp://localhost:47700`。
+A: 在 Windows 上 `tailscale serve` 可能需要管理员权限——用管理员身份打开终端后重试，或在 Tailscale 图形界面的 Serve 标签页里配置。**切勿改用 `--tcp` 透传模式**：它不做 HTTPS 终结、无法承载浏览器 Secure cookie，配对仍会掉线；务必用上文的 `tailscale serve https / http://localhost:47700`（HTTPS 终结）。
 
 **Q: 手机访问提示「无法连接」。**  
 A: 确认手机上的 Tailscale 已登录同一账号且状态为「已连接」。可在手机 Tailscale 应用的设备列表里确认本机是否可见。
