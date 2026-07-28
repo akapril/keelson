@@ -134,9 +134,19 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
 
+    // 仅在容器可见（有实际尺寸）时 fit：keep-alive 布局下切走 tab 会把容器设为
+    // display:none（clientWidth/Height=0），此时 fit() 会算出 1x1 破坏终端；跳过即可，
+    // 切回可见时 ResizeObserver 会再触发一次正常 fit。返回是否真正执行了 fit。
+    const safeFit = (): boolean => {
+      const el = containerRef.current;
+      if (!el || el.clientWidth === 0 || el.clientHeight === 0) return false;
+      fitAddon.fit();
+      return true;
+    };
+
     // 渲染到 DOM
     term.open(containerRef.current);
-    fitAddon.fit();
+    safeFit();
 
     // 连接 WS（回调经 ref 取最新值，不将函数引用纳入 effect deps）
     const ws = openTerminalWs(
@@ -157,7 +167,7 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
           // （挂载时 ResizeObserver 首帧的 resize 可能在 WS 尚未 open 时发出而丢失，
           //  故必须在 connected 时补发一次权威尺寸。）
           if (s === "connected") {
-            fitAddon.fit();
+            safeFit();
             ws.resize(term.cols, term.rows);
           }
         },
@@ -172,11 +182,12 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       ws.send(str);
     });
 
-    // 容器尺寸变化 → fit + resize 帧
+    // 容器尺寸变化 → fit + resize 帧。隐藏(0 尺寸)时 safeFit 跳过，不下发无意义 resize。
     const observer = new ResizeObserver(() => {
-      // fit() 内部会重新计算 cols/rows
-      fitAddon.fit();
-      ws.resize(term.cols, term.rows);
+      // fit() 内部会重新计算 cols/rows；仅在真正 fit 后才把新尺寸同步给 PTY
+      if (safeFit()) {
+        ws.resize(term.cols, term.rows);
+      }
     });
     observer.observe(containerRef.current);
 
