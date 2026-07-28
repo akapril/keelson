@@ -33,6 +33,18 @@ use tower_http::services::ServeDir;
 /// Gateway 侧会话缓存共享句柄（与 AppState.sessions 同一 Arc）。
 pub type SessionsState = Arc<Mutex<Vec<Session>>>;
 
+/// `/ws/terminal/{id}` handler 的共享状态：PTY 会话表 + provider 注册表。
+///
+/// 两者均以 `Arc` 共享（与 `AppState.web_pty` / `AppState.reg` 同一实例），
+/// 供 WS handler 在 spawn 的 server 任务里 open/write/resize/read/kill PTY，并按 provider 路由命令。
+#[derive(Clone)]
+pub struct WsTerminalState {
+    /// 内嵌 PTY 会话表（与 AppState.web_pty 同一 Arc）。
+    pub pty: Arc<crate::web::terminal::PtyRegistry>,
+    /// provider 注册表（与 AppState.reg 同一 Arc），供 `by_id` 白名单路由 + argv 命令生成。
+    pub reg: Arc<crate::providers::ProviderRegistry>,
+}
+
 /// Gateway 运行句柄：持有实际端口 + 优雅关闭信号发送端。
 ///
 /// `oneshot::Sender` 非 Clone——故存于 `AppState` 的 `Option` 中，停止时 `take()`
@@ -194,6 +206,7 @@ fn build_router(
     pb_base: String,
     api_state: ApiState,
     sessions_state: SessionsState,
+    ws_terminal: WsTerminalState,
 ) -> Router {
     // 静态前端：dist 存在则 ServeDir，否则所有 GET 回落占位页。
     let static_service = match resolve_dist_dir() {
@@ -208,6 +221,16 @@ fn build_router(
     let pb_router = Router::new()
         .route("/pb/{*path}", any(pb_proxy_handler))
         .with_state(pb_proxy_state);
+
+    // WS 终端子路由（独立 Router + with_state 注入 WsTerminalState）。
+    // `/ws/terminal/{id}` **不在** `is_public_path` 白名单 → 进入此 Router 前已过 `require_token`
+    // layer（升级握手请求带 cookie，中间件校验 token 通过才会触达 handler → 未鉴权连接不 open PTY）。
+    let ws_router = Router::new()
+        .route(
+            "/ws/terminal/{id}",
+            get(crate::web::terminal::ws_terminal_handler),
+        )
+        .with_state(ws_terminal);
 
     // `/api/bootstrap_auth`：捕获 api_state 到闭包，避免与 AuthState 状态冲突。
     // 直接以 move 闭包注册路由，无需额外子 Router + with_state（规避 axum 0.8 的
@@ -260,7 +283,9 @@ fn build_router(
         .route("/api/sessions_list", post(sessions_list_handler))
         // PB 同源反向代理（token 闸内，防 SSRF）。
         .merge(pb_router)
-        // 静态前端兜底（含占位页回落）。未来 `/ws` 在此之前显式注册即受保护。
+        // WS 终端双向泵（token 闸内，非白名单 → require_token 自动覆盖握手）。
+        .merge(ws_router)
+        // 静态前端兜底（含占位页回落）。`/ws/terminal` 已在此之前显式注册即受保护。
         .merge(static_service)
         // ⚠️ 最外层默认拒绝：非白名单路径一律需有效 token。新增路由自动受此约束。
         .layer(middleware::from_fn_with_state(auth.clone(), require_token))
@@ -291,6 +316,7 @@ pub async fn start(
     pb_base: String,
     api_state: ApiState,
     sessions_state: SessionsState,
+    ws_terminal: WsTerminalState,
 ) -> Result<(u16, GatewayHandle), String> {
     // 绑定 0.0.0.0：外网可达（详见文件顶部安全红线）。
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
@@ -303,7 +329,7 @@ pub async fn start(
         .port();
 
     let (tx, rx) = oneshot::channel::<()>();
-    let router = build_router(auth, pb_base, api_state, sessions_state);
+    let router = build_router(auth, pb_base, api_state, sessions_state, ws_terminal);
 
     // 后台运行：收到 shutdown 信号（rx 完成）后优雅退出。
     tokio::spawn(async move {
@@ -337,7 +363,17 @@ mod tests {
         let auth = Arc::new(AuthState::new());
         let api_state: ApiState = Arc::new(Mutex::new(None));
         let sessions_state: SessionsState = Arc::new(Mutex::new(Vec::<Session>::new()));
-        let _router = build_router(auth, "http://127.0.0.1:8790".to_string(), api_state, sessions_state);
+        let ws_terminal = WsTerminalState {
+            pty: Arc::new(crate::web::terminal::PtyRegistry::new()),
+            reg: Arc::new(crate::providers::ProviderRegistry::new()),
+        };
+        let _router = build_router(
+            auth,
+            "http://127.0.0.1:8790".to_string(),
+            api_state,
+            sessions_state,
+            ws_terminal,
+        );
     }
 
     #[test]

@@ -52,7 +52,8 @@ regex = "1" # 日志级别解析
 encoding_rs = "0.8" # 进程日志解码：GBK/GB18030 回退，修 Windows 中文子进程乱码
 fastembed = { version = "4", optional = true } # 本地嵌入（ONNX），仅 local-embed feature
 rmcp = { version = "0.16", features = ["server", "transport-streamable-http-server"] }
-axum = "0.8"
+# axum 的 WebSocket 支持在 0.8 里由 "ws" feature 门控（Task 11 /ws/terminal 双向泵需要）。
+axum = { version = "0.8", features = ["ws"] }
 # Web Gateway 静态前端 serve（dist）。仅启用 fs feature 取 ServeDir；
 # tower-http 已作为 axum 传递依赖存在于 Cargo.lock，此处仅提升为直接依赖并加 fs feature。
 tower-http = { version = "0.6", features = ["fs"] }

@@ -27,11 +27,17 @@
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
+use std::sync::Arc;
 
 use parking_lot::Mutex;
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{Path, Query, State};
+use axum::response::Response;
+
 use crate::providers::ProviderRegistry;
+use crate::web::server::WsTerminalState;
 
 /// 单个 PTY 会话：持有 master 端句柄、可写入的 stdin、以及子进程句柄。
 ///
@@ -200,6 +206,27 @@ impl PtyRegistry {
             .map_err(|e| format!("克隆 PTY reader 失败: {e}"))
     }
 
+    /// 判断某会话是否已存在（供 WS handler 决定「新开」还是「接管重连」）。
+    pub fn exists(&self, id: &str) -> bool {
+        self.sessions.lock().contains_key(id)
+    }
+
+    /// 主动清场：kill 全表所有会话并收尸。供 gateway stop / app exit 的退出钩子调用，
+    /// 杜绝孤儿 CLI agent（`Drop for PtyRegistry` 是最终兜底，此方法是**主动**触发路径）。
+    ///
+    /// WS 断连**不**调用本方法（允许前端重连接管）；仅在 gateway 停止或 app 退出时调用。
+    pub fn kill_all(&self) {
+        // drain 一次性摘出全表；对每个会话 kill + wait 收尸。已退出的 kill 报错忽略。
+        let drained: Vec<(String, PtySession)> = {
+            let mut guard = self.sessions.lock();
+            guard.drain().collect()
+        };
+        for (_id, mut session) in drained {
+            let _ = session.child.kill();
+            let _ = session.child.wait();
+        }
+    }
+
     /// 终止会话：kill 子进程、`wait` 收尸并从表中移除（连同 master/writer 一并 drop，释放 PTY）。
     ///
     /// 摘出会话后在锁外 kill：`kill` 发终止信号；随后 `wait` 回收退出状态，避免留下僵尸进程
@@ -247,6 +274,251 @@ pub fn is_valid_session_id(s: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
+/// 校验 project_path 是否合法（非空、绝对路径；拒绝任意相对路径/空串）。
+///
+/// Task 10 转交·安全：project_path 作为 PTY 的 cwd 传入，必须是明确的绝对路径，
+/// 不接受空串或相对路径（避免 cwd 落到进程当前目录等非预期位置）。
+/// 绝对路径判定用 [`std::path::Path::is_absolute`]（跨平台：Windows 认盘符/UNC，*nix 认前导 `/`）。
+/// 纯函数，无 IO，可 standalone 测。
+pub fn is_valid_project_path(p: &str) -> bool {
+    !p.trim().is_empty() && std::path::Path::new(p).is_absolute()
+}
+
+// ── WS 协议帧解析（纯逻辑，抽出便于 standalone `rustc --test`）───────────────
+
+/// WS 入站帧经解析后的语义：控制指令或标准输入。
+///
+/// 协议约定（清晰、无歧义）：
+/// - **Binary 帧** = 始终当作 stdin 原样喂给 PTY（键入/粘贴的字节流，可含非法 UTF-8）。
+/// - **Text 帧且是合法 JSON 控制帧**（`{"type":"resize"|"exit"|...}`）= 控制指令。
+/// - **Text 帧但不是控制 JSON** = 也当作 stdin（普通键入文本）。
+#[derive(Debug, PartialEq, Eq)]
+pub enum InboundFrame {
+    /// 调整 PTY 窗口大小。
+    Resize { cols: u16, rows: u16 },
+    /// stdin 字节流（喂给 PTY writer）。
+    Stdin(Vec<u8>),
+    /// 忽略（如 ping/pong/close 由上层处理；此处不产生副作用）。
+    Ignore,
+}
+
+/// 解析一条二进制 WS 帧：Binary 恒为 stdin。
+pub fn parse_binary_frame(bytes: Vec<u8>) -> InboundFrame {
+    InboundFrame::Stdin(bytes)
+}
+
+/// 解析一条文本 WS 帧：
+/// - 若能解析为控制 JSON（`{"type":"resize",...}`）→ 对应控制指令；
+/// - 否则整段文本按 stdin 处理（普通键入）。
+///
+/// resize 帧需同时含合法 `cols`/`rows`（u16 范围内正整数）；缺字段/越界/type 未知
+/// → 不当控制帧，回落为 stdin（fail-safe：宁可把控制帧误当输入，也不静默丢弃用户数据）。
+pub fn parse_text_frame(text: &str) -> InboundFrame {
+    // 仅当能解析成 JSON 对象且带已知 "type" 时才视作控制帧。
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(text) {
+        if let Some(t) = v.get("type").and_then(|t| t.as_str()) {
+            match t {
+                "resize" => {
+                    // cols/rows 必须是 1..=u16::MAX 的整数；任一非法则回落为 stdin。
+                    let cols = v.get("cols").and_then(|c| c.as_u64());
+                    let rows = v.get("rows").and_then(|r| r.as_u64());
+                    if let (Some(c), Some(r)) = (cols, rows) {
+                        if (1..=u16::MAX as u64).contains(&c) && (1..=u16::MAX as u64).contains(&r) {
+                            return InboundFrame::Resize {
+                                cols: c as u16,
+                                rows: r as u16,
+                            };
+                        }
+                    }
+                    // 非法 resize：不 resize，也不误当输入注入乱码 → 忽略。
+                    return InboundFrame::Ignore;
+                }
+                // 其它已知控制类型（如前端主动 "exit"）：此处不下发到 PTY，交由上层策略。
+                "exit" | "ping" => return InboundFrame::Ignore,
+                // 未知 type：当作普通输入文本处理。
+                _ => {}
+            }
+        }
+    }
+    // 非 JSON / 无 type / 未知 type：按 stdin 处理。
+    InboundFrame::Stdin(text.as_bytes().to_vec())
+}
+
+// ── WS 路由参数 ─────────────────────────────────────────────────────────────
+
+/// `/ws/terminal/{id}` 的 query 参数：`?provider=claude&path=<绝对路径>`。
+#[derive(serde::Deserialize)]
+pub struct WsTerminalQuery {
+    /// provider 标识（"claude" / "codex"），经 `reg.by_id` 白名单路由。
+    provider: String,
+    /// 项目绝对路径，作为 PTY 的 cwd。
+    path: String,
+}
+
+// ── WS handler ──────────────────────────────────────────────────────────────
+
+/// `/ws/terminal/{id}` 升级 handler。
+///
+/// **鉴权前提**：本路由挂在 `require_token` layer **闸内**（非公开白名单），故 axum 在调用
+/// 本 handler **之前**已校验 cookie token 通过——未鉴权连接根本不会触达此处，更不会 open PTY。
+///
+/// 升级前先做参数校验（provider 白名单 / project_path 合法 / id=session_id 白名单）：
+/// 任一不合法则**不升级**、直接返回错误响应，绝不 open。全部通过才 `on_upgrade` 建 WS。
+pub async fn ws_terminal_handler(
+    ws: WebSocketUpgrade,
+    Path(id): Path<String>,
+    Query(q): Query<WsTerminalQuery>,
+    State(st): State<WsTerminalState>,
+) -> Response {
+    use axum::response::IntoResponse;
+    // 1) provider 白名单：未知 provider 直接拒（不升级）。
+    if st.reg.by_id(&q.provider).is_none() {
+        return (axum::http::StatusCode::BAD_REQUEST, "未知 provider").into_response();
+    }
+    // 2) id(=session_id) 白名单双保险（open 内亦会校验，这里提前拒以免无谓升级）。
+    if !is_valid_session_id(&id) {
+        return (axum::http::StatusCode::BAD_REQUEST, "非法会话 id").into_response();
+    }
+    // 3) project_path 合法性：非空 + 绝对路径。
+    if !is_valid_project_path(&q.path) {
+        return (axum::http::StatusCode::BAD_REQUEST, "非法 project path").into_response();
+    }
+
+    // 校验通过 → 升级。闭包捕获校验后的参数，在 WS 建立后接管双向泵。
+    ws.on_upgrade(move |socket| async move {
+        run_terminal_ws(socket, id, q.provider, q.path, st).await;
+    })
+}
+
+/// WS 建立后的主循环：开/接管 PTY 会话，然后双向泵 pty<->ws，直至任一方结束。
+///
+/// 生命周期：**WS 断连不杀 pty**（允许重连接管）；仅 pty 自身退出时才主动清理会话。
+async fn run_terminal_ws(
+    socket: WebSocket,
+    id: String,
+    provider: String,
+    project_path: String,
+    st: WsTerminalState,
+) {
+    use axum::extract::ws::Utf8Bytes;
+    use futures_util::{SinkExt, StreamExt};
+
+    // 1) 会话不存在则 open；已存在则直接接管（重连场景，不重复 open）。
+    //    id 同时用作 session_id（resume 恢复既有会话）。open 内含 session_id 白名单 + argv 化。
+    if !st.pty.exists(&id) {
+        if let Err(e) = st
+            .pty
+            .open(&id, &provider, &project_path, Some(&id), &st.reg)
+        {
+            // open 失败：告知前端并关闭。不泄露内部细节到日志（此处仅用于前端提示帧）。
+            let _ = {
+                let (mut tx, _rx) = socket.split();
+                tx.send(Message::Text(Utf8Bytes::from(EXIT_FRAME))).await
+            };
+            // 打印一条不含敏感数据的诊断（provider/id 非敏感；不打印 project_path 全量与 token）。
+            eprintln!("[ws-terminal] open 失败(provider={provider}, id={id}): {e}");
+            return;
+        }
+    }
+
+    // 2) 取只读 reader；失败则关闭（会话虽在但克隆 reader 异常，属罕见）。
+    let reader = match st.pty.take_reader(&id) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("[ws-terminal] take_reader 失败(id={id}): {e}");
+            let (mut tx, _rx) = socket.split();
+            let _ = tx.send(Message::Text(Utf8Bytes::from(EXIT_FRAME))).await;
+            return;
+        }
+    };
+
+    // 拆分 WS 为发送/接收两半，供两个方向独立使用。
+    let (mut ws_tx, mut ws_rx) = socket.split();
+
+    // 3) pty→channel：阻塞读放到 blocking 线程（PTY read 是同步阻塞 IO，不能占用 async 运行时）。
+    //    读到的字节经 mpsc channel 送回 async 侧；EOF/错误则关闭 channel（发送端 drop）。
+    let (byte_tx, mut byte_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(64);
+    let reader_handle = tokio::task::spawn_blocking(move || {
+        let mut reader = reader;
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,            // EOF：PTY 关闭
+                Ok(n) => {
+                    // channel 满/接收端已关：blocking_send 报错 → 退出读循环。
+                    if byte_tx.blocking_send(buf[..n].to_vec()).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break, // 读错误（含子进程退出后 master 报错）：结束
+            }
+        }
+        // 发送端在此 drop → byte_rx 收到 None，async 侧据此判定 pty 退出。
+    });
+
+    // 4) 双向泵：tokio::select! 同时处理「pty→ws」与「ws→pty」。
+    //    注意：handler 内**不持锁跨 await**——所有 PtyRegistry 调用（write/resize）都是
+    //    同步方法（内部 parking_lot 锁在方法内即取即放），不横跨 .await 边界。
+    let pty = Arc::clone(&st.pty);
+    loop {
+        tokio::select! {
+            // 4a) pty→ws：从 channel 收到 PTY 输出字节 → Binary 帧发给浏览器。
+            maybe_bytes = byte_rx.recv() => {
+                match maybe_bytes {
+                    Some(bytes) => {
+                        if ws_tx.send(Message::Binary(bytes.into())).await.is_err() {
+                            // ws 已断：跳出，进入「不杀 pty」的清理（允许后续重连接管）。
+                            break;
+                        }
+                    }
+                    None => {
+                        // channel 关闭 = PTY 退出：通知前端 exit 后关闭 ws，并清理该会话。
+                        let _ = ws_tx.send(Message::Text(Utf8Bytes::from(EXIT_FRAME))).await;
+                        let _ = pty.kill(&id); // pty 已退出，kill 主要为 remove+wait 收尸
+                        return;
+                    }
+                }
+            }
+            // 4b) ws→pty：收浏览器帧 → 解析为 stdin / resize。
+            maybe_msg = ws_rx.next() => {
+                match maybe_msg {
+                    Some(Ok(Message::Binary(data))) => {
+                        // Binary 恒为 stdin。
+                        if let InboundFrame::Stdin(bytes) = parse_binary_frame(data.to_vec()) {
+                            let _ = pty.write(&id, &bytes);
+                        }
+                    }
+                    Some(Ok(Message::Text(text))) => {
+                        // Text：控制 JSON（resize/exit）或普通 stdin。
+                        match parse_text_frame(text.as_str()) {
+                            InboundFrame::Resize { cols, rows } => {
+                                let _ = pty.resize(&id, cols, rows);
+                            }
+                            InboundFrame::Stdin(bytes) => {
+                                let _ = pty.write(&id, &bytes);
+                            }
+                            InboundFrame::Ignore => {}
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) | None => {
+                        // 前端主动关或连接断：跳出循环。**不杀 pty**（重连接管）。
+                        break;
+                    }
+                    Some(Ok(_)) => { /* Ping/Pong：axum 自动处理，忽略 */ }
+                    Some(Err(_)) => break, // ws 读错误：跳出，不杀 pty
+                }
+            }
+        }
+    }
+
+    // 5) 循环退出=WS 断连（非 pty 退出）：**不 kill pty**，仅结束 reader 线程的字节泵。
+    //    reader 线程会在 byte_tx 因本 async 任务结束而无接收方时自然收敛；此处显式 abort 加速回收。
+    reader_handle.abort();
+}
+
+/// pty 退出时发给前端的控制帧（约定：Text JSON `{"type":"exit"}`）。
+const EXIT_FRAME: &str = r#"{"type":"exit"}"#;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,5 +546,72 @@ mod tests {
         assert!(!is_valid_session_id(&"a".repeat(129)));
         // 边界：128 字符恰好允许。
         assert!(is_valid_session_id(&"a".repeat(128)));
+    }
+
+    /// project_path：绝对路径接受，空串/相对路径拒绝。
+    #[test]
+    fn project_path_requires_absolute_nonempty() {
+        // *nix 绝对路径 / Windows 盘符路径至少一种在本平台成立。
+        #[cfg(windows)]
+        assert!(is_valid_project_path("C:\\workspace\\rework"));
+        #[cfg(not(windows))]
+        assert!(is_valid_project_path("/home/user/project"));
+        // 空串 / 纯空白 / 相对路径一律拒绝。
+        assert!(!is_valid_project_path(""));
+        assert!(!is_valid_project_path("   "));
+        assert!(!is_valid_project_path("relative/path"));
+        assert!(!is_valid_project_path("./x"));
+    }
+
+    /// Binary 帧恒为 stdin（原样字节，可含非 UTF-8）。
+    #[test]
+    fn binary_frame_is_stdin() {
+        let raw = vec![0x1b, 0x5b, 0x41, 0xff]; // ESC[A + 非法 UTF-8 字节
+        assert_eq!(parse_binary_frame(raw.clone()), InboundFrame::Stdin(raw));
+    }
+
+    /// 合法 resize 控制帧 → Resize；cols/rows 正确解析。
+    #[test]
+    fn text_resize_frame_parses() {
+        let f = parse_text_frame(r#"{"type":"resize","cols":120,"rows":40}"#);
+        assert_eq!(f, InboundFrame::Resize { cols: 120, rows: 40 });
+    }
+
+    /// 非法 resize（缺字段 / 越界 / 零值）→ Ignore（不 resize 也不注入乱码）。
+    #[test]
+    fn text_resize_frame_rejects_invalid() {
+        // 缺 rows
+        assert_eq!(parse_text_frame(r#"{"type":"resize","cols":80}"#), InboundFrame::Ignore);
+        // 越界（> u16::MAX = 65535）
+        assert_eq!(
+            parse_text_frame(r#"{"type":"resize","cols":70000,"rows":40}"#),
+            InboundFrame::Ignore
+        );
+        // 零值（终端尺寸至少为 1）
+        assert_eq!(
+            parse_text_frame(r#"{"type":"resize","cols":0,"rows":40}"#),
+            InboundFrame::Ignore
+        );
+    }
+
+    /// 非 JSON / 无 type 的文本帧 → 当作 stdin（普通键入）。
+    #[test]
+    fn text_non_control_is_stdin() {
+        assert_eq!(
+            parse_text_frame("ls -la\n"),
+            InboundFrame::Stdin(b"ls -la\n".to_vec())
+        );
+        // 合法 JSON 但无 "type" 字段 → 也当 stdin。
+        assert_eq!(
+            parse_text_frame(r#"{"foo":1}"#),
+            InboundFrame::Stdin(br#"{"foo":1}"#.to_vec())
+        );
+    }
+
+    /// 已知非输入控制类型（exit/ping）→ Ignore（不下发到 PTY）。
+    #[test]
+    fn text_known_control_ignored() {
+        assert_eq!(parse_text_frame(r#"{"type":"exit"}"#), InboundFrame::Ignore);
+        assert_eq!(parse_text_frame(r#"{"type":"ping"}"#), InboundFrame::Ignore);
     }
 }
