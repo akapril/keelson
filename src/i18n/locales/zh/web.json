@@ -46,5 +46,23 @@
       "updated": "更新于 {{time}}",
       "messages": "{{count}} 条消息"
     }
+  },
+  "terminal": {
+    "empty": {
+      "title": "未选择会话",
+      "hint": "请从工作台选一个会话以打开终端"
+    },
+    "header": {
+      "provider": "{{provider}}"
+    },
+    "status": {
+      "connecting": "连接中",
+      "connected": "已连接",
+      "reconnecting": "重连中",
+      "closed": "已关闭"
+    },
+    "virtualKeys": {
+      "label": "虚拟控制键"
+    }
   }
 }

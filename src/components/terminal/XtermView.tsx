@@ -8,8 +8,10 @@
  *
  * 主题：从 CSS 变量读取 --background / --foreground 等语义色，
  * 避免硬编码 hex，确保深/浅色模式均适配。
+ *
+ * ref 暴露：XtermHandle.sendInput(data) 供父组件（虚拟按键条）发送控制字节。
  */
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -52,6 +54,12 @@ function cssVarToColor(value: string, fallback: string): string {
   return v;
 }
 
+/** 通过 ref 暴露给父组件的句柄 */
+export interface XtermHandle {
+  /** 向 pty stdin 发送原始字节序列（用于虚拟按键条的控制字符） */
+  sendInput: (data: string) => void;
+}
+
 export interface XtermViewProps {
   /** 终端会话 ID（路由到 /ws/terminal/:sessionId） */
   sessionId: string;
@@ -74,22 +82,36 @@ export interface XtermViewProps {
  *   mount → new Terminal() → new FitAddon() → attach → open → fit → connect WS
  *   ResizeObserver → fit() + ws.resize(term.cols, term.rows)
  *   unmount → term.dispose() + ws.close()
+ *
+ * forwardRef 暴露 XtermHandle.sendInput()，供虚拟按键条发控制字节。
  */
-export function XtermView({
-  sessionId,
-  provider,
-  projectPath,
-  onExit,
-  onStatusChange,
-  className,
-}: XtermViewProps) {
+export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermView(
+  {
+    sessionId,
+    provider,
+    projectPath,
+    onExit,
+    onStatusChange,
+    className,
+  },
+  ref
+) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // ws 句柄用 ref 存储，供 useImperativeHandle 中的 sendInput 访问
+  const wsRef = useRef<{ send: (data: string) => void } | null>(null);
 
   // 用 ref 存最新回调，避免回调引用变化导致 effect 重跑（Terminal 重挂/闪烁）
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
   const onStatusChangeRef = useRef(onStatusChange);
   onStatusChangeRef.current = onStatusChange;
+
+  // 暴露 sendInput 给父组件（虚拟按键条使用）
+  useImperativeHandle(ref, () => ({
+    sendInput(data: string) {
+      wsRef.current?.send(data);
+    },
+  }), []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -134,6 +156,9 @@ export function XtermView({
       }
     );
 
+    // 将 ws 句柄存入 ref，供 sendInput 访问
+    wsRef.current = ws;
+
     // 键盘输入 → stdin（term.onData 发出 xterm 解码后的字符序列）
     const dataDisposable = term.onData((str) => {
       ws.send(str);
@@ -149,6 +174,7 @@ export function XtermView({
 
     // 清理：卸载时释放所有资源
     return () => {
+      wsRef.current = null;
       observer.disconnect();
       dataDisposable.dispose();
       ws.close();
@@ -167,4 +193,4 @@ export function XtermView({
       role="region"
     />
   );
-}
+});

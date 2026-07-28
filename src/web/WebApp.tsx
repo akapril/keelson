@@ -9,6 +9,7 @@ import { initPbAuth } from "@/lib/pb";
 import { PairScreen } from "./PairScreen";
 import { Workbench } from "./panels/Workbench";
 import { Notifications } from "./panels/Notifications";
+import { Terminal } from "./panels/Terminal";
 import type { Session } from "@/types/session";
 
 // 标识符：UI 标记，真凭证是 httpOnly cookie（JS 无法读取）
@@ -67,8 +68,8 @@ function TabIcon({ tab, active }: { tab: TabKey; active: boolean }) {
 function MainLayout() {
   const { t } = useTranslation("web");
   const [activeTab, setActiveTab] = useState<TabKey>("workspace");
-  // 用户从工作台选中的会话（供终端 tab 占位显示；Task 13 实现真正的终端内容）
-  const [_selectedSession, setSelectedSession] = useState<Session | null>(null);
+  // 用户从工作台选中的会话（Task 13：真正消费，传入 Terminal 面板）
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   // PB 初始化状态（web 分支全程 fetch，不调 invoke）
   const [pbReady, setPbReady] = useState(false);
 
@@ -96,6 +97,9 @@ function MainLayout() {
     switch (activeTab) {
       case "workspace":
         return <Workbench onOpenTerminal={handleOpenTerminal} />;
+      case "terminal":
+        // Task 13：接入真实终端面板，传入当前选中会话
+        return <Terminal session={selectedSession} />;
       case "notifications":
         // PB 未就绪时展示加载态（initPbAuth 通常 <1s，失败时 pbReady 也置 true）
         return <Notifications pbReady={pbReady} />;
