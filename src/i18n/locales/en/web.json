@@ -46,5 +46,23 @@
       "updated": "Updated {{time}}",
       "messages": "{{count}} messages"
     }
+  },
+  "terminal": {
+    "empty": {
+      "title": "No session selected",
+      "hint": "Select a session from the Workspace tab to open a terminal"
+    },
+    "header": {
+      "provider": "{{provider}}"
+    },
+    "status": {
+      "connecting": "Connecting",
+      "connected": "Connected",
+      "reconnecting": "Reconnecting",
+      "closed": "Closed"
+    },
+    "virtualKeys": {
+      "label": "Virtual keyboard shortcuts"
+    }
   }
 }
