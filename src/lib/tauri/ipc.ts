@@ -1,4 +1,5 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
+import { isTauri } from "@/lib/env";
 import type { Session, SessionHit, TimelineMessage, PlannedTask } from "../../types/session";
 import type { EmbedConfig, RagHit } from "@/types/rag";
 import type { CommitInfo, CorrelatedCommit, HookStatus } from "@/types/git";
@@ -19,74 +20,98 @@ export interface MdFile {
   path: string;
 }
 
+/**
+ * 双通道内部 helper：
+ * - Tauri 环境：直接调 invoke<T>(cmd, args)（原生 IPC）。
+ * - Web 环境：POST /api/<cmd>，携带 credentials: "same-origin"（复用 kln_token cookie）。
+ *   web 端未实现的 endpoint 会抛（404），对应 UI 不渲染即可。
+ *
+ * 唯一允许出现 invoke 字符串命令名的地方。新增本地能力只加一个 ipc.* 方法。
+ */
+function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  if (isTauri()) {
+    return invoke<T>(cmd, args);
+  }
+  // web 环境：走 gateway /api/<cmd>（POST + JSON body）
+  return fetch(`/api/${cmd}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(args ?? {}),
+  }).then((r) => {
+    if (!r.ok) throw new Error(`${cmd} ${r.status}`);
+    return r.json() as Promise<T>;
+  });
+}
+
 // 唯一允许出现 invoke 字符串命令名的地方。新增本地能力只加一个方法。
 export const ipc = {
-  ping: () => invoke<string>("ping"),
+  ping: () => call<string>("ping"),
 
   /** 将文本写入指定绝对路径（导出「另存为」用；配合 dialog.save 取路径） */
   writeTextFile: (path: string, content: string) =>
-    invoke<void>("write_text_file", { path, content }),
+    call<void>("write_text_file", { path, content }),
 
   /** 在系统文件管理器中打开路径（会话中枢 / 项目工作台「打开位置」） */
-  openPath: (path: string) => invoke<void>("open_path", { path }),
+  openPath: (path: string) => call<void>("open_path", { path }),
 
   /** 获取 PocketBase 数据目录绝对路径（设置页「打开数据目录」） */
-  pbDataDir: () => invoke<string>("pb_data_dir"),
+  pbDataDir: () => call<string>("pb_data_dir"),
 
   /** 读文本文件（「导入计划」解析计划/spec 用） */
-  readTextFile: (path: string) => invoke<string>("read_text_file", { path }),
+  readTextFile: (path: string) => call<string>("read_text_file", { path }),
   /** 列目录下 .md 文件（「导入计划」列计划目录用；目录不存在返回空） */
-  listMarkdownFiles: (dir: string) => invoke<MdFile[]>("list_markdown_files", { dir }),
+  listMarkdownFiles: (dir: string) => call<MdFile[]>("list_markdown_files", { dir }),
 
   /** Spotlight 打开任务/文档：聚焦主窗 + 广播导航事件 + 隐藏 spotlight（后端处理） */
-  spotlightOpen: (path: string) => invoke<void>("spotlight_open", { path }),
+  spotlightOpen: (path: string) => call<void>("spotlight_open", { path }),
 
   // ── MCP 一键接入（把 rework MCP 写入 claude / codex 配置） ──────────
   /** 获取当前 MCP 端点 url（供设置页展示；secret 不再下发前端） */
-  mcpEndpoint: () => invoke<{ url: string }>("mcp_endpoint"),
+  mcpEndpoint: () => call<{ url: string }>("mcp_endpoint"),
   /** 一键接入 Claude Code（写 ~/.claude.json 的 mcpServers.rework） */
-  mcpInstallClaude: () => invoke<string>("mcp_install_claude"),
+  mcpInstallClaude: () => call<string>("mcp_install_claude"),
   /** 一键接入 Codex（写 ~/.codex/config.toml 的 [mcp_servers.rework]） */
-  mcpInstallCodex: () => invoke<string>("mcp_install_codex"),
+  mcpInstallCodex: () => call<string>("mcp_install_codex"),
 
   /** 抓取 URL 并返回粗提取的可读正文（阅读「AI 解析」用） */
-  fetchUrlText: (url: string) => invoke<string>("fetch_url_text", { url }),
+  fetchUrlText: (url: string) => call<string>("fetch_url_text", { url }),
 
   // ── Web Gateway（外网访问）────────────────────────────────────
   /** 启动 Web Gateway（幂等；已运行则返回现有端口） */
-  webGatewayStart: () => invoke<number>("web_gateway_start"),
+  webGatewayStart: () => call<number>("web_gateway_start"),
   /** 停止 Web Gateway（未运行则静默成功） */
-  webGatewayStop: () => invoke<void>("web_gateway_stop"),
+  webGatewayStop: () => call<void>("web_gateway_stop"),
   /** 查询 Web Gateway 状态：运行中返回端口号，未运行返回 null */
-  webGatewayStatus: () => invoke<number | null>("web_gateway_status"),
+  webGatewayStatus: () => call<number | null>("web_gateway_status"),
   /** 读取当前配对码（仅本机 UI 调用；切勿记录到日志/外传） */
-  webPairingCode: () => invoke<string>("web_pairing_code"),
+  webPairingCode: () => call<string>("web_pairing_code"),
   /** 手动轮换配对码：作废旧码并返回新码（用于换新设备配对或作废泄露码） */
-  webRegeneratePairingCode: () => invoke<string>("web_regenerate_pairing_code"),
+  webRegeneratePairingCode: () => call<string>("web_regenerate_pairing_code"),
   /** 列出已配对设备（脱敏：仅含 id / label / paired_at，不含 token） */
-  webListDevices: () => invoke<Array<{ id: string; label: string; paired_at: string }>>("web_list_devices"),
+  webListDevices: () => call<Array<{ id: string; label: string; paired_at: string }>>("web_list_devices"),
   /** 吊销指定设备（id 不存在时幂等 no-op） */
-  webRevokeDevice: (id: string) => invoke<void>("web_revoke_device", { id }),
+  webRevokeDevice: (id: string) => call<void>("web_revoke_device", { id }),
 
   // ── 会话列表 ──────────────────────────────────────────────
   /** 获取所有本地会话（Task 17） */
-  listSessions: () => invoke<Session[]>("sessions_list"),
+  listSessions: () => call<Session[]>("sessions_list"),
 
   /** 全文搜索会话（Tantivy 后端，覆盖全部用户消息，按相关度排序） */
-  searchSessions: (q: string) => invoke<SessionHit[]>("sessions_search", { query: q }),
+  searchSessions: (q: string) => call<SessionHit[]>("sessions_search", { query: q }),
 
   /** 获取指定会话的时间线消息（Task 17）
    *  注意：Tauri v2 默认前端传 camelCase，自动映射到 Rust 的 snake_case 形参。 */
   sessionTimeline: (provider: string, id: string) =>
-    invoke<TimelineMessage[]>("sessions_timeline", { provider, sessionId: id }),
+    call<TimelineMessage[]>("sessions_timeline", { provider, sessionId: id }),
 
   /** 获取所有项目路径（Task 17） */
-  projectPaths: () => invoke<string[]>("sessions_project_paths"),
+  projectPaths: () => call<string[]>("sessions_project_paths"),
 
   /** 恢复/打开一个会话终端（Task 17）
    *  注意：Tauri v2 默认前端传 camelCase（projectPath/sessionId/asTab），自动映射到 snake_case 形参。 */
   restore: (provider: string, projectPath: string, id: string, asTab: boolean) =>
-    invoke<void>("terminal_resume", {
+    call<void>("terminal_resume", {
       provider,
       projectPath,
       sessionId: id,
@@ -95,77 +120,78 @@ export const ipc = {
 
   /** 在项目目录新建一个 CLI 会话（就地起 claude/codex，跑后写盘即出现在会话 tab）。initialPrompt 可选 */
   startSession: (provider: string, projectPath: string, initialPrompt?: string) =>
-    invoke<void>("terminal_start", { provider, projectPath, initialPrompt }),
+    call<void>("terminal_start", { provider, projectPath, initialPrompt }),
 
   // ── 配置 ──────────────────────────────────────────────────
   /** 获取全局快捷键配置（Task 17） */
-  getHotkey: () => invoke<string>("config_get_hotkey"),
+  getHotkey: () => call<string>("config_get_hotkey"),
 
   /** 保存全局快捷键配置（Task 17） */
-  setHotkey: (hotkey: string) => invoke<void>("config_set_hotkey", { hotkey }),
+  setHotkey: (hotkey: string) => call<void>("config_set_hotkey", { hotkey }),
 
   // ── Board / retalk 集成 ────────────────────────────────────
   /** 读取本地仓库的当前分支与未提交变更数（Task 13，包装 git_info 命令） */
   gitInfo: (path: string) =>
-    invoke<{ branch: string | null; dirty_count: number; is_repo: boolean }>("git_info", { path }),
+    call<{ branch: string | null; dirty_count: number; is_repo: boolean }>("git_info", { path }),
 
   /** 读取仓库指定时间窗的提交（会话→Commit 溯源）；非仓库/失败返回空数组 */
   gitLog: (path: string, since: string | null, until: string | null, limit: number) =>
-    invoke<CommitInfo[]>("git_log", { path, since, until, limit }),
+    call<CommitInfo[]>("git_log", { path, since, until, limit }),
 
   /** 返回与某会话关联的提交（trailer 精确 / 时间窗可能相关）。判据在 Rust 单点。 */
   sessionCommits: (sessionId: string, provider: string) =>
-    invoke<CorrelatedCommit[]>("session_commits", { sessionId, provider }),
+    call<CorrelatedCommit[]>("session_commits", { sessionId, provider }),
 
   /** 返回会话改动的文件（从转录 Write/Edit/MultiEdit 还原，含未提交改动）。v1 仅 Claude。 */
   sessionFileChanges: (provider: string, sessionId: string) =>
-    invoke<FileChange[]>("session_file_changes", { provider, sessionId }),
+    call<FileChange[]>("session_file_changes", { provider, sessionId }),
 
   /** 返回会话「规划的任务」（Claude TaskCreate/TaskUpdate 落盘状态），供同步到看板。v1 仅 Claude。 */
   sessionTasks: (provider: string, sessionId: string) =>
-    invoke<PlannedTask[]>("session_tasks", { provider, sessionId }),
+    call<PlannedTask[]>("session_tasks", { provider, sessionId }),
 
   // ── 会话溯源 git 钩子（Phase 2） ──────────────────────────
   /** 查询某仓库的会话溯源钩子状态 */
-  sessionHookStatus: (path: string) => invoke<HookStatus>("session_hook_status", { path }),
+  sessionHookStatus: (path: string) => call<HookStatus>("session_hook_status", { path }),
   /** 在某仓库启用会话溯源（安装 prepare-commit-msg 钩子，幂等、与他人钩子共存） */
   installSessionTrailerHook: (path: string) =>
-    invoke<void>("install_session_trailer_hook", { path }),
+    call<void>("install_session_trailer_hook", { path }),
   /** 停用（移除 rework 的钩子标记块 + marker） */
   uninstallSessionTrailerHook: (path: string) =>
-    invoke<void>("uninstall_session_trailer_hook", { path }),
+    call<void>("uninstall_session_trailer_hook", { path }),
 
   // ── 实时活动 hook（Phase 2：Claude Code PostToolUse 全量工具流） ──────
   /** 查询 rework 实时活动 hook 状态（是否安装 + 是否当前版本；up_to_date=false 表示装了但过期需升级） */
   activityHookStatus: () =>
-    invoke<{ installed: boolean; up_to_date: boolean }>("activity_hook_status"),
+    call<{ installed: boolean; up_to_date: boolean }>("activity_hook_status"),
   /** 安装实时活动 hook（写 ~/.claude/settings.json 的 PostToolUse，幂等、保留用户其它设置） */
-  installActivityHook: () => invoke<void>("install_activity_hook"),
+  installActivityHook: () => call<void>("install_activity_hook"),
   /** 卸载实时活动 hook（只移除 rework 自己那一条） */
-  uninstallActivityHook: () => invoke<void>("uninstall_activity_hook"),
+  uninstallActivityHook: () => call<void>("uninstall_activity_hook"),
 
   // ── 进程拦截 hook（PreToolUse(Bash) 长驻进程自动托管） ──────
   /** 查询进程拦截 hook 是否已安装 */
-  interceptHookStatus: () => invoke<boolean>("intercept_hook_status"),
+  interceptHookStatus: () => call<boolean>("intercept_hook_status"),
   /** 安装拦截 hook（写 ~/.claude/settings.json 的 PreToolUse(Bash)，幂等、保留用户其它设置） */
-  installInterceptHook: () => invoke<void>("install_intercept_hook"),
+  installInterceptHook: () => call<void>("install_intercept_hook"),
   /** 卸载拦截 hook（只移除 rework 自己那一条） */
-  uninstallInterceptHook: () => invoke<void>("uninstall_intercept_hook"),
+  uninstallInterceptHook: () => call<void>("uninstall_intercept_hook"),
 
   // ── AI 对话（provider 可切；包装 ai_chat 命令） ────────────
   /** 非流式对话：返回助手回复文本。cwd=项目仓库路径（可选），CLI provider 在该目录下运行。 */
   aiChat: (config: AiConfig, messages: AiChatMessage[], cwd?: string) =>
-    invoke<string>("ai_chat", { config, messages, cwd }),
+    call<string>("ai_chat", { config, messages, cwd }),
 
   /** 一轮工具对话：返回「最终文本」或「待执行工具调用」（agent loop 由前端驱动） */
   aiChatTools: (
     config: AiConfig,
     messages: ToolChatMessage[],
     tools: AiToolDef[],
-  ) => invoke<AiToolTurn>("ai_chat_tools", { config, messages, tools }),
+  ) => call<AiToolTurn>("ai_chat_tools", { config, messages, tools }),
 
   /** 流式对话：经 Tauri Channel 实时回调增量事件；Promise 在结束时 resolve。
-   *  streamId 用于「停止生成」（调 aiCancelStream 同一 id）。 */
+   *  streamId 用于「停止生成」（调 aiCancelStream 同一 id）。
+   *  ⚠️ 此方法依赖 Tauri Channel（仅 Tauri 原生可用），web 环境不支持，调用会抛。 */
   aiChatStream: (
     config: AiConfig,
     messages: AiChatMessage[],
@@ -174,6 +200,7 @@ export const ipc = {
     withTools = false,
     cwd?: string,
   ) => {
+    // Channel 是 Tauri 原生对象，web 环境无法使用；保留原始 invoke（不走 call）。
     const channel = new Channel<AiStreamEvent>();
     channel.onmessage = onEvent;
     return invoke<void>("ai_chat_stream", {
@@ -188,70 +215,70 @@ export const ipc = {
 
   /** 取消进行中的流式对话（停止生成）。 */
   aiCancelStream: (streamId: string) =>
-    invoke<void>("ai_cancel_stream", { streamId }),
+    call<void>("ai_cancel_stream", { streamId }),
 
   /** 拉取服务商可用模型 id 列表；本地 CLI 返回空数组，失败时 reject（前端回退手填）。 */
   listModels: (config: AiConfig) =>
-    invoke<string[]>("list_models", { config }),
+    call<string[]>("list_models", { config }),
 
   // ── RAG 语义检索 ───────────────────────────────────────────
   /** 语义召回：返回与 query 最相似的历史会话片段列表（limit 默认 8） */
   ragSearch: (config: EmbedConfig, query: string, limit: number) =>
-    invoke<RagHit[]>("rag_search", { config, query, limit }),
+    call<RagHit[]>("rag_search", { config, query, limit }),
 
   /** 为全量历史会话建嵌入索引；返回已索引的消息数 */
   ragBuildIndex: (config: EmbedConfig) =>
-    invoke<number>("rag_build_index", { config }),
+    call<number>("rag_build_index", { config }),
 
   // 通用文本嵌入（记忆语义去重用）
   embedTexts: (config: EmbedConfig, texts: string[]) =>
-    invoke<number[][]>("embed_texts", { config, texts }),
+    call<number[][]>("embed_texts", { config, texts }),
 
   // 记忆注入项目文件
   memoryWriteProjectFiles: (
     repoPath: string,
     mems: { content: string; kind: string; scope: string }[],
-  ) => invoke<string[]>("memory_write_project_files", { repoPath, mems }),
+  ) => call<string[]>("memory_write_project_files", { repoPath, mems }),
   memoryProjectFilesStatus: (repoPath: string) =>
-    invoke<MemFilesStatus>("memory_project_files_status", { repoPath }),
+    call<MemFilesStatus>("memory_project_files_status", { repoPath }),
 
   /** 把看板任务写进 <repo>/CLAUDE.md+AGENTS.md 的 rework-tasks 受管块（看板→CLI 注入）。空 tasks=卸载 */
   tasksWriteProjectFiles: (
     repoPath: string,
     tasks: { title: string; done: boolean; hint: string }[],
-  ) => invoke<string[]>("tasks_write_project_files", { repoPath, tasks }),
+  ) => call<string[]>("tasks_write_project_files", { repoPath, tasks }),
 
   /** 查任务注入状态（两文件是否含块 + 块内任务条数），供看板常驻显示 */
   tasksProjectFilesStatus: (repoPath: string) =>
-    invoke<{ claude_md: boolean; agents_md: boolean; count: number }>(
+    call<{ claude_md: boolean; agents_md: boolean; count: number }>(
       "tasks_project_files_status",
       { repoPath },
     ),
 
   /** 扫描 Claude 文件记忆（各项目 memory 目录下的 .md），供记忆桥导入记忆账本 */
-  scanFileMemories: () => invoke<FileMemory[]>("scan_file_memories"),
+  scanFileMemories: () => call<FileMemory[]>("scan_file_memories"),
 
   // ── 进程管理（进程内模块，命令直调；项目「进程」tab + 侧边栏「进程」页） ──────
   /** 进程列表（project 为空=全部；非空=按 cwd 含 project 过滤） */
   runtimePs: (project: string) =>
-    invoke<RuntimeProcess[]>("runtime_command", { cmd: "ps", args: { project } }),
+    call<RuntimeProcess[]>("runtime_command", { cmd: "ps", args: { project } }),
   /** 某进程的日志（最近 limit 条） */
   runtimeLogs: (name: string, limit: number) =>
-    invoke<RuntimeLog[]>("runtime_command", { cmd: "logs", args: { name, limit } }),
+    call<RuntimeLog[]>("runtime_command", { cmd: "logs", args: { name, limit } }),
   /** 在项目目录启动新进程 */
   runtimeStart: (command: string, name: string, cwd: string) =>
-    invoke<unknown>("runtime_command", { cmd: "start", args: { command, name, cwd } }),
+    call<unknown>("runtime_command", { cmd: "start", args: { command, name, cwd } }),
   /** 停止 / 重启进程 */
   runtimeStop: (name: string) =>
-    invoke<unknown>("runtime_command", { cmd: "stop", args: { name } }),
+    call<unknown>("runtime_command", { cmd: "stop", args: { name } }),
   runtimeRestart: (name: string) =>
-    invoke<unknown>("runtime_command", { cmd: "restart", args: { name } }),
+    call<unknown>("runtime_command", { cmd: "restart", args: { name } }),
   /** 删除一个已退出/停止的进程记录（连同其日志文件；running 的会被拒绝，需先停止） */
   runtimeRemove: (name: string) =>
-    invoke<unknown>("runtime_command", { cmd: "remove", args: { name } }),
+    call<unknown>("runtime_command", { cmd: "remove", args: { name } }),
   /** 清理：移除所有已停止/退出的进程记录 + 删除超过 days 天的日志文件 */
   runtimeClean: (days: number) =>
-    invoke<{ processes_removed: number; log_files_deleted: number }>("runtime_command", {
+    call<{ processes_removed: number; log_files_deleted: number }>("runtime_command", {
       cmd: "clean",
       args: { days },
     }),

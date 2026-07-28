@@ -41,7 +41,13 @@ pub async fn web_gateway_start(state: State<'_, AppState>) -> Result<u16, String
     // 3) 绑定 + 起 server（await 在锁外）。
     //    传入共享的 web_auth：gateway 认证中间件与设置栏（Task 5）用同一实例。
     //    传入 pb_base：供 /pb/* 反代路由使用（目标硬编码本机，防 SSRF）。
-    let (port, handle) = crate::web::server::start(0, state.web_auth.clone(), pb_base).await?;
+    //    传入 web_api_state：供 /api/bootstrap_auth 返回 PB token/userId（Task 7）。
+    let (port, handle) = crate::web::server::start(
+        0,
+        state.web_auth.clone(),
+        pb_base,
+        state.web_api_state.clone(),
+    ).await?;
     // 4) 写回句柄（重新取锁；此处已无 await）。
     //    极小概率并发下另一次调用已抢先写入：以先到者为准，本次多起的 server
     //    通过 drop handle（其 shutdown Sender drop）触发优雅关闭，避免端口泄漏。

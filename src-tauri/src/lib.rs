@@ -122,6 +122,9 @@ pub struct AppState {
     /// 保证配对码轮换、token 签发/校验、设置栏展示（Task 5）状态一致。
     /// 进程内长驻：重启即换新配对码（`AuthState::new` 随机生成）。
     pub web_auth: Arc<web::auth::AuthState>,
+    /// PB bootstrap 认证信息（token/userId），供 gateway `/api/bootstrap_auth` 返回给
+    /// 已配对 web 端。PB bootstrap 完成后写入；gateway 提前启动时此处为 None（返回 503）。
+    pub web_api_state: web::api::ApiState,
 }
 
 impl Default for AppState {
@@ -143,6 +146,7 @@ impl Default for AppState {
             tray_quit: Arc::new(Mutex::new(None)),
             web_gateway: Arc::new(Mutex::new(None)),
             web_auth: Arc::new(web::auth::AuthState::new()),
+            web_api_state: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -275,6 +279,7 @@ pub fn run() {
             let sessions_slot = state.sessions.clone();
             let index_slot = state.index.clone();
             let pb_child_slot = state.pb_child.clone();
+            let web_api_slot = state.web_api_state.clone();
 
             // ── Spotlight 全局快捷键注册 ───────────────────────────────
             // 从配置中读取 hotkey 字符串，通过可复用的辅助函数注册全局快捷键
@@ -305,7 +310,7 @@ pub fn run() {
 
             // 在后台 tokio 任务中完成 PB 启动 + bootstrap + 会话同步
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = setup_pocketbase(handle, data_dir, mig_dir, auth_slot, sessions_slot, index_slot, pb_child_slot).await {
+                if let Err(e) = setup_pocketbase(handle, data_dir, mig_dir, auth_slot, sessions_slot, index_slot, pb_child_slot, web_api_slot).await {
                     // 仅记录错误，不 panic（UI 层通过 get_bootstrap_auth 的 Err 感知）
                     eprintln!("[rework] PocketBase 初始化失败: {e:#}");
                 }
@@ -440,6 +445,7 @@ async fn setup_pocketbase(
     sessions_slot: Arc<Mutex<Vec<crate::models::Session>>>,
     index_slot: Arc<Mutex<Option<indexer::SessionIndex>>>,
     pb_child_slot: Arc<Mutex<Option<CommandChild>>>,
+    web_api_slot: web::api::ApiState,
 ) -> anyhow::Result<()> {
     let port = pb::process::pick_free_port();
     let base = format!("http://127.0.0.1:{port}");
@@ -482,6 +488,12 @@ async fn setup_pocketbase(
     };
     let user_id = auth.user_id.clone();
     let pb_client = pb::client::PbClient::new(&auth.base_url, &auth.token);
+    // 同步写入 gateway ApiState，供 /api/bootstrap_auth 返回给已配对 web 端。
+    // 仅含 token/userId（不含 baseUrl），web 端经 /pb 反代访问 PocketBase。
+    *web_api_slot.lock() = Some(web::api::BootstrapAuthResp {
+        token: auth.token.clone(),
+        user_id: auth.user_id.clone(),
+    });
     *auth_slot.lock() = Some(auth);
 
     // 启动应用内 MCP server（auth 已就绪；失败不阻断应用启动，仅打日志）。

@@ -11,6 +11,7 @@
 //! 天然被拦。新增「公开路由」须显式改 `is_public_path`，属有意为之的评审点。
 //!
 //! 路由装配集中在 `build_router()` 一处，便于统一审计鉴权边界。
+use crate::web::api::{ApiState, BootstrapAuthResp};
 use crate::web::auth::{check_and_rotate, issue_token, verify_token, AuthState};
 use crate::web::pb_proxy::{pb_proxy_handler, PbProxyState};
 use axum::{
@@ -177,7 +178,10 @@ async fn dist_missing_placeholder() -> Response {
 /// `pb_base`：PocketBase 服务根地址（形如 `http://127.0.0.1:<port>`），
 /// 由调用方从 `AppState.auth` 取出后传入，此处不做任何解析——仅透传给 `PbProxyState`。
 /// `/pb/{*path}` 路由**不在** `is_public_path` 白名单里，`require_token` layer 自动覆盖。
-fn build_router(auth: Arc<AuthState>, pb_base: String) -> Router {
+///
+/// `api_state`：PB bootstrap 认证信息（token/userId），供 `/api/bootstrap_auth` 返回给
+/// 已配对 web 端。在 require_token layer 内，未配对设备无法到达。
+fn build_router(auth: Arc<AuthState>, pb_base: String, api_state: ApiState) -> Router {
     // 静态前端：dist 存在则 ServeDir，否则所有 GET 回落占位页。
     let static_service = match resolve_dist_dir() {
         Some(dir) => Router::new().fallback_service(ServeDir::new(dir)),
@@ -192,14 +196,43 @@ fn build_router(auth: Arc<AuthState>, pb_base: String) -> Router {
         .route("/pb/{*path}", any(pb_proxy_handler))
         .with_state(pb_proxy_state);
 
+    // `/api/bootstrap_auth`：捕获 api_state 到闭包，避免与 AuthState 状态冲突。
+    // 直接以 move 闭包注册路由，无需额外子 Router + with_state（规避 axum 0.8 的
+    // Router<()> into Router<Arc<AuthState>> 类型推断问题）。
+    // `/api/bootstrap_auth` handler（闭包捕获 api_state，规避 axum Router<()> 类型推断问题）。
+    // 返回 PB token/userId 给已配对 web 端（不含 baseUrl，web 端经 /pb 反代访问 PocketBase）。
+    let api_state_clone = api_state;
+    let bootstrap_auth_handler = move || {
+        let state = api_state_clone.clone();
+        async move {
+            let guard = state.lock();
+            match guard.as_ref() {
+                Some(auth) => {
+                    let resp = BootstrapAuthResp {
+                        token: auth.token.clone(),
+                        user_id: auth.user_id.clone(),
+                    };
+                    (StatusCode::OK, axum::Json(resp)).into_response()
+                }
+                None => {
+                    // PB bootstrap 尚未完成：503，web 端可短暂重试
+                    (StatusCode::SERVICE_UNAVAILABLE, "PocketBase 尚未就绪").into_response()
+                }
+            }
+        }
+    };
+
     Router::new()
         // 健康探针：常量 "ok"，无敏感信息（白名单公开）。
         .route("/healthz", get(|| async { "ok" }))
         // 配对入口：受配对码 + 限流保护，成功签发 token 并轮换旧码（白名单公开）。
         .route("/pair", post(pair_handler))
+        // 受保护 API 路由（/api/bootstrap_auth）：token 闸内，不在白名单。
+        // 返回 PB token/userId 供 web 端初始化 PB SDK（不含 baseUrl，经 /pb 反代访问）。
+        .route("/api/bootstrap_auth", post(bootstrap_auth_handler))
         // PB 同源反向代理（token 闸内，防 SSRF）。
         .merge(pb_router)
-        // 静态前端兜底（含占位页回落）。未来 `/api /ws` 在此之前显式注册即受保护。
+        // 静态前端兜底（含占位页回落）。未来 `/ws` 在此之前显式注册即受保护。
         .merge(static_service)
         // ⚠️ 最外层默认拒绝：非白名单路径一律需有效 token。新增路由自动受此约束。
         .layer(middleware::from_fn_with_state(auth.clone(), require_token))
@@ -216,12 +249,16 @@ fn build_router(auth: Arc<AuthState>, pb_base: String) -> Router {
 /// 若 PB 尚未就绪（`AppState.auth` 为 `None`），传入空串即可——gateway
 /// 会将所有 `/pb/*` 请求 502 返回，不会 panic 也不影响其他路由。
 ///
+/// `api_state`：PB bootstrap 认证信息（token/userId），写入后供 `/api/bootstrap_auth`
+/// 返回给已配对 web 端。PB 就绪前为 `None`，届时 bootstrap_auth 返回 503。
+///
 /// server 在后台 `tokio::spawn` 运行，通过 `oneshot` 接收优雅关闭信号；调用方拿到
 /// 端口后无需等待 server 结束。绑定（await）在同步取锁之外进行，避免持锁跨 await。
 pub async fn start(
     port: u16,
     auth: Arc<AuthState>,
     pb_base: String,
+    api_state: ApiState,
 ) -> Result<(u16, GatewayHandle), String> {
     // 绑定 0.0.0.0：外网可达（详见文件顶部安全红线）。
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
@@ -234,7 +271,7 @@ pub async fn start(
         .port();
 
     let (tx, rx) = oneshot::channel::<()>();
-    let router = build_router(auth, pb_base);
+    let router = build_router(auth, pb_base, api_state);
 
     // 后台运行：收到 shutdown 信号（rx 完成）后优雅退出。
     tokio::spawn(async move {
@@ -261,9 +298,12 @@ mod tests {
 
     #[test]
     fn router_builds() {
-        // build_router 应无 panic 地构造出 Router（含中间件、PB 反代路由与静态兜底）。
+        // build_router 应无 panic 地构造出 Router（含中间件、API 路由、PB 反代路由与静态兜底）。
+        use crate::web::api::ApiState;
+        use parking_lot::Mutex;
         let auth = Arc::new(AuthState::new());
-        let _router = build_router(auth, "http://127.0.0.1:8790".to_string());
+        let api_state: ApiState = Arc::new(Mutex::new(None));
+        let _router = build_router(auth, "http://127.0.0.1:8790".to_string(), api_state);
     }
 
     #[test]
