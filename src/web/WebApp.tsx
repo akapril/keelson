@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { Logo } from "@/components/logo";
 import { PairScreen } from "./PairScreen";
 
 // 标识符：UI 标记，真凭证是 httpOnly cookie（JS 无法读取）
@@ -57,43 +58,34 @@ function TabIcon({ tab, active }: { tab: TabKey; active: boolean }) {
   }
 }
 
-/** 已配对后的 4 栏空骨架布局 */
+/** 已配对后的 4 栏布局：大屏左侧栏（参考桌面侧栏），移动窄屏底部 tab。 */
 function MainLayout() {
   const { t } = useTranslation("web");
   const [activeTab, setActiveTab] = useState<TabKey>("workspace");
 
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
-      {/* 内容区：窄屏撑满，宽屏居中可用 */}
-      <main className="min-h-0 flex-1 overflow-auto">
-        <div className="mx-auto h-full max-w-3xl px-4">
-          {/* 各 tab 占位内容 */}
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted-foreground">
-              {t(`tabs.${activeTab}`)} — {t("placeholder.comingSoon")}
-            </p>
-          </div>
-        </div>
-      </main>
-
-      {/* 底部 tab 栏（窄屏主导；宽屏同样底部展示，后续 Task 可按需改侧栏） */}
-      <nav
-        className="border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-        aria-label={t("tabs.workspace")}
+    <div className="flex h-screen bg-background text-foreground">
+      {/* 大屏：左侧导航栏（≥lg 显示，参考桌面侧栏） */}
+      <aside
+        className="hidden w-56 shrink-0 flex-col border-r border-border lg:flex"
+        aria-label={t("nav.main")}
       >
-        <div className="mx-auto flex max-w-3xl">
+        <div className="flex items-center gap-2 px-4 py-4">
+          <Logo className="size-6" />
+          <span className="text-sm font-semibold">Keelson</span>
+        </div>
+        <nav className="flex flex-col gap-1 px-2">
           {TABS.map((tab) => {
             const isActive = tab === activeTab;
             return (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                aria-label={t(`tabs.${tab}`)}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex flex-1 flex-col items-center gap-1 px-2 py-2.5 text-xs transition-colors ${
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
                   isActive
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-muted font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                 }`}
               >
                 <TabIcon tab={tab} active={isActive} />
@@ -101,8 +93,46 @@ function MainLayout() {
               </button>
             );
           })}
-        </div>
-      </nav>
+        </nav>
+      </aside>
+
+      {/* 内容区 + 窄屏底部 tab */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <main className="min-h-0 flex-1 overflow-auto">
+          <div className="mx-auto flex h-full max-w-3xl items-center justify-center px-4">
+            <p className="text-sm text-muted-foreground">
+              {t(`tabs.${activeTab}`)} — {t("placeholder.comingSoon")}
+            </p>
+          </div>
+        </main>
+
+        {/* 移动窄屏：底部 tab 栏（<lg 显示，大屏用左侧栏） */}
+        <nav
+          className="border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:hidden"
+          aria-label={t("nav.main")}
+        >
+          <div className="mx-auto flex max-w-3xl">
+            {TABS.map((tab) => {
+              const isActive = tab === activeTab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`flex flex-1 flex-col items-center gap-1 px-2 py-2.5 text-xs transition-colors ${
+                    isActive
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <TabIcon tab={tab} active={isActive} />
+                  <span>{t(`tabs.${tab}`)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      </div>
     </div>
   );
 }

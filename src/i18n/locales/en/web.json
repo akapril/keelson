@@ -19,5 +19,8 @@
   },
   "placeholder": {
     "comingSoon": "Coming soon"
+  },
+  "nav": {
+    "main": "Main navigation"
   }
 }
