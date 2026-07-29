@@ -10,6 +10,7 @@ import { PairScreen } from "./PairScreen";
 import { Workbench } from "./panels/Workbench";
 import { Notifications } from "./panels/Notifications";
 import { Terminal } from "./panels/Terminal";
+import { Settings } from "./panels/Settings";
 import { isPaired, handleAuthExpired } from "./auth-expiry";
 import type { Session } from "@/types/session";
 
@@ -145,11 +146,7 @@ function MainLayout() {
             <Notifications pbReady={pbReady} />
           </TabPane>
           <TabPane active={activeTab === "settings"}>
-            <div className="mx-auto flex h-full max-w-3xl items-center justify-center px-4">
-              <p className="text-sm text-muted-foreground">
-                {t("tabs.settings")} — {t("placeholder.comingSoon")}
-              </p>
-            </div>
+            <Settings />
           </TabPane>
         </main>
 
