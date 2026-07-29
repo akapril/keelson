@@ -1,6 +1,7 @@
 import PocketBase from "pocketbase";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "@/lib/env";
+import { handleAuthExpired } from "@/web/auth-expiry";
 // 组件禁止直接 import 本文件的 pb 之外的东西；数据访问走 lib/pb/collections.ts
 export const pb = new PocketBase("http://127.0.0.1:0"); // 占位，init 时覆盖 baseURL
 // 桌面应用无需浏览器式的请求自动取消；关闭它，避免 StrictMode 双跑 effect /
@@ -86,6 +87,11 @@ export async function initPbAuth(): Promise<void> {
         method: "POST", // 服务端注册为 POST only；缺此则发 GET → 405，web 端永远认证失败
         credentials: "same-origin",
       }).then((r) => {
+        // 认证过期（重启后 cookie 对应设备已失效）：引导重新配对，而非静默失败卡加载。
+        if (r.status === 401) {
+          handleAuthExpired();
+          throw new Error("bootstrap_auth 401");
+        }
         if (!r.ok) throw new Error(`bootstrap_auth ${r.status}`);
         return r.json() as Promise<{ token: string; userId: string }>;
       });
