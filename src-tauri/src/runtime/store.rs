@@ -54,6 +54,10 @@ pub struct ProcessEntry {
     /// 会话 provider（claude / codex），配合 session_id 做跳转
     #[serde(default)]
     pub provider: Option<String>,
+    /// 交互式 PTY 进程标记：true=经交互 PTY 启动（sudo 等需 stdin 的命令）。
+    /// 看门狗不接管、restart 需用户重新交互启动。#[serde(default)] 兼容旧记录（默认 false）。
+    #[serde(default)]
+    pub interactive: bool,
 }
 
 fn default_health() -> String {
@@ -152,5 +156,23 @@ where
     }
     save_processes(&entries);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 旧记录 JSON 无 interactive 字段 → 反序列化应默认 false（serde(default)）
+    #[test]
+    fn process_entry_interactive_defaults_false_when_absent() {
+        let json = r#"{
+            "id":"abc123","name":"web","command":"npm run dev","cwd":"/tmp",
+            "pid":1234,"port":[],"status":"running","started_at":"2026-07-29T00:00:00Z",
+            "max_restarts":0,"restart_count":0
+        }"#;
+        let e: ProcessEntry = serde_json::from_str(json).expect("反序列化旧记录");
+        assert!(!e.interactive);
+    }
+}
+
 // 日志改纯文件方案：不再用 SQLite。init_log_db/insert_log 已移除，
 // 日志读取见 daemon::read_tail_lines（读 <id>.log 尾部）。

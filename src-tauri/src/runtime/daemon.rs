@@ -203,6 +203,7 @@ pub(crate) async fn handle_start(args: &Value) -> Value {
         env: env_vars.clone(),
         session_id,
         provider,
+        interactive: false,
     };
     store::add_process(entry);
 
