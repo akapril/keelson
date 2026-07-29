@@ -43,7 +43,6 @@ struct InteractivePtySession {
 }
 
 /// 交互 PTY 注册表：`进程 id -> 会话`。挂 `AppState`（`Arc` 共享），供命令与退出钩子访问。
-#[allow(dead_code)] // Task 3 接线后移除
 pub struct InteractivePtyRegistry {
     sessions: Mutex<HashMap<String, InteractivePtySession>>,
 }
