@@ -1,0 +1,63 @@
+/**
+ * xterm-shared.ts — 共享 xterm 工具函数
+ *
+ * 供 XtermView（web 终端）和 InteractivePtyView（交互式 PTY 终端）复用。
+ * 职责：主题解析 + 安全 fit 工厂（keep-alive 布局保护）。
+ */
+
+/**
+ * 将 CSS 变量值转换为 xterm 可接受的色值字符串。
+ * Tailwind v4 使用 oklch()，xterm 支持标准 CSS 颜色，直接透传即可。
+ * 若值为空白或无法判断，返回 fallback。
+ */
+export function cssVarToColor(value: string, fallback: string): string {
+  const v = value.trim();
+  if (!v) return fallback;
+  // oklch / hsl / rgb / #hex 均直接返回（xterm 底层 canvas 用 CSS 解析）
+  return v;
+}
+
+/** 从 CSS 变量解析终端主题色（语义色 → xterm 主题映射） */
+export function resolveXtermTheme(): {
+  background: string;
+  foreground: string;
+  cursor: string;
+  selectionBackground: string;
+} {
+  const style = getComputedStyle(document.documentElement);
+  // 优先取自定义 CSS 变量，fallback 到中性深色值（保持可读）
+  const bg = style.getPropertyValue("--background").trim() || "#1a1b1e";
+  const fg = style.getPropertyValue("--foreground").trim() || "#c9d1d9";
+  const muted =
+    style.getPropertyValue("--muted-foreground").trim() || "#8b949e";
+  const primary =
+    style.getPropertyValue("--primary").trim() || "#58a6ff";
+
+  // CSS 变量值可能是 "oklch(...)" 或 HEX，xterm 要求合法 CSS 色值即可
+  return {
+    background: cssVarToColor(bg, "#1a1b1e"),
+    foreground: cssVarToColor(fg, "#c9d1d9"),
+    cursor: cssVarToColor(primary, "#58a6ff"),
+    selectionBackground: cssVarToColor(muted, "#3d444d") + "40", // 25% alpha
+  };
+}
+
+/**
+ * 生成 safeFit：容器可见（有实际尺寸）时才 fit，避免 keep-alive 布局下容器
+ * display:none（0 尺寸）时被 fit 成 1x1 破坏终端。返回是否真正执行了 fit。
+ *
+ * @param getContainer 返回终端挂载容器元素的函数（通常为 () => containerRef.current）
+ * @param fit 执行实际 fit 的函数（通常为 () => fitAddon.fit()）
+ * @returns 无参函数，调用时检查容器尺寸：可见则 fit 并返回 true，不可见返回 false
+ */
+export function makeSafeFit(
+  getContainer: () => HTMLElement | null,
+  fit: () => void,
+): () => boolean {
+  return () => {
+    const el = getContainer();
+    if (!el || el.clientWidth === 0 || el.clientHeight === 0) return false;
+    fit();
+    return true;
+  };
+}
