@@ -14,8 +14,9 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use parking_lot::Mutex;
 use rand::RngCore;
 use rand::rngs::OsRng;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use subtle::ConstantTimeEq;
 
@@ -99,6 +100,74 @@ pub struct AuthState {
     pub devices: Mutex<Vec<Device>>,
     /// 配对失败限流状态。
     fails: Mutex<RateLimit>,
+    /// 设备表持久化路径：`Some`=落盘（生产，跨重启保留已配对设备）；`None`=纯内存（单元测试）。
+    /// 只持久化 token 的 **hash**（不可逆），明文配对码/明文 token 永不落盘。
+    persist_path: Option<PathBuf>,
+}
+
+/// 设备表持久化 DTO：`token_hash` 以 base64url 无填充编码为字符串（便于 JSON 可读、可校验）。
+/// 落盘的只有 hash（不可逆），旧 cookie 靠它在重启后仍能通过 `verify_token`。
+#[derive(Debug, Serialize, Deserialize)]
+struct PersistedDevice {
+    id: String,
+    /// token 的 SHA-256 hash（32 字节）→ base64url 无填充（43 字符）。
+    token_hash_b64: String,
+    paired_at: String,
+    label: String,
+}
+
+impl PersistedDevice {
+    fn from_device(d: &Device) -> Self {
+        PersistedDevice {
+            id: d.id.clone(),
+            token_hash_b64: URL_SAFE_NO_PAD.encode(d.token_hash),
+            paired_at: d.paired_at.clone(),
+            label: d.label.clone(),
+        }
+    }
+
+    /// 还原为 `Device`：hash 必须恰为 32 字节，否则丢弃该条（容错，不 panic）。
+    fn into_device(self) -> Option<Device> {
+        let bytes = URL_SAFE_NO_PAD.decode(self.token_hash_b64.as_bytes()).ok()?;
+        if bytes.len() != 32 {
+            return None;
+        }
+        let mut token_hash = [0u8; 32];
+        token_hash.copy_from_slice(&bytes);
+        Some(Device {
+            id: self.id,
+            token_hash,
+            paired_at: self.paired_at,
+            label: self.label,
+        })
+    }
+}
+
+/// 从磁盘载入已配对设备。文件缺失/损坏 → 空表（fail-safe，非致命）。
+fn load_devices_from(path: &Path) -> Vec<Device> {
+    let data = match std::fs::read_to_string(path) {
+        Ok(d) => d,
+        Err(_) => return Vec::new(),
+    };
+    let persisted: Vec<PersistedDevice> = serde_json::from_str(&data).unwrap_or_default();
+    persisted.into_iter().filter_map(PersistedDevice::into_device).collect()
+}
+
+/// 把当前设备表写盘（只写 hash，无明文 token；父目录自动创建）。
+fn save_devices_to(path: &Path, devices: &[Device]) {
+    let persisted: Vec<PersistedDevice> =
+        devices.iter().map(PersistedDevice::from_device).collect();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    match serde_json::to_string_pretty(&persisted) {
+        Ok(s) => {
+            if let Err(e) = std::fs::write(path, s) {
+                eprintln!("[rework] 保存已配对设备失败: {e}");
+            }
+        }
+        Err(e) => eprintln!("[rework] 序列化已配对设备失败: {e}"),
+    }
 }
 
 /// 生成配对码：32 字节 CSPRNG → base64url 无填充（高熵，≥256 bit）。
@@ -141,7 +210,8 @@ fn now_rfc3339_like() -> String {
 }
 
 impl AuthState {
-    /// 用给定配对码构造。secret 用 CSPRNG 随机生成。
+    /// 用给定配对码构造（纯内存，不落盘）。secret 用 CSPRNG 随机生成。
+    /// 供单元测试与内部使用；`persist_path=None` 故设备变更不写盘。
     pub fn new_with_code(pairing_code: String) -> Self {
         let mut secret = [0u8; 32];
         OsRng.fill_bytes(&mut secret);
@@ -150,12 +220,39 @@ impl AuthState {
             secret,
             devices: Mutex::new(Vec::new()),
             fails: Mutex::new(RateLimit::new()),
+            persist_path: None,
         }
     }
 
-    /// 生成随机配对码并构造（生产入口）。
+    /// 生成随机配对码并构造（纯内存）。
     pub fn new() -> Self {
         Self::new_with_code(gen_pairing_code())
+    }
+
+    /// 生产入口（持久化）：从 `path` 载入已配对设备（跨重启保留），配对码每次启动**重新随机生成**。
+    ///
+    /// 设计取舍：明文配对码**不落盘**（无持久明文凭据 = 更安全）；已配对设备靠 token 的 hash
+    /// 持久化，旧 cookie 重启后仍通过 `verify_token`；新设备配对才需从设置栏读新码。
+    pub fn new_persistent(path: PathBuf) -> Self {
+        let devices = load_devices_from(&path);
+        let mut secret = [0u8; 32];
+        OsRng.fill_bytes(&mut secret);
+        AuthState {
+            pairing_code: Mutex::new(gen_pairing_code()),
+            secret,
+            devices: Mutex::new(devices),
+            fails: Mutex::new(RateLimit::new()),
+            persist_path: Some(path),
+        }
+    }
+
+    /// 若配置了持久化路径，把当前设备表写盘。设备变更（签发/吊销）后调用。
+    /// 注意：调用前必须已释放 `devices` 锁（parking_lot 不可重入），本方法内部自行取锁。
+    fn persist_devices(&self) {
+        if let Some(path) = &self.persist_path {
+            let devices = self.devices.lock();
+            save_devices_to(path, &devices);
+        }
     }
 }
 
@@ -180,7 +277,8 @@ pub fn issue_token(state: &AuthState, label: String) -> String {
         paired_at: now_rfc3339_like(),
         label,
     };
-    state.devices.lock().push(device);
+    state.devices.lock().push(device); // guard 在此语句结束即释放
+    state.persist_devices(); // 落盘（持久化路径存在时），跨重启保留该配对
     token
 }
 
@@ -200,10 +298,13 @@ pub fn verify_token(state: &AuthState, token: &str) -> bool {
     matched != 0
 }
 
-/// 吊销设备：从 devices 移除对应 hash，该 token 立即失效。
+/// 吊销设备：从 devices 移除对应 hash，该 token 立即失效（并持久化，跨重启不复活）。
 pub fn revoke(state: &AuthState, device_id: &str) {
-    let mut devices = state.devices.lock();
-    devices.retain(|d| d.id != device_id);
+    {
+        let mut devices = state.devices.lock();
+        devices.retain(|d| d.id != device_id);
+    } // guard 在此释放，随后再取锁写盘（避免 parking_lot 重入）
+    state.persist_devices();
 }
 
 /// 校验配对码：常量时间比对 + 失败限流（只读校验，不轮换）。
@@ -449,5 +550,67 @@ mod tests {
         let tok = issue_token(&a, "l".into());
         revoke(&a, "does-not-exist");
         assert!(verify_token(&a, &tok)); // 未误删
+    }
+
+    #[test]
+    fn devices_persist_across_reload() {
+        // 主 bug 修复验证：持久化后，重启（同路径新建 AuthState）应保留已配对设备，
+        // 旧 token 仍通过校验 → 已配对浏览器重启后不掉线。
+        use tempfile::tempdir;
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("web_devices.json");
+
+        let a = AuthState::new_persistent(path.clone());
+        let tok = issue_token(&a, "phone".into());
+        assert!(verify_token(&a, &tok));
+
+        // 模拟程序重启：用同一路径新建 AuthState，应从盘载入设备。
+        let b = AuthState::new_persistent(path.clone());
+        assert!(verify_token(&b, &tok), "重启后已配对 token 应仍有效");
+        // 配对码不持久化（明文不落盘）：重启后是全新随机码，与旧码极大概率不同。
+        assert_ne!(current_pairing_code(&a), current_pairing_code(&b));
+
+        // 吊销后落盘：再次重启不应复活该设备。
+        let dev_id = b.devices.lock()[0].id.clone();
+        revoke(&b, &dev_id);
+        let c = AuthState::new_persistent(path);
+        assert!(!verify_token(&c, &tok), "吊销后重启不应再有效");
+    }
+
+    #[test]
+    fn persisted_device_roundtrip_preserves_hash() {
+        // DTO 往返：Device → PersistedDevice(base64) → Device，token_hash 逐字节保真。
+        let a = AuthState::new_with_code("X".into());
+        let tok = issue_token(&a, "laptop".into());
+        let dev = a.devices.lock()[0].clone();
+        let dto = PersistedDevice::from_device(&dev);
+        let back = dto.into_device().expect("32 字节 hash 应还原成功");
+        assert_eq!(back.token_hash, dev.token_hash);
+        assert_eq!(back.id, dev.id);
+        assert_eq!(back.label, dev.label);
+        // 还原后的设备表用它的 hash 仍能校验原 token。
+        assert_eq!(hash_token(&tok), back.token_hash);
+    }
+
+    #[test]
+    fn load_devices_missing_or_corrupt_returns_empty() {
+        use tempfile::tempdir;
+        // 文件不存在 → 空表。
+        assert!(load_devices_from(Path::new("/nonexistent/web_devices.json")).is_empty());
+        // 损坏 JSON → 空表（不 panic）。
+        let dir = tempdir().unwrap();
+        let p = dir.path().join("web_devices.json");
+        std::fs::write(&p, "not json !!!").unwrap();
+        assert!(load_devices_from(&p).is_empty());
+    }
+
+    #[test]
+    fn in_memory_state_does_not_persist() {
+        // new_with_code（persist_path=None）：persist_devices 是 no-op，不建文件。
+        let a = AuthState::new_with_code("MEM".into());
+        let _ = issue_token(&a, "x".into());
+        a.persist_devices(); // 应无副作用、不 panic
+        // 无路径 → 无从校验文件；此测试主要保证不 panic 且逻辑分支覆盖。
+        assert_eq!(a.devices.lock().len(), 1);
     }
 }

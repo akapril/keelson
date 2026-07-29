@@ -122,7 +122,8 @@ pub struct AppState {
     pub web_gateway: Arc<Mutex<Option<web::server::GatewayHandle>>>,
     /// Web 认证状态（配对码/token/限流）。gateway `start` 与认证中间件共享同一实例，
     /// 保证配对码轮换、token 签发/校验、设置栏展示（Task 5）状态一致。
-    /// 进程内长驻：重启即换新配对码（`AuthState::new` 随机生成）。
+    /// 持久化（`new_persistent`）：已配对设备（仅 token hash）落盘 web_devices.json，
+    /// 跨重启保留 → 已配对浏览器重启后不掉线；配对码每次启动仍随机（明文不落盘）。
     pub web_auth: Arc<web::auth::AuthState>,
     /// PB bootstrap 认证信息（token/userId），供 gateway `/api/bootstrap_auth` 返回给
     /// 已配对 web 端。PB bootstrap 完成后写入；gateway 提前启动时此处为 None（返回 503）。
@@ -139,6 +140,8 @@ impl Default for AppState {
         let paths = paths::AppPaths::detect();
         let config_path = paths.app_data.join("config.toml");
         let cfg = config::AppConfig::load(&config_path);
+        // 已配对设备表持久化路径：跨重启保留 web 配对（token hash，不含明文）。
+        let web_devices_path = paths.app_data.join("web_devices.json");
         Self {
             auth: Arc::new(Mutex::new(None)),
             sessions: Arc::new(Mutex::new(Vec::new())),
@@ -152,7 +155,7 @@ impl Default for AppState {
             tray_show: Arc::new(Mutex::new(None)),
             tray_quit: Arc::new(Mutex::new(None)),
             web_gateway: Arc::new(Mutex::new(None)),
-            web_auth: Arc::new(web::auth::AuthState::new()),
+            web_auth: Arc::new(web::auth::AuthState::new_persistent(web_devices_path)),
             web_api_state: Arc::new(Mutex::new(None)),
             web_pty: Arc::new(web::terminal::PtyRegistry::new()),
             runtime_pty: Arc::new(runtime::pty::InteractivePtyRegistry::new()),
@@ -318,10 +321,21 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
 
             // 在后台 tokio 任务中完成 PB 启动 + bootstrap + 会话同步
+            // autostart_handle：PB 就绪后据 config.web_autostart 决定是否自动重启 Web Gateway。
+            let autostart_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = setup_pocketbase(handle, data_dir, mig_dir, auth_slot, sessions_slot, index_slot, pb_child_slot, web_api_slot).await {
                     // 仅记录错误，不 panic（UI 层通过 get_bootstrap_auth 的 Err 感知）
                     eprintln!("[rework] PocketBase 初始化失败: {e:#}");
+                }
+                // 「记住上次状态」：上次退出时 Web Gateway 开着 → PB 就绪后自动重启。
+                // 放在 bootstrap 之后确保 pb_base 已就绪，/pb 反代可用；配合设备持久化 = 重启无缝。
+                let st = autostart_handle.state::<AppState>();
+                let should_autostart = st.config.lock().web_autostart;
+                if should_autostart {
+                    if let Err(e) = commands::web::start_gateway(st.inner()).await {
+                        eprintln!("[rework] Web Gateway 自动启动失败（非致命）: {e}");
+                    }
                 }
             });
             Ok(())
