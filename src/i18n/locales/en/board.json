@@ -428,6 +428,19 @@
     "pty": {
       "exited": "[process exited]",
       "terminalHeader": "Terminal · {{name}}"
+    },
+    "launch": {
+      "history": "History",
+      "historyTitle": "Saved & recent commands",
+      "favorites": "Favorites",
+      "recent": "Recent",
+      "emptyHint": "No history yet; started commands are recorded here automatically",
+      "projectRoot": "Project root",
+      "resetCwd": "Reset to project root",
+      "pickDir": "Directory",
+      "pickScript": "Script",
+      "saveFavorite": "Favorite current command",
+      "pickError": "Selection failed: {{msg}}"
     }
   },
   "git": {

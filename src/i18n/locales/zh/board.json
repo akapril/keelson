@@ -428,6 +428,19 @@
     "pty": {
       "exited": "[进程已退出]",
       "terminalHeader": "交互终端 · {{name}}"
+    },
+    "launch": {
+      "history": "历史",
+      "historyTitle": "常用命令 · 历史",
+      "favorites": "收藏",
+      "recent": "最近",
+      "emptyHint": "暂无历史；启动过的命令会自动记录在此",
+      "projectRoot": "项目根目录",
+      "resetCwd": "重置为项目根目录",
+      "pickDir": "选目录",
+      "pickScript": "选脚本",
+      "saveFavorite": "收藏当前命令",
+      "pickError": "选择失败：{{msg}}"
     }
   },
   "git": {

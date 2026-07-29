@@ -8,10 +8,17 @@ import { useTranslation } from "react-i18next";
 import { ipc } from "@/lib/tauri/ipc";
 import { on } from "@/lib/tauri/events";
 import { cn } from "@/lib/utils";
+import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { RuntimeProcess, RuntimeLog } from "@/types/runtime";
 import { InteractivePtyView } from "@/components/terminal/InteractivePtyView";
+import { CommandPicker } from "./CommandPicker";
+import { addHistory, toggleFavorite, isFavorite } from "./command-store";
+import { scriptToCommand } from "./script-command";
+
+/** 是否 Windows（影响 .sh 脚本的解释器：bash vs sh）。 */
+const IS_WINDOWS = typeof navigator !== "undefined" && /win/i.test(navigator.userAgent);
 
 /** 一行日志取可读文本（字段随版本，兜底取 raw/message）。 */
 function logText(l: RuntimeLog): string {
@@ -33,6 +40,10 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
   const [cmd, setCmd] = useState("");
   // 是否以交互式 PTY 启动（sudo 等需输入密码的命令）
   const [interactive, setInteractive] = useState(false);
+  // 选择的工作目录（null=用项目根 repoPath）
+  const [cwd, setCwd] = useState<string | null>(null);
+  // 命令收藏/历史变更计数：收藏当前 / 启动记历史 / Picker 内改动后 +1，触发 Picker 重载
+  const [cmdVersion, setCmdVersion] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   // 日志滚动容器 + 是否「跟随到底部」（用户往上翻看历史时暂停跟随，滚回底部恢复）
   const logScrollRef = useRef<HTMLDivElement>(null);
@@ -55,6 +66,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
   useEffect(() => {
     setSelected(null);
     setLogs([]);
+    setCwd(null); // 切项目重置工作目录为该项目根
     void refresh();
     // 实时：进程表变更事件 → 即时刷新（一有数据就显示，同活动流机制）
     const un = on("runtime-processes-changed", () => void refresh());
@@ -145,19 +157,24 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
   const startNew = async () => {
     const command = cmd.trim();
     if (!command || !repoPath) return;
+    // 工作目录：选了就用选的，否则用项目根
+    const effectiveCwd = cwd ?? repoPath;
     setBusy(true);
     try {
       // name 默认取命令首词（daemon 会去重/覆盖）
       const name = command.split(/\s+/)[0] || "proc";
       if (interactive) {
         // 交互式 PTY 启动（sudo / ssh 等需要终端输入的命令）
-        const p = await ipc.runtimePtyStart(command, name, repoPath);
+        const p = await ipc.runtimePtyStart(command, name, effectiveCwd);
         // 启动后自动选中该进程，右侧立即显示交互终端等待输入
         setSelected(p.name);
       } else {
         // 普通 headless 进程（看门狗、日志 tee、PID 判活）
-        await ipc.runtimeStart(command, name, repoPath);
+        await ipc.runtimeStart(command, name, effectiveCwd);
       }
+      // 自动记入历史（命令+cwd），供下次一键重跑
+      addHistory(repoPath, { command, cwd: effectiveCwd });
+      setCmdVersion((v) => v + 1);
       toast.success(t("processes.toast.startSuccess", { cmd: command }));
       setCmd("");
       await refresh();
@@ -167,6 +184,41 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
       setBusy(false);
     }
   };
+
+  // 选工作目录：原生文件夹选择 → 作为本次启动 cwd（默认项目根，可重置）
+  const pickDirectory = async () => {
+    try {
+      const dir = await open({ directory: true, multiple: false, defaultPath: cwd ?? repoPath });
+      if (typeof dir === "string") setCwd(dir);
+    } catch (e) {
+      toast.error(t("processes.launch.pickError", { msg: String(e) }));
+    }
+  };
+
+  // 选脚本：原生文件选择 → 按扩展名填成命令 + cwd 设为脚本目录（均可再编辑）
+  const pickScript = async () => {
+    try {
+      const file = await open({ directory: false, multiple: false, defaultPath: cwd ?? repoPath });
+      if (typeof file === "string") {
+        const { command, cwd: scriptDir } = scriptToCommand(file, IS_WINDOWS);
+        setCmd(command);
+        if (scriptDir) setCwd(scriptDir);
+      }
+    } catch (e) {
+      toast.error(t("processes.launch.pickError", { msg: String(e) }));
+    }
+  };
+
+  // 收藏/取消收藏当前命令（连同当前 cwd）
+  const saveFavorite = () => {
+    const command = cmd.trim();
+    if (!command || !repoPath) return;
+    toggleFavorite(repoPath, { command, cwd: cwd ?? repoPath });
+    setCmdVersion((v) => v + 1);
+  };
+  // 当前命令是否已收藏（用于收藏按钮的星态）
+  const currentFavored =
+    !!repoPath && cmd.trim().length > 0 && isFavorite(repoPath, { command: cmd.trim(), cwd: cwd ?? repoPath });
 
   const selectedLogs = useMemo(
     () => logs.map(logText).filter(Boolean),
@@ -213,44 +265,93 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
           </div>
         </div>
       ) : (
-        // 项目模式：启动新进程 + 刷新
+        // 项目模式：启动新进程（命令 + 历史/收藏 + 目录 + 脚本）+ 刷新
         <form
-          className="flex shrink-0 items-center gap-2"
+          className="flex shrink-0 flex-col gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             void startNew();
           }}
         >
-          <Input
-            value={cmd}
-            onChange={(e) => setCmd(e.target.value)}
-            placeholder={t("processes.startPlaceholder")}
-            className="flex-1"
-            disabled={busy}
-          />
-          {/* 交互式启动 checkbox：sudo / ssh 等需要终端输入的命令勾选此项 */}
-          <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={interactive}
-              onChange={(e) => setInteractive(e.target.checked)}
+          {/* 行1：命令输入 + 历史下拉 + 交互式 + 启动 */}
+          <div className="flex items-center gap-2">
+            <Input
+              value={cmd}
+              onChange={(e) => setCmd(e.target.value)}
+              placeholder={t("processes.startPlaceholder")}
+              className="flex-1"
               disabled={busy}
             />
-            {t("processes.interactiveLabel")}
-          </label>
-          <Button type="submit" disabled={busy || !cmd.trim()}>
-            {t("processes.startBtn")}
-          </Button>
-          {/* 手动刷新：已自动刷新，此处即时刷新 */}
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            title={t("processes.startBtnRefreshTitle")}
-            onClick={() => void refresh()}
-          >
-            {t("processes.refreshBtn")}
-          </Button>
+            {/* 历史/收藏下拉：点选回填命令+cwd */}
+            <CommandPicker
+              projectKey={repoPath!}
+              version={cmdVersion}
+              onPick={(e) => {
+                setCmd(e.command);
+                setCwd(e.cwd ?? null);
+              }}
+              onChanged={() => setCmdVersion((v) => v + 1)}
+            />
+            {/* 交互式启动 checkbox：sudo / ssh 等需要终端输入的命令勾选此项 */}
+            <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={interactive}
+                onChange={(e) => setInteractive(e.target.checked)}
+                disabled={busy}
+              />
+              {t("processes.interactiveLabel")}
+            </label>
+            <Button type="submit" disabled={busy || !cmd.trim()}>
+              {t("processes.startBtn")}
+            </Button>
+          </div>
+
+          {/* 行2：工作目录展示 + 选目录 + 选脚本 + 收藏当前 + 刷新 */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="min-w-0 truncate text-muted-foreground" title={cwd ?? repoPath}>
+              📁 {cwd ? cwd : t("processes.launch.projectRoot")}
+            </span>
+            {cwd && (
+              <button
+                type="button"
+                onClick={() => setCwd(null)}
+                className="shrink-0 rounded px-1 text-muted-foreground hover:text-foreground"
+                title={t("processes.launch.resetCwd")}
+              >
+                ↺
+              </button>
+            )}
+            <div className="ml-auto flex shrink-0 gap-1.5">
+              <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void pickDirectory()}>
+                {t("processes.launch.pickDir")}
+              </Button>
+              <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void pickScript()}>
+                {t("processes.launch.pickScript")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy || !cmd.trim()}
+                onClick={saveFavorite}
+                title={t("processes.launch.saveFavorite")}
+                className={currentFavored ? "text-amber-500" : undefined}
+              >
+                {currentFavored ? "★" : "☆"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                title={t("processes.startBtnRefreshTitle")}
+                onClick={() => void refresh()}
+              >
+                {t("processes.refreshBtn")}
+              </Button>
+            </div>
+          </div>
         </form>
       )}
 
