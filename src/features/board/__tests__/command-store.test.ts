@@ -8,6 +8,7 @@ import {
   isFavorite,
   removeHistory,
   removeFavorite,
+  recallCommand,
 } from "../command-store";
 
 const PROJ = "/tmp/proj-a";
@@ -81,5 +82,35 @@ describe("command-store", () => {
   it("损坏 JSON → 空集合不抛", () => {
     localStorage.setItem("rework-cmds:/tmp/proj-a", "not json {{{");
     expect(loadCommands(PROJ)).toEqual({ favorites: [], history: [] });
+  });
+});
+
+describe("recallCommand（↑/↓ 历史导航）", () => {
+  const H = ["c3", "c2", "c1"]; // [0]=最近
+
+  it("↑ 从草稿进入最近，逐格回旧，封顶最旧", () => {
+    let r = recallCommand(H, -1, "up", "draft")!;
+    expect(r).toEqual({ idx: 0, value: "c3" });
+    r = recallCommand(H, 0, "up", "draft")!;
+    expect(r).toEqual({ idx: 1, value: "c2" });
+    r = recallCommand(H, 1, "up", "draft")!;
+    expect(r).toEqual({ idx: 2, value: "c1" });
+    // 已到最旧再 ↑ → 停在最旧
+    r = recallCommand(H, 2, "up", "draft")!;
+    expect(r).toEqual({ idx: 2, value: "c1" });
+  });
+
+  it("↓ 逐格回新，回到 -1 还原草稿", () => {
+    let r = recallCommand(H, 2, "down", "draft")!;
+    expect(r).toEqual({ idx: 1, value: "c2" });
+    r = recallCommand(H, 1, "down", "draft")!;
+    expect(r).toEqual({ idx: 0, value: "c3" });
+    r = recallCommand(H, 0, "down", "draft")!;
+    expect(r).toEqual({ idx: -1, value: "draft" }); // 还原草稿
+  });
+
+  it("历史空时 ↑ 返回 null；已在草稿再 ↓ 返回 null", () => {
+    expect(recallCommand([], -1, "up", "d")).toBeNull();
+    expect(recallCommand(H, -1, "down", "d")).toBeNull();
   });
 });
