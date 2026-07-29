@@ -425,6 +425,9 @@
     },
     "interactiveLabel": "交互式（需输入密码）",
     "interactiveNoRestart": "交互进程请停止后重新启动",
+    "clearLogs": "清空",
+    "clearLogsSuccess": "日志已清空",
+    "clearLogsError": "清空日志失败：{{msg}}",
     "pty": {
       "exited": "[进程已退出]",
       "terminalHeader": "交互终端 · {{name}}"
