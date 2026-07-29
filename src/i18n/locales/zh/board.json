@@ -422,6 +422,9 @@
       "cleanError": "清理失败：{{msg}}",
       "startSuccess": "已启动：{{cmd}}",
       "startError": "启动失败：{{msg}}"
+    },
+    "pty": {
+      "exited": "[进程已退出]"
     }
   },
   "git": {
