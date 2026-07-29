@@ -426,7 +426,8 @@
     "interactiveLabel": "Interactive (needs password)",
     "interactiveNoRestart": "Interactive processes: stop and restart manually",
     "pty": {
-      "exited": "[process exited]"
+      "exited": "[process exited]",
+      "terminalHeader": "Terminal · {{name}}"
     }
   },
   "git": {
