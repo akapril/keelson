@@ -422,6 +422,9 @@
       "cleanError": "Cleanup failed: {{msg}}",
       "startSuccess": "Started: {{cmd}}",
       "startError": "Start failed: {{msg}}"
+    },
+    "pty": {
+      "exited": "[process exited]"
     }
   },
   "git": {
