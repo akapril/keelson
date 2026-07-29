@@ -64,5 +64,22 @@
     "virtualKeys": {
       "label": "虚拟控制键"
     }
+  },
+  "settings": {
+    "theme": {
+      "title": "主题",
+      "desc": "切换浅色 / 深色外观",
+      "system": "跟随系统",
+      "light": "浅色",
+      "dark": "深色"
+    },
+    "about": {
+      "title": "关于",
+      "app": "应用",
+      "version": "版本",
+      "address": "地址",
+      "status": "状态",
+      "connected": "已连接"
+    }
   }
 }

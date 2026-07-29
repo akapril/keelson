@@ -64,5 +64,22 @@
     "virtualKeys": {
       "label": "Virtual keyboard shortcuts"
     }
+  },
+  "settings": {
+    "theme": {
+      "title": "Theme",
+      "desc": "Switch between light and dark appearance",
+      "system": "Follow system",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "about": {
+      "title": "About",
+      "app": "App",
+      "version": "Version",
+      "address": "Address",
+      "status": "Status",
+      "connected": "Connected"
+    }
   }
 }
