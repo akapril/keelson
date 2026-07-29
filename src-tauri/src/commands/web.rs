@@ -13,13 +13,28 @@ use tauri::State;
 // ── Web Gateway 起停/状态命令 ─────────────────────────────────────────────
 // 说明：gateway 绑 0.0.0.0（外网可达），认证在 Task 3 加；Task 1 仅健康路由。
 
-/// 启动 Web Gateway（绑 0.0.0.0，端口由系统随机分配）。已在运行则返回现有端口（幂等）。
+/// 记住 Web 开关状态：写 `config.web_autostart` 并存盘（供下次启动「记住上次状态」自动重启）。
+/// 非致命：存盘失败仅记日志，不影响本次起停。
+fn remember_web_autostart(state: &AppState, enabled: bool) {
+    let path = state.paths.app_data.join("config.toml");
+    let cfg = {
+        let mut guard = state.config.lock();
+        guard.web_autostart = enabled;
+        guard.clone()
+    }; // 锁在此释放，再写盘（IO 不持锁）
+    if let Err(e) = cfg.save(&path) {
+        eprintln!("[rework] 保存 web_autostart 失败（非致命）: {e:#}");
+    }
+}
+
+/// 启动 Web Gateway 的**核心逻辑**（绑固定端口）。已在运行则复用现有端口（幂等）。
 ///
-/// ⚠️ async command 里 `parking_lot::MutexGuard` 不能跨 await：
-/// - 先在独立作用域取锁判断「是否已在运行」，命中则早返回；离开作用域即释放锁。
-/// - bind（await）在锁外进行；成功后再取一次锁写回句柄。
-#[tauri::command]
-pub async fn web_gateway_start(state: State<'_, AppState>) -> Result<u16, String> {
+/// 供 `web_gateway_start` 命令与 setup 自启动共用（后者不经 State，故取 `&AppState`）。
+/// **不**触碰 `config.web_autostart`——是否「记住」由调用方决定（命令记，自启动不重复记）。
+///
+/// ⚠️ `parking_lot::MutexGuard` 不能跨 await：先在独立作用域取锁判断/读值，离开作用域即释放；
+/// bind（await）在锁外进行；成功后再取一次锁写回句柄。
+pub async fn start_gateway(state: &AppState) -> Result<u16, String> {
     // 1) 已在运行则复用现有端口（取锁→读端口→立即释放，不跨 await）。
     {
         let guard = state.web_gateway.lock();
@@ -77,6 +92,15 @@ pub async fn web_gateway_start(state: State<'_, AppState>) -> Result<u16, String
     Ok(port)
 }
 
+/// 启动 Web Gateway（命令入口）：调用核心逻辑，成功后**记住开启状态**（下次启动自动重启）。
+#[tauri::command]
+pub async fn web_gateway_start(state: State<'_, AppState>) -> Result<u16, String> {
+    let port = start_gateway(&state).await?;
+    // 记住：用户开启过 → 下次启动 PB 就绪后自动重启（配合设备持久化=无缝）。
+    remember_web_autostart(&state, true);
+    Ok(port)
+}
+
 /// 停止 Web Gateway（若在运行）：取出句柄并发送优雅关闭信号。未运行则静默成功。
 ///
 /// Task 11 生命周期·退出清场：gateway 停止时主动 kill 所有内嵌 PTY 会话，杜绝孤儿 CLI agent。
@@ -89,6 +113,8 @@ pub fn web_gateway_stop(state: State<AppState>) -> Result<(), String> {
     }
     // 主动清场：kill 全表 PTY（幂等，无会话时为 no-op）。
     state.web_pty.kill_all();
+    // 记住：用户主动关闭 → 下次启动不自动起。
+    remember_web_autostart(&state, false);
     Ok(())
 }
 
