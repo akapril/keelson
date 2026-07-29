@@ -307,6 +307,12 @@ pub(crate) async fn handle_restart(args: &Value) -> Value {
         None => return json!({"error": format!("找不到进程 '{}'", name_or_id)}),
     };
 
+    // 交互 PTY 进程无 TTY，无法无人值守重跑：pid=0 的 taskkill/kill 无效，
+    // 且 PTY 会话由用户主导。返回提示，由前端引导用户重新交互启动。
+    if entry.interactive {
+        return json!({"error": "交互进程请停止后重新交互启动（restart 不支持无人值守重跑）"});
+    }
+
     // 保存重启所需的原始参数（含环境变量 + 会话关联）
     let saved_command = entry.command.clone();
     let saved_name = entry.name.clone();
