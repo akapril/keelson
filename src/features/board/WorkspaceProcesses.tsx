@@ -25,6 +25,25 @@ function logText(l: RuntimeLog): string {
   return (l.message || l.raw || "").trim();
 }
 
+/** 文件夹图标（内联线性 SVG，与全站 TabIcon 风格一致，替代 emoji）。 */
+function FolderIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </svg>
+  );
+}
+
+/** 重置/回退图标（逆时针箭头，内联线性 SVG）。 */
+function ResetIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 3v5h5" />
+      <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
+    </svg>
+  );
+}
+
 // repoPath 有值=项目模式（按仓库路径过滤 + 可在本目录启动）；
 // 无值=全局模式（侧边栏「进程」页：显示所有托管进程，不过滤，不提供启动，附清理入口）。
 export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
@@ -338,17 +357,19 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
 
           {/* 行2：工作目录展示 + 选目录 + 选脚本 + 收藏当前 + 刷新 */}
           <div className="flex items-center gap-2 text-xs">
-            <span className="min-w-0 truncate text-muted-foreground" title={cwd ?? repoPath}>
-              📁 {cwd ? cwd : t("processes.launch.projectRoot")}
+            <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground" title={cwd ?? repoPath}>
+              <FolderIcon className="size-3.5 shrink-0" />
+              <span className="truncate">{cwd ? cwd : t("processes.launch.projectRoot")}</span>
             </span>
             {cwd && (
               <button
                 type="button"
                 onClick={() => setCwd(null)}
-                className="shrink-0 rounded px-1 text-muted-foreground hover:text-foreground"
+                className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
                 title={t("processes.launch.resetCwd")}
+                aria-label={t("processes.launch.resetCwd")}
               >
-                ↺
+                <ResetIcon className="size-3.5" />
               </button>
             )}
             <div className="ml-auto flex shrink-0 gap-1.5">
