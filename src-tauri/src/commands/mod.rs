@@ -36,6 +36,8 @@ pub mod memory;
 pub mod hooks;
 // 进程管理接入（项目「进程」tab：进程内直调内核，看进程/日志/控制）
 pub mod runtime;
+// 交互式 PTY 进程命令（start/input/resize/kill；需 AppHandle emit，故独立于 runtime）
+pub mod runtime_pty;
 
 // 注意：generate_handler! 宏需要使用函数定义所在的原始路径（含辅助符号），
 // 故不做 re-export；lib.rs 中直接使用 commands::sessions::sessions_list 等完整路径。
