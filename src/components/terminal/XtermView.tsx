@@ -16,43 +16,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { openTerminalWs, type WsStatus } from "@/web/webterm-ws";
-
-/** 从 CSS 变量解析终端主题色（语义色 → xterm 主题映射） */
-function resolveXtermTheme(): {
-  background: string;
-  foreground: string;
-  cursor: string;
-  selectionBackground: string;
-} {
-  const style = getComputedStyle(document.documentElement);
-  // 优先取自定义 CSS 变量，fallback 到中性深色值（保持可读）
-  const bg = style.getPropertyValue("--background").trim() || "#1a1b1e";
-  const fg = style.getPropertyValue("--foreground").trim() || "#c9d1d9";
-  const muted =
-    style.getPropertyValue("--muted-foreground").trim() || "#8b949e";
-  const primary =
-    style.getPropertyValue("--primary").trim() || "#58a6ff";
-
-  // CSS 变量值可能是 "oklch(...)" 或 HEX，xterm 要求合法 CSS 色值即可
-  return {
-    background: cssVarToColor(bg, "#1a1b1e"),
-    foreground: cssVarToColor(fg, "#c9d1d9"),
-    cursor: cssVarToColor(primary, "#58a6ff"),
-    selectionBackground: cssVarToColor(muted, "#3d444d") + "40", // 25% alpha
-  };
-}
-
-/**
- * 将 CSS 变量值转换为 xterm 可接受的色值字符串。
- * Tailwind v4 使用 oklch()，xterm 支持标准 CSS 颜色，直接透传即可。
- * 若值为空白或无法判断，返回 fallback。
- */
-function cssVarToColor(value: string, fallback: string): string {
-  const v = value.trim();
-  if (!v) return fallback;
-  // oklch / hsl / rgb / #hex 均直接返回（xterm 底层 canvas 用 CSS 解析）
-  return v;
-}
+import { resolveXtermTheme, makeSafeFit } from "./xterm-shared";
 
 /** 通过 ref 暴露给父组件的句柄 */
 export interface XtermHandle {
@@ -137,12 +101,10 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     // 仅在容器可见（有实际尺寸）时 fit：keep-alive 布局下切走 tab 会把容器设为
     // display:none（clientWidth/Height=0），此时 fit() 会算出 1x1 破坏终端；跳过即可，
     // 切回可见时 ResizeObserver 会再触发一次正常 fit。返回是否真正执行了 fit。
-    const safeFit = (): boolean => {
-      const el = containerRef.current;
-      if (!el || el.clientWidth === 0 || el.clientHeight === 0) return false;
-      fitAddon.fit();
-      return true;
-    };
+    const safeFit = makeSafeFit(
+      () => containerRef.current,
+      () => fitAddon.fit(),
+    );
 
     // 渲染到 DOM
     term.open(containerRef.current);
