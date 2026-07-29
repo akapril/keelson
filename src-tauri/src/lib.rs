@@ -130,6 +130,8 @@ pub struct AppState {
     /// 内嵌 PTY 会话表（Task 10）：远程终端核心。gateway 的 WS handler（Task 11）经此
     /// 开/写/resize/读/杀伪终端会话。`Arc` 共享，供跨线程持有。
     pub web_pty: Arc<web::terminal::PtyRegistry>,
+    /// 交互式 PTY 进程注册表（sudo 等）：桌面进程管理的交互启动路径。
+    pub runtime_pty: Arc<runtime::pty::InteractivePtyRegistry>,
 }
 
 impl Default for AppState {
@@ -153,6 +155,7 @@ impl Default for AppState {
             web_auth: Arc::new(web::auth::AuthState::new()),
             web_api_state: Arc::new(Mutex::new(None)),
             web_pty: Arc::new(web::terminal::PtyRegistry::new()),
+            runtime_pty: Arc::new(runtime::pty::InteractivePtyRegistry::new()),
         }
     }
 }
@@ -387,6 +390,11 @@ pub fn run() {
             commands::memory::tasks_project_files_status,
             // 进程管理（进程内模块，命令直调）
             commands::runtime::runtime_command,
+            // 交互式 PTY 进程命令（start/input/resize/kill）
+            commands::runtime_pty::runtime_pty_start,
+            commands::runtime_pty::runtime_pty_input,
+            commands::runtime_pty::runtime_pty_resize,
+            commands::runtime_pty::runtime_pty_kill,
             // MCP 一键接入 claude / codex
             commands::mcp::mcp_endpoint,
             commands::mcp::mcp_install_claude,
@@ -434,6 +442,8 @@ pub fn run() {
                 // Task 11 生命周期·退出清场：主动 kill 所有内嵌 PTY 会话，杜绝孤儿 CLI agent。
                 // WS 断连不杀 pty（允许重连接管），但 app 退出必须清空全表（Drop 是兜底，此处是主动钩子）。
                 state.web_pty.kill_all();
+                // 交互 PTY 同样退出清场，杜绝孤儿。
+                state.runtime_pty.kill_all();
             }
         });
 }
