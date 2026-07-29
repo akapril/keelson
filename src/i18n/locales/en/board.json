@@ -425,6 +425,9 @@
     },
     "interactiveLabel": "Interactive (needs password)",
     "interactiveNoRestart": "Interactive processes: stop and restart manually",
+    "clearLogs": "Clear",
+    "clearLogsSuccess": "Logs cleared",
+    "clearLogsError": "Failed to clear logs: {{msg}}",
     "pty": {
       "exited": "[process exited]",
       "terminalHeader": "Terminal · {{name}}"

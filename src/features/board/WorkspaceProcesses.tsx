@@ -263,6 +263,17 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
     }
   };
 
+  // 清空选中进程的日志（截断 <id>.log）。进程在跑也可清，后续日志从头续写。
+  const clearLogs = async (name: string) => {
+    try {
+      await ipc.runtimeClearLogs(name);
+      setLogs([]); // 立即清空视图；1s 轮询读到空文件后保持空
+      toast.success(t("processes.clearLogsSuccess"));
+    } catch (e) {
+      toast.error(t("processes.clearLogsError", { msg: String(e) }));
+    }
+  };
+
   const selectedLogs = useMemo(
     () => logs.map(logText).filter(Boolean),
     [logs],
@@ -543,11 +554,24 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
             </div>
           ) : (
             <div className="flex h-full flex-col">
-              <div className="shrink-0 border-b border-border px-3 py-1.5 text-xs font-medium text-muted-foreground">
+              <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5">
                 {/* 交互式 PTY 终端模式显示「终端 · 进程名」，不显示日志计数；否则显示日志计数 */}
-                {showPtyTerminal
-                  ? t("processes.pty.terminalHeader", { name: selected })
-                  : t("processes.logHeader", { name: selected, count: selectedLogs.length })}
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
+                  {showPtyTerminal
+                    ? t("processes.pty.terminalHeader", { name: selected })
+                    : t("processes.logHeader", { name: selected, count: selectedLogs.length })}
+                </span>
+                {/* 清空日志：截断 <id>.log。终端模式不显示（xterm 缓冲另算，非日志文件） */}
+                {!showPtyTerminal && selected && (
+                  <button
+                    type="button"
+                    onClick={() => void clearLogs(selected)}
+                    className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                    title={t("processes.clearLogs")}
+                  >
+                    {t("processes.clearLogs")}
+                  </button>
+                )}
               </div>
               {showPtyTerminal ? (
                 // 交互式 PTY 进程运行中：渲染可输入终端（xterm）；id 变时自动重挂

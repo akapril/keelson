@@ -60,6 +60,7 @@ pub(crate) async fn dispatch(cmd: &str, args: &Value) -> Value {
         "restart" => handle_restart(args).await,
         "ps" => handle_ps(args).await,
         "logs" => handle_logs(args).await,
+        "clear_logs" => handle_clear_logs(args).await,
         "remove" => handle_remove(args).await,
         "errors" => handle_errors(args).await,
         "clean" => handle_clean(args).await,
@@ -493,6 +494,25 @@ pub(crate) async fn handle_logs(args: &Value) -> Value {
 }
 
 // ─────────────────────────── handle_remove ────────────────────────────
+
+/// 清空某进程的日志文件：截断 `<id>.log` 为 0，**不删文件**。
+/// 进程仍在运行也可清（其 append 句柄的后续写入从头续写，不受影响）。
+pub(crate) async fn handle_clear_logs(args: &Value) -> Value {
+    let name_or_id = match args.get("name").and_then(|v| v.as_str()) {
+        Some(n) => n.to_string(),
+        None => return json!({"error": "缺少 'name' 参数"}),
+    };
+    let entry = match store::find_process(&name_or_id) {
+        Some(e) => e,
+        None => return json!({"error": format!("找不到进程 '{}'", name_or_id)}),
+    };
+    let log_path = store::stdout_dir().join(format!("{}.log", entry.id));
+    // File::create 打开即截断为 0（文件不存在则新建空文件）。
+    match std::fs::File::create(&log_path) {
+        Ok(_) => json!({ "id": entry.id, "name": entry.name, "cleared": true }),
+        Err(e) => json!({"error": format!("清空日志失败: {}", e)}),
+    }
+}
 
 /// 从进程表移除一个「已退出/已停止」的进程记录并删其日志文件（不 kill）。
 /// 用于清理死条目；running 的请先 stop。
