@@ -108,3 +108,30 @@ export function removeFavorite(projectKey: string, entry: CommandEntry): Command
   saveCommands(projectKey, store);
   return store;
 }
+
+/**
+ * 终端式 ↑/↓ 历史回溯（纯函数，命令框按方向键调用）。
+ *
+ * @param commands 命令文本列表，`[0]` 为最近（同 history 顺序）。
+ * @param idx      当前索引：`-1`=草稿态（用户正在输入的内容）。
+ * @param dir      `"up"`=回到更旧命令；`"down"`=回到更新命令/草稿。
+ * @param draft    草稿文本（idx 回到 -1 时还原）。
+ * @returns 新的 `{ idx, value }`；无可动作（历史空 / 已在草稿再按 ↓）返回 `null`。
+ */
+export function recallCommand(
+  commands: string[],
+  idx: number,
+  dir: "up" | "down",
+  draft: string,
+): { idx: number; value: string } | null {
+  if (dir === "up") {
+    if (commands.length === 0) return null;
+    // 从草稿(-1)或当前位置向更旧移动一格，封顶最旧。
+    const next = Math.min((idx < 0 ? -1 : idx) + 1, commands.length - 1);
+    return { idx: next, value: commands[next] };
+  }
+  // down：已在草稿则不动；否则向更新移动，回到 -1 还原草稿。
+  if (idx < 0) return null;
+  const next = idx - 1;
+  return { idx: next, value: next < 0 ? draft : commands[next] };
+}

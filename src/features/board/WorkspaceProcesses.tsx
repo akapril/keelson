@@ -1,7 +1,7 @@
 // WorkspaceProcesses —— 进程管理视图（项目「进程」tab = 按 repo_path 过滤；
 // 侧边栏「进程」页 = 全局）。进程列表 + 日志 + start/stop/restart/remove/清理。
 // 进程管理为 rework 进程内模块，命令直调；实时事件刷新 + 兜底轮询。
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import type { RuntimeProcess, RuntimeLog } from "@/types/runtime";
 import { InteractivePtyView } from "@/components/terminal/InteractivePtyView";
 import { CommandPicker } from "./CommandPicker";
-import { addHistory, toggleFavorite, isFavorite } from "./command-store";
+import { addHistory, toggleFavorite, isFavorite, loadCommands, recallCommand } from "./command-store";
 import { scriptToCommand } from "./script-command";
 
 /** 是否 Windows（影响 .sh 脚本的解释器：bash vs sh）。 */
@@ -44,6 +44,9 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
   const [cwd, setCwd] = useState<string | null>(null);
   // 命令收藏/历史变更计数：收藏当前 / 启动记历史 / Picker 内改动后 +1，触发 Picker 重载
   const [cmdVersion, setCmdVersion] = useState(0);
+  // 终端式 ↑/↓ 历史导航：当前索引（-1=草稿）+ 草稿暂存
+  const [histIdx, setHistIdx] = useState(-1);
+  const draftRef = useRef("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   // 日志滚动容器 + 是否「跟随到底部」（用户往上翻看历史时暂停跟随，滚回底部恢复）
   const logScrollRef = useRef<HTMLDivElement>(null);
@@ -177,6 +180,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
       setCmdVersion((v) => v + 1);
       toast.success(t("processes.toast.startSuccess", { cmd: command }));
       setCmd("");
+      setHistIdx(-1); // 启动后回到草稿态
       await refresh();
     } catch (e) {
       toast.error(t("processes.toast.startError", { msg: String(e) }));
@@ -219,6 +223,26 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
   // 当前命令是否已收藏（用于收藏按钮的星态）
   const currentFavored =
     !!repoPath && cmd.trim().length > 0 && isFavorite(repoPath, { command: cmd.trim(), cwd: cwd ?? repoPath });
+
+  // ↑/↓ 历史导航用的命令文本列表（最近在前）；cmdVersion 作刷新触发器（记历史/收藏后重读）
+  const historyCommands = useMemo(
+    () => (repoPath ? loadCommands(repoPath).history.map((h) => h.command) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cmdVersion 是刷新触发器，非 memo 体内引用
+    [repoPath, cmdVersion],
+  );
+
+  // 命令框按 ↑/↓ 回溯历史（终端习惯）。首次 ↑ 暂存当前草稿，↓ 回到底部还原草稿。
+  const onCmdKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+    const dir = e.key === "ArrowUp" ? "up" : "down";
+    if (dir === "up" && histIdx < 0) draftRef.current = cmd; // 进入历史前存草稿
+    const r = recallCommand(historyCommands, histIdx, dir, draftRef.current);
+    if (r) {
+      e.preventDefault(); // 阻止光标跳到行首/行尾
+      setHistIdx(r.idx);
+      setCmd(r.value);
+    }
+  };
 
   const selectedLogs = useMemo(
     () => logs.map(logText).filter(Boolean),
@@ -277,7 +301,11 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
           <div className="flex items-center gap-2">
             <Input
               value={cmd}
-              onChange={(e) => setCmd(e.target.value)}
+              onChange={(e) => {
+                setCmd(e.target.value);
+                setHistIdx(-1); // 用户手动编辑 → 脱离历史导航
+              }}
+              onKeyDown={onCmdKeyDown}
               placeholder={t("processes.startPlaceholder")}
               className="flex-1"
               disabled={busy}
@@ -289,6 +317,7 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
               onPick={(e) => {
                 setCmd(e.command);
                 setCwd(e.cwd ?? null);
+                setHistIdx(-1); // 下拉选完后从草稿态重新计
               }}
               onChanged={() => setCmdVersion((v) => v + 1)}
             />
