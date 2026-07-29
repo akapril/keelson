@@ -423,6 +423,8 @@
       "startSuccess": "Started: {{cmd}}",
       "startError": "Start failed: {{msg}}"
     },
+    "interactiveLabel": "Interactive (needs password)",
+    "interactiveNoRestart": "Interactive processes: stop and restart manually",
     "pty": {
       "exited": "[process exited]"
     }

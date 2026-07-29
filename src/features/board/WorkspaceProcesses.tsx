@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { RuntimeProcess, RuntimeLog } from "@/types/runtime";
+import { InteractivePtyView } from "@/components/terminal/InteractivePtyView";
 
 /** 一行日志取可读文本（字段随版本，兜底取 raw/message）。 */
 function logText(l: RuntimeLog): string {
@@ -30,6 +31,8 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
   const [busy, setBusy] = useState(false);
   // 启动新进程的输入
   const [cmd, setCmd] = useState("");
+  // 是否以交互式 PTY 启动（sudo 等需输入密码的命令）
+  const [interactive, setInteractive] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   // 日志滚动容器 + 是否「跟随到底部」（用户往上翻看历史时暂停跟随，滚回底部恢复）
   const logScrollRef = useRef<HTMLDivElement>(null);
@@ -96,9 +99,19 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
   const control = async (action: "stop" | "restart" | "remove", name: string) => {
     setBusy(true);
     try {
-      if (action === "stop") await ipc.runtimeStop(name);
-      else if (action === "restart") await ipc.runtimeRestart(name);
-      else await ipc.runtimeRemove(name);
+      if (action === "stop") {
+        // 交互式进程走 PTY kill（发 SIGKILL/TerminateProcess），非交互走 PID stop
+        const proc = procs.find((p) => p.name === name);
+        if (proc?.interactive) {
+          await ipc.runtimePtyKill(proc.id);
+        } else {
+          await ipc.runtimeStop(name);
+        }
+      } else if (action === "restart") {
+        await ipc.runtimeRestart(name);
+      } else {
+        await ipc.runtimeRemove(name);
+      }
       const successMsg = action === "stop"
         ? t("processes.toast.stop", { name })
         : action === "restart"
@@ -134,9 +147,17 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
     if (!command || !repoPath) return;
     setBusy(true);
     try {
-      // name 默认取命令首词 + 时间无关的简短标识（daemon 会去重/覆盖）
+      // name 默认取命令首词（daemon 会去重/覆盖）
       const name = command.split(/\s+/)[0] || "proc";
-      await ipc.runtimeStart(command, name, repoPath);
+      if (interactive) {
+        // 交互式 PTY 启动（sudo / ssh 等需要终端输入的命令）
+        const p = await ipc.runtimePtyStart(command, name, repoPath);
+        // 启动后自动选中该进程，右侧立即显示交互终端等待输入
+        setSelected(p.name);
+      } else {
+        // 普通 headless 进程（看门狗、日志 tee、PID 判活）
+        await ipc.runtimeStart(command, name, repoPath);
+      }
       toast.success(t("processes.toast.startSuccess", { cmd: command }));
       setCmd("");
       await refresh();
@@ -151,6 +172,14 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
     () => logs.map(logText).filter(Boolean),
     [logs],
   );
+
+  // 当前选中的进程实体（用于判断是否交互式）
+  const selectedProc = useMemo(
+    () => procs.find((p) => p.name === selected) ?? null,
+    [procs, selected],
+  );
+  // 交互式 PTY 进程且正在运行：右侧渲染可输入终端而非只读日志
+  const showPtyTerminal = !!selectedProc?.interactive && selectedProc.status === "running";
 
   // 切换进程：重置为「跟随」（回到看最新日志）
   useEffect(() => {
@@ -199,6 +228,16 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
             className="flex-1"
             disabled={busy}
           />
+          {/* 交互式启动 checkbox：sudo / ssh 等需要终端输入的命令勾选此项 */}
+          <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={interactive}
+              onChange={(e) => setInteractive(e.target.checked)}
+              disabled={busy}
+            />
+            {t("processes.interactiveLabel")}
+          </label>
           <Button type="submit" disabled={busy || !cmd.trim()}>
             {t("processes.startBtn")}
           </Button>
@@ -289,14 +328,25 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                       {p.health && p.health !== "unknown" ? ` · ${p.health}` : ""}
                     </span>
                     <span className="ml-auto flex gap-1">
+                      {/* 交互式进程不支持自动重启：提示用户手动停止后重新启动 */}
                       <span
                         role="button"
                         tabIndex={0}
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (p.interactive) {
+                            toast.info(t("processes.interactiveNoRestart"));
+                            return;
+                          }
                           void control("restart", p.name);
                         }}
-                        className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                        className={cn(
+                          "rounded px-1.5 py-0.5 text-[10px]",
+                          p.interactive
+                            ? "cursor-default text-muted-foreground/40"
+                            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                        )}
+                        title={p.interactive ? t("processes.interactiveNoRestart") : undefined}
                       >
                         {t("processes.restartBtn")}
                       </span>
@@ -345,25 +395,33 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
               <div className="shrink-0 border-b border-border px-3 py-1.5 text-xs font-medium text-muted-foreground">
                 {t("processes.logHeader", { name: selected, count: selectedLogs.length })}
               </div>
-              <div
-                ref={logScrollRef}
-                onScroll={() => {
-                  const el = logScrollRef.current;
-                  if (!el) return;
-                  // 距底部 <40px 视为「在底部」→ 跟随；往上翻则暂停跟随
-                  followRef.current =
-                    el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-                }}
-                className="min-h-0 flex-1 overflow-auto p-3"
-              >
-                {selectedLogs.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">{t("processes.noLogs")}</p>
-                ) : (
-                  <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-foreground">
-                    {selectedLogs.join("\n")}
-                  </pre>
-                )}
-              </div>
+              {showPtyTerminal ? (
+                // 交互式 PTY 进程运行中：渲染可输入终端（xterm）；id 变时自动重挂
+                <div className="min-h-0 flex-1 overflow-hidden bg-background">
+                  <InteractivePtyView id={selectedProc!.id} className="size-full" />
+                </div>
+              ) : (
+                // 普通进程 / 交互进程已退出：只读日志（tee 落盘，支持回看）
+                <div
+                  ref={logScrollRef}
+                  onScroll={() => {
+                    const el = logScrollRef.current;
+                    if (!el) return;
+                    // 距底部 <40px 视为「在底部」→ 跟随；往上翻则暂停跟随
+                    followRef.current =
+                      el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+                  }}
+                  className="min-h-0 flex-1 overflow-auto p-3"
+                >
+                  {selectedLogs.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">{t("processes.noLogs")}</p>
+                  ) : (
+                    <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-foreground">
+                      {selectedLogs.join("\n")}
+                    </pre>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
