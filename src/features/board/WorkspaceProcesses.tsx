@@ -393,7 +393,10 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
           ) : (
             <div className="flex h-full flex-col">
               <div className="shrink-0 border-b border-border px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                {t("processes.logHeader", { name: selected, count: selectedLogs.length })}
+                {/* 交互式 PTY 终端模式显示「终端 · 进程名」，不显示日志计数；否则显示日志计数 */}
+                {showPtyTerminal
+                  ? t("processes.pty.terminalHeader", { name: selected })
+                  : t("processes.logHeader", { name: selected, count: selectedLogs.length })}
               </div>
               {showPtyTerminal ? (
                 // 交互式 PTY 进程运行中：渲染可输入终端（xterm）；id 变时自动重挂

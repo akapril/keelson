@@ -426,7 +426,8 @@
     "interactiveLabel": "交互式（需输入密码）",
     "interactiveNoRestart": "交互进程请停止后重新启动",
     "pty": {
-      "exited": "[进程已退出]"
+      "exited": "[进程已退出]",
+      "terminalHeader": "交互终端 · {{name}}"
     }
   },
   "git": {
