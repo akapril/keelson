@@ -67,6 +67,66 @@ pub(crate) async fn dispatch(cmd: &str, args: &Value) -> Value {
     }
 }
 
+// ─────────────────────────── spawn 核心 ────────────────────────────
+
+/// 建日志文件 + 平台化 spawn 子进程 + forget，返回 pid。
+///
+/// 供 `handle_start`（首次启动）与 `handle_restart`（原地重启）复用，统一 spawn 逻辑。
+/// 日志用 `create+append`：首次新建、重启续写（保留历史，不清空）。
+fn spawn_detached(
+    id: &str,
+    command: &str,
+    working_dir: &str,
+    env_vars: &HashMap<String, String>,
+) -> Result<u32, String> {
+    let log_path = store::stdout_dir().join(format!("{}.log", id));
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|e| format!("无法打开日志文件: {}", e))?;
+    let log_file_stderr = log_file
+        .try_clone()
+        .map_err(|e| format!("无法克隆日志文件句柄: {}", e))?;
+
+    // 启动子进程（平台化）
+    #[cfg(windows)]
+    let spawn_result = {
+        use std::os::windows::process::CommandExt;
+        // chcp 65001 强制子进程输出 UTF-8，避免 GBK 乱码
+        let utf8_command = format!("chcp 65001 >nul && {}", command);
+        let mut cmd = Command::new("cmd");
+        cmd.args(["/C", &utf8_command])
+            .current_dir(working_dir)
+            .stdout(log_file)
+            .stderr(log_file_stderr)
+            .creation_flags(0x00000200); // CREATE_NEW_PROCESS_GROUP
+        for (key, value) in env_vars {
+            cmd.env(key, value);
+        }
+        cmd.spawn()
+    };
+
+    #[cfg(unix)]
+    let spawn_result = {
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", command])
+            .current_dir(working_dir)
+            .stdout(log_file)
+            .stderr(log_file_stderr);
+        for (key, value) in env_vars {
+            cmd.env(key, value);
+        }
+        cmd.spawn()
+    };
+
+    let child = spawn_result.map_err(|e| format!("无法启动进程: {}", e))?;
+    let pid = child.id();
+    // 将子进程句柄遗忘，使其独立于守护进程运行
+    std::mem::forget(child);
+    Ok(pid)
+}
+
 // ─────────────────────────── handle_start ────────────────────────────
 
 pub(crate) async fn handle_start(args: &Value) -> Value {
@@ -105,64 +165,17 @@ pub(crate) async fn handle_start(args: &Value) -> Value {
                 .to_string()
         });
 
-    // 创建日志文件
-    let log_path = store::stdout_dir().join(format!("{}.log", id));
-    let log_file = match std::fs::File::create(&log_path) {
-        Ok(f) => f,
-        Err(e) => return json!({"error": format!("无法创建日志文件: {}", e)}),
-    };
-    let log_file_stderr = match log_file.try_clone() {
-        Ok(f) => f,
-        Err(e) => return json!({"error": format!("无法克隆日志文件句柄: {}", e)}),
-    };
-
     // 从参数中读取环境变量
     let env_vars: HashMap<String, String> = args
         .get("env")
         .and_then(|v| serde_json::from_value(v.clone()).ok())
         .unwrap_or_default();
 
-    // 启动子进程
-    #[cfg(windows)]
-    let spawn_result = {
-        use std::os::windows::process::CommandExt;
-        // chcp 65001 强制子进程输出 UTF-8，避免 GBK 乱码
-        let utf8_command = format!("chcp 65001 >nul && {}", command);
-        let mut cmd = Command::new("cmd");
-        cmd.args(["/C", &utf8_command])
-            .current_dir(&working_dir)
-            .stdout(log_file)
-            .stderr(log_file_stderr)
-            .creation_flags(0x00000200); // CREATE_NEW_PROCESS_GROUP
-        // 注入环境变量
-        for (key, value) in &env_vars {
-            cmd.env(key, value);
-        }
-        cmd.spawn()
+    // 建日志 + spawn（抽出的核心，与 handle_restart 复用）
+    let pid = match spawn_detached(&id, &command, &working_dir, &env_vars) {
+        Ok(p) => p,
+        Err(e) => return json!({"error": e}),
     };
-
-    #[cfg(unix)]
-    let spawn_result = {
-        let mut cmd = Command::new("sh");
-        cmd.args(["-c", &command])
-            .current_dir(&working_dir)
-            .stdout(log_file)
-            .stderr(log_file_stderr);
-        // 注入环境变量
-        for (key, value) in &env_vars {
-            cmd.env(key, value);
-        }
-        cmd.spawn()
-    };
-
-    let child = match spawn_result {
-        Ok(c) => c,
-        Err(e) => return json!({"error": format!("无法启动进程: {}", e)}),
-    };
-
-    let pid = child.id();
-    // 将子进程句柄遗忘，使其独立于守护进程运行
-    std::mem::forget(child);
 
     // 自动重启策略
     let max_restarts = args
@@ -207,9 +220,8 @@ pub(crate) async fn handle_start(args: &Value) -> Value {
     };
     store::add_process(entry);
 
-    // 纯文件日志：子进程 stdout/stderr 已直接重定向到 <id>.log，无需捕获中转任务。
-    // handle_logs 读该文件尾部即可（去掉了原 SQLite 双写）。
-    let _ = &log_path;
+    // 纯文件日志：子进程 stdout/stderr 已在 spawn_detached 内直接重定向到 <id>.log，
+    // 无需捕获中转任务。handle_logs 读该文件尾部即可（去掉了原 SQLite 双写）。
 
     // 启动端口检测异步任务
     {
@@ -237,7 +249,7 @@ pub(crate) async fn handle_start(args: &Value) -> Value {
         let wd_cwd = working_dir.clone();
         let wd_env = env_vars.clone();
         tokio::spawn(async move {
-            watchdog(wd_id, wd_cmd, wd_name, wd_cwd, wd_env, pid, max_restarts).await;
+            watchdog(wd_id, wd_cmd, wd_name, wd_cwd, wd_env, max_restarts).await;
         });
     }
 
@@ -313,15 +325,7 @@ pub(crate) async fn handle_restart(args: &Value) -> Value {
         return json!({"error": "交互进程请停止后重新交互启动（restart 不支持无人值守重跑）"});
     }
 
-    // 保存重启所需的原始参数（含环境变量 + 会话关联）
-    let saved_command = entry.command.clone();
-    let saved_name = entry.name.clone();
-    let saved_cwd = entry.cwd.clone();
-    let saved_env = entry.env.clone();
-    let saved_session = entry.session_id.clone();
-    let saved_provider = entry.provider.clone();
-
-    // 先停止旧进程
+    // 先停止旧进程（保留进程表条目，稍后原地更新，不 remove）
     #[cfg(windows)]
     {
         let _ = Command::new("taskkill")
@@ -336,18 +340,52 @@ pub(crate) async fn handle_restart(args: &Value) -> Value {
             .output();
     }
 
-    store::remove_process(&entry.id);
-
-    // 以相同参数（含环境变量 + 会话关联）重新启动
-    let start_args = json!({
-        "command": saved_command,
-        "name": saved_name,
-        "cwd": saved_cwd,
-        "env": saved_env,
-        "session_id": saved_session,
-        "provider": saved_provider,
+    // 原地重启：复用同一条目——同 id / name / started_at / 列表位置，只换 pid、状态、restart_count。
+    // 不 remove_process、不换 id、不走 handle_start 的建新条目路径（否则名字冲突误判 + 跳到列表末尾）。
+    // 不新起 watchdog：原 watchdog（若 max_restarts>0）继续，且按 entry.pid 判活（见 watchdog），
+    // 会读到这里更新的新 pid → 判活为真、不会因旧 pid 已死而误触发自动重启。
+    let new_pid = match spawn_detached(&entry.id, &entry.command, &entry.cwd, &entry.env) {
+        Ok(p) => p,
+        Err(e) => {
+            // spawn 失败：旧进程已被 kill → 实际已停，标 exited 更准确。
+            store::update_process(&entry.id, |x| {
+                x.status = "exited".to_string();
+            });
+            return json!({"error": e});
+        }
+    };
+    store::update_process(&entry.id, |x| {
+        x.pid = new_pid;
+        x.status = "running".to_string();
+        x.restart_count = x.restart_count.saturating_add(1);
+        x.port.clear(); // 旧端口失效，交给下面的端口检测任务重填
+        x.health = "unknown".to_string();
     });
-    handle_start(&start_args).await
+
+    // 重新起端口检测异步任务（针对同一 id + 新 pid，同 handle_start）
+    {
+        let task_id = entry.id.clone();
+        let child_pid = new_pid;
+        tokio::spawn(async move {
+            for _ in 0..10 {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                let ports = port::detect_ports(child_pid);
+                if !ports.is_empty() {
+                    store::update_process(&task_id, |e| {
+                        e.port = ports;
+                    });
+                    break;
+                }
+            }
+        });
+    }
+
+    json!({
+        "id": entry.id,
+        "name": entry.name,
+        "pid": new_pid,
+        "status": "running"
+    })
 }
 
 // ─────────────────────────── handle_ps ────────────────────────────
@@ -518,7 +556,6 @@ async fn watchdog(
     name: String,
     cwd: String,
     env_vars: HashMap<String, String>,
-    mut current_pid: u32,
     max_restarts: u32,
 ) {
     let mut restart_count: u32 = 0;
@@ -541,8 +578,9 @@ async fn watchdog(
             break;
         }
 
-        // 检查进程是否存活
-        if proc_util::is_pid_alive(current_pid) {
+        // 检查进程是否存活：按 entry 的**当前** pid 判活（而非本地旧 pid）。
+        // 这样手动原地 restart 更新 entry.pid 后，watchdog 读到新 pid 判活为真 → 不误触发自动重启。
+        if proc_util::is_pid_alive(entry.pid) {
             continue;
         }
 
@@ -568,57 +606,9 @@ async fn watchdog(
         // 等 1 秒再重启，避免疯狂循环
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        // 重新创建日志文件
-        let log_path = store::stdout_dir().join(format!("{}.log", process_id));
-        let log_file = match std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
-            Ok(f) => f,
-            Err(e) => {
-                eprintln!("[watchdog] 无法打开日志文件: {}", e);
-                break;
-            }
-        };
-        let log_file_err = match log_file.try_clone() {
-            Ok(f) => f,
-            Err(_) => break,
-        };
-
-        // 重新启动子进程（含环境变量注入）
-        #[cfg(windows)]
-        let spawn_result = {
-            use std::os::windows::process::CommandExt;
-            let utf8_cmd = format!("chcp 65001 >nul && {}", command);
-            let mut cmd = Command::new("cmd");
-            cmd.args(["/C", &utf8_cmd])
-                .current_dir(&cwd)
-                .stdout(log_file)
-                .stderr(log_file_err)
-                .creation_flags(0x00000200);
-            for (key, value) in &env_vars {
-                cmd.env(key, value);
-            }
-            cmd.spawn()
-        };
-
-        #[cfg(unix)]
-        let spawn_result = {
-            let mut cmd = Command::new("sh");
-            cmd.args(["-c", &command])
-                .current_dir(&cwd)
-                .stdout(log_file)
-                .stderr(log_file_err);
-            for (key, value) in &env_vars {
-                cmd.env(key, value);
-            }
-            cmd.spawn()
-        };
-
-        match spawn_result {
-            Ok(child) => {
-                let new_pid = child.id();
-                std::mem::forget(child);
-                current_pid = new_pid;
-
-                // 更新进程表
+        // 用统一 spawn 核心重启（与 handle_start/handle_restart 同一实现；日志 append 续写）
+        match spawn_detached(&process_id, &command, &cwd, &env_vars) {
+            Ok(new_pid) => {
                 store::update_process(&process_id, |e| {
                     e.pid = new_pid;
                     e.status = "running".to_string();
@@ -642,10 +632,7 @@ async fn watchdog(
                     }
                 });
 
-                eprintln!(
-                    "[watchdog] 进程 '{}' 已重启，新 PID: {}",
-                    name, new_pid
-                );
+                eprintln!("[watchdog] 进程 '{}' 已重启，新 PID: {}", name, new_pid);
             }
             Err(e) => {
                 eprintln!("[watchdog] 重启失败: {}", e);
