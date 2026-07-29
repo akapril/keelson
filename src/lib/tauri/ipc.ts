@@ -282,4 +282,18 @@ export const ipc = {
       cmd: "clean",
       args: { days },
     }),
+
+  // ── 交互式 PTY（桌面专属；直接 invoke，不走双通道） ──────────
+  /** 交互式启动：跑 PTY，返回创建的进程条目（桌面专属） */
+  runtimePtyStart: (command: string, name: string, cwd: string) =>
+    invoke<RuntimeProcess>("runtime_pty_start", { command, name, cwd }),
+  /** 向交互 PTY 写 stdin（键入/密码） */
+  runtimePtyInput: (id: string, data: string) =>
+    invoke<void>("runtime_pty_input", { id, data }),
+  /** 调整交互 PTY 尺寸 */
+  runtimePtyResize: (id: string, cols: number, rows: number) =>
+    invoke<void>("runtime_pty_resize", { id, cols, rows }),
+  /** 停止交互 PTY 会话（interactive 进程 pid=0，不能走 PID kill） */
+  runtimePtyKill: (id: string) =>
+    invoke<void>("runtime_pty_kill", { id }),
 };
