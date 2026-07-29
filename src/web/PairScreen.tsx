@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { markPaired } from "./auth-expiry";
 
 interface PairScreenProps {
   /** 配对成功后回调，父组件更新 UI 状态 */
@@ -29,7 +30,7 @@ export function PairScreen({ onPaired }: PairScreenProps) {
       if (res.ok) {
         // cookie 由 Set-Cookie 自动写入（HttpOnly，JS 不可读）
         // 仅用 localStorage 标记 UI 态，真凭证是 httpOnly cookie
-        localStorage.setItem("kln_web_paired", "1");
+        markPaired();
         onPaired();
       } else if (res.status === 401) {
         toast.error(t("pair.error.invalid"));

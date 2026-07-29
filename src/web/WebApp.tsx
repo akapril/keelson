@@ -10,19 +10,11 @@ import { PairScreen } from "./PairScreen";
 import { Workbench } from "./panels/Workbench";
 import { Notifications } from "./panels/Notifications";
 import { Terminal } from "./panels/Terminal";
+import { isPaired, handleAuthExpired } from "./auth-expiry";
 import type { Session } from "@/types/session";
 
-// 标识符：UI 标记，真凭证是 httpOnly cookie（JS 无法读取）
-const PAIRED_KEY = "kln_web_paired";
-
-/**
- * 认证过期处理：清除 UI 配对标记并刷新页面以触发重新配对。
- * 后续 Task 中受保护请求收到 401 时调用此函数。
- */
-export function onAuthExpired(): void {
-  localStorage.removeItem(PAIRED_KEY);
-  window.location.reload();
-}
+// 认证过期处理收口到 auth-expiry 模块（ipc/pb 收 401 时调用）；此处保留具名导出兼容既有引用。
+export const onAuthExpired = handleAuthExpired;
 
 /** 4 栏 tab 标识 */
 type TabKey = "workspace" | "terminal" | "notifications" | "settings";
@@ -194,9 +186,7 @@ function MainLayout() {
 
 /** Web 入口根组件：检测配对状态，分派 PairScreen / MainLayout */
 export function WebApp() {
-  const [paired, setPaired] = useState(
-    () => localStorage.getItem(PAIRED_KEY) === "1"
-  );
+  const [paired, setPaired] = useState(() => isPaired());
 
   function handlePaired() {
     setPaired(true);

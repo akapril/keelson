@@ -1,5 +1,6 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { isTauri } from "@/lib/env";
+import { handleAuthExpired } from "@/web/auth-expiry";
 import type { Session, SessionHit, TimelineMessage, PlannedTask } from "../../types/session";
 import type { EmbedConfig, RagHit } from "@/types/rag";
 import type { CommitInfo, CorrelatedCommit, HookStatus } from "@/types/git";
@@ -39,6 +40,11 @@ function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
     credentials: "same-origin",
     body: JSON.stringify(args ?? {}),
   }).then((r) => {
+    // 认证过期（重启后 token 失效/被吊销）：引导重新配对，而非停在「加载失败」。
+    if (r.status === 401) {
+      handleAuthExpired();
+      throw new Error(`${cmd} 401`);
+    }
     if (!r.ok) throw new Error(`${cmd} ${r.status}`);
     return r.json() as Promise<T>;
   });
