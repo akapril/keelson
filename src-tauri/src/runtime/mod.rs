@@ -13,6 +13,7 @@ pub mod logs;
 pub mod parser;
 pub mod port;
 pub mod process;
+pub mod pty;
 pub mod resources;
 pub mod store;
 
