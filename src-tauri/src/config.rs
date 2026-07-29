@@ -21,6 +21,12 @@ pub struct AppConfig {
     /// "auto" 时由 terminal::detect_terminal 自动探测系统可用终端。
     #[serde(default = "default_terminal_pref")]
     pub terminal_pref: String,
+
+    /// 上次退出时 Web Gateway 是否处于开启状态。
+    /// true → 下次启动 PB 就绪后自动重启 gateway（「记住上次状态」）。
+    /// 由 web_gateway_start/stop 命令写入；默认 false（首次/从未开启则不自动起）。
+    #[serde(default)]
+    pub web_autostart: bool,
 }
 
 fn default_hotkey() -> String {
@@ -36,6 +42,7 @@ impl Default for AppConfig {
         Self {
             hotkey: default_hotkey(),
             terminal_pref: default_terminal_pref(),
+            web_autostart: false,
         }
     }
 }
@@ -88,12 +95,25 @@ mod tests {
         let original = AppConfig {
             hotkey: "Alt+Space".to_string(),
             terminal_pref: "wt".to_string(),
+            web_autostart: true,
         };
         original.save(&path).expect("save 应成功");
 
         let loaded = AppConfig::load(&path);
         assert_eq!(loaded.hotkey, "Alt+Space");
         assert_eq!(loaded.terminal_pref, "wt");
+        assert!(loaded.web_autostart); // 记住上次开启状态，往返保真
+    }
+
+    /// 旧 config.toml（无 web_autostart 字段）应默认 false（serde default）。
+    #[test]
+    fn load_legacy_config_defaults_web_autostart_false() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(&path, "hotkey = \"Alt+X\"\nterminal_pref = \"wt\"\n").unwrap();
+        let cfg = AppConfig::load(&path);
+        assert_eq!(cfg.hotkey, "Alt+X");
+        assert!(!cfg.web_autostart); // 缺字段 → 默认 false
     }
 
     /// 文件不存在时返回默认值（非 panic）
