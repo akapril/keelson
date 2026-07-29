@@ -15,6 +15,8 @@ export interface RuntimeProcess {
   provider?: string | null;
   /** running 时附带的实时资源（cpu/mem 结构不定，按需读） */
   resources?: Record<string, unknown> | null;
+  /** 交互式 PTY 进程（sudo 等）：右侧渲染可输入终端而非只读日志 */
+  interactive?: boolean;
 }
 
 /** 一条日志（进程管理内核 logs 返回）。字段按存在取用。 */
