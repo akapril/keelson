@@ -167,20 +167,6 @@ async fn pair_handler(
 
 /// 解析静态前端 dist 目录：dev 指向 crate 同级 `../dist`（项目根）。
 ///
-/// 返回 `Some(path)` 仅当目录存在；否则返回 `None`，由调用方回落到占位页（不 panic）。
-fn resolve_dist_dir() -> Option<PathBuf> {
-    // CARGO_MANIFEST_DIR = src-tauri；项目根 dist 在其上一级。
-    let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .map(|p| p.join("dist"));
-    if let Some(ref d) = dev {
-        if d.is_dir() {
-            return dev;
-        }
-    }
-    None
-}
-
 /// 找不到 dist 时的占位页：明确提示「web dist 未构建」，不 panic、不暴露内部路径。
 async fn dist_missing_placeholder() -> Response {
     let html = "<!doctype html><html lang=\"zh\"><head><meta charset=\"utf-8\">\
@@ -210,9 +196,11 @@ fn build_router(
     api_state: ApiState,
     sessions_state: SessionsState,
     ws_terminal: WsTerminalState,
+    dist_dir: Option<PathBuf>,
 ) -> Router {
-    // 静态前端：dist 存在则 ServeDir，否则所有 GET 回落占位页。
-    let static_service = match resolve_dist_dir() {
+    // 静态前端：dist 目录（由调用方按 dev 源码 / 生产 Resource 解析后传入）存在则 ServeDir，
+    // 否则所有 GET 回落占位页。编译期路径已弃用——生产打包机路径在用户机不存在会永远占位。
+    let static_service = match dist_dir.filter(|d| d.is_dir()) {
         Some(dir) => Router::new().fallback_service(ServeDir::new(dir)),
         None => Router::new().fallback(dist_missing_placeholder),
     };
@@ -320,6 +308,7 @@ pub async fn start(
     api_state: ApiState,
     sessions_state: SessionsState,
     ws_terminal: WsTerminalState,
+    dist_dir: Option<PathBuf>,
 ) -> Result<(u16, GatewayHandle), String> {
     // 绑定 0.0.0.0：外网可达（详见文件顶部安全红线）。
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
@@ -332,7 +321,7 @@ pub async fn start(
         .port();
 
     let (tx, rx) = oneshot::channel::<()>();
-    let router = build_router(auth, pb_base, api_state, sessions_state, ws_terminal);
+    let router = build_router(auth, pb_base, api_state, sessions_state, ws_terminal, dist_dir);
 
     // 后台运行：收到 shutdown 信号（rx 完成）后优雅退出。
     tokio::spawn(async move {
@@ -377,6 +366,7 @@ mod tests {
             api_state,
             sessions_state,
             ws_terminal,
+            None, // 测试不装载 dist（走占位页回落分支）
         );
     }
 

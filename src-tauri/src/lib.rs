@@ -370,7 +370,9 @@ pub fn run() {
                 let st = autostart_handle.state::<AppState>();
                 let should_autostart = st.config.lock().web_autostart;
                 if should_autostart {
-                    if let Err(e) = commands::web::start_gateway(st.inner()).await {
+                    // 解析 dist（dev 源码 / 生产 Resource）供 gateway serve web 前端。
+                    let dist_dir = commands::web::resolve_dist_dir(&autostart_handle);
+                    if let Err(e) = commands::web::start_gateway(st.inner(), dist_dir).await {
                         eprintln!("[rework] Web Gateway 自动启动失败（非致命）: {e}");
                     }
                 }
