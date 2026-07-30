@@ -428,6 +428,11 @@
     "clearLogs": "Clear",
     "clearLogsSuccess": "Logs cleared",
     "clearLogsError": "Failed to clear logs: {{msg}}",
+    "copyLogs": "Copy",
+    "copyLogsSuccess": "Visible logs copied",
+    "copyLogsError": "Copy failed: {{msg}}",
+    "openLog": "Open",
+    "openLogError": "Failed to open log: {{msg}}",
     "pty": {
       "exited": "[process exited]",
       "terminalHeader": "Terminal · {{name}}"

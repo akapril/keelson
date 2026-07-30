@@ -274,6 +274,9 @@ export const ipc = {
   /** 清空某进程的日志文件（截断为 0，不删；进程在跑也可清） */
   runtimeClearLogs: (name: string) =>
     call<unknown>("runtime_command", { cmd: "clear_logs", args: { name } }),
+  /** 用系统默认程序打开某进程的日志文件（查看全量） */
+  runtimeOpenLog: (name: string) =>
+    call<unknown>("runtime_command", { cmd: "open_log", args: { name } }),
   /** 在项目目录启动新进程 */
   runtimeStart: (command: string, name: string, cwd: string) =>
     call<unknown>("runtime_command", { cmd: "start", args: { command, name, cwd } }),

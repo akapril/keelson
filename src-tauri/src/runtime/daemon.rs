@@ -61,6 +61,7 @@ pub(crate) async fn dispatch(cmd: &str, args: &Value) -> Value {
         "ps" => handle_ps(args).await,
         "logs" => handle_logs(args).await,
         "clear_logs" => handle_clear_logs(args).await,
+        "open_log" => handle_open_log(args).await,
         "remove" => handle_remove(args).await,
         "errors" => handle_errors(args).await,
         "clean" => handle_clean(args).await,
@@ -511,6 +512,38 @@ pub(crate) async fn handle_clear_logs(args: &Value) -> Value {
     match std::fs::File::create(&log_path) {
         Ok(_) => json!({ "id": entry.id, "name": entry.name, "cleared": true }),
         Err(e) => json!({"error": format!("清空日志失败: {}", e)}),
+    }
+}
+
+/// 用系统默认程序打开某进程的日志文件 `<id>.log`（记事本/编辑器等），供查看全量日志。
+pub(crate) async fn handle_open_log(args: &Value) -> Value {
+    let name_or_id = match args.get("name").and_then(|v| v.as_str()) {
+        Some(n) => n.to_string(),
+        None => return json!({"error": "缺少 'name' 参数"}),
+    };
+    let entry = match store::find_process(&name_or_id) {
+        Some(e) => e,
+        None => return json!({"error": format!("找不到进程 '{}'", name_or_id)}),
+    };
+    let log_path = store::stdout_dir().join(format!("{}.log", entry.id));
+    if !log_path.exists() {
+        return json!({"error": "日志文件不存在"});
+    }
+    let path_str = log_path.to_string_lossy().to_string();
+
+    // 用系统默认程序打开**文件**（Windows 的 explorer<file> 只开文件夹，故用 start 开文件）。
+    #[cfg(target_os = "windows")]
+    let spawn = Command::new("cmd")
+        .args(["/C", "start", "", &path_str])
+        .spawn();
+    #[cfg(target_os = "macos")]
+    let spawn = Command::new("open").arg(&path_str).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let spawn = Command::new("xdg-open").arg(&path_str).spawn();
+
+    match spawn {
+        Ok(_) => json!({ "opened": true }),
+        Err(e) => json!({"error": format!("打开日志失败: {}", e)}),
     }
 }
 

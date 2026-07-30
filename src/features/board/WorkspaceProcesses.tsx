@@ -274,6 +274,24 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
     }
   };
 
+  // 复制当前可见日志到剪贴板（全量走「打开」）
+  const copyLogs = () => {
+    const text = selectedLogs.join("\n");
+    void navigator.clipboard.writeText(text).then(
+      () => toast.success(t("processes.copyLogsSuccess")),
+      (e) => toast.error(t("processes.copyLogsError", { msg: String(e) })),
+    );
+  };
+
+  // 用系统默认程序打开日志文件（查看全量）
+  const openLog = async (name: string) => {
+    try {
+      await ipc.runtimeOpenLog(name);
+    } catch (e) {
+      toast.error(t("processes.openLogError", { msg: String(e) }));
+    }
+  };
+
   const selectedLogs = useMemo(
     () => logs.map(logText).filter(Boolean),
     [logs],
@@ -561,16 +579,35 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                     ? t("processes.pty.terminalHeader", { name: selected })
                     : t("processes.logHeader", { name: selected, count: selectedLogs.length })}
                 </span>
-                {/* 清空日志：截断 <id>.log。终端模式不显示（xterm 缓冲另算，非日志文件） */}
+                {/* 日志动作：复制可见 / 打开文件 / 清空。终端模式不显示（xterm 缓冲另算，非日志文件） */}
                 {!showPtyTerminal && selected && (
-                  <button
-                    type="button"
-                    onClick={() => void clearLogs(selected)}
-                    className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
-                    title={t("processes.clearLogs")}
-                  >
-                    {t("processes.clearLogs")}
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={copyLogs}
+                      disabled={selectedLogs.length === 0}
+                      className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+                      title={t("processes.copyLogs")}
+                    >
+                      {t("processes.copyLogs")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void openLog(selected)}
+                      className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                      title={t("processes.openLog")}
+                    >
+                      {t("processes.openLog")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void clearLogs(selected)}
+                      className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                      title={t("processes.clearLogs")}
+                    >
+                      {t("processes.clearLogs")}
+                    </button>
+                  </div>
                 )}
               </div>
               {showPtyTerminal ? (
