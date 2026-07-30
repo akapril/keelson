@@ -428,6 +428,11 @@
     "clearLogs": "清空",
     "clearLogsSuccess": "日志已清空",
     "clearLogsError": "清空日志失败：{{msg}}",
+    "copyLogs": "复制",
+    "copyLogsSuccess": "已复制可见日志",
+    "copyLogsError": "复制失败：{{msg}}",
+    "openLog": "打开",
+    "openLogError": "打开日志失败：{{msg}}",
     "pty": {
       "exited": "[进程已退出]",
       "terminalHeader": "交互终端 · {{name}}"
