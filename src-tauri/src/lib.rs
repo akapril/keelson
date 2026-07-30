@@ -220,6 +220,43 @@ fn spotlight_open(app: tauri::AppHandle, path: String) {
     }
 }
 
+/// 托盘「退出」处理：按 config.on_exit_processes 决定受管进程去留。
+/// - "keep"：直接退出（进程后台留存，下次打开继续管理）。
+/// - "kill"：先结束所有受管进程再退出。
+/// - "ask" ：有运行中受管进程则显示主窗 + emit("confirm-exit") 交前端弹窗决定（不立即退）；无则直接退。
+fn handle_tray_quit(app: &tauri::AppHandle) {
+    use tauri::{Emitter, Manager};
+    let behavior = app.state::<AppState>().config.lock().on_exit_processes.clone();
+    match behavior.as_str() {
+        "kill" => {
+            runtime::daemon::kill_all_managed();
+            app.exit(0);
+        }
+        "ask" => {
+            let has_running = runtime::store::load_processes()
+                .iter()
+                .any(|e| e.status == "running");
+            if has_running {
+                show_main(app);
+                let _ = app.emit("confirm-exit", ());
+                // 不退：等前端弹窗结果经 exit_app 命令收尾。
+            } else {
+                app.exit(0);
+            }
+        }
+        _ => app.exit(0), // "keep"（含未知值兜底）
+    }
+}
+
+/// 退出应用（供退出确认弹窗调用）：可选先结束所有受管进程，再退出。
+#[tauri::command]
+fn exit_app(app: tauri::AppHandle, kill_processes: bool) {
+    if kill_processes {
+        runtime::daemon::kill_all_managed();
+    }
+    app.exit(0);
+}
+
 /// 前端语言变更时同步给 Rust：更新当前语言并即时重建托盘菜单文案。
 #[tauri::command]
 fn set_locale(state: tauri::State<AppState>, locale: String) -> Result<(), String> {
@@ -254,7 +291,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "tray_show" => show_main(app),
-            "tray_quit" => app.exit(0),
+            "tray_quit" => handle_tray_quit(app),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -379,6 +416,9 @@ pub fn run() {
             // 配置（Task 16 - config.rs）
             commands::config::config_get_hotkey,
             commands::config::config_set_hotkey,
+            commands::config::config_get_exit_behavior,
+            commands::config::config_set_exit_behavior,
+            exit_app,
             // git 状态 + 提交日志（Board - git.rs）
             commands::git::git_info,
             commands::git::git_log,

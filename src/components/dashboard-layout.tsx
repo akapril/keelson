@@ -9,6 +9,7 @@ import { AppHeader } from "@/components/app-header";
 import { CommandPalette } from "@/components/command-palette";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { UpdateDialog } from "@/components/update-dialog";
+import { ExitConfirmDialog } from "@/components/exit-confirm-dialog";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { on } from "@/lib/tauri/events";
 import { useActivityStore } from "@/store/activity";
@@ -83,6 +84,8 @@ export function DashboardLayout() {
       <CommandPalette />
       {/* 升级弹窗（发现新版本自动弹） */}
       <UpdateDialog />
+      {/* 退出确认弹窗（退出行为=每次询问 且有运行进程时弹） */}
+      <ExitConfirmDialog />
     </SidebarProvider>
   );
 }

@@ -31,6 +31,14 @@
       "ai": "AI"
     }
   },
+  "processExit": {
+    "title": "Processes on exit",
+    "desc": "What to do with background managed processes when quitting from the tray.",
+    "keep": "Keep running in background",
+    "kill": "Terminate all",
+    "ask": "Ask every time",
+    "error": "Save failed: {{msg}}"
+  },
   "autoArchive": {
     "title": "Auto-archive Completed Tasks",
     "desc": "When opening a project, tasks that have been in the \"Done\" column longer than the selected threshold are auto-archived (soft-delete; sessions/commit provenance is kept, hidden from board by default; you can view or un-archive them at any time). No data is deleted.",

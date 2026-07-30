@@ -1,4 +1,11 @@
 {
   "action": { "save": "保存", "cancel": "取消", "delete": "删除", "confirm": "确认", "close": "关闭", "edit": "编辑", "create": "新建", "viewAll": "查看全部", "copy": "复制" },
-  "state": { "loading": "加载中…", "empty": "暂无数据", "error": "出错了" }
+  "state": { "loading": "加载中…", "empty": "暂无数据", "error": "出错了" },
+  "exitConfirm": {
+    "title": "退出前处理进程",
+    "desc": "有正在运行的后台进程。退出时如何处理？",
+    "cancel": "取消",
+    "keep": "保留后台运行",
+    "kill": "全部结束并退出"
+  }
 }

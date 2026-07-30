@@ -1,4 +1,11 @@
 {
   "action": { "save": "Save", "cancel": "Cancel", "delete": "Delete", "confirm": "Confirm", "close": "Close", "edit": "Edit", "create": "New", "viewAll": "View all", "copy": "Copy" },
-  "state": { "loading": "Loading…", "empty": "No data", "error": "Something went wrong" }
+  "state": { "loading": "Loading…", "empty": "No data", "error": "Something went wrong" },
+  "exitConfirm": {
+    "title": "Handle processes before exit",
+    "desc": "There are background processes running. What should happen on exit?",
+    "cancel": "Cancel",
+    "keep": "Keep running",
+    "kill": "Terminate all & exit"
+  }
 }

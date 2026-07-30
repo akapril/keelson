@@ -27,6 +27,15 @@ pub struct AppConfig {
     /// 由 web_gateway_start/stop 命令写入；默认 false（首次/从未开启则不自动起）。
     #[serde(default)]
     pub web_autostart: bool,
+
+    /// 托盘「退出」时如何处理受管 headless 进程：
+    /// `"keep"`=保留后台运行（默认，下次打开继续管理）；`"kill"`=全部结束；`"ask"`=每次询问。
+    #[serde(default = "default_on_exit_processes")]
+    pub on_exit_processes: String,
+}
+
+fn default_on_exit_processes() -> String {
+    "keep".to_string()
 }
 
 fn default_hotkey() -> String {
@@ -43,6 +52,7 @@ impl Default for AppConfig {
             hotkey: default_hotkey(),
             terminal_pref: default_terminal_pref(),
             web_autostart: false,
+            on_exit_processes: default_on_exit_processes(),
         }
     }
 }
@@ -96,6 +106,7 @@ mod tests {
             hotkey: "Alt+Space".to_string(),
             terminal_pref: "wt".to_string(),
             web_autostart: true,
+            on_exit_processes: "ask".to_string(),
         };
         original.save(&path).expect("save 应成功");
 
@@ -103,17 +114,19 @@ mod tests {
         assert_eq!(loaded.hotkey, "Alt+Space");
         assert_eq!(loaded.terminal_pref, "wt");
         assert!(loaded.web_autostart); // 记住上次开启状态，往返保真
+        assert_eq!(loaded.on_exit_processes, "ask"); // 退出行为往返保真
     }
 
-    /// 旧 config.toml（无 web_autostart 字段）应默认 false（serde default）。
+    /// 旧 config.toml（缺新字段）应用各自默认（serde default）。
     #[test]
-    fn load_legacy_config_defaults_web_autostart_false() {
+    fn load_legacy_config_defaults_new_fields() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("config.toml");
         std::fs::write(&path, "hotkey = \"Alt+X\"\nterminal_pref = \"wt\"\n").unwrap();
         let cfg = AppConfig::load(&path);
         assert_eq!(cfg.hotkey, "Alt+X");
         assert!(!cfg.web_autostart); // 缺字段 → 默认 false
+        assert_eq!(cfg.on_exit_processes, "keep"); // 缺字段 → 默认 keep
     }
 
     /// 文件不存在时返回默认值（非 panic）
