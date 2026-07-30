@@ -44,7 +44,13 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-xl space-y-8 px-6 py-6">
-      <h1 className="text-lg font-semibold">{t("page.title")}</h1>
+      {/* 标题 + 当前版本号（版本经 vite define __APP_VERSION__ 注入，见 vite.config） */}
+      <div className="flex items-baseline justify-between gap-3">
+        <h1 className="text-lg font-semibold">{t("page.title")}</h1>
+        <span className="shrink-0 font-mono text-xs text-muted-foreground">
+          Keelson v{__APP_VERSION__}
+        </span>
+      </div>
 
       {/* 错误提示 */}
       {error && (
