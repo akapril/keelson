@@ -10,6 +10,7 @@ import { LanguageSection } from "@/features/settings/LanguageSection";
 import { ShortcutSection } from "@/features/settings/ShortcutSection";
 import { WorkspacePathSection } from "@/features/settings/WorkspacePathSection";
 import { ProjectDefaultTabSection } from "@/features/settings/ProjectDefaultTabSection";
+import { ProcessExitSection } from "@/features/settings/ProcessExitSection";
 import { AutoArchiveSection } from "@/features/settings/AutoArchiveSection";
 import { AiSection } from "@/features/settings/AiSection";
 import { EmbedSection } from "@/features/settings/EmbedSection";
@@ -62,6 +63,8 @@ export default function Settings() {
       <WorkspacePathSection />
       <Divider />
       <ProjectDefaultTabSection />
+      <Divider />
+      <ProcessExitSection />
       <Divider />
       <AutoArchiveSection />
       <Divider />

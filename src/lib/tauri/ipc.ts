@@ -135,6 +135,13 @@ export const ipc = {
   /** 保存全局快捷键配置（Task 17） */
   setHotkey: (hotkey: string) => call<void>("config_set_hotkey", { hotkey }),
 
+  /** 读取「退出时如何处理受管进程」设置（"keep"/"kill"/"ask"） */
+  getExitBehavior: () => call<string>("config_get_exit_behavior"),
+  /** 保存「退出时如何处理受管进程」设置 */
+  setExitBehavior: (behavior: string) => call<void>("config_set_exit_behavior", { behavior }),
+  /** 退出应用（供退出确认弹窗调用）：killProcesses=true 先结束所有受管进程 */
+  exitApp: (killProcesses: boolean) => call<void>("exit_app", { killProcesses }),
+
   // ── Board / retalk 集成 ────────────────────────────────────
   /** 读取本地仓库的当前分支与未提交变更数（Task 13，包装 git_info 命令） */
   gitInfo: (path: string) =>

@@ -43,3 +43,22 @@ pub fn config_set_hotkey(
             format!("快捷键注册失败（配置已保存，重启后生效）: {e:#}")
         })
 }
+
+/// 读取「退出时如何处理受管进程」设置（"keep" / "kill" / "ask"）。
+#[tauri::command]
+pub fn config_get_exit_behavior(state: State<AppState>) -> String {
+    state.config.lock().on_exit_processes.clone()
+}
+
+/// 设置「退出时如何处理受管进程」并持久化。仅接受 "keep" / "kill" / "ask"，其余回落 "keep"。
+#[tauri::command]
+pub fn config_set_exit_behavior(behavior: String, state: State<AppState>) -> Result<(), String> {
+    let normalized = match behavior.as_str() {
+        "keep" | "kill" | "ask" => behavior,
+        _ => "keep".to_string(),
+    };
+    let mut cfg = state.config.lock();
+    cfg.on_exit_processes = normalized;
+    let config_path = state.paths.app_data.join("config.toml");
+    cfg.save(&config_path).map_err(|e| format!("保存配置失败: {e:#}"))
+}

@@ -308,6 +308,31 @@ pub(crate) async fn handle_stop(args: &Value) -> Value {
     })
 }
 
+/// 结束所有「running」的受管 headless 进程（供托盘退出时可选清理）。
+/// 逐个平台 kill 其 PID 并标记 stopped。交互 PTY / PB sidecar 由各自的退出钩子处理，不在此列。
+pub fn kill_all_managed() {
+    for entry in store::load_processes() {
+        if entry.status != "running" {
+            continue;
+        }
+        #[cfg(windows)]
+        {
+            let _ = Command::new("taskkill")
+                .args(["/PID", &entry.pid.to_string(), "/T", "/F"])
+                .output();
+        }
+        #[cfg(unix)]
+        {
+            let _ = Command::new("kill")
+                .args(["-TERM", &entry.pid.to_string()])
+                .output();
+        }
+        store::update_process(&entry.id, |e| {
+            e.status = "stopped".to_string();
+        });
+    }
+}
+
 // ─────────────────────────── handle_restart ────────────────────────────
 
 pub(crate) async fn handle_restart(args: &Value) -> Value {
