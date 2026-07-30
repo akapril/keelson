@@ -7,8 +7,30 @@
 //    web_list_devices / web_revoke_device，供 Task 5 设置栏展示与操作）。
 use crate::AppState;
 use crate::web::auth::DeviceInfo;
+use std::path::PathBuf;
 use std::time::Duration;
 use tauri::State;
+
+/// 解析 web 前端 dist 目录（供 gateway 的 ServeDir serve 给浏览器）。
+///
+/// - 开发环境（`debug_assertions`）：用源码树 `CARGO_MANIFEST_DIR/../dist`。
+/// - 生产环境：从打包的 Tauri Resource 目录解析 `dist`（须在 tauri.conf 的 bundle.resources 打包）。
+///   ——不能用编译期 `CARGO_MANIFEST_DIR`：那是构建机路径，用户机上不存在会永远回落占位页。
+/// 与 `resolve_migrations_dir`（pb_migrations）同一范式。返回 `None` 时 gateway 回落占位页。
+pub fn resolve_dist_dir(app: &tauri::AppHandle) -> Option<PathBuf> {
+    use tauri::Manager;
+    // 开发：源码树 dist（前端 dev build 产物）。
+    if cfg!(debug_assertions) {
+        let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent()?.join("dist");
+        return dev.is_dir().then_some(dev);
+    }
+    // 生产：打包 Resource 目录下的 dist。
+    let res = app
+        .path()
+        .resolve("dist", tauri::path::BaseDirectory::Resource)
+        .ok()?;
+    res.is_dir().then_some(res)
+}
 
 // ── Web Gateway 起停/状态命令 ─────────────────────────────────────────────
 // 说明：gateway 绑 0.0.0.0（外网可达），认证在 Task 3 加；Task 1 仅健康路由。
@@ -34,7 +56,7 @@ fn remember_web_autostart(state: &AppState, enabled: bool) {
 ///
 /// ⚠️ `parking_lot::MutexGuard` 不能跨 await：先在独立作用域取锁判断/读值，离开作用域即释放；
 /// bind（await）在锁外进行；成功后再取一次锁写回句柄。
-pub async fn start_gateway(state: &AppState) -> Result<u16, String> {
+pub async fn start_gateway(state: &AppState, dist_dir: Option<PathBuf>) -> Result<u16, String> {
     // 1) 已在运行则复用现有端口（取锁→读端口→立即释放，不跨 await）。
     {
         let guard = state.web_gateway.lock();
@@ -76,6 +98,7 @@ pub async fn start_gateway(state: &AppState) -> Result<u16, String> {
         state.web_api_state.clone(),
         state.sessions.clone(),
         ws_terminal,
+        dist_dir,
     ).await?;
     // 4) 写回句柄（重新取锁；此处已无 await）。
     //    极小概率并发下另一次调用已抢先写入：以先到者为准，本次多起的 server
@@ -94,8 +117,10 @@ pub async fn start_gateway(state: &AppState) -> Result<u16, String> {
 
 /// 启动 Web Gateway（命令入口）：调用核心逻辑，成功后**记住开启状态**（下次启动自动重启）。
 #[tauri::command]
-pub async fn web_gateway_start(state: State<'_, AppState>) -> Result<u16, String> {
-    let port = start_gateway(&state).await?;
+pub async fn web_gateway_start(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<u16, String> {
+    // 解析 dist 目录（dev 源码 / 生产 Resource）传给 gateway 的 ServeDir。
+    let dist_dir = resolve_dist_dir(&app);
+    let port = start_gateway(&state, dist_dir).await?;
     // 记住：用户开启过 → 下次启动 PB 就绪后自动重启（配合设备持久化=无缝）。
     remember_web_autostart(&state, true);
     Ok(port)
