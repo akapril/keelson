@@ -165,20 +165,21 @@ function ReadingRow({ item, onCreateTask }: ReadingRowProps) {
             </div>
           )}
 
-          {/* 摘要/备注（截断,点击查看详情） */}
-          {(item.summary || item.note) && (
-            <button
-              type="button"
-              onClick={() => setDetailOpen(true)}
-              className="mt-1 block w-full text-left"
-              title={t("row.viewDetailTitle")}
-            >
+          {/* 查看详情入口：始终可点（打开详情弹窗——即便还没摘要，也能在弹窗里粘正文/摘要/加标签）。
+              有摘要/备注时额外显示截断预览。 */}
+          <button
+            type="button"
+            onClick={() => setDetailOpen(true)}
+            className="mt-1 block w-full text-left"
+            title={t("row.viewDetailTitle")}
+          >
+            {(item.summary || item.note) && (
               <span className="line-clamp-2 text-sm text-muted-foreground">
                 {item.summary || item.note}
               </span>
-              <span className="text-xs text-primary hover:underline">{t("row.viewDetail")}</span>
-            </button>
-          )}
+            )}
+            <span className="text-xs text-primary hover:underline">{t("row.viewDetail")}</span>
+          </button>
         </div>
 
         {/* AI 摘要 + 建任务 + 状态切换 + 删除 */}
