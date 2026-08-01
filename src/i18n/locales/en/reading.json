@@ -72,7 +72,11 @@
     "note": "Note",
     "aiSummarize": "AI Summary",
     "aiResummarize": "Re-summarize",
-    "summarizing": "Summarizing…"
+    "summarizing": "Summarizing…",
+    "pasteToggle": "Paste text",
+    "pasteToggleHint": "When a site needs login / paywall / JS rendering and can't be fetched, copy the article from your logged-in browser and paste it here.",
+    "pasteHint": "Use when content can't be fetched: in your logged-in browser, select the article text → copy → paste here. If pasted, the AI summary uses it (skips auto-fetch).",
+    "pastePlaceholder": "Paste the article text here…"
   },
   "createTask": {
     "dialogTitle": "Create task from reading item",

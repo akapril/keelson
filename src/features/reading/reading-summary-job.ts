@@ -12,16 +12,20 @@ import type { ReadingItem } from "@/types/reading";
 interface ReadingSummaryJobState {
   /** 正在摘要的条目 id 集合（新 Set 引用触发订阅刷新） */
   pending: Set<string>;
-  /** 后台发起某条目的摘要（不阻塞；含无 key 门禁 + 完成/失败 toast） */
-  start: (item: ReadingItem) => void;
+  /**
+   * 后台发起某条目的摘要（不阻塞；含无 key 门禁 + 完成/失败 toast）。
+   * @param pastedContent 可选手动粘贴正文（登录墙等抓不到时用）；有值则跳过抓取、不强制要求 url。
+   */
+  start: (item: ReadingItem, pastedContent?: string) => void;
 }
 
 export const useReadingSummaryJob = create<ReadingSummaryJobState>((set, get) => ({
   pending: new Set(),
 
-  start: (item) => {
+  start: (item, pastedContent) => {
     if (get().pending.has(item.id)) return; // 该条目已在摘要中
-    if (!item.url) {
+    // 有粘贴正文时不强制要求 url（登录墙/无链接条目也能凭粘贴内容摘要）
+    if (!pastedContent?.trim() && !item.url) {
       toast.error(i18n.t("toast.noLinkToSummarize", { ns: "reading" }));
       return;
     }
@@ -39,7 +43,7 @@ export const useReadingSummaryJob = create<ReadingSummaryJobState>((set, get) =>
       return { pending: next };
     });
 
-    void summarizeReadingItem(item, cfg)
+    void summarizeReadingItem(item, cfg, pastedContent)
       .then(async (r) => {
         const patch: Record<string, unknown> = {
           summary: r.summary,
