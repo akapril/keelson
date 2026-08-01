@@ -105,8 +105,9 @@
     "summarizeFailed": "\"{{title}}\" summarize failed: {{msg}}"
   },
   "summarizeError": {
-    "noLink": "This item has no link to summarize",
-    "noContent": "Could not fetch page content",
-    "parseFailed": "Failed to parse AI summary (no valid JSON)"
+    "noLink": "This item has no link (expand \"Paste text\" to paste content manually)",
+    "noContent": "Could not fetch page content (use \"Paste text\" for login/JS-rendered sites)",
+    "parseFailed": "AI didn't return JSON; used its raw reply as a fallback. Re-summarize or try another model.",
+    "emptyReply": "AI returned nothing (rate limit/timeout/refusal). Retry or switch models; your pasted text is kept."
   }
 }
