@@ -42,11 +42,14 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
   const [pasted, setPasted] = useState("");
   const [showPaste, setShowPaste] = useState(false);
 
-  // 切换条目时清空标签输入 + 重置粘贴态（避免上一条残留）
+  // 切换条目时：清空标签输入 + 用已存正文预填粘贴框（登录墙类条目重新摘要可直接复用，无需再粘）。
+  // 预填后「粘贴正文」开关会高亮(secondary)提示有内容；重新摘要优先用它、跳过抓取。
   useEffect(() => {
     setTagInput("");
-    setPasted("");
+    setPasted(item?.content_text ?? "");
     setShowPaste(false);
+    // 仅在切换条目时预填一次（用 item.id 做键；content_text 变更不重跑，避免覆盖用户正在编辑的内容）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id]);
 
   // 自动已读：打开详情即视为「开始阅读」——未读静默升级为在读。
