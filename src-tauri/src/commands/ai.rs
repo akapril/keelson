@@ -32,6 +32,9 @@ pub struct ChatMessage {
 pub fn openai_body(model: &str, messages: &[ChatMessage]) -> Value {
     json!({
         "model": model,
+        // 显式给 max_tokens：不少 OpenAI 兼容代理/模型的默认输出上限很低(256/512)，
+        // 不设会把摘要等较长回复截断。与 anthropic_body 一致取 4096(摘要够用)。
+        "max_tokens": 4096,
         "messages": messages
             .iter()
             .map(|m| json!({ "role": m.role, "content": m.content }))
@@ -599,6 +602,8 @@ mod tests {
         assert_eq!(b["model"], "gpt-4o");
         assert_eq!(b["messages"].as_array().unwrap().len(), 2);
         assert_eq!(b["messages"][0]["role"], "system");
+        // 显式 max_tokens，避免 OpenAI 兼容 provider 默认上限过低导致截断
+        assert_eq!(b["max_tokens"], 4096);
     }
 
     #[test]
