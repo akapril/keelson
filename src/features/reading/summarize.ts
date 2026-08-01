@@ -3,7 +3,7 @@
 import { ipc } from "@/lib/tauri/ipc";
 import type { AiConfig, AiChatMessage } from "@/types/ai";
 import type { ReadingItem } from "@/types/reading";
-import { parseSummary } from "./reading-utils";
+import { parseSummary, salvageSummary } from "./reading-utils";
 
 /** 摘要系统提示:严格 JSON、中文。要求"够用"——有信息量、能替代读全文的程度。 */
 export const SUMMARY_SYSTEM = `你是资深阅读助手。根据给定网页正文,产出一份"读完就大致掌握、能替代通读全文"的中文摘要。输出严格 JSON(不要解释、不要代码块围栏):
@@ -47,12 +47,14 @@ export async function summarizeReadingItem(
   ];
   const reply = (await ipc.aiChat(cfg, msgs)).trim();
   const parsed = parseSummary(reply);
-  // AI 未返回有效 JSON：
-  //   - 回复非空 → 降级为「原文回复当摘要」(散文/漏格式也能出内容,总比报错空手好);
-  //   - 回复全空(拒答/截断/超时) → sentinel，由调用方提示重试/换模型。
+  // AI 未返回有效 JSON（多为截断/漏格式）：
+  //   - 回复全空(拒答/超时) → sentinel，由调用方提示重试/换模型；
+  //   - 回复非空 → salvageSummary 从半截 JSON 捞出可读 summary 文本(不直接丢原始 JSON 给用户)。
   if (!parsed) {
     if (!reply) throw new Error("EMPTY_REPLY");
-    return { summary: reply, key_points: [], tags: [], content_text };
+    const salvaged = salvageSummary(reply);
+    if (!salvaged) throw new Error("EMPTY_REPLY");
+    return { summary: salvaged, key_points: [], tags: [], content_text };
   }
 
   return {

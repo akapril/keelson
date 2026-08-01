@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSummary, splitTags, joinTags, groupReading } from "./reading-utils";
+import { parseSummary, salvageSummary, splitTags, joinTags, groupReading } from "./reading-utils";
 import type { ReadingItem } from "@/types/reading";
 
 function item(p: Partial<ReadingItem>): ReadingItem {
@@ -26,6 +26,29 @@ describe("parseSummary", () => {
   it("缺 summary 字段返回 null；key_points/tags 缺失则空数组", () => {
     expect(parseSummary('{"key_points":["a"]}')).toBeNull();
     expect(parseSummary('{"summary":"s"}')).toEqual({ summary: "s", key_points: [], tags: [] });
+  });
+});
+
+describe("salvageSummary（解析失败时从半截 JSON 捞可读文本，不丢原始 JSON）", () => {
+  it("截断的 JSON（summary 未闭合）→ 捞出已写部分", () => {
+    // max_tokens 太小,JSON 被截断在 summary 中途
+    const truncated = '{"summary":"这是一段被截断的摘要,后面还没写完';
+    expect(salvageSummary(truncated)).toBe("这是一段被截断的摘要,后面还没写完");
+  });
+  it("完整 summary 字段 → 只取其值,不含花括号/其他字段", () => {
+    const s = '{"summary":"完整摘要","key_points":["a"],"tags":["t"]}';
+    expect(salvageSummary(s)).toBe("完整摘要");
+  });
+  it("反转义 \\n \\\" → 还原换行与引号", () => {
+    expect(salvageSummary('{"summary":"第一行\\n第二\\"引\\"行"}')).toBe('第一行\n第二"引"行');
+  });
+  it("带 ```json 围栏的截断 JSON → 剥围栏后捞 summary", () => {
+    expect(salvageSummary('```json\n{"summary":"围栏里的摘要')).toBe("围栏里的摘要");
+  });
+  it("纯散文回复（无 summary 字段）→ 原样返回可读文本", () => {
+    expect(salvageSummary("这是一段纯散文，AI 没按 JSON 返回。")).toBe(
+      "这是一段纯散文，AI 没按 JSON 返回。",
+    );
   });
 });
 
