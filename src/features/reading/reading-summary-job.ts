@@ -43,6 +43,13 @@ export const useReadingSummaryJob = create<ReadingSummaryJobState>((set, get) =>
       return { pending: next };
     });
 
+    // 有粘贴正文 → 先乐观落库 content_text：即便随后 AI 摘要失败/出空，粘的正文也不丢，
+    // 重开详情会预填回来、可直接重试（修「摘要失败后粘贴内容消失」）。
+    const pasted = pastedContent?.trim();
+    if (pasted) {
+      void useReadingStore.getState().updateItem(item.id, { content_text: pasted }).catch(() => {});
+    }
+
     void summarizeReadingItem(item, cfg, pastedContent)
       .then(async (r) => {
         const patch: Record<string, unknown> = {
@@ -66,6 +73,7 @@ export const useReadingSummaryJob = create<ReadingSummaryJobState>((set, get) =>
           NO_LINK: "summarizeError.noLink",
           NO_CONTENT: "summarizeError.noContent",
           PARSE_FAILED: "summarizeError.parseFailed",
+          EMPTY_REPLY: "summarizeError.emptyReply",
         };
         const raw = e instanceof Error ? e.message : String(e);
         const msg = SENTINEL[raw] ? i18n.t(SENTINEL[raw], { ns: "reading" }) : raw;

@@ -105,8 +105,9 @@
     "summarizeFailed": "「{{title}}」摘要失败：{{msg}}"
   },
   "summarizeError": {
-    "noLink": "该条目无链接，无法摘要",
-    "noContent": "未能抓取到网页正文",
-    "parseFailed": "AI 摘要解析失败（未返回有效 JSON）"
+    "noLink": "该条目无链接，无法摘要（可展开「粘贴正文」手动粘入）",
+    "noContent": "未能抓取到网页正文（登录墙/JS 渲染站请用「粘贴正文」）",
+    "parseFailed": "AI 未按 JSON 格式返回，已用原文回复兜底；可点重新摘要或换模型",
+    "emptyReply": "AI 未返回内容（可能限流/超时/被拒），请重试或换模型；粘贴的正文已保留"
   }
 }

@@ -47,8 +47,13 @@ export async function summarizeReadingItem(
   ];
   const reply = (await ipc.aiChat(cfg, msgs)).trim();
   const parsed = parseSummary(reply);
-  // AI 摘要解析失败（未返回有效 JSON） → sentinel
-  if (!parsed) throw new Error("PARSE_FAILED");
+  // AI 未返回有效 JSON：
+  //   - 回复非空 → 降级为「原文回复当摘要」(散文/漏格式也能出内容,总比报错空手好);
+  //   - 回复全空(拒答/截断/超时) → sentinel，由调用方提示重试/换模型。
+  if (!parsed) {
+    if (!reply) throw new Error("EMPTY_REPLY");
+    return { summary: reply, key_points: [], tags: [], content_text };
+  }
 
   return {
     summary: parsed.summary,
