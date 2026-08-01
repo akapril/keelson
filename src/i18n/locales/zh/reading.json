@@ -72,7 +72,11 @@
     "note": "备注",
     "aiSummarize": "AI 摘要",
     "aiResummarize": "重新摘要",
-    "summarizing": "摘要中…"
+    "summarizing": "摘要中…",
+    "pasteToggle": "粘贴正文",
+    "pasteToggleHint": "登录墙/付费墙/JS 渲染站抓不到时，从已登录浏览器复制正文粘入再摘要",
+    "pasteHint": "抓不到内容时用：在已登录的浏览器里选中文章正文 → 复制 → 粘贴到此。粘了就用它做 AI 摘要（跳过自动抓取）。",
+    "pastePlaceholder": "在此粘贴文章正文…"
   },
   "createTask": {
     "dialogTitle": "从阅读条目建任务",

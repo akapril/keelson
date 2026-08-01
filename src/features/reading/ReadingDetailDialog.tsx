@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Markdown } from "@/components/markdown";
 import { useReadingStore } from "@/store/reading";
 import { useReadingSummaryJob } from "./reading-summary-job";
@@ -37,10 +38,15 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
   const summarizing = useReadingSummaryJob((s) => (item ? s.pending.has(item.id) : false));
   const startSummarize = useReadingSummaryJob((s) => s.start);
   const [tagInput, setTagInput] = useState("");
+  // 手动粘贴正文（登录墙/付费墙/JS 渲染站抓不到时用）：有值则 AI 摘要用它、跳过抓取
+  const [pasted, setPasted] = useState("");
+  const [showPaste, setShowPaste] = useState(false);
 
-  // 切换条目时清空标签输入
+  // 切换条目时清空标签输入 + 重置粘贴态（避免上一条残留）
   useEffect(() => {
     setTagInput("");
+    setPasted("");
+    setShowPaste(false);
   }, [item?.id]);
 
   // 自动已读：打开详情即视为「开始阅读」——未读静默升级为在读。
@@ -73,8 +79,9 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
     }
   })();
 
-  // AI 摘要:后台发起，立即返回（不阻塞详情弹窗；完成写回后列表/详情自动刷新）
-  const runSummarize = () => startSummarize(item);
+  // AI 摘要:后台发起，立即返回（不阻塞详情弹窗；完成写回后列表/详情自动刷新）。
+  // 有粘贴正文则用它（跳过抓取，覆盖登录墙/JS 渲染站）。
+  const runSummarize = () => startSummarize(item, pasted.trim() || undefined);
 
   const addTag = () => {
     const next = splitTags(joinTags([...tags, tagInput]));
@@ -133,7 +140,16 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
               <HugeiconsIcon icon={PinIcon} strokeWidth={2} />
               {item.pinned ? t("detail.pinned") : t("detail.pin")}
             </Button>
-            {item.url && (
+            {/* 粘贴正文开关：登录墙/付费墙/JS 渲染站抓不到时，粘正文再摘要 */}
+            <Button
+              variant={showPaste || pasted.trim() ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setShowPaste((v) => !v)}
+              title={t("detail.pasteToggleHint")}
+            >
+              {t("detail.pasteToggle")}
+            </Button>
+            {(item.url || pasted.trim()) && (
               <Button variant="ghost" size="sm" disabled={summarizing} onClick={runSummarize}>
                 <HugeiconsIcon icon={AiChat02Icon} strokeWidth={2} />
                 {summarizing ? t("detail.summarizing") : item.summary ? t("detail.aiResummarize") : t("detail.aiSummarize")}
@@ -141,6 +157,19 @@ export function ReadingDetailDialog({ item, onClose }: ReadingDetailDialogProps)
             )}
           </div>
         </div>
+
+        {/* 粘贴正文（登录墙/付费墙/JS 渲染站抓不到时用）：有内容则 AI 摘要用它、跳过抓取 */}
+        {showPaste && (
+          <div className="shrink-0 space-y-1.5 border-b border-border py-2">
+            <p className="text-xs text-muted-foreground">{t("detail.pasteHint")}</p>
+            <Textarea
+              value={pasted}
+              onChange={(e) => setPasted(e.target.value)}
+              placeholder={t("detail.pastePlaceholder")}
+              className="max-h-40 min-h-20 text-xs"
+            />
+          </div>
+        )}
 
         {/* 标签 */}
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border py-2">

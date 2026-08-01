@@ -20,16 +20,23 @@ const MAX_INPUT = 12000;
 
 /**
  * 对阅读条目做 AI 摘要。抓取/AI/解析任一步失败即抛错(中文),由调用方 toast。
+ *
+ * @param pastedContent 可选。手动粘贴的正文——用于登录墙/付费墙/纯 JS 渲染等
+ *   服务端 `fetch_url_text` 抓不到的站点：用户从已登录浏览器复制正文粘入，
+ *   有值时**跳过抓取**直接用它做摘要。
  * @returns { summary, key_points, content_text } —— 调用方负责写回 PB。
  */
 export async function summarizeReadingItem(
   item: ReadingItem,
   cfg: AiConfig,
+  pastedContent?: string,
 ): Promise<{ summary: string; key_points: string[]; tags: string[]; content_text: string }> {
-  // 该条目无链接，无法摘要 → sentinel，由调用方映射 i18n key
-  if (!item.url) throw new Error("NO_LINK");
-  const content_text = (await ipc.fetchUrlText(item.url)).trim();
-  // 未能抓取到网页正文 → sentinel
+  const pasted = pastedContent?.trim();
+  // 既无粘贴正文也无链接 → 无从取材 → sentinel，由调用方映射 i18n key
+  if (!pasted && !item.url) throw new Error("NO_LINK");
+  // 有粘贴正文优先用它（覆盖登录墙/JS 渲染站）；否则服务端抓取 URL 正文。
+  const content_text = pasted ? pasted : (await ipc.fetchUrlText(item.url!)).trim();
+  // 未能取得正文 → sentinel
   if (!content_text) throw new Error("NO_CONTENT");
 
   const input =
