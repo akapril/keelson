@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Virtualizer } from "virtua";
 import {
   Add01Icon,
   AiChat02Icon,
@@ -352,6 +353,22 @@ export default function ReadingPage() {
     );
   }, [items, filter, query]);
 
+  // 压平「置顶 + 其余」为一维行序列，交给 virtua 虚拟化（阅读条目多也只渲染可视区行）。
+  // header 只在有置顶时出现（与原分组渲染一致）。
+  const rows = useMemo<
+    Array<{ kind: "header"; label: string } | { kind: "card"; item: ReadingItem }>
+  >(() => {
+    const { pinned, rest } = groupReading(visible);
+    const out: Array<{ kind: "header"; label: string } | { kind: "card"; item: ReadingItem }> = [];
+    if (pinned.length > 0) {
+      out.push({ kind: "header", label: t("section.pinned", { count: pinned.length }) });
+      for (const it of pinned) out.push({ kind: "card", item: it });
+      out.push({ kind: "header", label: t("section.recent") });
+    }
+    for (const it of rest) out.push({ kind: "card", item: it });
+    return out;
+  }, [visible, t]);
+
   // 提交添加：标题或链接至少一个。书签式：只贴链接也能存，标题空则用域名兜底。
   const handleAdd = async () => {
     const ti = titleInput.trim();
@@ -461,37 +478,23 @@ export default function ReadingPage() {
             )}
           </div>
         ) : (
-          (() => {
-            const { pinned, rest } = groupReading(visible);
-            return (
-              <div className="flex flex-col gap-4">
-                {pinned.length > 0 && (
-                  <section>
-                    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {t("section.pinned", { count: pinned.length })}
-                    </h2>
-                    <div className="flex flex-col gap-2">
-                      {pinned.map((it) => (
-                        <ReadingRow key={it.id} item={it} onCreateTask={setTaskFromItem} />
-                      ))}
-                    </div>
-                  </section>
-                )}
-                <section>
-                  {pinned.length > 0 && (
-                    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {t("section.recent")}
-                    </h2>
-                  )}
-                  <div className="flex flex-col gap-2">
-                    {rest.map((it) => (
-                      <ReadingRow key={it.id} item={it} onCreateTask={setTaskFromItem} />
-                    ))}
-                  </div>
-                </section>
-              </div>
-            );
-          })()
+          // virtua 虚拟化：压平的 rows 只渲染可视区（置顶头/最近头 + 卡片）
+          <Virtualizer>
+            {rows.map((row, i) =>
+              row.kind === "header" ? (
+                <h2
+                  key={`h:${i}:${row.label}`}
+                  className="mb-2 mt-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground first:mt-0"
+                >
+                  {row.label}
+                </h2>
+              ) : (
+                <div key={row.item.id} className="pb-2">
+                  <ReadingRow item={row.item} onCreateTask={setTaskFromItem} />
+                </div>
+              ),
+            )}
+          </Virtualizer>
         )}
       </div>
 
