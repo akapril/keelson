@@ -22,10 +22,17 @@ export default function App() {
   // 根据窗口 label 分派渲染：spotlight 窗口渲染独立的聚光灯 UI
   const isSpotlight = thisWindowLabel() === "spotlight";
 
-  // 主窗口启动后静默检查更新（未配置更新源时静默失败，不显红标）
+  // 主窗口：启动即静默查更新，并每 6 小时定时复查（长时间不关也能发现新版本）。
+  // 未配置更新源时静默失败，不显红标；仅窗口可见时复查，避免后台无谓请求。
   useEffect(() => {
     if (isSpotlight) return;
-    void useUpdaterStore.getState().checkForUpdate({ silent: true });
+    const check = () => void useUpdaterStore.getState().checkForUpdate({ silent: true });
+    check(); // 启动查一次
+    const SIX_HOURS = 6 * 60 * 60 * 1000;
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") check();
+    }, SIX_HOURS);
+    return () => clearInterval(id);
   }, [isSpotlight]);
 
 
