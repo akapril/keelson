@@ -35,6 +35,7 @@ import { ActivityIndicator } from "@/components/activity-indicator";
 import { flatNavItems } from "@/lib/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useUpdaterStore } from "@/store/updater";
+import { getRemotePbUrl } from "@/lib/pb";
 
 export function AppHeader() {
   const { t } = useTranslation("shell");
@@ -60,6 +61,9 @@ export function AppHeader() {
     ? t(currentNav.titleKey)
     : EXTRA_TITLES[location.pathname] ?? "Keelson";
   const initials = (user?.name?.charAt(0) ?? "U").toUpperCase();
+  // 仅远程模式（设置了远程 PB URL）才显示用户菜单/登出：远程是真实账号登录，登出有意义。
+  // 本地免登录模式下登出=把自己锁在无凭据的登录界面（负资产），故整块隐藏。
+  const isRemote = !!getRemotePbUrl();
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur-md">
@@ -137,40 +141,44 @@ export function AppHeader() {
         <ActivityIndicator />
         <NotificationBell />
         <ThemeToggle />
-        <Separator
-          orientation="vertical"
-          className="mx-1 h-4 data-vertical:self-center"
-        />
-        {/* 用户菜单：当前用户 + 登出（多用户） */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 gap-2 px-1.5">
-              <Avatar size="sm">
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
-              <span className="hidden max-w-32 truncate text-sm font-medium sm:inline">
-                {user?.name ?? t("header.userFallback")}
-              </span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>
-              <div className="grid">
-                <span className="truncate text-sm font-medium text-foreground">
-                  {user?.name ?? t("header.localUser")}
-                </span>
-                <span className="truncate text-xs font-normal text-muted-foreground">
-                  {user?.email || t("header.noEmail")}
-                </span>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => logout()}>
-              <HugeiconsIcon icon={Logout02Icon} strokeWidth={2} />
-              <span>{t("header.logout")}</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* 用户菜单：仅远程模式显示（含登出）；本地免登录模式整块隐藏，避免登出锁死 */}
+        {isRemote && (
+          <>
+            <Separator
+              orientation="vertical"
+              className="mx-1 h-4 data-vertical:self-center"
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 gap-2 px-1.5">
+                  <Avatar size="sm">
+                    <AvatarFallback>{initials}</AvatarFallback>
+                  </Avatar>
+                  <span className="hidden max-w-32 truncate text-sm font-medium sm:inline">
+                    {user?.name ?? t("header.userFallback")}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="grid">
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {user?.name ?? t("header.localUser")}
+                    </span>
+                    <span className="truncate text-xs font-normal text-muted-foreground">
+                      {user?.email || t("header.noEmail")}
+                    </span>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={() => logout()}>
+                  <HugeiconsIcon icon={Logout02Icon} strokeWidth={2} />
+                  <span>{t("header.logout")}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
       </div>
     </header>
   );
