@@ -81,6 +81,15 @@ export function listTasks(projectId: string): Promise<BoardTask[]> {
     });
 }
 
+/** 获取指定项目的成员记录 id（用于级联软删；单用户常为空）。 */
+export function listMembers(projectId: string): Promise<{ id: string }[]> {
+  return pb.collection(COL.boardMembers).getFullList<{ id: string }>({
+    requestKey: null,
+    filter: byProject(projectId),
+    fields: "id",
+  });
+}
+
 /** 获取当前用户全部任务（跨项目，用于项目卡片统计）。owner 由访问规则保证。 */
 export function listAllTasks(): Promise<BoardTask[]> {
   return pb.collection(COL.boardTasks).getFullList<BoardTask>({ requestKey: null });
