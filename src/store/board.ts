@@ -13,6 +13,7 @@ import {
   deleteRecord,
   subscribeProject,
 } from "../lib/pb/board";
+import { isTombstoned } from "../lib/pb/tombstone";
 import { COL } from "../lib/pb/collections";
 import { currentUserId } from "../lib/pb";
 import { nextRank, rankBetween } from "./board-rank";
@@ -268,21 +269,21 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
         onTask: (action, rec) =>
           set((s) => ({
             tasks:
-              action === "delete"
+              action === "delete" || isTombstoned(rec)
                 ? removeById(s.tasks, rec.id)
                 : upsertById(s.tasks, rec),
           })),
         onState: (action, rec) =>
           set((s) => ({
             states:
-              action === "delete"
+              action === "delete" || isTombstoned(rec)
                 ? removeById(s.states, rec.id)
                 : upsertById(s.states, rec),
           })),
         onLabel: (action, rec) =>
           set((s) => ({
             labels:
-              action === "delete"
+              action === "delete" || isTombstoned(rec)
                 ? removeById(s.labels, rec.id)
                 : upsertById(s.labels, rec),
           })),
