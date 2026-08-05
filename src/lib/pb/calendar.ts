@@ -1,7 +1,7 @@
 // Calendar PB SDK 数据访问层 —— 唯一允许调用 pb.collection 的 calendar 文件。
 // 组件 / Store 禁止直接调用 pb.collection；统一走此模块。
 import { pb } from "../pb";
-import { COL } from "./collections";
+import { COL, softDeleteRecord } from "./collections";
 import type { CalendarEvent } from "../../types/calendar";
 
 // ── 列表查询 ──────────────────────────────────────────────
@@ -45,13 +45,9 @@ export function updateEventRecord(
   return pb.collection(COL.calendarEvents).update<CalendarEvent>(id, data);
 }
 
-/** 删除日历事件记录 */
+/** 软删除日历事件（写 deleted_at）。 */
 export function deleteEventRecord(id: string): Promise<void> {
-  // PB .delete() 返回 true，包装为 void
-  return pb
-    .collection(COL.calendarEvents)
-    .delete(id)
-    .then(() => undefined);
+  return softDeleteRecord(COL.calendarEvents, id);
 }
 
 // ── 实时订阅 ──────────────────────────────────────────────

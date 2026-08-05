@@ -1,7 +1,7 @@
 // Reading PB SDK 数据访问层 —— 唯一允许调用 pb.collection 的 reading 文件。
 // 组件 / Store 禁止直接调用 pb.collection；统一走此模块。
 import { pb } from "../pb";
-import { COL } from "./collections";
+import { COL, softDeleteRecord } from "./collections";
 import type { ReadingItem } from "../../types/reading";
 
 // ── 列表查询 ──────────────────────────────────────────────
@@ -34,13 +34,9 @@ export function updateReadingRecord(
   return pb.collection(COL.readingItems).update<ReadingItem>(id, data);
 }
 
-/** 删除阅读条目记录 */
+/** 软删除阅读条目（写 deleted_at）。 */
 export function deleteReadingRecord(id: string): Promise<void> {
-  // PB .delete() 返回 true，包装为 void
-  return pb
-    .collection(COL.readingItems)
-    .delete(id)
-    .then(() => undefined);
+  return softDeleteRecord(COL.readingItems, id);
 }
 
 // ── 实时订阅 ──────────────────────────────────────────────
