@@ -1,5 +1,6 @@
 // Prompts PB 数据访问层 —— 唯一允许调用 pb.collection 的 prompts 文件。
 import { pb } from "../pb";
+import { softDeleteRecord } from "./collections";
 import type { Prompt } from "../../types/prompt";
 
 const COLL = "prompts";
@@ -18,5 +19,6 @@ export function updatePromptRecord(id: string, data: Record<string, unknown>): P
 }
 
 export function deletePromptRecord(id: string): Promise<void> {
-  return pb.collection(COLL).delete(id).then(() => undefined);
+  // 软删除指令（写 deleted_at）。
+  return softDeleteRecord(COLL, id);
 }

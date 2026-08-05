@@ -1,6 +1,7 @@
 // Memory PB SDK 数据访问层 —— 唯一允许调用 pb.collection("memories") 的文件。
 // 组件 / Store 禁止直接调用 pb.collection；统一走此模块。
 import { pb } from "../pb";
+import { softDeleteRecord } from "./collections";
 import type { Memory } from "../../types/memory";
 
 const COLL = "memories";
@@ -20,7 +21,7 @@ export function updateMemoryRecord(id: string, data: Record<string, unknown>): P
   return pb.collection(COLL).update<Memory>(id, data);
 }
 
-/** 删除记忆。 */
+/** 软删除记忆（写 deleted_at）。 */
 export function deleteMemoryRecord(id: string): Promise<void> {
-  return pb.collection(COLL).delete(id).then(() => undefined);
+  return softDeleteRecord(COLL, id);
 }
