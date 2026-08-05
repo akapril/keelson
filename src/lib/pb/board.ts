@@ -1,7 +1,7 @@
 // Board PB SDK 数据访问层 —— 唯一允许调用 pb.collection 的 board 文件。
 // 组件 / Store 禁止直接调用 pb.collection；统一走此模块。
 import { pb, currentUserId } from "../pb";
-import { COL } from "./collections";
+import { COL, softDeleteRecord } from "./collections";
 import type {
   BoardTemplate,
   BoardProject,
@@ -139,10 +139,9 @@ export function updateRecord<T>(
   return pb.collection(coll).update<T>(id, data);
 }
 
-/** 删除记录 */
+/** 删除记录（软删：写 deleted_at；board 各集合均参与同步）。 */
 export function deleteRecord(coll: string, id: string): Promise<void> {
-  // PB .delete() 返回 true，包装为 void
-  return pb.collection(coll).delete(id).then(() => undefined);
+  return softDeleteRecord(coll, id);
 }
 
 // ── 实时订阅 ──────────────────────────────────────────────
