@@ -19,4 +19,6 @@ export interface CalendarEvent {
   project: string;
   created: string;
   updated: string;
+  /** 软删除时间戳（非空即已删）；多机同步用。 */
+  deleted_at?: string;
 }

@@ -9,6 +9,7 @@ import {
   subscribeEvents,
 } from "../lib/pb/calendar";
 import { currentUserId } from "../lib/pb";
+import { isTombstoned } from "../lib/pb/tombstone";
 import type { CalendarEvent } from "../types/calendar";
 
 // ── 实时订阅的退订句柄（模块级，仅保留当前一个订阅） ──
@@ -102,7 +103,7 @@ export const useCalendarStore = create<CalendarStoreState>((set, get) => ({
       unsub = await subscribeEvents((action, rec) =>
         set((s) => ({
           events:
-            action === "delete"
+            action === "delete" || isTombstoned(rec)
               ? removeById(s.events, rec.id)
               : upsertById(s.events, rec),
         })),

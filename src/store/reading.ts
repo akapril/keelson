@@ -9,6 +9,7 @@ import {
   subscribeReading,
 } from "../lib/pb/reading";
 import { currentUserId } from "../lib/pb";
+import { isTombstoned } from "../lib/pb/tombstone";
 import type { ReadingItem } from "../types/reading";
 
 // ── 实时订阅的退订句柄（模块级，仅保留当前一个订阅） ──
@@ -95,7 +96,7 @@ export const useReadingStore = create<ReadingStoreState>((set, get) => ({
       unsub = await subscribeReading((action, rec) =>
         set((s) => ({
           items:
-            action === "delete"
+            action === "delete" || isTombstoned(rec)
               ? removeById(s.items, rec.id)
               : upsertById(s.items, rec),
         })),
