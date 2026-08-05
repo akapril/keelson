@@ -7,6 +7,7 @@ import {
   listStates,
   listLabels,
   listTasks,
+  listMembers,
   createRecord,
   updateRecord,
   deleteRecord,
@@ -611,7 +612,7 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
         if (!d.projects?.includes(id)) continue;
         const others = d.projects.filter((p) => p !== id);
         if (opts?.deleteDocs && others.length === 0) {
-          await deleteDocRecord(d.id);
+          await deleteDocRecord(d.id); // 已改软删
         } else {
           await updateDocRecord(d.id, { projects: others });
         }
@@ -619,13 +620,21 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
     } catch {
       /* 断链/删文档失败不阻断项目删除（残留 id 在 UI 侧会被过滤忽略） */
     }
-    // 先删该项目的全部任务：board_tasks.state 是 required 关系且**未级联**，
-    // 若留到 PB 级联删 board_project_states 那一步，状态列仍被任务的 state 引用 →
-    // PB 报「required relation reference」挡住整个删除。先清空任务即可解开。
-    // 注意用 listTasks(id) 拉目标项目任务（store.tasks 只含当前打开项目）。
-    const tasks = await listTasks(id);
-    await Promise.all(tasks.map((t) => deleteRecord(COL.boardTasks, t.id)));
-    // 再删项目：PB 对状态列/标签/成员设了 cascadeDelete，自动一并删除
+    // 软删不触发 PB cascadeDelete，故手动软删全部子记录：任务/状态/标签/成员。
+    // 拉的是活跃(未删)子记录（Task 5 后 listXxx 已过滤软删记录）。
+    const [tasks, states, labels, members] = await Promise.all([
+      listTasks(id),
+      listStates(id),
+      listLabels(id),
+      listMembers(id),
+    ]);
+    await Promise.all([
+      ...tasks.map((t) => deleteRecord(COL.boardTasks, t.id)),
+      ...states.map((s) => deleteRecord(COL.boardStates, s.id)),
+      ...labels.map((l) => deleteRecord(COL.boardLabels, l.id)),
+      ...members.map((m) => deleteRecord(COL.boardMembers, m.id)),
+    ]);
+    // 最后软删项目本身（软删写 deleted_at，不走 PB 物理删除故不触发 cascade）
     await deleteRecord(COL.boardProjects, id);
     set((s) => ({
       projects: s.projects.filter((p) => p.id !== id),
