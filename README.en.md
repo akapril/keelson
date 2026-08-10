@@ -118,6 +118,17 @@ Keelson ships a built-in MCP server so local `claude` / `codex` (and any MCP cli
 
 Advanced / manual setup, available tools, and verification: [`docs/mcp-setup.md`](docs/mcp-setup.md).
 
+## Remote access (Web)
+
+Securely reach your local Keelson from your **phone / tablet / another computer** — browse the workspace, view sessions and notifications, and even drive `claude` / `codex` remotely via a **web terminal**.
+
+- **Two-layer security**: ① a Tailscale private network (only devices on your own account can reach it — not the public internet) ② an app **pairing token** (external devices enter a pairing code once, then authenticate by token, with rate-limiting and revocation). **Off by default**; enable it explicitly in Settings.
+- **What you can do remotely**: web terminal (run the CLI), workbench session list, notifications — a mobile-first responsive UI.
+- **Setup**: install Tailscale on both machines (same account) → enable the "Web gateway" in Settings and pair → access over HTTPS via `tailscale serve` (the `Secure` cookie requires HTTPS, see the doc).
+- ⚠️ The remote terminal can run arbitrary commands on your machine — only pair **trusted devices**; if a device is lost, revoke its token in Settings.
+
+Full setup steps in [`docs/web-remote-access.md`](docs/web-remote-access.md).
+
 ## Tech Stack
 
 | Layer | Choice |
