@@ -1,0 +1,23 @@
+{
+  "$comment": "Scoop 清单（Windows）。用法：把此文件放进一个 scoop bucket 仓库（见 packaging/README.md），用户即可 `scoop bucket add keelson <你的bucket仓库>` + `scoop install keelson`。checkver/autoupdate 让 Excavator 在你 push 新 Release 后自动更新 version/url/hash。⚠ 首次 hash 需实测填入（见 packaging/README.md）；NSIS 安装器经 #/dl.7z 片段被 scoop 当 7z 解包为便携安装——此方式对 Tauri NSIS 需真机验证一次。",
+  "version": "0.2.0",
+  "description": "Keelson — 本地优先的 AI 工作台（收拢 AI-CLI 会话/项目/任务/文档）",
+  "homepage": "https://github.com/akapril/keelson",
+  "license": "Proprietary",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/akapril/keelson/releases/download/v0.2.0/Keelson_0.2.0_x64-setup.exe#/dl.7z",
+      "hash": "REPLACE_WITH_SHA256_OF_SETUP_EXE",
+      "bin": "Keelson.exe",
+      "shortcuts": [["Keelson.exe", "Keelson"]]
+    }
+  },
+  "checkver": "github",
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/akapril/keelson/releases/download/v$version/Keelson_$version_x64-setup.exe#/dl.7z"
+      }
+    }
+  }
+}
