@@ -5,6 +5,9 @@
     "codePlaceholder": "Enter pairing code",
     "submit": "Connect",
     "submitting": "Connecting…",
+    "scan": "Scan QR code",
+    "scanClose": "Close scanner",
+    "scanError": "Cannot open camera (requires HTTPS access and camera permission)",
     "error": {
       "invalid": "Invalid pairing code, please try again",
       "network": "Network error, please check your connection and retry",
