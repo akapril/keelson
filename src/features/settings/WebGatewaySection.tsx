@@ -5,6 +5,7 @@
 // - 不硬编色；文案全走 settings i18n 命名空间；store 操作失败重抛 + toast。
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
@@ -218,6 +219,15 @@ export function WebGatewaySection() {
               </code>
             )}
           </div>
+
+          {/* 配对码二维码：移动端扫码取码，免手输（白底留静默区，便于识别） */}
+          {!codeLoading && pairingCode && (
+            <div className="flex justify-center">
+              <div className="rounded bg-white p-2">
+                <QRCodeSVG value={pairingCode} size={120} />
+              </div>
+            </div>
+          )}
 
           {/* 配对码使用说明 */}
           <p className="text-xs text-muted-foreground">
