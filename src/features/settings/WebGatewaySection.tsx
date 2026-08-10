@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
 
@@ -35,6 +36,10 @@ export function WebGatewaySection() {
   // 开关/设备吊销的 busy 标志
   const [toggleBusy, setToggleBusy] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  // 改名内联编辑：editingId=正在编辑的设备 id，editValue=输入框值
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   // ── 刷新配对码 ───────────────────────────────────────────────
   const refreshCode = useCallback(async () => {
@@ -136,6 +141,28 @@ export function WebGatewaySection() {
       throw e;
     } finally {
       setRevokingId(null);
+    }
+  };
+
+  // ── 改名设备 ─────────────────────────────────────────────────
+  const startEdit = (id: string, current: string) => {
+    setEditingId(id);
+    setEditValue(current);
+  };
+  const handleRename = async () => {
+    if (editingId === null) return;
+    const name = editValue.trim();
+    if (!name) return;
+    setRenaming(true);
+    try {
+      await ipc.webRenameDevice(editingId, name);
+      setEditingId(null);
+      await refreshDevices();
+    } catch (e) {
+      toast.error(t("webGateway.renameError", { message: String(e) }));
+      throw e;
+    } finally {
+      setRenaming(false);
     }
   };
 
@@ -271,25 +298,75 @@ export function WebGatewaySection() {
                   key={dev.id}
                   className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"
                 >
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate text-sm font-medium">
-                      {dev.label || t("webGateway.deviceLabelUnknown")}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {t("webGateway.devicePairedAt", { at: dev.paired_at })}
-                    </span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    disabled={revokingId !== null}
-                    onClick={() => void handleRevoke(dev.id)}
-                  >
-                    {revokingId === dev.id
-                      ? t("webGateway.revoking")
-                      : t("webGateway.revokeBtn")}
-                  </Button>
+                  {editingId === dev.id ? (
+                    <>
+                      <Input
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="h-8 min-w-0 flex-1 text-sm"
+                        maxLength={60}
+                        autoFocus
+                        disabled={renaming}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void handleRename();
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        aria-label={t("webGateway.renameLabel")}
+                      />
+                      <div className="flex shrink-0 gap-1.5">
+                        <Button
+                          size="sm"
+                          className="h-8"
+                          disabled={renaming || !editValue.trim()}
+                          onClick={() => void handleRename()}
+                        >
+                          {renaming ? t("webGateway.renaming") : t("webGateway.renameSave")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          disabled={renaming}
+                          onClick={() => setEditingId(null)}
+                        >
+                          {t("webGateway.renameCancel")}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="truncate text-sm font-medium">
+                          {dev.label || t("webGateway.deviceLabelUnknown")}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {t("webGateway.devicePairedAt", { at: dev.paired_at })}
+                        </span>
+                      </div>
+                      <div className="flex shrink-0 gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8"
+                          disabled={editingId !== null || revokingId !== null}
+                          onClick={() => startEdit(dev.id, dev.label)}
+                        >
+                          {t("webGateway.renameBtn")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          disabled={revokingId !== null}
+                          onClick={() => void handleRevoke(dev.id)}
+                        >
+                          {revokingId === dev.id
+                            ? t("webGateway.revoking")
+                            : t("webGateway.revokeBtn")}
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

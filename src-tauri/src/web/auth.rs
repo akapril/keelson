@@ -307,6 +307,60 @@ pub fn revoke(state: &AuthState, device_id: &str) {
     state.persist_devices();
 }
 
+/// 按 id 重命名已配对设备的展示 label；命中则改并落盘，返回是否命中（幂等）。
+pub fn rename_device(state: &AuthState, device_id: &str, label: &str) -> bool {
+    let mut found = false;
+    {
+        let mut devices = state.devices.lock();
+        if let Some(d) = devices.iter_mut().find(|d| d.id == device_id) {
+            d.label = label.to_string();
+            found = true;
+        }
+    } // guard 释放后再写盘（避免 parking_lot 重入）
+    if found {
+        state.persist_devices();
+    }
+    found
+}
+
+/// 从 User-Agent 推一个可读的设备标签（如「iPhone · Safari」「Windows · Chrome」）。
+/// 仅作展示；无法识别时回退 "web"。配对时用它替代写死的 "web"，让设备更好辨认。
+pub fn derive_device_label(ua: &str) -> String {
+    let os = if ua.contains("iPhone") {
+        "iPhone"
+    } else if ua.contains("iPad") {
+        "iPad"
+    } else if ua.contains("Android") {
+        "Android"
+    } else if ua.contains("Windows") {
+        "Windows"
+    } else if ua.contains("Macintosh") || ua.contains("Mac OS X") {
+        "macOS"
+    } else if ua.contains("Linux") {
+        "Linux"
+    } else {
+        ""
+    };
+    // 顺序要紧：Edge 的 UA 含 "Chrome"、Chrome 的 UA 含 "Safari"，故从最具体判起。
+    let browser = if ua.contains("Edg") {
+        "Edge"
+    } else if ua.contains("Chrome") || ua.contains("CriOS") {
+        "Chrome"
+    } else if ua.contains("Firefox") || ua.contains("FxiOS") {
+        "Firefox"
+    } else if ua.contains("Safari") {
+        "Safari"
+    } else {
+        ""
+    };
+    match (os.is_empty(), browser.is_empty()) {
+        (false, false) => format!("{os} · {browser}"),
+        (false, true) => os.to_string(),
+        (true, false) => browser.to_string(),
+        (true, true) => "web".to_string(),
+    }
+}
+
 /// 校验配对码：常量时间比对 + 失败限流（只读校验，不轮换）。
 ///
 /// `/pair` handler 应改用 `check_and_rotate`（原子校验+轮换，消除 TOCTOU）。

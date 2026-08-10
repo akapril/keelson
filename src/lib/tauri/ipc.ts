@@ -98,6 +98,8 @@ export const ipc = {
   webListDevices: () => call<Array<{ id: string; label: string; paired_at: string }>>("web_list_devices"),
   /** 吊销指定设备（id 不存在时幂等 no-op） */
   webRevokeDevice: (id: string) => call<void>("web_revoke_device", { id }),
+  /** 重命名已配对设备的展示名（空名报错；过长截断 60 字符） */
+  webRenameDevice: (id: string, label: string) => call<void>("web_rename_device", { id, label }),
 
   // ── 会话列表 ──────────────────────────────────────────────
   /** 获取所有本地会话（Task 17） */

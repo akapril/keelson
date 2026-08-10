@@ -185,6 +185,17 @@ pub fn web_revoke_device(state: State<AppState>, id: String) -> Result<(), Strin
     Ok(())
 }
 
+/// 重命名已配对设备的展示名。空名报错；过长截断到 60 字符。id 不存在为 no-op。
+#[tauri::command]
+pub fn web_rename_device(state: State<AppState>, id: String, label: String) -> Result<(), String> {
+    let name: String = label.trim().chars().take(60).collect();
+    if name.is_empty() {
+        return Err("设备名不能为空".to_string());
+    }
+    crate::web::auth::rename_device(&state.web_auth, &id, &name);
+    Ok(())
+}
+
 // ── 网页正文抓取 ──────────────────────────────────────────────────────────
 
 

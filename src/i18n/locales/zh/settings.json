@@ -226,7 +226,13 @@
     "revokeBtn": "吊销",
     "revoking": "吊销中…",
     "revokeSuccess": "设备已吊销，令牌即刻失效",
-    "revokeError": "吊销失败：{{message}}"
+    "revokeError": "吊销失败：{{message}}",
+    "renameBtn": "改名",
+    "renameSave": "保存",
+    "renameCancel": "取消",
+    "renaming": "保存中…",
+    "renameLabel": "设备名",
+    "renameError": "改名失败：{{message}}"
   },
   "export": {
     "title": "数据导出",
