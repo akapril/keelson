@@ -5,6 +5,9 @@
     "codePlaceholder": "输入配对码",
     "submit": "连接",
     "submitting": "连接中…",
+    "scan": "扫描二维码",
+    "scanClose": "关闭扫描",
+    "scanError": "无法打开相机（需 HTTPS 访问并授权相机）",
     "error": {
       "invalid": "配对码无效，请重试",
       "network": "网络错误，请检查连接后重试",
