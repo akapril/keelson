@@ -18,7 +18,7 @@ use crate::web::pb_proxy::{pb_proxy_handler, PbProxyState};
 use axum::{
     body::Body,
     extract::State,
-    http::{header, Request, StatusCode},
+    http::{header, HeaderMap, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{any, get, post},
@@ -142,6 +142,7 @@ struct PairReq {
 /// + `Path=/`（全站生效）。
 async fn pair_handler(
     State(auth): State<Arc<AuthState>>,
+    headers: HeaderMap,
     axum::Json(body): axum::Json<PairReq>,
 ) -> Response {
     // check_and_rotate：原子「校验配对码 + 成功则立即轮换」——全程持 pairing_code 锁，
@@ -151,7 +152,12 @@ async fn pair_handler(
         return StatusCode::UNAUTHORIZED.into_response();
     }
     // 校验通过：旧码已在 check_and_rotate 内轮换作废，现签发 token。
-    let token = issue_token(&auth, "web".to_string());
+    // 从 User-Agent 推可读设备标签（替代写死 "web"），配对信息更好辨认；可在设置里改名。
+    let ua = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let token = issue_token(&auth, crate::web::auth::derive_device_label(ua));
 
     // 手动构造 Set-Cookie：安全属性一次写全。
     let cookie = format!(

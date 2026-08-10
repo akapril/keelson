@@ -226,7 +226,13 @@
     "revokeBtn": "Revoke",
     "revoking": "Revoking…",
     "revokeSuccess": "Device revoked — token invalidated immediately",
-    "revokeError": "Revoke failed: {{message}}"
+    "revokeError": "Revoke failed: {{message}}",
+    "renameBtn": "Rename",
+    "renameSave": "Save",
+    "renameCancel": "Cancel",
+    "renaming": "Saving…",
+    "renameLabel": "Device name",
+    "renameError": "Rename failed: {{message}}"
   },
   "export": {
     "title": "Data Export",

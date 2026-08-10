@@ -483,6 +483,7 @@ pub fn run() {
             commands::web::web_regenerate_pairing_code,
             commands::web::web_list_devices,
             commands::web::web_revoke_device,
+            commands::web::web_rename_device,
         ])
         .build(tauri::generate_context!())
         .expect("构建 rework 失败")
