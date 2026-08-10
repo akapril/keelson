@@ -101,7 +101,9 @@
     "submitLoading": "请稍候…",
     "submitLogin": "登录",
     "submitRegister": "注册并登录",
-    "errorPasswordMin": "密码至少 8 位"
+    "errorPasswordMin": "密码至少 8 位",
+    "remoteConnecting": "远程连接：",
+    "switchLocal": "切换回本地（免登录）"
   },
   "nav": {
     "groupWorkspace": "工作区",
@@ -144,7 +146,11 @@
     "panelReadingQueue": "阅读队列",
     "panelEmptyReading": "阅读队列为空",
     "statusUnread": "未读",
-    "statusReading": "在读"
+    "statusReading": "在读",
+    "mcpHintTitle": "接入 claude / codex",
+    "mcpHintBody": "让 AI 直接读写你的看板任务与文档 —— 设置里一键接入。",
+    "mcpHintCta": "去接入",
+    "mcpHintDismiss": "不再提示"
   },
   "doc": {
     "ariaMinimize": "最小化",

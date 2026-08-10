@@ -1,14 +1,14 @@
-// 登录/注册界面 —— bootstrap 完成但未认证（用户已登出/切换）时展示。
+// 登录/注册界面 —— 仅远程模式(设了远程 PB URL)且未认证时展示；本地模式免登录不经此。
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { FolderLibraryIcon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Logo } from "@/components/logo";
 import { useAuthStore } from "@/store/auth";
+import { getRemotePbUrl, setRemotePbUrl } from "@/lib/pb";
 
 export function LoginScreen() {
   const { t } = useTranslation("shell");
@@ -22,6 +22,9 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+  // 远程 PB 地址（登录页只在远程模式出现；展示它 + 提供"切回本地"逃生入口，
+  // 避免远程连不上时被死锁在登录页——设置藏在认证之后够不到）。
+  const remoteUrl = getRemotePbUrl();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -45,11 +48,9 @@ export function LoginScreen() {
   return (
     <div className="flex h-screen items-center justify-center bg-background p-6">
       <div className="w-full max-w-sm">
-        {/* 品牌 */}
+        {/* 品牌（用统一的 Logo，与侧栏/标题栏一致，勿用通用图标） */}
         <div className="mb-6 flex flex-col items-center gap-2">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <HugeiconsIcon icon={FolderLibraryIcon} strokeWidth={2} className="size-5" />
-          </div>
+          <Logo className="size-11" />
           <div className="text-center">
             <div className="text-lg font-semibold">Keelson</div>
             <div className="text-xs text-muted-foreground">{t("auth.tagline")}</div>
@@ -137,6 +138,26 @@ export function LoginScreen() {
             </form>
           </Tabs>
         </div>
+
+        {/* 逃生入口：远程模式下若连不上，一键切回本地免登录，避免死锁在登录页 */}
+        {remoteUrl && (
+          <div className="mt-4 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            <div className="truncate">
+              {t("auth.remoteConnecting")}
+              <span className="ml-1 font-mono text-foreground">{remoteUrl}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setRemotePbUrl("");
+                window.location.reload();
+              }}
+              className="mt-1 text-primary hover:underline"
+            >
+              {t("auth.switchLocal")}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
