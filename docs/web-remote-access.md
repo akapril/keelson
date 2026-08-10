@@ -1,6 +1,6 @@
-# Web 远程访问：Tailscale 接入指南
+# Web 远程访问 接入指南
 
-本文说明如何通过 Tailscale 私有网在外部设备（手机、平板、另一台电脑）安全访问本机运行的 Keelson。
+本文说明如何在外部设备（手机、平板、另一台电脑）安全访问本机运行的 Keelson——可选 **Tailscale 私有网**（推荐，安全）或 **公网隧道**（Cloudflare Tunnel / ngrok，方便）。下文先讲 Tailscale，公网隧道见后面的「公网隧道」一节。
 
 ---
 

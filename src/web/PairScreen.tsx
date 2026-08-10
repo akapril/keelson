@@ -54,7 +54,7 @@ export function PairScreen({ onPaired }: PairScreenProps) {
   }
 
   // 扫码生命周期：scanning 打开时启动相机，扫到码即停、填入并直接配对。
-  // 相机需安全上下文（HTTPS / localhost）——经 Tailscale HTTPS 访问满足；明文 http 会被浏览器拒。
+  // 相机需安全上下文（HTTPS / localhost）——经 HTTPS 隧道（Tailscale / Cloudflare Tunnel 等）访问满足；明文 http 会被浏览器拒。
   useEffect(() => {
     if (!scanning) return;
     const scanner = new Html5Qrcode(READER_ID);
