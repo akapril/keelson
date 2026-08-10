@@ -5,9 +5,12 @@ use super::rank::next_rank;
 use super::McpCtx;
 use serde_json::{json, Value};
 
-/// PB filter：project = "<id>"（值做最简转义，禁双引号注入）。
+/// PB date 空值序列化为 ""；"未删"过滤片段。
+const NOT_DELETED: &str = "deleted_at = \"\"";
+
+/// PB filter：未删 && project = "<id>"（值做最简转义，禁双引号注入）。
 fn by_project(project_id: &str) -> String {
-    format!("project = \"{}\"", project_id.replace('"', ""))
+    format!("{} && project = \"{}\"", NOT_DELETED, project_id.replace('"', ""))
 }
 
 /// 分发到具体工具。所有错误以 String 返回，由 server 层转 MCP isError。
@@ -32,9 +35,10 @@ fn err<T>(e: anyhow::Error) -> Result<T, String> {
 }
 
 async fn list_projects(ctx: &McpCtx) -> Result<Value, String> {
+    // 改用带 filter 的 list，排除已软删项目（list_all 无 filter 参数）
     let items = ctx
         .client
-        .list_all("board_projects", "id,name")
+        .list("board_projects", NOT_DELETED, "id,name")
         .await
         .or_else(|e| err(e))?;
     Ok(json!(items))
@@ -64,8 +68,11 @@ async fn create_task(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     let pid = require_str(&args, "project_id")?;
     let state = require_str(&args, "state_id")?;
     let title = require_str(&args, "title")?;
-    // 目标列现有任务的 rank → 追加到末尾
-    let filter = format!("project = \"{}\" && state = \"{}\"", pid.replace('"', ""), state.replace('"', ""));
+    // 目标列现有任务的 rank → 追加到末尾（排除已软删任务，避免 rank 计算混入墓碑记录）
+    let filter = format!(
+        "{} && project = \"{}\" && state = \"{}\"",
+        NOT_DELETED, pid.replace('"', ""), state.replace('"', "")
+    );
     let existing = ctx.client.list("board_tasks", &filter, "rank").await.or_else(|e| err(e))?;
     let ranks: Vec<f64> = existing.iter().filter_map(|r| r["rank"].as_f64()).collect();
     // board_tasks 无 owner 字段，必填 created_by（授权靠 createRule 的 project.owner）。
@@ -98,9 +105,9 @@ async fn update_task(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     Ok(json!({ "ok": true, "id": id }))
 }
 
-/// docs 多对多过滤：projects 关系「包含」该项目 id（值做最简转义，禁双引号注入）。
+/// docs 多对多过滤：未删 && projects 关系「包含」该项目 id（值做最简转义，禁双引号注入）。
 fn docs_by_project(project_id: &str) -> String {
-    format!("projects ~ \"{}\"", project_id.replace('"', ""))
+    format!("{} && projects ~ \"{}\"", NOT_DELETED, project_id.replace('"', ""))
 }
 
 async fn list_docs(args: Value, ctx: &McpCtx) -> Result<Value, String> {
@@ -167,9 +174,12 @@ async fn create_memory(args: Value, ctx: &McpCtx) -> Result<Value, String> {
 
 /// 检索记忆账本（关键词/kind/scope 过滤，排除被合并的记忆与待审记忆）。Pull 注入的读侧。
 async fn search_memory(args: Value, ctx: &McpCtx) -> Result<Value, String> {
-    // 只检索已采纳的记忆：排除待审(pending)——它们尚未被用户确认。空 status 为历史已采纳，保留。
-    let mut clauses: Vec<String> =
-        vec!["superseded_by = \"\"".to_string(), "status != \"pending\"".to_string()];
+    // 只检索已采纳且未软删的记忆：排除待审(pending)与已删记录。空 status 为历史已采纳，保留。
+    let mut clauses: Vec<String> = vec![
+        NOT_DELETED.to_string(),                      // 排除软删记录
+        "superseded_by = \"\"".to_string(),           // 排除已被合并/替换的记忆
+        "status != \"pending\"".to_string(),          // 排除待审记忆
+    ];
     if let Some(q) = opt_str(&args, "query") {
         if !q.trim().is_empty() {
             clauses.push(format!("content ~ \"{}\"", q.replace('"', "")));
