@@ -195,11 +195,11 @@
   },
   "webGateway": {
     "title": "Web 远程访问",
-    "desc": "开启后在本机绑定 0.0.0.0，外部设备可通过局域网或 Tailscale 访问。首次访问需凭配对码完成配对，后续使用令牌。",
+    "desc": "开启后在本机绑定 0.0.0.0，外部设备可经局域网或隧道访问。首次访问需凭配对码完成配对，后续使用令牌。",
     "statusOff": "远程访问未启动",
     "statusOn": "远程访问运行中（端口 {{port}}）",
     "accessHintLocal": "本机：http://localhost:47700",
-    "accessHintRemote": "外网：需通过 tailscale serve 提供 HTTPS（见文档 docs/web-remote-access.md）",
+    "accessHintRemote": "外网：需经 HTTPS 隧道暴露（Tailscale / Cloudflare Tunnel / ngrok，见文档 docs/web-remote-access.md）",
     "accessHintPort": "端口：47700（固定）",
     "startBtn": "启动",
     "stopBtn": "停止",

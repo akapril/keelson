@@ -195,11 +195,11 @@
   },
   "webGateway": {
     "title": "Web Remote Access",
-    "desc": "When enabled, the gateway binds 0.0.0.0 on this machine so external devices can access it over LAN or Tailscale. The first connection requires a pairing code; subsequent connections use a token.",
+    "desc": "When enabled, the gateway binds 0.0.0.0 on this machine so external devices can access it over LAN or a tunnel. The first connection requires a pairing code; subsequent connections use a token.",
     "statusOff": "Remote access off",
     "statusOn": "Remote access on (port {{port}})",
     "accessHintLocal": "Local: http://localhost:47700",
-    "accessHintRemote": "Remote: requires HTTPS via tailscale serve (see docs/web-remote-access.md)",
+    "accessHintRemote": "Remote: expose over an HTTPS tunnel (Tailscale / Cloudflare Tunnel / ngrok — see docs/web-remote-access.md)",
     "accessHintPort": "Port: 47700 (fixed)",
     "startBtn": "Start",
     "stopBtn": "Stop",
