@@ -23,4 +23,6 @@ export interface ReadingItem {
   content_text: string;
   /** 是否置顶 */
   pinned: boolean;
+  /** 软删除时间戳（非空即已删）；多机同步用。 */
+  deleted_at?: string;
 }

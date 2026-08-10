@@ -9,6 +9,7 @@ import {
   subscribeDocs,
 } from "../lib/pb/docs";
 import { currentUserId } from "../lib/pb";
+import { isTombstoned } from "../lib/pb/tombstone";
 import type { BoardDoc } from "../types/docs";
 
 // ── 实时订阅的退订句柄（模块级，仅保留当前打开项目的订阅） ──
@@ -77,7 +78,7 @@ export const useDocsStore = create<DocsStoreState>((set, get) => ({
       unsub = await subscribeDocs(projectId, (action, rec) =>
         set((s) => ({
           docs:
-            action === "delete"
+            action === "delete" || isTombstoned(rec)
               ? removeById(s.docs, rec.id)
               : upsertById(s.docs, rec),
         })),

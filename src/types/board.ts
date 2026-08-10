@@ -26,6 +26,8 @@ export interface BoardState {
   sort_order: number;
   created: string;
   updated: string;
+  /** 软删除时间戳（非空即已删）；多机同步用。 */
+  deleted_at?: string;
 }
 export interface BoardLabel {
   id: string;
@@ -34,6 +36,8 @@ export interface BoardLabel {
   color: string;
   created: string;
   updated: string;
+  /** 软删除时间戳（非空即已删）；多机同步用。 */
+  deleted_at?: string;
 }
 export interface BoardTask {
   id: string;
@@ -54,6 +58,8 @@ export interface BoardTask {
   source_anchor?: string;
   created: string;
   updated: string;
+  /** 软删除时间戳（非空即已删）；多机同步用。 */
+  deleted_at?: string;
 }
 export interface BoardMember {
   id: string;
