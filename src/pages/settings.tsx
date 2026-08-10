@@ -2,6 +2,7 @@
 // 主体不再持有各区状态、也不再全量订阅 settings store（只取 error + load）。
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { useSettingsStore } from "@/store/settings";
 import { ExportSection } from "@/features/export/ExportSection";
 import { UpdateSection } from "@/features/updater/UpdateSection";
@@ -36,11 +37,24 @@ export default function Settings() {
   // 主体只取 error（顶部错误提示）与 load（挂载加载）；各区各自订阅所需 slice。
   const error = useSettingsStore((s) => s.error);
   const load = useSettingsStore((s) => s.load);
+  // 深链定位：?section=<id>（如首页「去接入」跳 ?section=mcp）→ 滚动到该区块。
+  // HashRouter 下用 query 参而非 #锚点（#会和路由 hash 冲突）。
+  const [params] = useSearchParams();
 
   // 挂载时从后端加载设置
   useEffect(() => {
     load();
   }, [load]);
+
+  // 有 ?section= 时滚动定位到对应区块（延一帧待各区渲染完）
+  useEffect(() => {
+    const section = params.get("section");
+    if (!section) return;
+    const id = window.requestAnimationFrame(() => {
+      document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [params]);
 
   return (
     <div className="mx-auto max-w-xl space-y-8 px-6 py-6">
@@ -78,7 +92,10 @@ export default function Settings() {
       <Divider />
       <EmbedSection />
       <Divider />
-      <McpSection />
+      {/* id=mcp：供首页「去接入」深链滚动定位；scroll-mt 留出顶栏偏移 */}
+      <div id="mcp" className="scroll-mt-6">
+        <McpSection />
+      </div>
       <Divider />
       <ClaudeIntegrationSection />
       <Divider />
