@@ -85,7 +85,7 @@ export function listTasks(projectId: string): Promise<BoardTask[]> {
 export function listMembers(projectId: string): Promise<{ id: string }[]> {
   return pb.collection(COL.boardMembers).getFullList<{ id: string }>({
     requestKey: null,
-    filter: byProject(projectId),
+    filter: combineFilters(NOT_DELETED, byProject(projectId)),
     fields: "id",
   });
 }
