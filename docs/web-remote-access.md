@@ -121,17 +121,40 @@ tailscale serve https / off
 
 ---
 
-## 可选方案：Cloudflare Tunnel + Access
+## 公网隧道（Cloudflare Tunnel / ngrok）
 
-如果你有自己的域名，也可以用 Cloudflare Tunnel 暴露本地服务并由 Cloudflare Access 提供额外鉴权：
+不想用 Tailscale、或想让更多设备临时可达时，可用公网隧道把本机 47700 暴露成一个**公网 HTTPS 地址**（隧道边缘自动终结 TLS，天然满足 Secure cookie）。**Keelson 无需任何配置改动**——网关不校验 Host、终端 WebSocket 也能穿隧道。
+
+### Cloudflare Tunnel（推荐，免费）
+
+**快速隧道（免账号、免域名，临时地址）：**
 
 ```bash
+# 先在 Keelson 设置里开启 Web 网关(47700)，然后：
 cloudflared tunnel --url http://localhost:47700
 ```
 
-Cloudflare Tunnel 会提供 HTTPS 终结，满足 Secure cookie 要求。配置 Cloudflare Access 后可增加一层 SSO 鉴权（Email OTP 或 GitHub OAuth 等）。
+立刻得到一个 `https://<随机>.trycloudflare.com` 地址，手机打开即可扫码/输码配对。地址是临时的，进程一关即失效——适合临时使用。
 
-此方案适合需要在更广泛设备上访问且不想使用 Tailscale 的情况，但配置相对复杂，需要 Cloudflare 账号和域名。
+**命名隧道（需 Cloudflare 账号 + 域名，地址稳定）：** 绑到你自己的子域名，长期可用（配置见 Cloudflare 文档）。
+
+### ngrok（最省事）
+
+```bash
+ngrok http 47700
+```
+
+免费版给随机 HTTPS 地址（有会话时长 / 警告页等限制）。
+
+### ⚠️ 公网暴露的安全须知（重要）
+
+配对码是 **256 位 CSPRNG**（`src-tauri/src/web/auth.rs` 的 `gen_pairing_code`），暴力猜解在密码学上不可行——所以"未授权配对"这一关本身很硬。但仍需注意：
+
+- **这是能在本机执行任意命令的服务**。公网 = 网关对全互联网开放，配对码是**唯一**那道闸；任何预授权层的漏洞、或配对码 / 隧道地址泄露（二维码被拍到、地址进了浏览器历史或日志），后果都是整机沦陷。私有网（Tailscale）多一层网络隔离作纵深。
+- **务必**：用完即关隧道（快速隧道关进程即失效）；不用时在 **设置 → 已配对设备** 里**吊销 token**；别把隧道地址 / 配对二维码外泄。
+- **长期或经常公网使用**：强烈建议在隧道前加一层 **Cloudflare Access**（免费，Email OTP / SSO），把"单个秘密守 shell"变成"登录闸 + 秘密"两层，补回纵深防御。
+
+一句话：**码够强，临时自用、用完即关是可以的；但要长期公网，请前置 Cloudflare Access，别让单一秘密长期独扛。**
 
 ---
 
@@ -147,4 +170,7 @@ A: 在 Windows 上 `tailscale serve` 可能需要管理员权限——用管理�
 A: 确认手机上的 Tailscale 已登录同一账号且状态为「已连接」。可在手机 Tailscale 应用的设备列表里确认本机是否可见。
 
 **Q: 配对码在哪里？**  
-A: Keelson 设置页 → Web 远程访问 → 网关开启后，配对码显示在「配对码」区块。
+A: Keelson 设置页 → Web 远程访问 → 网关开启后，配对码显示在「配对码」区块（含二维码，移动端可扫码）。
+
+**Q: 可以不用 Tailscale 吗？**  
+A: 可以，用公网隧道（Cloudflare Tunnel / ngrok，见上文「公网隧道」节）——Keelson 无需改动。但那是把服务暴露到公网，务必读该节的安全须知：临时自用、用完即关、吊销 token；长期用请前置 Cloudflare Access。
