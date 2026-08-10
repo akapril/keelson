@@ -1,7 +1,7 @@
 // Docs PB SDK 数据访问层 —— 唯一允许调用 pb.collection 的 docs 文件。
 // 组件 / Store 禁止直接调用 pb.collection；统一走此模块。
 import { pb } from "../pb";
-import { COL } from "./collections";
+import { COL, softDeleteRecord, NOT_DELETED, combineFilters } from "./collections";
 import type { BoardDoc } from "../../types/docs";
 
 // ── 查询辅助 ──────────────────────────────────────────────
@@ -17,7 +17,7 @@ export function listDocs(projectId: string): Promise<BoardDoc[]> {
     .collection(COL.docs)
     .getFullList<BoardDoc>({
       requestKey: null,
-      filter: byProject(projectId),
+      filter: combineFilters(NOT_DELETED, byProject(projectId)),
       sort: "-updated",
     });
 }
@@ -29,12 +29,12 @@ export function listDocs(projectId: string): Promise<BoardDoc[]> {
 export function listAllDocs(): Promise<BoardDoc[]> {
   return pb
     .collection(COL.docs)
-    .getFullList<BoardDoc>({ requestKey: null, sort: "-updated" });
+    .getFullList<BoardDoc>({ requestKey: null, filter: NOT_DELETED, sort: "-updated" });
 }
 
-/** 按 id 获取单篇文档（全页编辑器 /docs/:id 用）；owner 范围由访问规则保证。 */
+/** 按 id 获取单篇文档（全页编辑器 /docs/:id 用）；owner 范围由访问规则保证。软删文档按「未找到」处理。 */
 export function getDocRecord(id: string): Promise<BoardDoc> {
-  return pb.collection(COL.docs).getOne<BoardDoc>(id, { requestKey: null });
+  return pb.collection(COL.docs).getOne<BoardDoc>(id, { requestKey: null, filter: NOT_DELETED });
 }
 
 // ── CRUD ─────────────────────────────────────────────────
@@ -54,10 +54,9 @@ export function updateDocRecord(
   return pb.collection(COL.docs).update<BoardDoc>(id, data);
 }
 
-/** 删除文档记录 */
+/** 软删除文档（写 deleted_at）。 */
 export function deleteDocRecord(id: string): Promise<void> {
-  // PB .delete() 返回 true，包装为 void
-  return pb.collection(COL.docs).delete(id).then(() => undefined);
+  return softDeleteRecord(COL.docs, id);
 }
 
 // ── 实时订阅 ──────────────────────────────────────────────

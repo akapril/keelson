@@ -1,7 +1,7 @@
 // Board PB SDK 数据访问层 —— 唯一允许调用 pb.collection 的 board 文件。
 // 组件 / Store 禁止直接调用 pb.collection；统一走此模块。
 import { pb, currentUserId } from "../pb";
-import { COL } from "./collections";
+import { COL, softDeleteRecord, NOT_DELETED, combineFilters } from "./collections";
 import type {
   BoardTemplate,
   BoardProject,
@@ -39,14 +39,14 @@ const byProject = (projectId: string) =>
 export function listTemplates(): Promise<BoardTemplate[]> {
   return pb
     .collection(COL.boardTemplates)
-    .getFullList<BoardTemplate>({ requestKey: null });
+    .getFullList<BoardTemplate>({ requestKey: null, filter: NOT_DELETED });
 }
 
 /** 获取所有看板项目 */
 export function listProjects(): Promise<BoardProject[]> {
   return pb
     .collection(COL.boardProjects)
-    .getFullList<BoardProject>({ requestKey: null });
+    .getFullList<BoardProject>({ requestKey: null, filter: NOT_DELETED });
 }
 
 /** 获取指定项目的状态列（按 sort_order 升序） */
@@ -55,7 +55,7 @@ export function listStates(projectId: string): Promise<BoardState[]> {
     .collection(COL.boardStates)
     .getFullList<BoardState>({
       requestKey: null,
-      filter: byProject(projectId),
+      filter: combineFilters(NOT_DELETED, byProject(projectId)),
       sort: "sort_order",
     });
 }
@@ -66,7 +66,7 @@ export function listLabels(projectId: string): Promise<BoardLabel[]> {
     .collection(COL.boardLabels)
     .getFullList<BoardLabel>({
       requestKey: null,
-      filter: byProject(projectId),
+      filter: combineFilters(NOT_DELETED, byProject(projectId)),
     });
 }
 
@@ -76,19 +76,28 @@ export function listTasks(projectId: string): Promise<BoardTask[]> {
     .collection(COL.boardTasks)
     .getFullList<BoardTask>({
       requestKey: null,
-      filter: byProject(projectId),
+      filter: combineFilters(NOT_DELETED, byProject(projectId)),
       sort: "rank",
     });
 }
 
+/** 获取指定项目的成员记录 id（用于级联软删；单用户常为空）。 */
+export function listMembers(projectId: string): Promise<{ id: string }[]> {
+  return pb.collection(COL.boardMembers).getFullList<{ id: string }>({
+    requestKey: null,
+    filter: combineFilters(NOT_DELETED, byProject(projectId)),
+    fields: "id",
+  });
+}
+
 /** 获取当前用户全部任务（跨项目，用于项目卡片统计）。owner 由访问规则保证。 */
 export function listAllTasks(): Promise<BoardTask[]> {
-  return pb.collection(COL.boardTasks).getFullList<BoardTask>({ requestKey: null });
+  return pb.collection(COL.boardTasks).getFullList<BoardTask>({ requestKey: null, filter: NOT_DELETED });
 }
 
 /** 获取当前用户全部状态列（跨项目，用于判定任务是否「完成」类别）。 */
 export function listAllStates(): Promise<BoardState[]> {
-  return pb.collection(COL.boardStates).getFullList<BoardState>({ requestKey: null });
+  return pb.collection(COL.boardStates).getFullList<BoardState>({ requestKey: null, filter: NOT_DELETED });
 }
 
 /**
@@ -98,7 +107,7 @@ export function listAllStates(): Promise<BoardState[]> {
 export function listDueTasks(): Promise<BoardTask[]> {
   return pb
     .collection(COL.boardTasks)
-    .getFullList<BoardTask>({ requestKey: null, sort: "due_date" })
+    .getFullList<BoardTask>({ requestKey: null, filter: NOT_DELETED, sort: "due_date" })
     .then((all) => all.filter((t) => !!t.due_date));
 }
 
@@ -110,7 +119,7 @@ export function listDueTasks(): Promise<BoardTask[]> {
 export function listTasksBySession(sessionId: string): Promise<BoardTask[]> {
   return pb.collection(COL.boardTasks).getFullList<BoardTask>({
     requestKey: null,
-    filter: pb.filter("source_session_id = {:sid}", { sid: sessionId }),
+    filter: combineFilters(NOT_DELETED, pb.filter("source_session_id = {:sid}", { sid: sessionId })),
     sort: "-created",
   });
 }
@@ -139,10 +148,9 @@ export function updateRecord<T>(
   return pb.collection(coll).update<T>(id, data);
 }
 
-/** 删除记录 */
+/** 删除记录（软删：写 deleted_at；board 各集合均参与同步）。 */
 export function deleteRecord(coll: string, id: string): Promise<void> {
-  // PB .delete() 返回 true，包装为 void
-  return pb.collection(coll).delete(id).then(() => undefined);
+  return softDeleteRecord(coll, id);
 }
 
 // ── 实时订阅 ──────────────────────────────────────────────
