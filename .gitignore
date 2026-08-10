@@ -39,3 +39,4 @@ Thumbs.db
 # tauri icon 生成的移动端图标(桌面项目未用)
 src-tauri/icons/android/
 src-tauri/icons/ios/
+.demo-pb/
