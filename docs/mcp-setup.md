@@ -9,7 +9,7 @@ rework 应用内置了一个 MCP server，让本地 `claude` / `codex`（及任�
 
 ## 1. 找到端点 url + secret
 
-应用启动时会写一个端点文件（端口默认 47600，被占用会回退；secret 每次启动随机生成）：
+应用启动时会写一个端点文件（端口默认 47600，被占用回退到随机端口；secret 持久化到 OS keychain，重启不变、一次接入长期有效）：
 
 | 平台 | 端点文件路径 |
 |---|---|
@@ -23,7 +23,7 @@ rework 应用内置了一个 MCP server，让本地 `claude` / `codex`（及任�
 { "url": "http://127.0.0.1:47600/mcp", "secret": "3f9a…（32 位十六进制）" }
 ```
 
-> ⚠️ **secret 每次启动会变**（v1 未持久化）。重启 rework 后需重新配置一次客户端（见下）。
+> ✅ **secret 已持久化到 OS keychain**：重启 rework 后无需重配，一次接入长期有效。
 
 ## 2. Claude Code 接入
 
@@ -97,7 +97,7 @@ curl -s <url> -H "Authorization: Bearer <secret>" \
 
 ## 已知限制（v1）
 
-- secret 每次启动变（未持久化）——重启需重配客户端。**改进项**:后续用 keychain 持久化 secret（复用 `bootstrap.rs` 的 `get_or_make_secret`），即可一次配置长期有效。
+- secret 已持久化到 keychain（重启不变，一次接入长期有效）。
 - 端口 47600 被占用时回退随机端口（以端点文件为准）。
 - 仅本机（127.0.0.1）；应用退出后端点不可用。
 - 工具集限看板+文档；RAG/会话检索等 Rust-only 能力后续可加（注册表登记一行）。
