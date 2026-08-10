@@ -9,6 +9,13 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Analytics01Icon, Copy01Icon, File01Icon, Refresh01Icon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Markdown } from "@/components/markdown";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/store/board";
@@ -202,35 +209,46 @@ export default function ReportPage() {
         {/* 项目范围 + 模板 */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">{t("report.projectLabel")}</span>
-          <select
-            value={scopeId}
-            onChange={(e) => setScopeId(e.target.value)}
-            className="min-w-32 rounded-md border border-border bg-background px-2 py-1 text-xs"
-          >
-            <option value="all">{t("report.allProjects")}</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          {/* shadcn Select（Radix）替代原生 <select>，跨平台样式一致 */}
+          <Select value={scopeId} onValueChange={setScopeId}>
+            <SelectTrigger className="h-8 min-w-32 text-xs" aria-label={t("report.projectLabel")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("report.allProjects")}</SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <span className="ml-2 text-xs font-medium text-muted-foreground">{t("report.templateLabel")}</span>
-          <select
-            value={templateId}
-            onChange={(e) => chooseTemplate(e.target.value)}
-            className="min-w-32 rounded-md border border-border bg-background px-2 py-1 text-xs"
-            title={t("report.templateTitle")}
+          {/* templateId 可能为 ""（内置默认）；Radix 禁空值，用 __default__ 哨兵映射 */}
+          <Select
+            value={templateId || "__default__"}
+            onValueChange={(v) => chooseTemplate(v === "__default__" ? "" : v)}
           >
-            {/* 有模板时不再显示冗余的「内置默认」——库里那条种子即默认；
-                一个模板都没有时才给内置兜底选项 */}
-            {templates.length === 0 && <option value="">{t("report.templateDefault")}</option>}
-            {templates.map((tmpl) => (
-              <option key={tmpl.id} value={tmpl.id}>
-                {tmpl.title}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              className="h-8 min-w-32 text-xs"
+              title={t("report.templateTitle")}
+              aria-label={t("report.templateLabel")}
+            >
+              <SelectValue placeholder={t("report.templateDefault")} />
+            </SelectTrigger>
+            <SelectContent>
+              {/* 有模板时不显示冗余「内置默认」——库里那条种子即默认；无模板才给兜底项 */}
+              {templates.length === 0 && (
+                <SelectItem value="__default__">{t("report.templateDefault")}</SelectItem>
+              )}
+              {templates.map((tmpl) => (
+                <SelectItem key={tmpl.id} value={tmpl.id}>
+                  {tmpl.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* 范围提示 + 生成 */}

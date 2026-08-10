@@ -122,7 +122,7 @@ export default function Dashboard() {
             <span className="font-medium text-foreground">{t("dashboard.mcpHintTitle")}</span>
             <span className="ml-1 text-muted-foreground">{t("dashboard.mcpHintBody")}</span>
           </span>
-          <Button size="sm" onClick={() => navigate("/settings")}>
+          <Button size="sm" onClick={() => navigate("/settings?section=mcp")}>
             {t("dashboard.mcpHintCta")}
           </Button>
           <button
