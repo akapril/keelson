@@ -69,3 +69,13 @@ local-embed = ["dep:fastembed"]
 [dev-dependencies]
 tempfile = "3"
 
+# ── dev 构建瘦身：大幅缩减 target/debug 体积（调试信息是 Windows 上的大头）──
+# 自己的代码保留「行号级」调试信息（panic/backtrace 仍带行号），去掉变量级，省 PDB。
+[profile.dev]
+debug = "line-tables-only"
+
+# 依赖占 target 绝大头，且极少需要在依赖里下断点 → 依赖完全去调试信息。
+# 只影响本地 dev 体积/编译，不改产物行为；release 不受影响。
+[profile.dev.package."*"]
+debug = false
+
