@@ -1,0 +1,42 @@
+name: Publish to winget
+
+# 正式发布一个 Release 后，用 wingetcreate 读取真实安装包、自动算哈希，
+# 向 microsoft/winget-pkgs 提交/更新清单 → 用户即可 `winget install akapril.Keelson`。
+#
+# 一次性前置（只做一次）：
+#   1) 首次清单需手动建立：本机装 wingetcreate（`winget install wingetcreate`），
+#      运行 `wingetcreate new <某个 v* 版本的 -setup.exe 直链>`，走完提交 PR，
+#      让 winget-pkgs 收录 PackageIdentifier = akapril.Keelson。之后本工作流负责“更新”。
+#   2) 仓库 Settings → Secrets → 加 WINGET_TOKEN = 一个 classic GitHub PAT（勾 public_repo），
+#      用于本工作流向 winget-pkgs fork + 提 PR。
+#
+# 说明：安装包必须是 MSIX/MSI/EXE —— Keelson 出 .msi 和 -setup.exe，符合 winget 要求。
+
+on:
+  release:
+    types: [released] # 仅正式发布触发（草稿/预发布不触发）
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, 例如 v0.2.0"
+        required: true
+
+jobs:
+  winget:
+    runs-on: windows-latest
+    steps:
+      - name: 提交/更新 winget 清单
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.release.tag_name }}"
+          if (-not $tag) { $tag = "${{ github.event.inputs.tag }}" }
+          $ver = $tag.TrimStart('v')
+          # NSIS 安装器直链（Tauri 默认命名：Keelson_<ver>_x64-setup.exe）
+          $installer = "https://github.com/${{ github.repository }}/releases/download/$tag/Keelson_${ver}_x64-setup.exe"
+          Write-Host "更新 winget 清单 akapril.Keelson $ver ← $installer"
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          .\wingetcreate.exe update akapril.Keelson `
+            --version $ver `
+            --urls "$installer" `
+            --submit `
+            --token "${{ secrets.WINGET_TOKEN }}"

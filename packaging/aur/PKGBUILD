@@ -1,0 +1,23 @@
+# Maintainer: akapril
+# Keelson —— AUR 二进制包（wrap 官方 .deb 发布产物）。
+# 用法：把本目录发到 AUR（见 packaging/README.md），用户即可 `yay -S keelson-bin`。
+# ⚠ sha256sums 需按实际 .deb 填入（`updpkgsums` 可自动算），或临时用 'SKIP'（不推荐正式发布）。
+pkgname=keelson-bin
+_pkgname=Keelson
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="本地优先的 AI 工作台 —— 收拢 AI-CLI 会话/项目/任务/文档"
+arch=('x86_64')
+url="https://github.com/akapril/keelson"
+license=('custom')
+# Tauri v2 默认 .deb 命名：Keelson_<ver>_amd64.deb
+source=("https://github.com/akapril/keelson/releases/download/v${pkgver}/${_pkgname}_${pkgver}_amd64.deb")
+sha256sums=('SKIP')
+# Tauri(WebKitGTK)运行期依赖
+depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator')
+options=('!strip')
+
+package() {
+  # 直接解包官方 .deb 到打包根
+  tar -xf data.tar.* -C "${pkgdir}" 2>/dev/null || bsdtar -xf "${_pkgname}_${pkgver}_amd64.deb" -C "${pkgdir}"
+}
