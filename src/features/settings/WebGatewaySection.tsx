@@ -6,6 +6,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { QRCodeSVG } from "qrcode.react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Edit02Icon, Delete02Icon } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -78,6 +80,16 @@ export function WebGatewaySection() {
       }
     });
   }, [refreshCode, refreshDevices]);
+
+  // 网关开启时轮询：某设备成功配对后服务端会自动轮换配对码——定时刷新以显示新码 + 新设备。
+  useEffect(() => {
+    if (!enabled) return;
+    const id = setInterval(() => {
+      void refreshCode();
+      void refreshDevices();
+    }, 4000);
+    return () => clearInterval(id);
+  }, [enabled, refreshCode, refreshDevices]);
 
   // ── 开关 gateway ─────────────────────────────────────────────
   const handleToggle = async () => {
@@ -292,7 +304,7 @@ export function WebGatewaySection() {
               {t("webGateway.devicesEmpty")}
             </p>
           ) : (
-            <ul className="space-y-1.5">
+            <ul className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
               {devices.map((dev) => (
                 <li
                   key={dev.id}
@@ -343,26 +355,28 @@ export function WebGatewaySection() {
                           {t("webGateway.devicePairedAt", { at: dev.paired_at })}
                         </span>
                       </div>
-                      <div className="flex shrink-0 gap-1.5">
+                      <div className="flex shrink-0 gap-0.5">
                         <Button
                           variant="ghost"
-                          size="sm"
-                          className="h-8"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-foreground"
                           disabled={editingId !== null || revokingId !== null}
                           onClick={() => startEdit(dev.id, dev.label)}
+                          title={t("webGateway.renameBtn")}
+                          aria-label={t("webGateway.renameBtn")}
                         >
-                          {t("webGateway.renameBtn")}
+                          <HugeiconsIcon icon={Edit02Icon} strokeWidth={2} className="size-4" />
                         </Button>
                         <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                           disabled={revokingId !== null}
                           onClick={() => void handleRevoke(dev.id)}
+                          title={t("webGateway.revokeBtn")}
+                          aria-label={t("webGateway.revokeBtn")}
                         >
-                          {revokingId === dev.id
-                            ? t("webGateway.revoking")
-                            : t("webGateway.revokeBtn")}
+                          <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} className="size-4" />
                         </Button>
                       </div>
                     </>
