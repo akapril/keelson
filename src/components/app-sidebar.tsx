@@ -132,7 +132,10 @@ export function AppSidebar() {
         {/* 收藏组：置顶，空收藏不渲染；dnd-kit 拖拽排序，点击走 ?open 深链 */}
         {pinned.length > 0 && (
           <SidebarGroup>
-            <SidebarGroupLabel>{t("sidebar.favorites")}</SidebarGroupLabel>
+            {/* 分组标题滚动时钉顶：栏目多/收藏多时不丢失分组上下文 */}
+            <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
+              {t("sidebar.favorites")}
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <DndContext
@@ -155,7 +158,9 @@ export function AppSidebar() {
         )}
         {navGroups.map((group) => (
           <SidebarGroup key={group.labelKey}>
-            <SidebarGroupLabel>{t(group.labelKey)}</SidebarGroupLabel>
+            <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
+              {t(group.labelKey)}
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => (
