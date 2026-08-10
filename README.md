@@ -118,6 +118,17 @@ Keelson 内置一个 MCP server，让本地 `claude` / `codex`（及任意 MCP �
 
 进阶 / 手动配置、可用工具与验证见 [`docs/mcp-setup.md`](docs/mcp-setup.md)。
 
+## 远程使用（Web 端）
+
+在**手机 / 平板 / 另一台电脑**上安全访问本机的 Keelson —— 浏览工作台、看会话与通知，甚至用 **Web 终端**远程驱动 `claude` / `codex`。
+
+- **双层安全**：① Tailscale 私有网（只有你同账号登录的设备可达，公网到不了）② 应用**配对 token**（外部设备需输一次配对码，之后 token 鉴权、失败限流、可随时吊销）。**默认关闭**，需在设置里显式开启。
+- **能远程做什么**：Web 终端（跑 CLI）、工作台会话列表、通知 —— 移动优先的响应式界面。
+- **接入**：本机与远程设备装 Tailscale（同账号）→ 设置里开「Web 网关」并配对 → 经 `tailscale serve` 的 HTTPS 访问（`Secure` cookie 要求 HTTPS，见文档）。
+- ⚠️ 远程终端可在本机执行任意命令 —— 只在**受信设备**上配对；设备丢失即在设置里吊销其 token。
+
+完整接入步骤见 [`docs/web-remote-access.md`](docs/web-remote-access.md)。
+
 ## 技术栈
 
 | 层 | 选型 |
