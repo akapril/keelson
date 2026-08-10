@@ -101,7 +101,9 @@
     "submitLoading": "Please wait…",
     "submitLogin": "Log in",
     "submitRegister": "Sign up",
-    "errorPasswordMin": "Password must be at least 8 characters"
+    "errorPasswordMin": "Password must be at least 8 characters",
+    "remoteConnecting": "Remote:",
+    "switchLocal": "Switch back to local (no login)"
   },
   "nav": {
     "groupWorkspace": "Workspace",
@@ -144,7 +146,11 @@
     "panelReadingQueue": "Reading Queue",
     "panelEmptyReading": "Reading queue is empty",
     "statusUnread": "Unread",
-    "statusReading": "Reading"
+    "statusReading": "Reading",
+    "mcpHintTitle": "Connect claude / codex",
+    "mcpHintBody": "Let AI read/write your board tasks and docs — one-click connect in Settings.",
+    "mcpHintCta": "Connect",
+    "mcpHintDismiss": "Don't show again"
   },
   "doc": {
     "ariaMinimize": "Minimize",

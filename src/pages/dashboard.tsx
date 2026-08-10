@@ -41,6 +41,24 @@ export default function Dashboard() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [reading, setReading] = useState<ReadingItem[]>([]);
 
+  // 首次引导：提示接入 MCP（核心受众 CLI 用户的杀手级功能，否则埋在设置里易错过）。
+  // 可永久关闭；关闭态存 localStorage。
+  const [mcpHintDismissed, setMcpHintDismissed] = useState(() => {
+    try {
+      return !!localStorage.getItem("keelson-mcp-hint-dismissed");
+    } catch {
+      return false;
+    }
+  });
+  const dismissMcpHint = () => {
+    try {
+      localStorage.setItem("keelson-mcp-hint-dismissed", "1");
+    } catch {
+      /* ignore */
+    }
+    setMcpHintDismissed(true);
+  };
+
   useEffect(() => {
     useSessionsStore.getState().load();
     useBoardStore.getState().loadProjects();
@@ -96,6 +114,26 @@ export default function Dashboard() {
           {t("commandPalette.actionReport")}
         </Button>
       </header>
+
+      {/* 首次引导：一键接入 claude / codex（可关闭） */}
+      {!mcpHintDismissed && (
+        <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+          <span className="min-w-0 flex-1 text-sm">
+            <span className="font-medium text-foreground">{t("dashboard.mcpHintTitle")}</span>
+            <span className="ml-1 text-muted-foreground">{t("dashboard.mcpHintBody")}</span>
+          </span>
+          <Button size="sm" onClick={() => navigate("/settings")}>
+            {t("dashboard.mcpHintCta")}
+          </Button>
+          <button
+            type="button"
+            onClick={dismissMcpHint}
+            className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
+          >
+            {t("dashboard.mcpHintDismiss")}
+          </button>
+        </div>
+      )}
 
       {/* 统计卡片 */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
