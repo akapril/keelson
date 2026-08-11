@@ -38,6 +38,8 @@ pub mod hooks;
 pub mod runtime;
 // 交互式 PTY 进程命令（start/input/resize/kill；需 AppHandle emit，故独立于 runtime）
 pub mod runtime_pty;
+// 系统与维护命令（开机自启 / PB 存储信息 / 日志保留天数 / 清空日志）
+pub mod system;
 
 // 注意：generate_handler! 宏需要使用函数定义所在的原始路径（含辅助符号），
 // 故不做 re-export；lib.rs 中直接使用 commands::sessions::sessions_list 等完整路径。
