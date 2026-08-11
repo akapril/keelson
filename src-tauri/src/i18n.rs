@@ -1,6 +1,15 @@
 //! Rust 侧用户可见文案的极简中英映射：仅覆盖托盘菜单与 MCP 通知。
 //! key 命名与前端语义一致；未知 key 或未知语言回退英文。
 
+/// 检测系统语言 → "zh"（中文系统）或 "en"（其余）。供托盘/通知的初始语言"跟随系统"，
+/// 避免前端同步之前托盘一律英文；前端就绪后仍会经 set_locale 覆盖为用户选择。
+pub fn detect_locale() -> String {
+    let is_zh = sys_locale::get_locale()
+        .map(|l| l.to_lowercase().starts_with("zh"))
+        .unwrap_or(false);
+    if is_zh { "zh".to_string() } else { "en".to_string() }
+}
+
 /// 按 locale 取文案。locale 取 "zh" 用中文，其余（含 "en"）用英文。
 pub fn t(locale: &str, key: &str) -> &'static str {
     let zh = locale == "zh";

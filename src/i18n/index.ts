@@ -34,6 +34,10 @@ void i18n
     resources,
     supportedLngs: ["zh", "en"],
     fallbackLng: "en",
+    // 只按基础语言码匹配：中文系统 navigator.language 为 "zh-CN"，不加此项会因不在
+    // supportedLngs(["zh","en"]) 内而落到 fallback "en"。languageOnly 把 "zh-CN"→"zh"、
+    // "en-US"→"en"，让"跟随系统"对带地区码的系统语言也正确生效。
+    load: "languageOnly",
     defaultNS: "common",
     // 取所有语言键的并集，避免某命名空间仅在部分语言中存在时漏注册
     ns: [...new Set(Object.values(resources).flatMap((r) => Object.keys(r)))],
