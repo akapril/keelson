@@ -138,8 +138,9 @@ struct PairReq {
 /// 旧配对码用一次即作废，杜绝「泄露旧码 = 永久后门」。失败返回 401（含限流退避）。
 ///
 /// Cookie 手动设 `Set-Cookie`（避免引 axum-extra）：
-/// `HttpOnly`（JS 不可读，防 XSS 窃取）+ `Secure`（仅 HTTPS）+ `SameSite=Strict`（防 CSRF）
-/// + `Path=/`（全站生效）。
+/// `HttpOnly`（JS 不可读，防 XSS 窃取）+ `Secure`（仅 HTTPS）+ `SameSite=Lax`（防 CSRF，见下）
+/// + `Path=/`（全站生效）+ `Max-Age=365天`（持久化；否则会话 cookie 在 iOS Safari 关标签即失效，
+/// 每次重开都要重配）。
 async fn pair_handler(
     State(auth): State<Arc<AuthState>>,
     headers: HeaderMap,
@@ -160,8 +161,17 @@ async fn pair_handler(
     let token = issue_token(&auth, crate::web::auth::derive_device_label(ua));
 
     // 手动构造 Set-Cookie：安全属性一次写全。
+    // Max-Age=365 天：让配对 cookie **持久化**。缺 Max-Age 会退化为会话 cookie——iOS Safari
+    // 关标签/后台即清除，导致每次重开地址都要重新输配对码。token 服务端持久且可随时吊销，长期有效安全。
+    //
+    // SameSite=Lax（非 Strict）：Strict 下，从**外部上下文**重开地址（扫码打开 Safari、消息里点链接、
+    // 主屏书签、二维码 app 跳转）被判为跨站发起的顶级导航，浏览器**拒发 cookie** → 服务端看不到
+    // token → 又弹配对页（即使 Max-Age 已让 cookie 存住，重开那一下也带不上）。Lax 会在顶级 GET
+    // 导航时携带 cookie，正好覆盖"重开地址"场景；同时仍拒绝跨站 POST/子请求携带（配对需码、WS 为
+    // 子请求跨站不带）→ CSRF 防护不降级。
+    const COOKIE_MAX_AGE_SECS: i64 = 365 * 24 * 60 * 60;
     let cookie = format!(
-        "{TOKEN_COOKIE}={token}; HttpOnly; Secure; SameSite=Strict; Path=/"
+        "{TOKEN_COOKIE}={token}; Max-Age={COOKIE_MAX_AGE_SECS}; HttpOnly; Secure; SameSite=Lax; Path=/"
     );
     (
         StatusCode::OK,

@@ -410,3 +410,10 @@
     padding: 2rem 1.5rem 4rem;
   }
 }
+
+/* web 终端(xterm)移动端触摸滚动：xterm 视口默认 touch-action 会吞掉浏览器滚动，
+   iOS Safari 上无法用手指上下滑动查看终端历史。放开为垂直平移 + 开启惯性滚动。 */
+.xterm .xterm-viewport {
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch;
+}

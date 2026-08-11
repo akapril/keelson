@@ -48,6 +48,11 @@ export function openTerminalWs(
 ): TermWsHandle {
   let ws: WebSocket | null = null;
   let manualClose = false; // 主动调用 close() 时标记，阻止重连
+  // pty 进程已退出（收到 {type:"exit"} 帧）。这是**权威终止信号**：进程没了，重连也只会
+  // 让后端重新 open→再次拉起同一个必然失败的会话（如 codex resume 到不兼容的 rollout），
+  // 形成"闪错→重连→再闪错"的死循环。故一旦 exit，后续 onclose 一律按主动关闭处理，不重连。
+  // 反之：网络抖动断线时后端**不发** exit 帧且不杀 pty（进程仍活），此时才应重连并接管。
+  let exited = false;
   let attempts = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -94,6 +99,7 @@ export function openTerminalWs(
         try {
           const msg = JSON.parse(ev.data) as { type?: string };
           if (msg.type === "exit") {
+            exited = true; // 标记进程已退出：随后的 onclose 不得触发重连
             callbacks.onExit();
           }
           // 其他 JSON 消息类型：忽略（预留扩展）
@@ -109,8 +115,8 @@ export function openTerminalWs(
 
     socket.onclose = (ev) => {
       ws = null;
-      if (manualClose) {
-        // 主动关闭，不重连
+      if (manualClose || exited) {
+        // 主动关闭 或 pty 已退出：均不重连（exited 见上方注释——避免死循环重连必然失败的会话）
         callbacks.onStatus("closed");
         return;
       }
