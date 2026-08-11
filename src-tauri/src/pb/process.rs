@@ -10,6 +10,38 @@ pub struct PbHandle {
     pub base_url: String,
 }
 
+/// 清理可能残留、仍占用 pb_data 的孤儿 PocketBase sidecar（上一实例/上一版本未随进程退出）。
+///
+/// 背景：重装或异常退出后，旧 PB 可能仍持有 data.db 的 SQLite 写锁；新实例的
+/// `superuser upsert`（写操作）会**卡在等锁**上，导致初始化 30s 静默超时。
+/// 用 sysinfo 跨平台按进程名（"pocketbase" 前缀，即我方 sidecar `pocketbase-<triple>`）
+/// 定位并 kill——无子进程、无控制台黑窗。**在本应用 spawn 自己的 PB 之前调用**：此刻任何
+/// pocketbase* 都必是残留，可安全清理。返回清理的进程数。
+pub fn kill_orphan_pocketbase() -> usize {
+    use sysinfo::{ProcessesToUpdate, System};
+    let mut sys = System::new();
+    sys.refresh_processes(ProcessesToUpdate::All, true);
+    let mut killed = 0usize;
+    for proc in sys.processes().values() {
+        if proc.name().to_string_lossy().to_lowercase().starts_with("pocketbase") && proc.kill() {
+            killed += 1;
+            eprintln!("[keelson] 清理残留 PocketBase 进程 pid={}", proc.pid().as_u32());
+        }
+    }
+    killed
+}
+
+/// 把初始化错误追加写入 `<app_data>/init-error.log`（带时间戳）。
+/// 打包版 GUI 无控制台、stderr 不可见 → 用日志文件让失败可事后定位。best-effort，失败即忽略。
+pub fn log_init_error(app_data: &Path, msg: &str) {
+    let line = format!("[{}] {msg}\n", chrono::Utc::now().to_rfc3339());
+    let path = app_data.join("init-error.log");
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = f.write_all(line.as_bytes());
+    }
+}
+
 /// 让 OS 分配一个空闲端口（bind :0 后取端口号再释放）。
 pub fn pick_free_port() -> u16 {
     std::net::TcpListener::bind(("127.0.0.1", 0))
@@ -75,8 +107,18 @@ pub async fn create_superuser_via_sidecar(
         "--migrationsDir",
         &migrations_dir.to_string_lossy(),
     ]);
-    // 使用 output() 等待命令完成并收集输出
-    let output = cmd.output().await?;
+    // 使用 output() 等待命令完成并收集输出。加 15s 超时兜底：万一 pb_data 仍被锁（如残留
+    // 清理未尽/权限不足），upsert 会无限等锁——超时即清孤儿 PB 释放锁 + 报明确错误，
+    // 避免退化成 30s 静默"尚未初始化"。正常 upsert <2s，15s 极宽松。
+    let output = match tokio::time::timeout(Duration::from_secs(15), cmd.output()).await {
+        Ok(r) => r?,
+        Err(_) => {
+            let n = kill_orphan_pocketbase();
+            anyhow::bail!(
+                "superuser upsert 超时（15s）：pb_data 可能被残留的 PocketBase 进程占用，已清理 {n} 个残留进程，请重开应用"
+            );
+        }
+    };
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
