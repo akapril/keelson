@@ -39,7 +39,7 @@ fn ctx_from_state(app: &tauri::AppHandle) -> Result<McpCtx, String> {
     let guard = state.auth.lock();
     let a = guard
         .as_ref()
-        .ok_or("rework 未就绪：请先启动 rework 应用并等待初始化")?;
+        .ok_or("Keelson 未就绪：请先启动 Keelson 应用并等待初始化")?;
     Ok(McpCtx {
         client: crate::pb::client::PbClient::new(&a.base_url, &a.token),
         user_id: a.user_id.clone(),
@@ -198,7 +198,7 @@ impl ServerHandler for ReworkMcpHandler {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation {
-                name: "rework-mcp".into(),
+                name: "keelson-mcp".into(),
                 version: "0.1.0".into(),
                 ..Default::default()
             },

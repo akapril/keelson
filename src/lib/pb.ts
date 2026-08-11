@@ -11,7 +11,7 @@ pb.autoCancellation(false);
 type BootstrapAuth = { baseUrl: string; token: string; userId: string };
 
 // ── 远程 PB（多设备）：设置里配置远程 URL 后，前端指向远程并走真实登录 ──
-const REMOTE_URL_KEY = "rework-remote-pb-url";
+const REMOTE_URL_KEY = "keelson-remote-pb-url";
 
 /** 读取配置的远程 PB URL（空串=用本地内置 sidecar）。 */
 export function getRemotePbUrl(): string {

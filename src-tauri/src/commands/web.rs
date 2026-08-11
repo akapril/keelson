@@ -45,7 +45,7 @@ fn remember_web_autostart(state: &AppState, enabled: bool) {
         guard.clone()
     }; // 锁在此释放，再写盘（IO 不持锁）
     if let Err(e) = cfg.save(&path) {
-        eprintln!("[rework] 保存 web_autostart 失败（非致命）: {e:#}");
+        eprintln!("[keelson] 保存 web_autostart 失败（非致命）: {e:#}");
     }
 }
 

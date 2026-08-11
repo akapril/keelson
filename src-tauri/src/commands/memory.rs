@@ -7,8 +7,42 @@ const MARK_BEGIN: &str = "<!-- >>> rework-memories >>> -->";
 const MARK_END: &str = "<!-- <<< rework-memories <<< -->";
 
 // 看板任务受管块标记（与记忆块分开，同一文件里两块互不干扰）。
-const TASK_MARK_BEGIN: &str = "<!-- >>> rework-tasks >>> -->";
-const TASK_MARK_END: &str = "<!-- <<< rework-tasks <<< -->";
+const TASK_MARK_BEGIN: &str = "<!-- >>> keelson-tasks >>> -->";
+const TASK_MARK_END: &str = "<!-- <<< keelson-tasks <<< -->";
+/// 改名前的旧受管块标记：写新块前先清掉旧块，避免 CLAUDE.md 里新旧两块并存。
+const OLD_TASK_MARK_BEGIN: &str = "<!-- >>> rework-tasks >>> -->";
+const OLD_TASK_MARK_END: &str = "<!-- <<< rework-tasks <<< -->";
+
+/// 从文件里剔除改名前的旧 rework-tasks 块（含首尾标记行），就地写回。无块则不动。best-effort。
+fn strip_old_task_block(path: &Path) {
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return;
+    };
+    if !content.contains(OLD_TASK_MARK_BEGIN) {
+        return;
+    }
+    let mut out: Vec<&str> = Vec::new();
+    let mut skip = false;
+    for line in content.lines() {
+        let t = line.trim();
+        if t == OLD_TASK_MARK_BEGIN {
+            skip = true;
+            continue;
+        }
+        if t == OLD_TASK_MARK_END {
+            skip = false;
+            continue;
+        }
+        if !skip {
+            out.push(line);
+        }
+    }
+    let mut s = out.join("\n");
+    if content.ends_with('\n') && !s.is_empty() {
+        s.push('\n');
+    }
+    let _ = std::fs::write(path, s);
+}
 
 #[derive(serde::Deserialize)]
 pub struct MemLine {
@@ -265,6 +299,7 @@ pub fn tasks_write_project_files(
     let mut written = Vec::new();
     for name in ["CLAUDE.md", "AGENTS.md"] {
         let p = root.join(name);
+        strip_old_task_block(&p); // 先清掉改名前的旧 rework-tasks 块，避免新旧并存
         write_block(&p, TASK_MARK_BEGIN, TASK_MARK_END, &block)?;
         written.push(p.display().to_string());
     }

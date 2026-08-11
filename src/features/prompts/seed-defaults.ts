@@ -10,7 +10,7 @@ import { REPORT_SYSTEM } from "@/features/report/generateReport";
 import { promptType } from "./prompt-utils";
 
 // v2：升版以强制跑一次去重逻辑，清理 v1 竞态可能留下的重复记录。
-const SEED_FLAG = "rework-prompts-seeded-report-default-v2";
+const SEED_FLAG = "keelson-prompts-seeded-report-default-v2";
 const TITLE = "工作报告 · 默认格式";
 
 // 进行中的种子任务（模块级）：并发调用复用，避免竞态重复创建。

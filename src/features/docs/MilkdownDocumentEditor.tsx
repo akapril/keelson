@@ -261,7 +261,7 @@ function MilkdownEditorBody({
   }, [])
 
   return (
-    <div ref={editorRootRef} className="rework-milkdown-editor">
+    <div ref={editorRootRef} className="keelson-milkdown-editor">
       <MilkdownToolbar
         mode={mode}
         fullscreen={fullscreen}

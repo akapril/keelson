@@ -10,7 +10,7 @@ export function isCliSynced(t: Pick<BoardTask, "source_anchor">): boolean {
 }
 
 // ── 注入集（按项目隔离，存 localStorage） ──────────────────
-const keyOf = (projectId: string) => `rework-cli-inject:${projectId}`;
+const keyOf = (projectId: string) => `keelson-cli-inject:${projectId}`;
 
 function load(projectId: string): Set<string> {
   try {

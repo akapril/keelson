@@ -18,7 +18,7 @@ import { workspaceRecordUrl } from "@/lib/workspace-navigation";
 // 嵌入配置：默认 mock（非真语义）；设置页可切 api / local。
 function embedConfig() {
   try {
-    const raw = localStorage.getItem("rework-embed-config");
+    const raw = localStorage.getItem("keelson-embed-config");
     return raw ? { ...DEFAULT_EMBED_CONFIG, ...JSON.parse(raw) } : DEFAULT_EMBED_CONFIG;
   } catch {
     return DEFAULT_EMBED_CONFIG;

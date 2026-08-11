@@ -28,7 +28,7 @@ pub fn terminal_resume(
 ) -> Result<(), String> {
     // 注意：as_tab 目前为存根，记录日志便于后续追踪
     if as_tab {
-        eprintln!("[rework] terminal_resume: as_tab=true（MVP 阶段存根，行为等同 false）");
+        eprintln!("[keelson] terminal_resume: as_tab=true（MVP 阶段存根，行为等同 false）");
     }
 
     // 1. 通过 provider 注册表生成恢复命令字符串

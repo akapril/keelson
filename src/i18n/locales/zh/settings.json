@@ -39,6 +39,21 @@
     "ask": "每次询问",
     "error": "保存失败：{{msg}}"
   },
+  "systemData": {
+    "title": "系统与数据",
+    "desc": "开机自启，以及 PocketBase 数据/日志的存储管理。",
+    "autostartLabel": "开机时自动启动",
+    "pbTotal": "数据目录总大小",
+    "dataDb": "业务数据 (data.db)",
+    "logsDb": "请求日志 (auxiliary.db)",
+    "retentionLabel": "日志保留天数 (1–365，下次启动生效)",
+    "retentionSave": "保存",
+    "retentionSaved": "已保存，下次启动生效",
+    "clearHint": "清空请求日志并回收磁盘空间",
+    "clearBtn": "清空日志",
+    "clearQueued": "已排队：下次启动时清空日志",
+    "error": "操作失败：{{msg}}"
+  },
   "autoArchive": {
     "title": "看板已完成任务自动归档",
     "desc": "打开项目时，把「完成」列中停留超过所选天数的任务自动归档（软删除、保留会话/提交溯源，默认从看板隐藏，可随时「显示归档」查看或取消归档）。不会删除任何数据。",

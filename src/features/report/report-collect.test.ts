@@ -23,7 +23,7 @@ function commit(hash: string, subject = "s"): CommitInfo {
     subject,
     author: "a",
     committed_at: "2026-07-22T10:00:00Z",
-    rework_session: null,
+    keelson_session: null,
   };
 }
 function task(over: Partial<BoardTask>): BoardTask {

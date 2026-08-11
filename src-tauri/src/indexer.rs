@@ -314,7 +314,7 @@ impl SessionIndex {
         writer.commit()?;
         self.reader.reload()?;
         eprintln!(
-            "[rework] 增量同步：{} upsert，{} delete",
+            "[keelson] 增量同步：{} upsert，{} delete",
             to_upsert.len(),
             to_delete.len()
         );

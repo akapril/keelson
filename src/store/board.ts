@@ -363,7 +363,7 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
         title: t.title,
         description: t.body,
         source_anchor: anchor,
-        source_provider: "rework-plan",
+        source_provider: "keelson-plan",
       });
       created++;
     }

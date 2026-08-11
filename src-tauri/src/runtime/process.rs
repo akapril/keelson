@@ -67,6 +67,8 @@ mod tests {
             session_id: None,
             provider: None,
             interactive: false,
+            label: None,
+            note: None,
         }
     }
 

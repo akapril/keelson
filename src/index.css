@@ -199,7 +199,7 @@
 }
 
 /* ===== Milkdown 文档编辑器主题（自 workavera 移植，crepe 主题变量映射到本项目 token） ===== */
-.rework-milkdown-editor {
+.keelson-milkdown-editor {
   display: flex;
   min-height: 0;
   flex: 1;
@@ -209,7 +209,7 @@
   font-family: var(--font-sans);
 }
 
-.rework-milkdown-editor:fullscreen {
+.keelson-milkdown-editor:fullscreen {
   width: 100vw;
   height: 100vh;
   background: var(--background);
@@ -258,14 +258,14 @@
 
 /* 修「长文档无法下滑滚动」：内层 milkdown / ProseMirror 自然增高、不自行裁剪，
  * 让内容把 .milkdown-rich-area 撑高、由它统一纵向滚动（而非被内层 height:100%/overflow 卡住）。 */
-.rework-milkdown-editor .milkdown-rich-area .milkdown,
-.rework-milkdown-editor .milkdown-rich-area .ProseMirror {
+.keelson-milkdown-editor .milkdown-rich-area .milkdown,
+.keelson-milkdown-editor .milkdown-rich-area .ProseMirror {
   height: auto;
   max-height: none;
   overflow: visible;
 }
 
-.rework-milkdown-editor .milkdown {
+.keelson-milkdown-editor .milkdown {
   --crepe-color-background: var(--background);
   --crepe-color-on-background: var(--foreground);
   --crepe-color-surface: var(--popover);
@@ -299,18 +299,18 @@
 /* 光标可见性：中性主题下浏览器默认 caret 又细又淡，易被误认为「没定位到光标」。
  * → 用主色高对比 caret；选区用主色淡影；编辑区聚焦时给一圈淡 focus 提示，
  *   让「当前正在这里输入」一目了然。纯 CSS，不动编辑器逻辑。 */
-.rework-milkdown-editor .milkdown .ProseMirror {
+.keelson-milkdown-editor .milkdown .ProseMirror {
   caret-color: var(--primary);
 }
-.rework-milkdown-editor .milkdown .ProseMirror ::selection {
+.keelson-milkdown-editor .milkdown .ProseMirror ::selection {
   background: color-mix(in srgb, var(--primary) 22%, transparent);
 }
-.rework-milkdown-editor .milkdown-rich-area:focus-within {
+.keelson-milkdown-editor .milkdown-rich-area:focus-within {
   border-radius: var(--radius-lg);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent);
 }
 
-.rework-milkdown-editor .milkdown .milkdown-table-block {
+.keelson-milkdown-editor .milkdown .milkdown-table-block {
   margin: 1.25rem 0;
   overflow-x: auto;
   border: 1px solid var(--border);
@@ -318,15 +318,15 @@
   background: var(--background);
 }
 
-.rework-milkdown-editor .milkdown .milkdown-table-block table {
+.keelson-milkdown-editor .milkdown .milkdown-table-block table {
   width: 100%;
   margin: 0;
   border-collapse: collapse;
   table-layout: auto;
 }
 
-.rework-milkdown-editor .milkdown .milkdown-table-block th,
-.rework-milkdown-editor .milkdown .milkdown-table-block td {
+.keelson-milkdown-editor .milkdown .milkdown-table-block th,
+.keelson-milkdown-editor .milkdown .milkdown-table-block td {
   min-width: 6rem;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--border);
@@ -337,21 +337,21 @@
   line-height: 1.5;
 }
 
-.rework-milkdown-editor .milkdown .milkdown-table-block th {
+.keelson-milkdown-editor .milkdown .milkdown-table-block th {
   background: var(--muted);
   font-weight: 600;
 }
 
-.rework-milkdown-editor .milkdown .milkdown-table-block tbody tr:hover td {
+.keelson-milkdown-editor .milkdown .milkdown-table-block tbody tr:hover td {
   background: color-mix(in oklab, var(--muted) 45%, transparent);
 }
 
-.rework-milkdown-editor .milkdown .milkdown-table-block th p,
-.rework-milkdown-editor .milkdown .milkdown-table-block td p {
+.keelson-milkdown-editor .milkdown .milkdown-table-block th p,
+.keelson-milkdown-editor .milkdown .milkdown-table-block td p {
   margin: 0;
 }
 
-.rework-milkdown-editor
+.keelson-milkdown-editor
   .milkdown
   .milkdown-table-block
   .selectedCell::after {
@@ -359,8 +359,8 @@
   opacity: 0.65;
 }
 
-.rework-milkdown-editor .milkdown .milkdown-table-block .cell-handle,
-.rework-milkdown-editor
+.keelson-milkdown-editor .milkdown .milkdown-table-block .cell-handle,
+.keelson-milkdown-editor
   .milkdown
   .milkdown-table-block
   .line-handle

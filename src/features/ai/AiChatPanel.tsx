@@ -5,7 +5,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 // ── 对话历史本地持久化（按项目隔离；懒读避免挂载竞态删存档） ──
-const chatKey = (projectId: string) => `rework-ai-chat-${projectId}`;
+const chatKey = (projectId: string) => `keelson-ai-chat-${projectId}`;
 function loadChat(projectId: string): AiChatMessage[] {
   try {
     const raw = localStorage.getItem(chatKey(projectId));

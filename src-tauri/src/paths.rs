@@ -24,11 +24,13 @@ impl AppPaths {
     /// 使用 `dirs` crate 获取跨平台的标准路径。
     pub fn detect() -> Self {
         let home = dirs::home_dir().expect("无法获取 home 目录");
-        // app_data 回退到 home/.rework，供单元测试或 CLI 工具使用；
-        // 生产环境下由 Tauri 的 app_data_dir() 覆盖。
+        // app_data 目录名 = Tauri identifier（com.keelson.app）：`dirs::data_dir()/<identifier>`
+        // 在 Win/mac/Linux 上恒等于 Tauri v2 的 `app_data_dir()`，故 detect() 与 app_data_dir()
+        // 指向同一目录 → config/web_devices（走 detect）与 pb_data/密钥（走 app_data_dir）统一，
+        // 消除历史上 rework/ 与 com.rework.app/ 的分裂。旧目录数据由 crate::migrate 一次性搬入。
         let app_data = dirs::data_dir()
             .unwrap_or_else(|| home.join(".local/share"))
-            .join("rework");
+            .join("com.keelson.app");
         Self { home, app_data }
     }
 

@@ -4,8 +4,8 @@ import { useSessionsStore } from "@/store/sessions";
 import { useNotificationsStore } from "@/store/notifications";
 import i18n from "@/i18n";
 
-const SEEN_KEY = "rework-seen-session-ids";
-const PREF_KEY = "rework-notify-new-sessions"; // "0" = 关,其它/缺省 = 开
+const SEEN_KEY = "keelson-seen-session-ids";
+const PREF_KEY = "keelson-notify-new-sessions"; // "0" = 关,其它/缺省 = 开
 
 /** 是否开启"发现新会话"提醒(默认开)。 */
 export function newSessionsPref(): boolean {

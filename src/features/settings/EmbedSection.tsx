@@ -28,7 +28,7 @@ export function EmbedSection() {
   // 检索 / 嵌入配置（与 AskPane 共享同一 localStorage key：rework-embed-config）
   const [embedCfg, setEmbedCfgState] = useState<EmbedConfig>(() => {
     try {
-      const raw = localStorage.getItem("rework-embed-config");
+      const raw = localStorage.getItem("keelson-embed-config");
       return { ...DEFAULT_EMBED_CONFIG, ...(raw ? JSON.parse(raw) : {}) };
     } catch {
       return { ...DEFAULT_EMBED_CONFIG };
@@ -40,7 +40,7 @@ export function EmbedSection() {
   const [indexProgress, setIndexProgress] = useState<number | null>(null);
   // 上次成功建索引时的 embed 标识（provider:model），用于提示"配置已变，请重建"
   const [lastIndexedModel, setLastIndexedModel] = useState<string>(
-    () => localStorage.getItem("rework-rag-indexed-model") ?? "",
+    () => localStorage.getItem("keelson-rag-indexed-model") ?? "",
   );
 
   // 监听后端索引进度事件（rag_build_index emit）
@@ -58,7 +58,7 @@ export function EmbedSection() {
    */
   function setEmbed(patch: Partial<EmbedConfig>) {
     type EmbedFields = Omit<EmbedConfig, "provider">;
-    const MAP_KEY = "rework-embed-by-provider";
+    const MAP_KEY = "keelson-embed-by-provider";
     const loadMap = (): Record<string, EmbedFields> => {
       try {
         const raw = localStorage.getItem(MAP_KEY);
@@ -87,7 +87,7 @@ export function EmbedSection() {
         map[next.provider] = { base_url: next.base_url, api_key: next.api_key, model: next.model };
       }
       try {
-        localStorage.setItem("rework-embed-config", JSON.stringify(next)); // AskPane 读的扁平当前值
+        localStorage.setItem("keelson-embed-config", JSON.stringify(next)); // AskPane 读的扁平当前值
         localStorage.setItem(MAP_KEY, JSON.stringify(map));
       } catch {
         // 忽略 localStorage 写入失败（如隐私模式）
@@ -124,7 +124,7 @@ export function EmbedSection() {
       } else {
         toast.success(t("embed.rebuildSuccess", { count: n }));
         // 记录本次索引的 embed 标识，供"过期"提示比对
-        localStorage.setItem("rework-rag-indexed-model", embedModelId);
+        localStorage.setItem("keelson-rag-indexed-model", embedModelId);
         setLastIndexedModel(embedModelId);
       }
     } catch (e) {

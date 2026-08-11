@@ -163,10 +163,10 @@ fn save_devices_to(path: &Path, devices: &[Device]) {
     match serde_json::to_string_pretty(&persisted) {
         Ok(s) => {
             if let Err(e) = std::fs::write(path, s) {
-                eprintln!("[rework] 保存已配对设备失败: {e}");
+                eprintln!("[keelson] 保存已配对设备失败: {e}");
             }
         }
-        Err(e) => eprintln!("[rework] 序列化已配对设备失败: {e}"),
+        Err(e) => eprintln!("[keelson] 序列化已配对设备失败: {e}"),
     }
 }
 

@@ -2,7 +2,7 @@
 // 归档而非删除：保留「会话→任务→提交」溯源；自动归档=完成超过 N 天的任务自动归档。
 import type { BoardTask, BoardState } from "@/types/board";
 
-const DAYS_KEY = "rework:board-auto-archive-days";
+const DAYS_KEY = "keelson:board-auto-archive-days";
 export const DEFAULT_AUTO_ARCHIVE_DAYS = 7;
 
 /** 读取自动归档阈值（天）；0 表示关闭。未设置用默认 7。 */

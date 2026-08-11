@@ -10,7 +10,9 @@ use tauri::Manager;
 /// rework hook 命令里的固定标记，用于识别「哪条是我们的」。
 /// 作为一个额外的 curl 参数出现（`--user-agent rework-activity`），既不影响转发，
 /// 又能被 `is_rework_hook` 稳定识别，且用户其它 hook 命令不会误含此串。
-const HOOK_MARKER: &str = "rework-activity";
+const HOOK_MARKER: &str = "keelson-activity";
+/// 改名前的旧标记：检测/剔除时一并匹配，让"装 keelson hook"顺带清掉旧 rework hook（不重复）。
+const OLD_HOOK_MARKER: &str = "rework-activity";
 
 /// hook 命令版本：命令结构/端点逻辑变更时 +1。
 /// 已装 hook 的命令里带 `rework-activity/<版本>`，据此检测是否过期需升级。
@@ -30,7 +32,7 @@ fn is_rework_group(group: &Value) -> bool {
             arr.iter().any(|h| {
                 h.get("command")
                     .and_then(|v| v.as_str())
-                    .map(|c| c.contains(HOOK_MARKER))
+                    .map(|c| c.contains(HOOK_MARKER) || c.contains(OLD_HOOK_MARKER))
                     .unwrap_or(false)
             })
         })
@@ -113,7 +115,9 @@ pub fn has_activity_hook(root: &Value) -> bool {
 // ——————————————————————————————————————————————————————————————————————
 
 /// 拦截 hook 命令里的固定标记（识别「哪条是我们的」）。
-const INTERCEPT_MARKER: &str = "rework-intercept";
+const INTERCEPT_MARKER: &str = "keelson-intercept";
+/// 改名前的旧拦截标记：检测/剔除时一并匹配，装新的顺带清旧的。
+const OLD_INTERCEPT_MARKER: &str = "rework-intercept";
 
 /// 判断一个 PreToolUse 分组是否是 rework 装的拦截 hook。
 fn is_intercept_group(group: &Value) -> bool {
@@ -124,7 +128,7 @@ fn is_intercept_group(group: &Value) -> bool {
             arr.iter().any(|h| {
                 h.get("command")
                     .and_then(|v| v.as_str())
-                    .map(|c| c.contains(INTERCEPT_MARKER))
+                    .map(|c| c.contains(INTERCEPT_MARKER) || c.contains(OLD_INTERCEPT_MARKER))
                     .unwrap_or(false)
             })
         })

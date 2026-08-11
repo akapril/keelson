@@ -80,7 +80,7 @@ pub async fn sessions_timeline(
     Ok(match state.reg.by_id(&provider) {
         Some(p) => p.read_timeline(&session_id),
         None => {
-            eprintln!("[rework] sessions_timeline: 未知 provider '{provider}'");
+            eprintln!("[keelson] sessions_timeline: 未知 provider '{provider}'");
             Vec::new()
         }
     })

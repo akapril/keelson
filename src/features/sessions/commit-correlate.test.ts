@@ -26,7 +26,7 @@ function commit(at: string, trailer: string | null): CommitInfo {
     subject: "s",
     author: "a",
     committed_at: at,
-    rework_session: trailer,
+    keelson_session: trailer,
   };
 }
 

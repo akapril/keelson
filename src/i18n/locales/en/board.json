@@ -408,6 +408,11 @@
     "restartBtn": "Restart",
     "stopBtn": "Stop",
     "removeBtn": "Remove",
+    "editBtn": "Rename / note",
+    "labelPlaceholder": "Display name (leave blank for default)",
+    "notePlaceholder": "Note: what does this command do",
+    "saveBtn": "Save",
+    "cancelBtn": "Cancel",
     "sessionBadge": "↻ From session",
     "sessionBadgeTitle": "Started from session {{id}}, click to view",
     "selectProcess": "Select a process on the left to view logs",
@@ -421,7 +426,8 @@
       "cleanSuccess": "Cleaned {{processes}} stopped/exited records · {{logs}} old log files",
       "cleanError": "Cleanup failed: {{msg}}",
       "startSuccess": "Started: {{cmd}}",
-      "startError": "Start failed: {{msg}}"
+      "startError": "Start failed: {{msg}}",
+      "metaSaved": "Saved"
     },
     "interactiveLabel": "Interactive (needs password)",
     "interactiveNoRestart": "Interactive processes: stop and restart manually",
