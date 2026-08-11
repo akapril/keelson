@@ -140,7 +140,8 @@ fn candidates_for(bin: &str, cli_path: Option<&str>) -> Vec<String> {
 /// 在给定候选可执行名上构造 Command：设定 args、三管道，并在 cwd 非空时切工作目录。
 /// cwd = 项目仓库路径 → 让 claude/codex 在对应项目目录下运行（能看到项目文件）。
 fn build_process(cand: &str, args: &[String], cwd: Option<&str>) -> Command {
-    let mut c = Command::new(cand);
+    // hidden_tokio_command：Windows 带 CREATE_NO_WINDOW，避免打包后 spawn CLI 时闪黑窗
+    let mut c = crate::proc::hidden_tokio_command(cand);
     c.args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
