@@ -32,6 +32,16 @@ pub struct AppConfig {
     /// `"keep"`=保留后台运行（默认，下次打开继续管理）；`"kill"`=全部结束；`"ask"`=每次询问。
     #[serde(default = "default_on_exit_processes")]
     pub on_exit_processes: String,
+
+    /// PocketBase 请求日志保留天数（写入 PB `logs.maxDays`，PB 自动裁剪旧日志控制 auxiliary.db 增长）。
+    /// 默认 7。改动在下次启动 bootstrap 时应用。
+    #[serde(default = "default_log_retention_days")]
+    pub log_retention_days: u32,
+
+    /// 待清空日志标记：设置里点「清空日志」置 true → 下次启动 PB 前删除 auxiliary.db*（PB 重建空库，
+    /// 立即回收磁盘），清完自动复位。为 false 时不动。
+    #[serde(default)]
+    pub clear_logs_pending: bool,
 }
 
 fn default_on_exit_processes() -> String {
@@ -53,8 +63,15 @@ impl Default for AppConfig {
             terminal_pref: default_terminal_pref(),
             web_autostart: false,
             on_exit_processes: default_on_exit_processes(),
+            log_retention_days: default_log_retention_days(),
+            clear_logs_pending: false,
         }
     }
+}
+
+/// PocketBase 日志保留天数默认值。
+fn default_log_retention_days() -> u32 {
+    7
 }
 
 impl AppConfig {
@@ -63,7 +80,7 @@ impl AppConfig {
     pub fn load(path: &Path) -> Self {
         match std::fs::read_to_string(path) {
             Ok(content) => toml::from_str(&content).unwrap_or_else(|e| {
-                eprintln!("[rework] config.toml 解析失败，使用默认配置: {e}");
+                eprintln!("[keelson] config.toml 解析失败，使用默认配置: {e}");
                 Self::default()
             }),
             Err(_) => Self::default(),
