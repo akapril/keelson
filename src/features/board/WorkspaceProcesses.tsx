@@ -34,6 +34,16 @@ function FolderIcon({ className }: { className?: string }) {
   );
 }
 
+/** 铅笔/编辑图标（内联线性 SVG）——重命名+备注入口。 */
+function PencilIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
 /** 重置/回退图标（逆时针箭头，内联线性 SVG）。 */
 function ResetIcon({ className }: { className?: string }) {
   return (
@@ -55,6 +65,10 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
   const [selected, setSelected] = useState<string | null>(null); // 选中查看日志的进程 name
   const [logs, setLogs] = useState<RuntimeLog[]>([]);
   const [busy, setBusy] = useState(false);
+  // 内联「重命名/备注」编辑：正在编辑的进程 name（null=未编辑）+ 显示名/备注草稿
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editNote, setEditNote] = useState("");
   // 启动新进程的输入
   const [cmd, setCmd] = useState("");
   // 是否以交互式 PTY 启动（sudo 等需输入密码的命令）
@@ -158,6 +172,25 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
       toast.error(t("processes.toast.error", { msg: String(e) }));
     } finally {
       setBusy(false);
+    }
+  };
+
+  // 打开某进程的「重命名/备注」内联编辑，回填现有 label/note
+  const startEdit = (p: RuntimeProcess) => {
+    setEditingName(p.name);
+    setEditLabel(p.label ?? "");
+    setEditNote(p.note ?? "");
+  };
+
+  // 保存显示名/备注（按 name 定位；空串=清除）。成功后刷新列表。
+  const saveMeta = async (name: string) => {
+    try {
+      await ipc.runtimeSetMeta(name, editLabel, editNote);
+      setEditingName(null);
+      toast.success(t("processes.toast.metaSaved"));
+      await refresh();
+    } catch (e) {
+      toast.error(t("processes.toast.error", { msg: String(e) }));
     }
   };
 
@@ -448,9 +481,10 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
           ) : (
             procs.map((p) => {
               const running = p.status === "running";
+              const editing = editingName === p.name;
               return (
+                <div key={p.id} className="flex flex-col gap-1">
                 <button
-                  key={p.id}
                   type="button"
                   onClick={() => setSelected(p.name)}
                   className={cn(
@@ -467,8 +501,8 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                         running ? "bg-green-500" : "bg-muted-foreground/40",
                       )}
                     />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                      {p.name}
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" title={p.name}>
+                      {p.label || p.name}
                     </span>
                     {p.port.length > 0 && (
                       <span className="shrink-0 rounded bg-muted px-1 text-[10px] tabular-nums text-muted-foreground">
@@ -479,6 +513,12 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                   <span className="truncate font-mono text-[11px] text-muted-foreground">
                     {p.command}
                   </span>
+                  {/* 备注/描述（用户填写，说明命令作用）*/}
+                  {p.note && (
+                    <span className="truncate text-[10px] text-muted-foreground/80" title={p.note}>
+                      {p.note}
+                    </span>
+                  )}
                   {/* 全局模式：显示 cwd，便于辨认进程所属目录/项目 */}
                   {global && (
                     <span className="truncate text-[10px] text-muted-foreground/70" title={p.cwd}>
@@ -507,7 +547,21 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                       {running ? t("processes.running") : p.status}
                       {p.health && p.health !== "unknown" ? ` · ${p.health}` : ""}
                     </span>
-                    <span className="ml-auto flex gap-1">
+                    <span className="ml-auto flex items-center gap-1">
+                      {/* 重命名 / 备注：打开内联编辑（不触发选中） */}
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        title={t("processes.editBtn")}
+                        aria-label={t("processes.editBtn")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEdit(p);
+                        }}
+                        className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      >
+                        <PencilIcon className="size-3" />
+                      </span>
                       {/* 交互式进程不支持自动重启：提示用户手动停止后重新启动 */}
                       <span
                         role="button"
@@ -559,6 +613,34 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                     </span>
                   </div>
                 </button>
+                {/* 内联「重命名 / 备注」编辑器：编辑该进程时展开在卡片下方 */}
+                {editing && (
+                  <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card p-2">
+                    <Input
+                      value={editLabel}
+                      onChange={(e) => setEditLabel(e.target.value)}
+                      placeholder={t("processes.labelPlaceholder")}
+                      className="h-7 text-xs"
+                      aria-label={t("processes.labelPlaceholder")}
+                    />
+                    <Input
+                      value={editNote}
+                      onChange={(e) => setEditNote(e.target.value)}
+                      placeholder={t("processes.notePlaceholder")}
+                      className="h-7 text-xs"
+                      aria-label={t("processes.notePlaceholder")}
+                    />
+                    <div className="flex justify-end gap-1.5">
+                      <Button type="button" size="sm" variant="ghost" onClick={() => setEditingName(null)}>
+                        {t("processes.cancelBtn")}
+                      </Button>
+                      <Button type="button" size="sm" onClick={() => void saveMeta(p.name)}>
+                        {t("processes.saveBtn")}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                </div>
               );
             })
           )}
@@ -576,8 +658,8 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
                 {/* 交互式 PTY 终端模式显示「终端 · 进程名」，不显示日志计数；否则显示日志计数 */}
                 <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
                   {showPtyTerminal
-                    ? t("processes.pty.terminalHeader", { name: selected })
-                    : t("processes.logHeader", { name: selected, count: selectedLogs.length })}
+                    ? t("processes.pty.terminalHeader", { name: selectedProc?.label || selected })
+                    : t("processes.logHeader", { name: selectedProc?.label || selected, count: selectedLogs.length })}
                 </span>
                 {/* 日志动作：复制可见 / 打开文件 / 清空。终端模式不显示（xterm 缓冲另算，非日志文件） */}
                 {!showPtyTerminal && selected && (

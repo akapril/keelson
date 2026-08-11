@@ -17,6 +17,10 @@ export interface RuntimeProcess {
   resources?: Record<string, unknown> | null;
   /** 交互式 PTY 进程（sudo 等）：右侧渲染可输入终端而非只读日志 */
   interactive?: boolean;
+  /** 显示名（用户可改）：空则回退用 name。仅影响展示，name 仍为操作身份键 */
+  label?: string | null;
+  /** 备注/描述：说明该命令作用，用户可编辑 */
+  note?: string | null;
 }
 
 /** 一条日志（进程管理内核 logs 返回）。字段按存在取用。 */

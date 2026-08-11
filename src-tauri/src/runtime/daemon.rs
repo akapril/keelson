@@ -63,6 +63,7 @@ pub(crate) async fn dispatch(cmd: &str, args: &Value) -> Value {
         "clear_logs" => handle_clear_logs(args).await,
         "open_log" => handle_open_log(args).await,
         "remove" => handle_remove(args).await,
+        "set_meta" => handle_set_meta(args).await,
         "errors" => handle_errors(args).await,
         "clean" => handle_clean(args).await,
         other => json!({"error": format!("未知命令: {}", other)}),
@@ -150,11 +151,17 @@ pub(crate) async fn handle_start(args: &Value) -> Value {
         .unwrap_or(&id)
         .to_string();
 
-    // 检查名称冲突
-    if store::find_process(&process_name).is_some() {
-        return json!({
-            "error": format!("进程名称 '{}' 已存在，请先停止该进程", process_name)
-        });
+    // 检查名称冲突：只有**正在运行**的同名进程才拒绝（避免杀掉活进程）；
+    // 已退出/停止的同名旧记录直接清掉（连日志），给新进程让位，允许"覆盖重跑"——
+    // 否则跑过一次的命令名会一直占坑，再跑同名命令静默失败。
+    if let Some(existing) = store::find_process(&process_name) {
+        if existing.status == "running" {
+            return json!({
+                "error": format!("进程名称 '{}' 正在运行，请先停止后再运行", process_name)
+            });
+        }
+        store::remove_process(&existing.id);
+        let _ = std::fs::remove_file(store::stdout_dir().join(format!("{}.log", existing.id)));
     }
 
     // 工作目录
@@ -221,6 +228,8 @@ pub(crate) async fn handle_start(args: &Value) -> Value {
         session_id,
         provider,
         interactive: false,
+        label: None,
+        note: None,
     };
     store::add_process(entry);
 
@@ -473,6 +482,40 @@ pub(crate) async fn handle_ps(args: &Value) -> Value {
     })
     .await
     .unwrap_or_else(|e| json!({"error": format!("进程列表采集失败: {}", e)}))
+}
+
+// ─────────────────────────── handle_set_meta ────────────────────────────
+
+/// 设置进程的显示名(label)与备注(note)。按 name/id 定位，原地更新。
+/// 仅影响列表展示，不改身份键 name、不影响运行状态。空白串 → 清除(None)。
+/// label 截断 60 字符、note 截断 500 字符，防滥用。
+pub(crate) async fn handle_set_meta(args: &Value) -> Value {
+    let name_or_id = match args.get("name").and_then(|v| v.as_str()) {
+        Some(n) => n.to_string(),
+        None => return json!({"error": "缺少 'name' 参数"}),
+    };
+    let entry = match store::find_process(&name_or_id) {
+        Some(e) => e,
+        None => return json!({"error": format!("找不到进程 '{}'", name_or_id)}),
+    };
+    // 参数存在才更新对应字段（None=不传则不动）；空白 → 清除。
+    let clean = |v: &Value, max: usize| -> Option<Option<String>> {
+        v.as_str().map(|s| {
+            let t: String = s.trim().chars().take(max).collect();
+            if t.is_empty() { None } else { Some(t) }
+        })
+    };
+    let label = args.get("label").and_then(|v| clean(v, 60));
+    let note = args.get("note").and_then(|v| clean(v, 500));
+    store::update_process(&entry.id, |e| {
+        if let Some(l) = label.clone() {
+            e.label = l;
+        }
+        if let Some(n) = note.clone() {
+            e.note = n;
+        }
+    });
+    json!({ "id": entry.id, "name": entry.name, "updated": true })
 }
 
 // ─────────────────────────── handle_logs ────────────────────────────

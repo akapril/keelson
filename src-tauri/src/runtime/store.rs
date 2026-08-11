@@ -58,6 +58,13 @@ pub struct ProcessEntry {
     /// 看门狗不接管、restart 需用户重新交互启动。#[serde(default)] 兼容旧记录（默认 false）。
     #[serde(default)]
     pub interactive: bool,
+    /// 显示名（用户可改）：空则回退用 name。name 仍为身份键（stop/restart/logs/冲突判定），
+    /// label 仅影响列表展示。#[serde(default)] 兼容旧记录。
+    #[serde(default)]
+    pub label: Option<String>,
+    /// 备注/描述：说明该命令的作用，用户可编辑。#[serde(default)] 兼容旧记录。
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 fn default_health() -> String {

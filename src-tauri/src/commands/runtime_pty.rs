@@ -55,6 +55,8 @@ pub async fn runtime_pty_start(
         session_id: None,
         provider: None,
         interactive: true,
+        label: None,
+        note: None,
     };
     store::add_process(entry.clone());
 
