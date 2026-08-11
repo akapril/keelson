@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import type { CostRates, ModelRates } from "@/features/usage/aggregate";
 
-const STORAGE_KEY = "rework-cost-config";
+const STORAGE_KEY = "keelson-cost-config";
 
 export interface CostConfig {
   rates: CostRates; // 按 provider 的每百万 token 单价（回退用）

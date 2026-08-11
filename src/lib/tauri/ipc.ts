@@ -50,6 +50,20 @@ function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   });
 }
 
+/**
+ * runtime_command 统一调用：进程内核约定**失败返回 `{error: string}`**（而非抛异常/HTTP 错误码）。
+ * 此处把带 error 的返回转成 throw，让调用方 try/catch 拿到真实原因（如"名称正在运行"/"无法启动"），
+ * 避免"后端失败、前端却弹成功"。数组返回（ps/logs）不含 error，原样透传。
+ */
+async function runtimeCmd<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const res = await call<T>("runtime_command", { cmd, args });
+  if (res && typeof res === "object" && !Array.isArray(res)) {
+    const err = (res as { error?: unknown }).error;
+    if (err) throw new Error(String(err));
+  }
+  return res;
+}
+
 // 唯一允许出现 invoke 字符串命令名的地方。新增本地能力只加一个方法。
 export const ipc = {
   ping: () => call<string>("ping"),
@@ -143,6 +157,21 @@ export const ipc = {
   setExitBehavior: (behavior: string) => call<void>("config_set_exit_behavior", { behavior }),
   /** 退出应用（供退出确认弹窗调用）：killProcesses=true 先结束所有受管进程 */
   exitApp: (killProcesses: boolean) => call<void>("exit_app", { killProcesses }),
+
+  // ── 系统与维护（桌面专属） ──────────
+  /** 是否已开启开机自启 */
+  autostartGet: () => call<boolean>("autostart_get"),
+  /** 设置开机自启开关 */
+  autostartSet: (enabled: boolean) => call<void>("autostart_set", { enabled }),
+  /** PB 存储占用（pb_data 总大小 / 日志库 / 主数据库，字节）+ 当前保留天数 */
+  pbStorageInfo: () =>
+    call<{ pb_data_bytes: number; logs_bytes: number; data_bytes: number; retention_days: number }>(
+      "pb_storage_info",
+    ),
+  /** 设置 PB 日志保留天数（1..365；下次启动生效） */
+  setLogRetention: (days: number) => call<void>("set_log_retention", { days }),
+  /** 标记下次启动清空 PB 日志库（回收磁盘） */
+  clearPbLogs: () => call<void>("clear_pb_logs"),
 
   // ── Board / retalk 集成 ────────────────────────────────────
   /** 读取本地仓库的当前分支与未提交变更数（Task 13，包装 git_info 命令） */
@@ -275,34 +304,28 @@ export const ipc = {
 
   // ── 进程管理（进程内模块，命令直调；项目「进程」tab + 侧边栏「进程」页） ──────
   /** 进程列表（project 为空=全部；非空=按 cwd 含 project 过滤） */
-  runtimePs: (project: string) =>
-    call<RuntimeProcess[]>("runtime_command", { cmd: "ps", args: { project } }),
+  runtimePs: (project: string) => runtimeCmd<RuntimeProcess[]>("ps", { project }),
   /** 某进程的日志（最近 limit 条） */
   runtimeLogs: (name: string, limit: number) =>
-    call<RuntimeLog[]>("runtime_command", { cmd: "logs", args: { name, limit } }),
+    runtimeCmd<RuntimeLog[]>("logs", { name, limit }),
   /** 清空某进程的日志文件（截断为 0，不删；进程在跑也可清） */
-  runtimeClearLogs: (name: string) =>
-    call<unknown>("runtime_command", { cmd: "clear_logs", args: { name } }),
+  runtimeClearLogs: (name: string) => runtimeCmd<unknown>("clear_logs", { name }),
   /** 用系统默认程序打开某进程的日志文件（查看全量） */
-  runtimeOpenLog: (name: string) =>
-    call<unknown>("runtime_command", { cmd: "open_log", args: { name } }),
+  runtimeOpenLog: (name: string) => runtimeCmd<unknown>("open_log", { name }),
   /** 在项目目录启动新进程 */
   runtimeStart: (command: string, name: string, cwd: string) =>
-    call<unknown>("runtime_command", { cmd: "start", args: { command, name, cwd } }),
+    runtimeCmd<unknown>("start", { command, name, cwd }),
   /** 停止 / 重启进程 */
-  runtimeStop: (name: string) =>
-    call<unknown>("runtime_command", { cmd: "stop", args: { name } }),
-  runtimeRestart: (name: string) =>
-    call<unknown>("runtime_command", { cmd: "restart", args: { name } }),
+  runtimeStop: (name: string) => runtimeCmd<unknown>("stop", { name }),
+  runtimeRestart: (name: string) => runtimeCmd<unknown>("restart", { name }),
   /** 删除一个已退出/停止的进程记录（连同其日志文件；running 的会被拒绝，需先停止） */
-  runtimeRemove: (name: string) =>
-    call<unknown>("runtime_command", { cmd: "remove", args: { name } }),
+  runtimeRemove: (name: string) => runtimeCmd<unknown>("remove", { name }),
+  /** 设置进程显示名(label)与备注(note)；空串=清除。按 name 定位，不改身份键。 */
+  runtimeSetMeta: (name: string, label: string, note: string) =>
+    runtimeCmd<unknown>("set_meta", { name, label, note }),
   /** 清理：移除所有已停止/退出的进程记录 + 删除超过 days 天的日志文件 */
   runtimeClean: (days: number) =>
-    call<{ processes_removed: number; log_files_deleted: number }>("runtime_command", {
-      cmd: "clean",
-      args: { days },
-    }),
+    runtimeCmd<{ processes_removed: number; log_files_deleted: number }>("clean", { days }),
 
   // ── 交互式 PTY（桌面专属；直接 invoke，不走双通道） ──────────
   /** 交互式启动：跑 PTY，返回创建的进程条目（桌面专属） */

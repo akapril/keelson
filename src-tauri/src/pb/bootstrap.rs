@@ -14,12 +14,35 @@ pub struct BootstrapAuth {
 
 /// superuser 邮箱（固定，不对外暴露）。
 const SUPERUSER_EMAIL: &str = "local@app.internal";
-/// 本地唯一用户邮箱。
-const LOCAL_EMAIL: &str = "you@local.rework";
-/// keychain 服务名称。
-const KEYRING_SERVICE: &str = "rework";
+/// 本地唯一用户邮箱。改名 rework→keelson：由 pb_migrations 的 1784097300 迁移**就地**把现有
+/// 用户邮箱改到此值（记录 id 不变 → owner 归属不变、数据不丢）。永不可见。
+const LOCAL_EMAIL: &str = "you@local.keelson";
+/// keychain 服务名称。改名 rework→keelson：启动时 `migrate_keyring()` 先把旧服务下的密钥
+/// 拷到此新服务（否则读空会重生成、与 pb_data 用户密码对不上导致登录失败）。永不可见。
+const KEYRING_SERVICE: &str = "keelson";
+/// 旧 keychain 服务名（改名前）——仅供 `migrate_keyring` 迁移读取。
+const OLD_KEYRING_SERVICE: &str = "rework";
+
+/// 一次性把旧 keyring 服务名下的密钥拷贝到新服务名（identifier 改名兼容）。
+/// 覆盖全部账户；幂等（新服务已有该账户则跳过）；best-effort（失败即忽略，回退文件/重生成）。
+/// **必须在读取任何密钥（get_passwords）之前调用**（见 lib.rs run 开头）。
+pub fn migrate_keyring() {
+    for account in ["superuser-pw", "local-user-pw", "mcp-secret", "local-user-token"] {
+        let Ok(new) = keyring::Entry::new(KEYRING_SERVICE, account) else {
+            continue;
+        };
+        if new.get_password().is_ok() {
+            continue; // 新服务已有 → 已迁移 / 无需动
+        }
+        if let Ok(old) = keyring::Entry::new(OLD_KEYRING_SERVICE, account) {
+            if let Ok(v) = old.get_password() {
+                let _ = new.set_password(&v);
+            }
+        }
+    }
+}
 /// 应用标识符（同 tauri.conf.json 的 identifier），用于还原 app_data_dir 做文件回退。
-const APP_IDENTIFIER: &str = "com.rework.app";
+const APP_IDENTIFIER: &str = "com.keelson.app";
 
 /// 公开：一次性获取 superuser 密码和本地用户密码（供 lib.rs 统一调用）。
 /// 保证每次启动只调用一次 keychain，避免多处调用导致的不一致。
@@ -87,7 +110,7 @@ pub(crate) fn get_or_make_secret(account: &str) -> String {
 
 /// secret 文件回退目录：app_data_dir（与 mcp-endpoint.json 同目录）。
 /// `get_or_make_secret` 无 Tauri 句柄，这里用 `dirs::config_dir()` + 应用标识符还原同一路径：
-/// Windows 上即 `%APPDATA%/Roaming/com.rework.app`，与 Tauri v2 的 `app_data_dir()` 一致。
+/// Windows 上即 `%APPDATA%/Roaming/com.keelson.app`，与 Tauri v2 的 `app_data_dir()` 一致。
 fn secret_dir() -> Option<std::path::PathBuf> {
     let dir = dirs::config_dir()?.join(APP_IDENTIFIER).join("secrets");
     std::fs::create_dir_all(&dir).ok()?;
@@ -175,6 +198,20 @@ pub async fn bootstrap(base_url: &str, super_pw: &str, user_pw: &str) -> anyhow:
         token,
         user_id,
     })
+}
+
+/// 应用 PocketBase 日志保留天数（写入 `logs.maxDays`）。PB 据此自动裁剪旧请求日志，
+/// 控制 auxiliary.db（日志库）增长。幂等；失败不致命（调用方仅记日志）。
+pub async fn apply_log_retention(base: &str, super_pw: &str, days: u32) -> anyhow::Result<()> {
+    let http = reqwest::Client::new();
+    let admin_token = admin_login(&http, base, SUPERUSER_EMAIL, super_pw).await?;
+    http.patch(format!("{base}/api/settings"))
+        .bearer_auth(admin_token)
+        .json(&serde_json::json!({ "logs": { "maxDays": days } }))
+        .send()
+        .await?
+        .error_for_status()?;
+    Ok(())
 }
 
 /// 以 superuser 身份登录，返回管理员 JWT token。

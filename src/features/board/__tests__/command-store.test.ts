@@ -80,7 +80,7 @@ describe("command-store", () => {
   });
 
   it("损坏 JSON → 空集合不抛", () => {
-    localStorage.setItem("rework-cmds:/tmp/proj-a", "not json {{{");
+    localStorage.setItem("keelson-cmds:/tmp/proj-a", "not json {{{");
     expect(loadCommands(PROJ)).toEqual({ favorites: [], history: [] });
   });
 });

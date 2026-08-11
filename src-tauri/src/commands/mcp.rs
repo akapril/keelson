@@ -42,8 +42,8 @@ pub fn mcp_install_claude(app: tauri::AppHandle) -> Result<String, String> {
 
     // 写前备份，防意外损坏用户 claude 配置。备份失败则告警（不静默）。
     if path.exists() {
-        if let Err(e) = std::fs::copy(&path, home.join(".claude.json.rework-bak")) {
-            eprintln!("[rework/mcp] 备份 ~/.claude.json 失败，仍将继续写入：{e}");
+        if let Err(e) = std::fs::copy(&path, home.join(".claude.json.keelson-bak")) {
+            eprintln!("[keelson/mcp] 备份 ~/.claude.json 失败，仍将继续写入：{e}");
         }
     }
 
@@ -51,7 +51,11 @@ pub fn mcp_install_claude(app: tauri::AppHandle) -> Result<String, String> {
     if !root.get("mcpServers").map(|v| v.is_object()).unwrap_or(false) {
         root["mcpServers"] = json!({});
     }
-    root["mcpServers"]["rework"] = json!({
+    // 移除历史遗留的旧键（改名前叫 rework），避免新旧两份 MCP server 并存。
+    if let Some(obj) = root["mcpServers"].as_object_mut() {
+        obj.remove("rework");
+    }
+    root["mcpServers"]["keelson"] = json!({
         "type": "http",
         "url": url,
         "headers": { "Authorization": format!("Bearer {secret}") }
@@ -79,8 +83,8 @@ pub fn mcp_install_codex(app: tauri::AppHandle) -> Result<String, String> {
         toml::Value::Table(toml::map::Map::new())
     };
     if path.exists() {
-        if let Err(e) = std::fs::copy(&path, dir.join("config.toml.rework-bak")) {
-            eprintln!("[rework/mcp] 备份 ~/.codex/config.toml 失败，仍将继续写入：{e}");
+        if let Err(e) = std::fs::copy(&path, dir.join("config.toml.keelson-bak")) {
+            eprintln!("[keelson/mcp] 备份 ~/.codex/config.toml 失败，仍将继续写入：{e}");
         }
     }
 
@@ -96,10 +100,11 @@ pub fn mcp_install_codex(app: tauri::AppHandle) -> Result<String, String> {
         "Authorization".into(),
         toml::Value::String(format!("Bearer {secret}")),
     );
-    let mut rework = toml::map::Map::new();
-    rework.insert("url".into(), toml::Value::String(url));
-    rework.insert("http_headers".into(), toml::Value::Table(headers));
-    servers_tbl.insert("rework".into(), toml::Value::Table(rework));
+    let mut keelson = toml::map::Map::new();
+    keelson.insert("url".into(), toml::Value::String(url));
+    keelson.insert("http_headers".into(), toml::Value::Table(headers));
+    servers_tbl.remove("rework"); // 移除旧键，避免新旧并存
+    servers_tbl.insert("keelson".into(), toml::Value::Table(keelson));
 
     let out = toml::to_string_pretty(&doc).map_err(|e| e.to_string())?;
     std::fs::write(&path, out).map_err(|e| e.to_string())?;

@@ -68,7 +68,7 @@ pub struct CommitInfo {
     pub subject: String,
     pub author: String,
     pub committed_at: String, // ISO8601（%cI）
-    pub rework_session: Option<String>,
+    pub keelson_session: Option<String>,
 }
 
 /// 关联方式：trailer 精确 / 时间窗可能相关。
@@ -101,12 +101,12 @@ pub fn parse_git_log(stdout: &str) -> Vec<CommitInfo> {
             let committed_at = it.next().unwrap_or("").to_string();
             // trailer 列：多值时 git 以逗号分隔（format 指定 separator=,），取首个非空值
             let trailer = it.next().unwrap_or("");
-            let rework_session = trailer
+            let keelson_session = trailer
                 .split(',')
                 .map(|s| s.trim())
                 .find(|s| !s.is_empty())
                 .map(|s| s.to_string());
-            Some(CommitInfo { hash, short, subject, author, committed_at, rework_session })
+            Some(CommitInfo { hash, short, subject, author, committed_at, keelson_session })
         })
         .collect()
 }
@@ -126,7 +126,7 @@ pub fn correlate_session_commits(
     commits
         .into_iter()
         .filter_map(|c| {
-            if c.rework_session.as_deref() == Some(session_id) {
+            if c.keelson_session.as_deref() == Some(session_id) {
                 return Some(CorrelatedCommit { commit: c, link_kind: LinkKind::Trailer });
             }
             match chrono::DateTime::parse_from_rfc3339(&c.committed_at) {
@@ -156,7 +156,7 @@ pub(crate) fn git_log_impl(
     let n = limit.min(500).to_string();
     // 列序：hash / short / subject / author / committedISO / Rework-Session trailer。
     // separator=%x2c(逗号) 把多值 trailer 压到单行，避免行错位（解析取首值）。
-    let fmt = "--pretty=format:%H\u{1f}%h\u{1f}%s\u{1f}%an\u{1f}%cI\u{1f}%(trailers:key=Rework-Session,valueonly,separator=%x2c)";
+    let fmt = "--pretty=format:%H\u{1f}%h\u{1f}%s\u{1f}%an\u{1f}%cI\u{1f}%(trailers:key=Keelson-Session,valueonly,separator=%x2c)";
     let mut args: Vec<&str> = vec!["log", "--no-color", fmt, "-n", &n];
     if let Some(s) = since.as_deref() {
         args.push("--since");
@@ -190,22 +190,25 @@ pub async fn git_log(
 // Phase 2：会话溯源 git 钩子（prepare-commit-msg 自动打 Rework-Session trailer）
 // ─────────────────────────────────────────────────────────────
 
-const HOOK_MARKER_BEGIN: &str = "# >>> rework-session-trailer >>>";
-const HOOK_MARKER_END: &str = "# <<< rework-session-trailer <<<";
+const HOOK_MARKER_BEGIN: &str = "# >>> keelson-session-trailer >>>";
+const HOOK_MARKER_END: &str = "# <<< keelson-session-trailer <<<";
+/// 改名前的旧标记：检测/剔除时一并匹配，重装时清掉旧块，避免新旧两块并存 → 双重 trailer。
+const OLD_HOOK_MARKER_BEGIN: &str = "# >>> rework-session-trailer >>>";
+const OLD_HOOK_MARKER_END: &str = "# <<< rework-session-trailer <<<";
 
 /// 钩子标记块（含首尾标记行）。POSIX sh，Windows 走 Git 自带 sh。
 /// 仅普通提交注入；merge/squash/amend 跳过；已有 trailer 不重复；marker 缺失则空操作。
-const HOOK_BLOCK: &str = r#"# >>> rework-session-trailer >>>
-# 由 rework 自动追加会话溯源 trailer；仅普通提交注入
+const HOOK_BLOCK: &str = r#"# >>> keelson-session-trailer >>>
+# 由 Keelson 自动追加会话溯源 trailer；仅普通提交注入
 case "$2" in message|template|"") : ;; *) exit 0 ;; esac
 GITDIR=$(git rev-parse --git-dir 2>/dev/null) || exit 0
-MARKER="$GITDIR/rework-session"
+MARKER="$GITDIR/keelson-session"
 [ -f "$MARKER" ] || exit 0
 SID=$(grep '^session_id=' "$MARKER" | head -n1 | cut -d= -f2-)
 [ -n "$SID" ] || exit 0
-grep -qi '^Rework-Session:' "$1" && exit 0
-printf '\nRework-Session: %s\n' "$SID" >> "$1"
-# <<< rework-session-trailer <<<
+grep -qi '^Keelson-Session:' "$1" && exit 0
+printf '\nKeelson-Session: %s\n' "$SID" >> "$1"
+# <<< keelson-session-trailer <<<
 "#;
 
 /// 精简会话视图（供 marker 纯逻辑单测，不依赖完整 Session）。
@@ -244,11 +247,11 @@ pub fn strip_hook_block(content: &str) -> String {
     let mut skip = false;
     for line in content.lines() {
         let t = line.trim();
-        if t == HOOK_MARKER_BEGIN {
+        if t == HOOK_MARKER_BEGIN || t == OLD_HOOK_MARKER_BEGIN {
             skip = true;
             continue;
         }
-        if t == HOOK_MARKER_END {
+        if t == HOOK_MARKER_END || t == OLD_HOOK_MARKER_END {
             skip = false;
             continue;
         }
@@ -282,7 +285,7 @@ pub fn hook_installed(repo: &str) -> bool {
     resolve_hooks_dir(repo)
         .map(|h| h.join("prepare-commit-msg"))
         .and_then(|f| std::fs::read_to_string(f).ok())
-        .map(|c| c.contains(HOOK_MARKER_BEGIN))
+        .map(|c| c.contains(HOOK_MARKER_BEGIN) || c.contains(OLD_HOOK_MARKER_BEGIN))
         .unwrap_or(false)
 }
 
@@ -295,9 +298,9 @@ pub fn write_session_marker(repo: &str, session_id: &str, provider: &str) {
         return;
     };
     let content = format!("session_id={session_id}\nprovider={provider}\n");
-    let tmp = gd.join("rework-session.tmp");
+    let tmp = gd.join("keelson-session.tmp");
     if std::fs::write(&tmp, content).is_ok() {
-        let _ = std::fs::rename(&tmp, gd.join("rework-session"));
+        let _ = std::fs::rename(&tmp, gd.join("keelson-session"));
     }
 }
 
@@ -372,7 +375,8 @@ pub fn install_session_trailer_hook(path: String) -> Result<(), String> {
 #[tauri::command]
 pub fn uninstall_session_trailer_hook(path: String) -> Result<(), String> {
     if let Some(gd) = resolve_git_dir(&path) {
-        let _ = std::fs::remove_file(gd.join("rework-session"));
+        let _ = std::fs::remove_file(gd.join("keelson-session"));
+        let _ = std::fs::remove_file(gd.join("rework-session")); // 旧 marker 文件一并清理
     }
     let Some(hd) = resolve_hooks_dir(&path) else {
         return Ok(());
@@ -422,8 +426,8 @@ mod tests {
         assert_eq!(v[0].short, "abc");
         assert_eq!(v[0].subject, "修复登录");
         assert_eq!(v[0].author, "Alice");
-        assert_eq!(v[0].rework_session.as_deref(), Some("sess-1"));
-        assert_eq!(v[1].rework_session, None); // 空 trailer → None
+        assert_eq!(v[0].keelson_session.as_deref(), Some("sess-1"));
+        assert_eq!(v[1].keelson_session, None); // 空 trailer → None
     }
 
     #[test]
@@ -438,7 +442,7 @@ mod tests {
         let out = "h\u{1f}h\u{1f}s\u{1f}a\u{1f}2026-07-18T10:00:00+00:00\u{1f}sess-1,sess-2\n";
         let v = parse_git_log(out);
         assert_eq!(v.len(), 1);
-        assert_eq!(v[0].rework_session.as_deref(), Some("sess-1"));
+        assert_eq!(v[0].keelson_session.as_deref(), Some("sess-1"));
     }
 
     fn ci(hash: &str, at: &str, sess: Option<&str>) -> CommitInfo {
@@ -448,7 +452,7 @@ mod tests {
             subject: "s".into(),
             author: "a".into(),
             committed_at: at.into(),
-            rework_session: sess.map(|x| x.into()),
+            keelson_session: sess.map(|x| x.into()),
         }
     }
 

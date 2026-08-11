@@ -153,7 +153,7 @@ impl Default for AppState {
             config: Arc::new(Mutex::new(cfg)),
             pb_child: Arc::new(Mutex::new(None)),
             ai_cancels: Arc::new(Mutex::new(std::collections::HashMap::new())),
-            locale: Arc::new(Mutex::new("en".to_string())),
+            locale: Arc::new(Mutex::new(i18n::detect_locale())),
             tray_show: Arc::new(Mutex::new(None)),
             tray_quit: Arc::new(Mutex::new(None)),
             web_gateway: Arc::new(Mutex::new(None)),
@@ -315,13 +315,29 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
 }
 
 pub fn run() {
+    // keyring 服务名 rework→keelson 兼容：把旧服务下的密钥拷到新服务，须早于任何密钥读取
+    //（否则读空→重生成→与 pb_data 用户密码对不上→登录失败）。幂等、best-effort。
+    pb::bootstrap::migrate_keyring();
+
     tauri::Builder::default()
+        // 单实例守卫（必须最先注册）：已有实例在运行时，第二次启动只聚焦已有主窗、不起竞争实例。
+        // 根治"两个 Keelson 各自清理残留 PocketBase 时互相杀掉对方的 PB → bootstrap 连接被中止
+        //（os error 10053）→ 初始化超时"——典型触发是安装器结束自启 + 用户又手动打开。
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main(app);
+        }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
+        // 开机自启：跨平台注册/注销自启项（Win 注册表 Run / mac LaunchAgent / Linux .desktop）。
+        // 由设置里的开关经 autostart_get/set 命令控制。
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(AppState::default())
         .setup(|app| {
             let handle = app.handle().clone();
@@ -340,12 +356,12 @@ pub fn run() {
                 cfg.hotkey.clone()
             };
             if let Err(e) = register_spotlight_hotkey(app.handle(), &hotkey_str) {
-                eprintln!("[rework] 全局快捷键注册失败（非致命）: {e:#}");
+                eprintln!("[keelson] 全局快捷键注册失败（非致命）: {e:#}");
             }
 
             // ── 系统托盘（常驻）───────────────────────────────────────
             if let Err(e) = setup_tray(app.handle()) {
-                eprintln!("[rework] 托盘初始化失败（非致命）: {e:#}");
+                eprintln!("[keelson] 托盘初始化失败（非致命）: {e:#}");
             }
 
             // ── 进程管理（进程内模块，已去 TCP）──
@@ -362,10 +378,16 @@ pub fn run() {
             // 在后台 tokio 任务中完成 PB 启动 + bootstrap + 会话同步
             // autostart_handle：PB 就绪后据 config.web_autostart 决定是否自动重启 Web Gateway。
             let autostart_handle = app.handle().clone();
+            // 初始化失败时把错误写进 <app_data>/init-error.log（打包版 stderr 不可见，靠日志定位）
+            let err_log_dir = data_dir.parent().map(|p| p.to_path_buf());
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = setup_pocketbase(handle, data_dir, mig_dir, auth_slot, sessions_slot, index_slot, pb_child_slot, web_api_slot).await {
                     // 仅记录错误，不 panic（UI 层通过 get_bootstrap_auth 的 Err 感知）
-                    eprintln!("[rework] PocketBase 初始化失败: {e:#}");
+                    let msg = format!("{e:#}");
+                    eprintln!("[keelson] PocketBase 初始化失败: {msg}");
+                    if let Some(dir) = &err_log_dir {
+                        pb::process::log_init_error(dir, &format!("PocketBase 初始化失败: {msg}"));
+                    }
                 }
                 // 「记住上次状态」：上次退出时 Web Gateway 开着 → PB 就绪后自动重启。
                 // 放在 bootstrap 之后确保 pb_base 已就绪，/pb 反代可用；配合设备持久化 = 重启无缝。
@@ -375,7 +397,7 @@ pub fn run() {
                     // 解析 dist（dev 源码 / 生产 Resource）供 gateway serve web 前端。
                     let dist_dir = commands::web::resolve_dist_dir(&autostart_handle);
                     if let Err(e) = commands::web::start_gateway(st.inner(), dist_dir).await {
-                        eprintln!("[rework] Web Gateway 自动启动失败（非致命）: {e}");
+                        eprintln!("[keelson] Web Gateway 自动启动失败（非致命）: {e}");
                     }
                 }
             });
@@ -486,9 +508,14 @@ pub fn run() {
             commands::web::web_list_devices,
             commands::web::web_revoke_device,
             commands::web::web_rename_device,
+            commands::system::autostart_get,
+            commands::system::autostart_set,
+            commands::system::pb_storage_info,
+            commands::system::set_log_retention,
+            commands::system::clear_pb_logs,
         ])
         .build(tauri::generate_context!())
-        .expect("构建 rework 失败")
+        .expect("构建 Keelson 失败")
         .run(|app_handle, event| {
             // 应用退出：回收 PocketBase sidecar，避免遗留进程锁住 .exe / 抢占数据目录
             if let tauri::RunEvent::Exit = event {
@@ -531,6 +558,34 @@ async fn setup_pocketbase(
     // 步骤 0：统一获取密码（keychain 仅调用一次），后续所有步骤共用同一份密码
     let (super_pw, user_pw) = pb::bootstrap::get_passwords();
 
+    // 步骤 0.5：清理残留 PocketBase——重装/异常退出后，旧 PB 可能仍锁着 data.db，
+    // 导致下面的 superuser upsert 卡死 → 初始化超时。此刻我方 PB 尚未启动，任何
+    // pocketbase* 都是残留，可安全清理；清到东西则等 OS 释放文件锁再继续。
+    let killed = pb::process::kill_orphan_pocketbase();
+    if killed > 0 {
+        eprintln!("[keelson] 启动前清理了 {killed} 个残留 PocketBase 进程");
+        tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+    }
+
+    // 步骤 0.6：若设置里请求了「清空日志」→ 删除 auxiliary.db*（PB 会重建空库，立即回收磁盘），
+    // 并复位标记。必须在 PB 启动前做（否则库被占用删不掉）。
+    {
+        let st = handle.state::<AppState>();
+        let pending = { st.config.lock().clear_logs_pending };
+        if pending {
+            for suf in ["", "-wal", "-shm"] {
+                let _ = std::fs::remove_file(data_dir.join(format!("auxiliary.db{suf}")));
+            }
+            let cfg_path = st.paths.app_data.join("config.toml");
+            {
+                let mut cfg = st.config.lock();
+                cfg.clear_logs_pending = false;
+                let _ = cfg.save(&cfg_path);
+            }
+            eprintln!("[keelson] 已按请求清空 PocketBase 日志库（auxiliary.db）");
+        }
+    }
+
     // 步骤 1+2：superuser upsert（同时触发 JS 迁移 automigrate）
     pb::process::create_superuser_via_sidecar(
         &handle,
@@ -557,7 +612,7 @@ async fn setup_pocketbase(
                 Ok(a) => break a,
                 Err(e) if attempt < 4 => {
                     attempt += 1;
-                    eprintln!("[rework] bootstrap 第 {attempt} 次失败，{}ms 后重试: {e:#}", 500 * attempt);
+                    eprintln!("[keelson] bootstrap 第 {attempt} 次失败，{}ms 后重试: {e:#}", 500 * attempt);
                     tokio::time::sleep(std::time::Duration::from_millis(500 * attempt as u64)).await;
                 }
                 Err(e) => return Err(e),
@@ -573,6 +628,14 @@ async fn setup_pocketbase(
         user_id: auth.user_id.clone(),
     });
     *auth_slot.lock() = Some(auth);
+
+    // 应用日志保留天数（PB logs.maxDays）：PB 据此自动裁剪旧请求日志，控制 auxiliary.db 增长。失败不致命。
+    {
+        let days = handle.state::<AppState>().config.lock().log_retention_days;
+        if let Err(e) = pb::bootstrap::apply_log_retention(&base, &super_pw, days).await {
+            eprintln!("[keelson] 应用日志保留天数失败（非致命）: {e:#}");
+        }
+    }
 
     // 启动应用内 MCP server（auth 已就绪；失败不阻断应用启动，仅打日志）。
     {
@@ -594,24 +657,24 @@ async fn setup_pocketbase(
             let cached_count = cached.sessions.len();
             match scan_cache::incremental(&reg, cached) {
                 Some(s) => {
-                    eprintln!("[rework] 缓存加载 {cached_count} 条 → 增量后 {} 条", s.len());
+                    eprintln!("[keelson] 缓存加载 {cached_count} 条 → 增量后 {} 条", s.len());
                     s
                 }
                 None => {
-                    eprintln!("[rework] 结构性变化，退回全量扫描");
+                    eprintln!("[keelson] 结构性变化，退回全量扫描");
                     scanner::scan_all(&reg)
                 }
             }
         }
         None => {
             let s = scanner::scan_all(&reg);
-            eprintln!("[rework] 无缓存，全量扫描完成：{} 条会话", s.len());
+            eprintln!("[keelson] 无缓存，全量扫描完成：{} 条会话", s.len());
             s
         }
     };
     // 写回缓存供下次启动秒加载
     if let Err(e) = scan_cache::save(&cache_path, &sessions) {
-        eprintln!("[rework] 扫描缓存写入失败（非致命）: {e:#}");
+        eprintln!("[keelson] 扫描缓存写入失败（非致命）: {e:#}");
     }
 
     // 重建 Tantivy 全文索引，并将 SessionIndex 存入 AppState.index 供搜索命令使用
@@ -619,17 +682,17 @@ async fn setup_pocketbase(
     match indexer::SessionIndex::new(&index_dir) {
         Ok(idx) => {
             if let Err(e) = idx.rebuild(&sessions) {
-                eprintln!("[rework] Tantivy rebuild 失败（非致命）: {e:#}");
+                eprintln!("[keelson] Tantivy rebuild 失败（非致命）: {e:#}");
             }
             // 存入 AppState，供 sessions_search 命令访问
             *index_slot.lock() = Some(idx);
         }
-        Err(e) => eprintln!("[rework] SessionIndex::new 失败（非致命）: {e:#}"),
+        Err(e) => eprintln!("[keelson] SessionIndex::new 失败（非致命）: {e:#}"),
     }
 
     // 同步到 PocketBase sessions_meta
     if let Err(e) = sync::sync_to_pb(&pb_client, &user_id, &sessions).await {
-        eprintln!("[rework] 首次 sync_to_pb 失败（非致命）: {e:#}");
+        eprintln!("[keelson] 首次 sync_to_pb 失败（非致命）: {e:#}");
     }
 
     // 缓存会话供 Task 16 命令层使用
@@ -678,7 +741,7 @@ async fn setup_pocketbase(
             };
 
             if let Err(e) = sync::sync_to_pb(&client, &owner, &to_sync).await {
-                eprintln!("[rework] Watcher 触发的 sync_to_pb 失败（非致命）: {e:#}");
+                eprintln!("[keelson] Watcher 触发的 sync_to_pb 失败（非致命）: {e:#}");
             }
 
             // Phase 2：为已装钩子的仓库更新"最近会话" marker（供 prepare-commit-msg 读取）。
@@ -718,7 +781,7 @@ async fn setup_pocketbase(
             // 通过 Box::leak 使 watcher 存活到进程退出（与 Tauri 生命周期对齐）
             Box::leak(Box::new(watcher));
         }
-        Err(e) => eprintln!("[rework] Watcher 启动失败（非致命）: {e:#}"),
+        Err(e) => eprintln!("[keelson] Watcher 启动失败（非致命）: {e:#}"),
     }
 
     Ok(())

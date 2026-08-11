@@ -44,7 +44,7 @@ pub fn build_plan(kind: &TerminalKind, req: &ResumeRequest) -> LaunchPlan {
                 args: vec![
                     "new-tab".to_string(),
                     "--title".to_string(),
-                    format!("rework: {}", project_name),
+                    format!("Keelson: {}", project_name),
                     "cmd".to_string(),
                     "/k".to_string(),
                     full_cmd,

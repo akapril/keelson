@@ -64,7 +64,7 @@ function isEditableTarget(target: EventTarget | null) {
 export function ThemeProvider({
   children,
   defaultTheme = "system",
-  storageKey = "rework-theme",
+  storageKey = "keelson-theme",
   disableTransitionOnChange = true,
   ...props
 }: ThemeProviderProps) {

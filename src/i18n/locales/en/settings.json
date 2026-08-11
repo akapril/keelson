@@ -39,6 +39,21 @@
     "ask": "Ask every time",
     "error": "Save failed: {{msg}}"
   },
+  "systemData": {
+    "title": "System & Data",
+    "desc": "Launch at login, plus PocketBase data/log storage management.",
+    "autostartLabel": "Launch at system startup",
+    "pbTotal": "Data directory total",
+    "dataDb": "App data (data.db)",
+    "logsDb": "Request logs (auxiliary.db)",
+    "retentionLabel": "Log retention days (1–365, applies on next start)",
+    "retentionSave": "Save",
+    "retentionSaved": "Saved, applies on next start",
+    "clearHint": "Clear request logs and reclaim disk space",
+    "clearBtn": "Clear logs",
+    "clearQueued": "Queued: logs will be cleared on next start",
+    "error": "Action failed: {{msg}}"
+  },
   "autoArchive": {
     "title": "Auto-archive Completed Tasks",
     "desc": "When opening a project, tasks that have been in the \"Done\" column longer than the selected threshold are auto-archived (soft-delete; sessions/commit provenance is kept, hidden from board by default; you can view or un-archive them at any time). No data is deleted.",

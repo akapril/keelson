@@ -40,3 +40,7 @@ Thumbs.db
 src-tauri/icons/android/
 src-tauri/icons/ios/
 .demo-pb/
+
+# 独立迁移工具的本地编译产物（源码 .rs 才提交）
+scripts/*.exe
+scripts/*.pdb

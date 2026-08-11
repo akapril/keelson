@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn list_markdown_recurses_subdirs_and_skips_heavy() {
         // 临时目录：顶层 + 子目录各放 .md，node_modules 里的应被跳过
-        let base = std::env::temp_dir().join(format!("rework-md-test-{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("keelson-md-test-{}", std::process::id()));
         let sub = base.join("feature");
         let heavy = base.join("node_modules");
         fs::create_dir_all(&sub).unwrap();

@@ -113,7 +113,7 @@ export function SessionChat({
   });
 
   // 用新 key，避免旧版（历史+续聊混存）数据被当作续聊重复展示
-  const storeKey = `rework-ai-continue2-${session.session_id}`;
+  const storeKey = `keelson-ai-continue2-${session.session_id}`;
 
   // 展示 = 完整历史 + 续聊（useMemo：history/continued 变才重建，避免每次输入击键重展开）
   const messages = useMemo(

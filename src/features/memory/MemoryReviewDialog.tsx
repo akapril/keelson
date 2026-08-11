@@ -5,7 +5,7 @@ import { classifyBySimilarity } from "./extract";
 // 读设置页存的嵌入配置（与 AskPane 同源 localStorage）
 function readEmbedConfig() {
   try {
-    const raw = localStorage.getItem("rework-embed-config");
+    const raw = localStorage.getItem("keelson-embed-config");
     return raw ? { ...DEFAULT_EMBED_CONFIG, ...JSON.parse(raw) } : DEFAULT_EMBED_CONFIG;
   } catch {
     return DEFAULT_EMBED_CONFIG;

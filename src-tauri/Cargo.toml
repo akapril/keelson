@@ -1,5 +1,5 @@
 [package]
-name = "rework"
+name = "keelson"
 # 注：应用版本以 package.json 为唯一来源（tauri.conf.json version 指向它）。
 # 此处为 Rust crate 内部版本，与应用展示/打包版本解耦，无需随应用版本变动。
 version = "0.2.0"
@@ -13,7 +13,7 @@ edition = "2021"
 # _lib 后缀看似冗余，但在 Windows 上必须如此，
 # 以避免 lib 名与 bin 名冲突。
 # 参见：https://github.com/rust-lang/cargo/issues/8519
-name = "rework_lib"
+name = "keelson_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -64,6 +64,9 @@ tower-http = { version = "0.6", features = ["fs"] }
 portable-pty = "0.8"
 sysinfo = "0.38.4"
 netstat2 = "0.11.2"
+tauri-plugin-single-instance = "2.4.3"
+sys-locale = "0.3.2"
+tauri-plugin-autostart = "2.5.1"
 
 [features]
 local-embed = ["dep:fastembed"]

@@ -39,7 +39,7 @@ pub fn config_set_hotkey(
     crate::register_spotlight_hotkey(&app, &hotkey)
         .map_err(|e| {
             // 快捷键注册失败时记录日志，但配置已成功保存（下次启动仍会生效）
-            eprintln!("[rework] 热键实时重注册失败（配置已保存，重启后生效）: {e:#}");
+            eprintln!("[keelson] 热键实时重注册失败（配置已保存，重启后生效）: {e:#}");
             format!("快捷键注册失败（配置已保存，重启后生效）: {e:#}")
         })
 }

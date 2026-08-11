@@ -23,7 +23,7 @@ const HISTORY_CAP = 30;
 
 /** 存储 key 前缀：按项目路径隔离。 */
 function storageKey(projectKey: string): string {
-  return `rework-cmds:${projectKey}`;
+  return `keelson-cmds:${projectKey}`;
 }
 
 /** 两条记录是否「同一命令+同一 cwd」（去重/匹配依据；cwd 空串与 undefined 视为等价）。 */

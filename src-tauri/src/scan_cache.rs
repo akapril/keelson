@@ -111,7 +111,7 @@ pub fn incremental(reg: &ProviderRegistry, cached: CacheData) -> Option<Vec<Sess
     }
 
     eprintln!(
-        "[rework] 增量扫描：{} 个文件变化，共 {} 条会话",
+        "[keelson] 增量扫描：{} 个文件变化，共 {} 条会话",
         changed,
         sessions.len()
     );

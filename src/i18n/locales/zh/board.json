@@ -408,6 +408,11 @@
     "restartBtn": "重启",
     "stopBtn": "停止",
     "removeBtn": "删除",
+    "editBtn": "重命名 / 备注",
+    "labelPlaceholder": "显示名（留空用默认名）",
+    "notePlaceholder": "备注：这条命令是做什么的",
+    "saveBtn": "保存",
+    "cancelBtn": "取消",
     "sessionBadge": "↻ 来自会话",
     "sessionBadgeTitle": "起自会话 {{id}}，点击查看",
     "selectProcess": "选择左侧进程查看日志",
@@ -421,7 +426,8 @@
       "cleanSuccess": "已清理 {{processes}} 条停止/退出记录 · {{logs}} 个旧日志",
       "cleanError": "清理失败：{{msg}}",
       "startSuccess": "已启动：{{cmd}}",
-      "startError": "启动失败：{{msg}}"
+      "startError": "启动失败：{{msg}}",
+      "metaSaved": "已保存"
     },
     "interactiveLabel": "交互式（需输入密码）",
     "interactiveNoRestart": "交互进程请停止后重新启动",

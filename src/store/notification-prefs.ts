@@ -25,7 +25,7 @@ const DEFAULT_PREFS: Record<string, boolean> = Object.fromEntries(
   NOTIF_TYPES.map(({ source }) => [source, true]),
 );
 
-const STORAGE_KEY = "rework-notif-prefs";
+const STORAGE_KEY = "keelson-notif-prefs";
 
 // ─────────────────────────────────────────────
 // 持久化工具

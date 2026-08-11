@@ -24,8 +24,8 @@ export function commitLinkedSessions(
   sessions: Session[],
   graceSecs: number = COMMIT_GRACE_SECS,
 ): CommitSessionLink[] {
-  if (commit.rework_session) {
-    const hit = sessions.find((s) => s.session_id === commit.rework_session);
+  if (commit.keelson_session) {
+    const hit = sessions.find((s) => s.session_id === commit.keelson_session);
     return hit ? [{ session: hit, kind: "trailer" }] : [];
   }
   const t = new Date(commit.committed_at).getTime();

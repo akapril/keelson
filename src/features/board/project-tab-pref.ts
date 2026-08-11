@@ -19,8 +19,8 @@ export const WORKSPACE_TABS: { value: WorkspaceTab; label: string }[] = [
   { value: "ai", label: "AI" },
 ];
 
-const DEFAULT_KEY = "rework:proj-default-tab";
-const perProjectKey = (id: string) => `rework:proj-tab:${id}`;
+const DEFAULT_KEY = "keelson:proj-default-tab";
+const perProjectKey = (id: string) => `keelson:proj-tab:${id}`;
 
 // 全局兜底默认（用户可在设置页更改）；未设置时用「看板」保持既有行为。
 export function getDefaultTab(): WorkspaceTab {

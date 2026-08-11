@@ -9,7 +9,7 @@ import {
 } from "../types/ai";
 
 // localStorage 中 AI 配置的存储键（结构已升级为「按服务商隔离」）
-const AI_CONFIG_STORAGE_KEY = "rework-ai-config";
+const AI_CONFIG_STORAGE_KEY = "keelson-ai-config";
 
 /**
  * 持久化结构：当前激活的服务商 + 每个服务商各自的字段。

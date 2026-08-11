@@ -29,7 +29,7 @@ import { ensureDefaultPromptsSeeded } from "@/features/prompts/seed-defaults";
 import type { Prompt } from "@/types/prompt";
 
 // 记住上次选的报告模板 → 它就是你的「默认」（不选则用内置格式）
-const TEMPLATE_KEY = "rework-report-template";
+const TEMPLATE_KEY = "keelson-report-template";
 import { computeRange, type RangePreset } from "@/features/report/report-range";
 import { type ReportScope } from "@/features/report/generateReport";
 
