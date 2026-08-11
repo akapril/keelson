@@ -135,12 +135,29 @@ impl PtyRegistry {
             })
             .map_err(|e| format!("openpty 失败: {e}"))?;
 
-        // 4. 组装 CommandBuilder：argv[0]=CLI 二进制（claude/codex），其余为独立参数；cwd=项目目录。
-        //    直传 argv、不经 shell：session_id/prompt 中的元字符不会被解释 → 无注入。
-        let mut builder = CommandBuilder::new(&argv[0]);
-        for a in &argv[1..] {
-            builder.arg(a);
-        }
+        // 4. 组装 CommandBuilder；cwd=项目目录。
+        //    - 非 Windows：argv[0]=CLI 二进制，其余为独立参数，直传不经 shell（元字符不被解释 → 无注入）。
+        //    - Windows：npm 装的 claude/codex 是**无扩展名 shell 脚本**（`...\npm\codex`），CreateProcessW
+        //      直接 spawn 报 `os error 193`（「不是有效的 Win32 应用程序」）。故经 `cmd /c` 让系统按
+        //      PATHEXT 解析到 `.cmd`/`.exe`。argv 已校验（session_id 白名单 / provider 来自注册表 /
+        //      其余为字面量 "resume"/"--resume"），不含 cmd 元字符 → 无注入面。
+        #[cfg(windows)]
+        let mut builder = {
+            let mut b = CommandBuilder::new("cmd");
+            b.arg("/c");
+            for a in &argv {
+                b.arg(a);
+            }
+            b
+        };
+        #[cfg(not(windows))]
+        let mut builder = {
+            let mut b = CommandBuilder::new(&argv[0]);
+            for a in &argv[1..] {
+                b.arg(a);
+            }
+            b
+        };
         builder.cwd(project_path);
 
         // 5. spawn 到 slave 端。spawn 后 slave 句柄即可丢弃（PtyPair 里 slave 先于 master 析构）。

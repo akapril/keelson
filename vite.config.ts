@@ -41,5 +41,17 @@ export default defineConfig({
       // 不监听 src-tauri 目录，避免无效热重载
       ignored: ["**/src-tauri/**"],
     },
+    // 本地 web 开发热更：把网关后端端点代理到运行中的 Keelson 网关(固定端口 47700)。
+    // 用法：pnpm tauri dev 起应用 → 设置里开「Web 网关」→ 浏览器开 http://localhost:1420，
+    // 即得完整 web 端(含 HMR 热更)，/pb /pair /api /ws /healthz 走网关。
+    // 注：仅本地开发用；iOS/隧道真机验证仍走网关(pnpm build 后 serve dist)，vite HMR 不经隧道。
+    proxy: {
+      "/pb": { target: "http://localhost:47700", changeOrigin: true },
+      "/pair": { target: "http://localhost:47700", changeOrigin: true },
+      "/api": { target: "http://localhost:47700", changeOrigin: true },
+      "/healthz": { target: "http://localhost:47700", changeOrigin: true },
+      // WebSocket 终端：ws 代理，供本地热更下也能连终端。
+      "/ws": { target: "ws://localhost:47700", ws: true, changeOrigin: true },
+    },
   },
 });

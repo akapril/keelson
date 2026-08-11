@@ -190,6 +190,28 @@ describe("openTerminalWs", () => {
     expect(cb.onExit).toHaveBeenCalledTimes(1);
   });
 
+  // 回归：收到 exit 帧后即便随后是**非正常** close(1006) 也不得重连。
+  // 场景：codex resume 到不兼容 rollout → 进程秒退 → 后端发 exit 帧后 return（socket 以
+  // 非 1000 关闭）。若照常重连，会反复拉起同一必然失败的会话，形成死循环重连。
+  it("收 exit 帧后 close(1006) → 不重连（避免死循环）", () => {
+    vi.useFakeTimers();
+    const cb = makeCb();
+    openTerminalWs("s", { provider: "p", path: "/" }, cb);
+    const ws = mockWsInstances[0];
+    ws.simulateOpen();
+
+    ws.simulateMessage(JSON.stringify({ type: "exit" })); // pty 退出
+    ws.simulateClose(1006); // 后端 return 导致的非正常关闭
+
+    vi.runAllTimers();
+
+    // 关键断言：未创建第二个 WS（没有重连）
+    expect(mockWsInstances).toHaveLength(1);
+    expect(cb.onStatus).toHaveBeenCalledWith("closed");
+    // 且未进入 reconnecting 态
+    expect(cb.onStatus).not.toHaveBeenCalledWith("reconnecting");
+  });
+
   it("收 Text 非 JSON → 忽略（不崩溃）", () => {
     const cb = makeCb();
     openTerminalWs("s", { provider: "p", path: "/" }, cb);
