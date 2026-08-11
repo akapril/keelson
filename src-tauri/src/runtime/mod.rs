@@ -16,6 +16,7 @@ pub mod process;
 pub mod pty;
 pub mod resources;
 pub mod store;
+pub mod sysmon;
 
 /// 启动进程管理的后台任务（health 检查 / 旧日志清理）。
 /// 去 TCP 后进程管理为纯进程内模块——前端命令直调 daemon::dispatch，无需起 daemon server。

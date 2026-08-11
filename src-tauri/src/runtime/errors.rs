@@ -83,175 +83,27 @@ pub fn detect_port_conflict(log_content: &str) -> Option<PortConflict> {
     None
 }
 
-/// 查找占用指定端口的进程 PID 和进程名
+/// 查找占用指定端口的进程 PID 和进程名。
+/// netstat2 读各 OS 内核 socket 表找到该端口的 LISTEN socket → 取其首个关联 pid，
+/// 再用 sysinfo 取进程名。跨平台一套实现，无子进程、无 netstat/ss/lsof 文本解析。
 fn find_port_occupier(port: u16) -> (Option<u32>, Option<String>) {
-    #[cfg(windows)]
-    {
-        find_port_occupier_windows(port)
-    }
-    #[cfg(target_os = "linux")]
-    {
-        find_port_occupier_linux(port)
-    }
-    #[cfg(target_os = "macos")]
-    {
-        find_port_occupier_macos(port)
-    }
-    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
-    {
-        let _ = port;
-        (None, None)
-    }
-}
-
-/// Windows：使用 netstat -ano 查找监听指定端口的 PID，再用 tasklist 获取进程名
-#[cfg(windows)]
-fn find_port_occupier_windows(port: u16) -> (Option<u32>, Option<String>) {
-    use std::process::Command;
-
-    // 构建端口匹配字符串，如 ":3000 "（末尾空格避免匹配 :30001 等）
-    let port_suffix = format!(":{} ", port);
-
-    let output = match Command::new("netstat").args(["-ano"]).output() {
-        Ok(o) => o,
+    use netstat2::{
+        get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState,
+    };
+    let af = AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6;
+    let sockets = match get_sockets_info(af, ProtocolFlags::TCP) {
+        Ok(s) => s,
         Err(_) => return (None, None),
     };
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut found_pid: Option<u32> = None;
-
-    for line in stdout.lines() {
-        let trimmed = line.trim();
-        if !trimmed.starts_with("TCP") {
-            continue;
-        }
-        if !trimmed.contains("LISTENING") {
-            continue;
-        }
-        // 第二列为本地地址，检查是否包含目标端口
-        let parts: Vec<&str> = trimmed.split_whitespace().collect();
-        if parts.len() < 5 {
-            continue;
-        }
-        let local_addr = parts[1];
-        // 本地地址需要以 ":PORT" 结尾（或 ":PORT " 在整行中）
-        if !local_addr.ends_with(&format!(":{}", port)) {
-            // 也尝试整行匹配（netstat 格式中本地地址后跟空格）
-            if !trimmed.contains(&port_suffix) {
-                continue;
+    for si in sockets {
+        if let ProtocolSocketInfo::Tcp(ref tcp) = si.protocol_socket_info {
+            if tcp.state == TcpState::Listen && tcp.local_port == port {
+                let pid = si.associated_pids.first().copied();
+                let name = pid.and_then(super::sysmon::process_name);
+                return (pid, name);
             }
         }
-
-        // 最后一列为 PID
-        if let Ok(pid) = parts[parts.len() - 1].parse::<u32>() {
-            found_pid = Some(pid);
-            break;
-        }
     }
-
-    let pid = match found_pid {
-        Some(p) => p,
-        None => return (None, None),
-    };
-
-    // 通过 tasklist 获取进程名
-    let tl_output = match Command::new("tasklist")
-        .args(["/FI", &format!("PID eq {}", pid), "/NH", "/FO", "CSV"])
-        .output()
-    {
-        Ok(o) => o,
-        Err(_) => return (Some(pid), None),
-    };
-
-    let tl_stdout = String::from_utf8_lossy(&tl_output.stdout);
-    // CSV 格式第一行第一列为进程名（带引号），如 "node.exe","12345",...
-    let process_name = tl_stdout
-        .lines()
-        .next()
-        .and_then(|line| {
-            // 去除引号后取第一个逗号分隔字段
-            let line = line.trim().trim_matches('"');
-            line.split('"').next().map(|s| s.trim_matches(',').trim_matches('"').to_string())
-        })
-        .filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("no tasks") && !s.starts_with("INFO:"));
-
-    (Some(pid), process_name)
-}
-
-/// Linux：使用 ss -tlnp 查找监听指定端口的进程信息
-#[cfg(target_os = "linux")]
-fn find_port_occupier_linux(port: u16) -> (Option<u32>, Option<String>) {
-    use std::process::Command;
-
-    let output = match Command::new("ss").args(["-tlnp"]).output() {
-        Ok(o) => o,
-        Err(_) => return (None, None),
-    };
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let port_suffix = format!(":{}", port);
-
-    for line in stdout.lines() {
-        // 格式: State Recv-Q Send-Q Local Address:Port Peer Address:Port Process
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 5 {
-            continue;
-        }
-        // 第四列（索引3）是本地地址
-        if !parts[3].ends_with(&port_suffix) {
-            continue;
-        }
-        // 最后一列包含进程信息，格式: users:(("name",pid=1234,fd=5))
-        let process_part = parts[parts.len() - 1];
-        let pid = Regex::new(r"pid=(\d+)")
-            .ok()
-            .and_then(|re| re.captures(process_part))
-            .and_then(|caps| caps.get(1))
-            .and_then(|m| m.as_str().parse::<u32>().ok());
-
-        let name = Regex::new(r#"\(\("([^"]+)""#)
-            .ok()
-            .and_then(|re| re.captures(process_part))
-            .and_then(|caps| caps.get(1))
-            .map(|m| m.as_str().to_string());
-
-        return (pid, name);
-    }
-
-    (None, None)
-}
-
-/// macOS：使用 lsof 查找监听指定端口的进程信息
-#[cfg(target_os = "macos")]
-fn find_port_occupier_macos(port: u16) -> (Option<u32>, Option<String>) {
-    use std::process::Command;
-
-    let output = match Command::new("lsof")
-        .args(["-iTCP", &format!(":{}", port), "-sTCP:LISTEN", "-P", "-n"])
-        .output()
-    {
-        Ok(o) => o,
-        Err(_) => return (None, None),
-    };
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut first_line = true;
-
-    for line in stdout.lines() {
-        if first_line {
-            first_line = false;
-            continue; // 跳过标题行
-        }
-        // 格式: COMMAND PID USER ...
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 2 {
-            continue;
-        }
-        let name = parts[0].to_string();
-        let pid = parts[1].parse::<u32>().ok();
-        return (pid, Some(name));
-    }
-
     (None, None)
 }
 
