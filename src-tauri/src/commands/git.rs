@@ -1,7 +1,7 @@
 //! git_info 命令：读取本地仓库的当前分支与未提交变更数（移植自 retalk）。
 //! 直接调用系统 `git` CLI（std::process），不引入额外 crate。
 use serde::Serialize;
-use std::process::Command;
+use crate::proc::hidden_command;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct GitInfo {
@@ -23,7 +23,8 @@ pub fn parse_branch(symref: &str) -> Option<String> {
 
 /// 在指定路径执行 git 命令，成功则返回 stdout，否则 None。
 fn git(path: &str, args: &[&str]) -> Option<String> {
-    let out = Command::new("git").arg("-C").arg(path).args(args).output().ok()?;
+    // hidden_command：Windows 上带 CREATE_NO_WINDOW，避免打包后每次 git 调用闪黑窗
+    let out = hidden_command("git").arg("-C").arg(path).args(args).output().ok()?;
     if !out.status.success() {
         return None;
     }

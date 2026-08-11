@@ -6,6 +6,8 @@ pub mod models;
 pub mod paths;
 // 应用配置：AppConfig（hotkey + terminal_pref，持久化到 config.toml）
 pub mod config;
+// 子进程构造助手：Windows 隐藏控制台窗口（CREATE_NO_WINDOW），消除打包后黑窗闪现
+pub mod proc;
 // PocketBase 集成层（进程、客户端、首启初始化）
 mod pb;
 // 命令模块（Task 16 按领域分域实现）

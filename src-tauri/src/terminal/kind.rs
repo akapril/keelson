@@ -1,18 +1,7 @@
-use std::process::Command;
+//! 终端类型检测：探测系统可用终端。探测用的 where/which 经 crate::proc::hidden_command 起，
+//! Windows 上带 CREATE_NO_WINDOW，避免打包后闪黑窗。
 
-/// 创建隐藏窗口的 Command（Windows 上不闪 cmd 窗口）
-#[cfg(windows)]
-fn silent_command(program: &str) -> Command {
-    use std::os::windows::process::CommandExt;
-    let mut cmd = Command::new(program);
-    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-    cmd
-}
-
-#[cfg(not(windows))]
-fn silent_command(program: &str) -> Command {
-    Command::new(program)
-}
+use crate::proc::hidden_command;
 
 /// 支持的终端类型（跨平台）
 #[derive(Debug, Clone)]
@@ -67,7 +56,7 @@ pub fn detect_terminal(pref: &str) -> TerminalKind {
 /// Windows: 优先 Windows Terminal > PowerShell > Cmd
 #[cfg(windows)]
 fn auto_detect() -> TerminalKind {
-    if silent_command("where")
+    if hidden_command("where")
         .arg("wt.exe")
         .output()
         .map(|o| o.status.success())
@@ -75,7 +64,7 @@ fn auto_detect() -> TerminalKind {
     {
         return TerminalKind::WindowsTerminal;
     }
-    if silent_command("where")
+    if hidden_command("where")
         .arg("pwsh.exe")
         .output()
         .map(|o| o.status.success())
@@ -117,7 +106,7 @@ fn auto_detect() -> TerminalKind {
         "xfce4-terminal",
         "xterm",
     ] {
-        if silent_command("which")
+        if hidden_command("which")
             .arg(term)
             .output()
             .map(|o| o.status.success())

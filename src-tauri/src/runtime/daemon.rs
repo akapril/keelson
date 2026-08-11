@@ -102,7 +102,9 @@ fn spawn_detached(
             .current_dir(working_dir)
             .stdout(log_file)
             .stderr(log_file_stderr)
-            .creation_flags(0x00000200); // CREATE_NEW_PROCESS_GROUP
+            // CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW：既独立进程组，又不弹控制台黑窗
+            //（headless 进程 stdout/stderr 已重定向到日志文件，无需控制台）
+            .creation_flags(0x00000200 | 0x0800_0000);
         for (key, value) in env_vars {
             cmd.env(key, value);
         }
@@ -282,14 +284,14 @@ pub(crate) async fn handle_stop(args: &Value) -> Value {
     // 平台特定的进程终止
     #[cfg(windows)]
     {
-        let _ = Command::new("taskkill")
+        let _ = crate::proc::hidden_command("taskkill")
             .args(["/PID", &entry.pid.to_string(), "/T", "/F"])
             .output();
     }
 
     #[cfg(unix)]
     {
-        let _ = Command::new("kill")
+        let _ = crate::proc::hidden_command("kill")
             .args(["-TERM", &entry.pid.to_string()])
             .output();
     }
@@ -317,13 +319,13 @@ pub fn kill_all_managed() {
         }
         #[cfg(windows)]
         {
-            let _ = Command::new("taskkill")
+            let _ = crate::proc::hidden_command("taskkill")
                 .args(["/PID", &entry.pid.to_string(), "/T", "/F"])
                 .output();
         }
         #[cfg(unix)]
         {
-            let _ = Command::new("kill")
+            let _ = crate::proc::hidden_command("kill")
                 .args(["-TERM", &entry.pid.to_string()])
                 .output();
         }
@@ -355,14 +357,14 @@ pub(crate) async fn handle_restart(args: &Value) -> Value {
     // 先停止旧进程（保留进程表条目，稍后原地更新，不 remove）
     #[cfg(windows)]
     {
-        let _ = Command::new("taskkill")
+        let _ = crate::proc::hidden_command("taskkill")
             .args(["/PID", &entry.pid.to_string(), "/T", "/F"])
             .output();
     }
 
     #[cfg(unix)]
     {
-        let _ = Command::new("kill")
+        let _ = crate::proc::hidden_command("kill")
             .args(["-TERM", &entry.pid.to_string()])
             .output();
     }
@@ -558,7 +560,8 @@ pub(crate) async fn handle_open_log(args: &Value) -> Value {
 
     // 用系统默认程序打开**文件**（Windows 的 explorer<file> 只开文件夹，故用 start 开文件）。
     #[cfg(target_os = "windows")]
-    let spawn = Command::new("cmd")
+    // hidden_command：cmd /C start 只为唤起默认程序开文件，其控制台本身无需可见（否则闪黑窗）
+    let spawn = crate::proc::hidden_command("cmd")
         .args(["/C", "start", "", &path_str])
         .spawn();
     #[cfg(target_os = "macos")]
