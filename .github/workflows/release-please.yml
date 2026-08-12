@@ -7,6 +7,9 @@ name: Release Please
 #   - updater 只认已发布的 latest → 发布即生效；
 #   - winget.yml 监听 released → 发布后自动提交 winget 清单。
 #
+# 手动补构建：Actions → Release Please → Run workflow，填一个已存在的草稿 tag（如 v0.3.0），
+# 即可为该草稿重新构建并上传产物（草稿构建失败/漏挂时用）。
+#
 # 一次性前置（只做一次，仓库 Settings）：
 #   Settings → Actions → General → Workflow permissions：
 #     ① 选 "Read and write permissions"
@@ -16,19 +19,24 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "手动为已存在的草稿 Release 构建并上传产物（如 v0.3.0）"
+        required: true
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  # 作业一：维护 Release PR；合并后创建 tag + 草稿 Release
+  # 作业一：维护 Release PR；合并后创建 tag + 草稿 Release（仅 push 触发）
   release-please:
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     outputs:
-      release_created: ${{ steps.release.outputs['.--release_created'] }}
-      release_id: ${{ steps.release.outputs['.--id'] }}
-      tag_name: ${{ steps.release.outputs['.--tag_name'] }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -37,11 +45,10 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # 作业二：仅当上一步真的切了版本才构建；同一 workflow 内用 needs 串联，
-  # 无需 PAT（跨 workflow 触发会被 GITHUB_TOKEN 拦截，同 workflow 不受限）。
+  # 作业二：切了版本(push) 或 手动指定 tag(dispatch) 时构建；同 workflow 内串联免 PAT。
   build:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch') }}
     strategy:
       fail-fast: false # 单平台失败不牵连其余平台
       matrix:
@@ -58,7 +65,20 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
+      # 默认 checkout：push=发版提交、dispatch=master HEAD（草稿 tag 未落 git ref，故不按 tag 检出）
       - uses: actions/checkout@v4
+
+      # 按 tag 查出草稿 Release 的数字 id（gh 各 runner 预装；只依赖 tag_name，不依赖易变的 id 输出名）
+      - name: 定位 Release id
+        id: rel
+        shell: bash
+        run: |
+          TAG='${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || needs.release-please.outputs.tag_name }}'
+          ID=$(gh release view "$TAG" --repo '${{ github.repository }}' --json databaseId -q .databaseId)
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "解析到 Release id=$ID (tag=$TAG)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 安装 pnpm
         uses: pnpm/action-setup@v4
@@ -91,7 +111,7 @@ jobs:
 
       # tauri-action 会调用 beforeBuildCommand=`pnpm build`，其 prebuild 钩子
       # 自动按当前平台三元组下载 PocketBase sidecar（host==target，无交叉，命名天然匹配）。
-      # 传 releaseId：把产物挂到 release-please 已建的那个草稿 Release，而非另建。
+      # 传 releaseId：把产物挂到已存在的草稿 Release，而非另建。
       - name: 构建并上传产物
         uses: tauri-apps/tauri-action@v0
         env:
@@ -100,5 +120,5 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          releaseId: ${{ needs.release-please.outputs.release_id }}
+          releaseId: ${{ steps.rel.outputs.id }}
           args: --target ${{ matrix.target }}
