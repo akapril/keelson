@@ -1,6 +1,8 @@
 // SessionFileChanges —— 会话→文件改动溯源：展示本会话改动了哪些文件、改了什么。
-// 数据从会话转录里的 Write/Edit/MultiEdit 工具调用还原（Rust session_file_changes），
-// 含未提交 git 的改动，补齐「此会话期间的提交」看不到的部分。v1 仅 Claude。
+// 数据从会话转录还原（Rust session_file_changes），含未提交 git 的改动，
+// 补齐「此会话期间的提交」看不到的部分。
+// - Claude：Write/Edit/MultiEdit 工具调用；
+// - Codex：apply_patch 信封（新增/修改/删除）。
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { diffLines } from "diff";
@@ -21,14 +23,24 @@ function shortPath(path: string, root: string): string {
   return p;
 }
 
-/** 单次改动的 diff（Edit/MultiEdit：old→new 行级 diff；Write：整段视为新增）。 */
+/** 单次改动的 diff：old 为空→整段新增；old/new 皆空且 apply_patch→文件删除；否则行级 diff。 */
 function EditDiff({ edit }: { edit: FileEdit }) {
+  const { t } = useTranslation("sessions");
   const parts = useMemo(() => {
-    if (edit.tool === "Write") {
+    // old 为空即整段新增（Claude Write / Codex apply_patch 新增文件）
+    if (edit.old === "" && edit.new !== "") {
       return [{ added: true, removed: false, value: edit.new }];
     }
     return diffLines(edit.old, edit.new);
   }, [edit]);
+  // Codex apply_patch 删除文件：old/new 皆空（tool 守卫排除 Claude 空文件 Write）
+  if (edit.old === "" && edit.new === "" && edit.tool === "apply_patch") {
+    return (
+      <p className="mt-1 text-[11px] text-red-700 line-through dark:text-red-300">
+        {t("fileChanges.deleted")}
+      </p>
+    );
+  }
   return (
     <pre className="mt-1 overflow-x-auto rounded-md border border-border bg-muted/40 p-2 text-[11px] leading-relaxed">
       {parts.map((part, i) => (

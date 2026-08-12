@@ -4,8 +4,9 @@
 // - event_msg(user_message) → 用户消息文本
 // - event_msg(token_count) → token 累计统计（取最后一条为总量）
 
+use super::claude::{cap_text, MAX_EDITS};
 use super::{EventKind, SessionProvider, WatchRoot};
-use crate::models::{PlannedTask, Session, TimelineMessage};
+use crate::models::{FileChange, FileEdit, PlannedTask, Session, TimelineMessage};
 use crate::paths::AppPaths;
 use chrono::{DateTime, Utc};
 use std::fs::{self, File};
@@ -431,6 +432,184 @@ fn find_update_plan(v: &serde_json::Value) -> Option<Vec<serde_json::Value>> {
 }
 
 // ============================================================
+// 会话 → 文件改动溯源（Codex）
+// 数据源：转录里 response_item.payload（type=custom_tool_call, name=apply_patch）
+// 的 apply_patch 信封。只解析结构化的 apply_patch；经 exec/shell(sed/heredoc)
+// 的非结构化改动不在 v1 范围（无法可靠还原）。
+// ============================================================
+
+/// 读取指定 Codex 会话的文件改动列表（找不到会话 → 空）。
+pub fn read_codex_file_changes(session_id: &str) -> Vec<FileChange> {
+    let sessions_dir = AppPaths::detect().codex_dir().join("sessions");
+    let path = match find_session_file_recursive(&sessions_dir, session_id) {
+        Some(p) => p,
+        None => return Vec::new(),
+    };
+    match fs::read_to_string(&path) {
+        Ok(content) => parse_codex_file_changes(&content),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// 纯解析：从会话 .jsonl 全文解析 apply_patch 改动，按文件路径聚合（保持首次出现顺序）。可单测。
+pub fn parse_codex_file_changes(content: &str) -> Vec<FileChange> {
+    let mut order: Vec<String> = Vec::new();
+    let mut by_path: std::collections::HashMap<String, Vec<FileEdit>> =
+        std::collections::HashMap::new();
+    let mut total = 0usize;
+
+    for line in content.lines() {
+        if total >= MAX_EDITS {
+            break;
+        }
+        let raw: serde_json::Value = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if raw.get("type").and_then(|v| v.as_str()) != Some("response_item") {
+            continue;
+        }
+        // payload.type==custom_tool_call 且 name==apply_patch，input 是 patch 信封
+        let payload = match raw.get("payload") {
+            Some(p) => p,
+            None => continue,
+        };
+        if payload.get("type").and_then(|v| v.as_str()) != Some("custom_tool_call") {
+            continue;
+        }
+        if payload.get("name").and_then(|v| v.as_str()) != Some("apply_patch") {
+            continue;
+        }
+        let input = payload.get("input").and_then(|v| v.as_str()).unwrap_or("");
+        if input.is_empty() {
+            continue;
+        }
+        for (path, edit) in parse_apply_patch(input) {
+            if total >= MAX_EDITS {
+                break;
+            }
+            if !by_path.contains_key(&path) {
+                order.push(path.clone());
+                by_path.insert(path.clone(), Vec::new());
+            }
+            by_path.get_mut(&path).unwrap().push(edit);
+            total += 1;
+        }
+    }
+
+    order
+        .into_iter()
+        .map(|p| {
+            let edits = by_path.remove(&p).unwrap_or_default();
+            FileChange { path: p, edits }
+        })
+        .collect()
+}
+
+/// 解析单个 apply_patch 信封 → (文件路径, 一次改动) 列表。
+/// 信封格式：`*** Begin Patch` / `*** Update File: p` / `*** Add File: p` /
+/// `*** Delete File: p` / `*** End Patch`。Update 内可含多个 `@@` 块，每块一条改动。
+fn parse_apply_patch(input: &str) -> Vec<(String, FileEdit)> {
+    let mut out: Vec<(String, FileEdit)> = Vec::new();
+    let mut lines = input.lines().peekable();
+
+    while let Some(line) = lines.next() {
+        if let Some(p) = line.strip_prefix("*** Update File: ") {
+            let path = p.trim().to_string();
+            // 收集主体（到下一个 *** 标记为止）
+            let mut body: Vec<&str> = Vec::new();
+            while let Some(&next) = lines.peek() {
+                if next.starts_with("*** ") {
+                    break;
+                }
+                body.push(lines.next().unwrap());
+            }
+            for (old, new) in split_hunks(&body) {
+                out.push((
+                    path.clone(),
+                    FileEdit { tool: "apply_patch".into(), old: cap_text(&old), new: cap_text(&new) },
+                ));
+            }
+        } else if let Some(p) = line.strip_prefix("*** Add File: ") {
+            let path = p.trim().to_string();
+            // 新增文件：后续 `+` 前缀行拼成内容
+            let mut content = String::new();
+            while let Some(&next) = lines.peek() {
+                if next.starts_with("*** ") {
+                    break;
+                }
+                let l = lines.next().unwrap();
+                let text = l.strip_prefix('+').unwrap_or(l);
+                if !content.is_empty() {
+                    content.push('\n');
+                }
+                content.push_str(text);
+            }
+            out.push((
+                path,
+                FileEdit { tool: "apply_patch".into(), old: String::new(), new: cap_text(&content) },
+            ));
+        } else if let Some(p) = line.strip_prefix("*** Delete File: ") {
+            // 删除文件：old/new 皆空，tool=apply_patch 供前端识别为删除
+            let path = p.trim().to_string();
+            out.push((
+                path,
+                FileEdit { tool: "apply_patch".into(), old: String::new(), new: String::new() },
+            ));
+        }
+        // *** Begin Patch / *** End Patch / 其它 → 忽略
+    }
+    out
+}
+
+/// 把 Update File 主体按 `@@` 分块，每块还原 (old, new)：
+/// `-`→仅 old，`+`→仅 new，其余（前导空格/空行=上下文）→同进 old/new。
+fn split_hunks(body: &[&str]) -> Vec<(String, String)> {
+    let mut hunks: Vec<(String, String)> = Vec::new();
+    let mut old = String::new();
+    let mut new = String::new();
+    let mut dirty = false; // 当前块是否已累积内容
+
+    for &l in body {
+        if l.starts_with("@@") {
+            // 块边界：flush 上一块
+            if dirty {
+                hunks.push((std::mem::take(&mut old), std::mem::take(&mut new)));
+                dirty = false;
+            }
+            continue;
+        }
+        if let Some(rest) = l.strip_prefix('+') {
+            if !new.is_empty() {
+                new.push('\n');
+            }
+            new.push_str(rest);
+        } else if let Some(rest) = l.strip_prefix('-') {
+            if !old.is_empty() {
+                old.push('\n');
+            }
+            old.push_str(rest);
+        } else {
+            // 上下文行（前导空格）或空行 → 同时进 old/new
+            let rest = l.strip_prefix(' ').unwrap_or(l);
+            if !old.is_empty() {
+                old.push('\n');
+            }
+            old.push_str(rest);
+            if !new.is_empty() {
+                new.push('\n');
+            }
+            new.push_str(rest);
+        }
+        dirty = true;
+    }
+    if dirty {
+        hunks.push((old, new));
+    }
+    hunks
+}
+
+// ============================================================
 // 内部辅助函数
 // ============================================================
 
@@ -504,6 +683,79 @@ mod tests {
         // 验证项目路径和名称
         assert_eq!(session.project_path, "/home/user/workspace/myproject");
         assert_eq!(session.project_name, "myproject");
+    }
+
+    // -------- 文件改动溯源（apply_patch）--------
+
+    /// 构造一行 response_item(custom_tool_call, apply_patch)，input 为给定信封。
+    fn apply_patch_line(input: &str) -> String {
+        let v = serde_json::json!({
+            "type": "response_item",
+            "payload": { "type": "custom_tool_call", "name": "apply_patch", "input": input }
+        });
+        serde_json::to_string(&v).unwrap()
+    }
+
+    /// Add File → 整段新增（old 空、new=文件内容）。
+    #[test]
+    fn parse_codex_add_file() {
+        let env = "*** Begin Patch\n*** Add File: src/foo.rs\n+fn main() {}\n+// hi\n*** End Patch";
+        let changes = parse_codex_file_changes(&apply_patch_line(env));
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].path, "src/foo.rs");
+        assert_eq!(changes[0].edits.len(), 1);
+        assert_eq!(changes[0].edits[0].tool, "apply_patch");
+        assert_eq!(changes[0].edits[0].old, "");
+        assert_eq!(changes[0].edits[0].new, "fn main() {}\n// hi");
+    }
+
+    /// Update File → 每个 @@ 块一条改动，old/new 含上下文。
+    #[test]
+    fn parse_codex_update_file_hunks() {
+        let env = "*** Begin Patch\n*** Update File: a.txt\n@@\n ctx\n-old line\n+new line\n@@\n-only removed\n*** End Patch";
+        let changes = parse_codex_file_changes(&apply_patch_line(env));
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].path, "a.txt");
+        assert_eq!(changes[0].edits.len(), 2, "两个 @@ 块 → 两条改动");
+        // 第一块：上下文进 old 和 new
+        assert_eq!(changes[0].edits[0].old, "ctx\nold line");
+        assert_eq!(changes[0].edits[0].new, "ctx\nnew line");
+        // 第二块：纯删除
+        assert_eq!(changes[0].edits[1].old, "only removed");
+        assert_eq!(changes[0].edits[1].new, "");
+    }
+
+    /// Delete File → old/new 皆空、tool=apply_patch（前端据此显示"已删除"）。
+    #[test]
+    fn parse_codex_delete_file() {
+        let env = "*** Begin Patch\n*** Delete File: gone.txt\n*** End Patch";
+        let changes = parse_codex_file_changes(&apply_patch_line(env));
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].path, "gone.txt");
+        assert_eq!(changes[0].edits[0].old, "");
+        assert_eq!(changes[0].edits[0].new, "");
+        assert_eq!(changes[0].edits[0].tool, "apply_patch");
+    }
+
+    /// 多文件单信封 → 按路径聚合、保持出现顺序。
+    #[test]
+    fn parse_codex_multi_file_aggregates() {
+        let env = "*** Begin Patch\n*** Add File: first.txt\n+one\n*** Update File: second.txt\n@@\n-x\n+y\n*** End Patch";
+        let changes = parse_codex_file_changes(&apply_patch_line(env));
+        assert_eq!(changes.len(), 2);
+        assert_eq!(changes[0].path, "first.txt"); // 保持出现顺序
+        assert_eq!(changes[1].path, "second.txt");
+    }
+
+    /// 非 apply_patch 行（普通消息 / update_plan）不产生文件改动。
+    #[test]
+    fn parse_codex_ignores_non_apply_patch() {
+        let jsonl = concat!(
+            r#"{"type":"event_msg","payload":{"type":"user_message","message":"hi"}}"#,
+            "\n",
+            r#"{"type":"response_item","payload":{"type":"function_call","name":"update_plan","arguments":"{}"}}"#,
+        );
+        assert!(parse_codex_file_changes(jsonl).is_empty());
     }
 
     /// 验证 resume_command 格式正确
