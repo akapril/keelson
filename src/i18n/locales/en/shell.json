@@ -206,7 +206,7 @@
   },
   "processes": {
     "title": "Processes",
-    "description": "All processes managed by the Keelson in-process manager (cross-project): Claude Code intercepts and automatically manages long-running processes,"
+    "description": "All processes managed by Keelson (cross-project), including long-running processes auto-managed via Claude Code interception."
   },
   "prompts": {
     "title": "Prompts",

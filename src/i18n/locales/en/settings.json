@@ -3,7 +3,7 @@
   "page": { "title": "Settings" },
   "shortcut": {
     "title": "Global Shortcut",
-    "desc": "Press this key combination from any screen to toggle the Spotlight search window. Takes effect immediately; no restart needed.",
+    "desc": "Toggle Spotlight search from any screen. Takes effect immediately.",
     "hint": "Click the control above, then press the target key combination (must include a modifier: Ctrl / Alt / Shift). Press Esc to cancel.",
     "saving": "Saving…",
     "capturePrompt": "Press key combination…",
@@ -20,7 +20,7 @@
   },
   "projectDefaultTab": {
     "title": "Project Default Tab",
-    "desc": "The tab shown when opening a project. The system remembers the last-visited tab per project and prefers that; this setting is the fallback for projects never opened before.",
+    "desc": "Default tab when opening a project. The system remembers each project's last tab; this is only the fallback for never-opened projects.",
     "placeholder": "Select default tab",
     "tabs": {
       "overview": "Overview",
@@ -56,7 +56,7 @@
   },
   "autoArchive": {
     "title": "Auto-archive Completed Tasks",
-    "desc": "When opening a project, tasks that have been in the \"Done\" column longer than the selected threshold are auto-archived (soft-delete; sessions/commit provenance is kept, hidden from board by default; you can view or un-archive them at any time). No data is deleted.",
+    "desc": "Auto-archive tasks that sit in the \"Done\" column past the selected threshold (soft-delete; no data lost, restore anytime via \"Show archived\").",
     "placeholder": "Select auto-archive timing",
     "options": {
       "off": "Off (manual archive only)",
@@ -93,7 +93,7 @@
       "placeholderClaude": "Auto-detect if empty; e.g. C:\\Users\\you\\AppData\\Roaming\\npm\\claude.cmd",
       "placeholderCodex": "Auto-detect if empty; e.g. C:\\Users\\you\\AppData\\Roaming\\npm\\codex.cmd"
     },
-    "cliHint": "Invokes the local {{cmd}} CLI (uses your local subscription; data never leaves this machine). If you see \"program not found\" but it works in your terminal, paste the absolute path above (run where {{cmd}} in the terminal to find it).",
+    "cliHint": "Invokes the local {{cmd}} CLI (uses your subscription; data stays on device). If you see \"program not found\" but it runs in your terminal, paste its absolute path (find it via where {{cmd}}).",
     "apiBaseUrlPlaceholderAnthropic": "https://api.anthropic.com (leave empty for default)",
     "apiBaseUrlPlaceholderOpenai": "https://api.openai.com/v1 (leave empty for default)"
   },
@@ -141,7 +141,7 @@
   },
   "claudeIntegration": {
     "title": "Claude Code Integration",
-    "desc": "Enable Keelson–Claude Code integration in one click: ① every tool call streams to the <1>activity feed</1> (board sync depends on it); ② long-running processes started by Claude (e.g. <2>npm run dev</2>) are <3>auto-managed</3> in the Processes page. Only Keelson's two hooks are added or removed; all other settings are preserved. Restart your Claude session for changes to take effect.",
+    "desc": "Enable Keelson–Claude Code integration in one click: ① tool calls stream to the <1>activity feed</1> (board sync needs it); ② long-running processes like <2>npm run dev</2> are <3>auto-managed</3> in Processes. Only Keelson's own hooks are touched; restart your session to take effect.",
     "loading": "Loading status…",
     "statusEnabled": "Enabled (up to date)",
     "statusStale": "Enabled (update available, upgrade recommended)",
@@ -158,12 +158,12 @@
   },
   "autoSyncTasks": {
     "title": "Auto-sync Board (CLI Tasks)",
-    "desc": "When enabled, tasks created or updated in Claude sessions (TaskCreate/TaskUpdate) are synced to their linked project board in real time. When disabled, you can still sync manually from the session preview. Requires the activity hook (above) to be enabled.",
+    "desc": "When enabled, tasks created/updated in Claude sessions sync to their linked board in real time; when off, sync manually from the session preview. Requires the activity hook above.",
     "checkboxLabel": "Auto-sync CLI tasks to board"
   },
   "notify": {
     "title": "Notification Preferences",
-    "desc": "Control which notification types are written to the bell / inbox and whether desktop system notifications are shown. When disabled, that type is neither created nor displayed (including notifications of that type written by external agents).",
+    "desc": "Control which notification types go to the bell / inbox and whether desktop notifications pop up. Disabled types are neither created nor shown.",
     "sessionGranularity": "Session reminder granularity",
     "newSessionsLabel": "Notify when new local CLI sessions are discovered (one summary at startup; requires the Session type to be enabled)",
     "types": {
@@ -226,7 +226,7 @@
     "codeLoading": "Loading…",
     "regenerateBtn": "Regenerate",
     "regenerating": "Generating…",
-    "codeHint": "Pairing code rotation: the code is invalidated automatically after each successful pairing. Use the latest code shown here to pair the next device. Click 'Regenerate' at any time to invalidate the current code (e.g. if you suspect it was leaked).",
+    "codeHint": "The code rotates automatically after each successful pairing — use the latest code here for the next device. Click 'Regenerate' to invalidate it anytime (e.g. if leaked).",
     "codeRegeneratedToast": "Pairing code rotated — old code invalidated immediately",
     "codeLoadError": "Failed to load pairing code: {{message}}",
     "codeRegenerateError": "Failed to regenerate pairing code: {{message}}",

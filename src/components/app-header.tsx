@@ -15,7 +15,6 @@ import {
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
-  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -73,19 +72,12 @@ export function AppHeader() {
         className="mr-1 h-4 data-vertical:self-center"
       />
 
+      {/* 扁平导航无层级，面包屑仅作当前页标题（不假装可导航；描述已去除避免头部啰嗦） */}
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbPage>{currentTitle}</BreadcrumbPage>
           </BreadcrumbItem>
-          {currentNav?.descriptionKey && (
-            <>
-              <BreadcrumbSeparator className="hidden sm:block" />
-              <BreadcrumbItem className="hidden text-muted-foreground sm:block">
-                {t(currentNav.descriptionKey)}
-              </BreadcrumbItem>
-            </>
-          )}
         </BreadcrumbList>
       </Breadcrumb>
 

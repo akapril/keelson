@@ -206,7 +206,7 @@
   },
   "processes": {
     "title": "进程",
-    "description": "Keelson 进程内进程管理器托管的全部进程（跨项目）：Claude Code 拦截自动托管的长驻进程，"
+    "description": "Keelson 托管的全部进程（跨项目），含 Claude Code 拦截后自动托管的长驻进程。"
   },
   "prompts": {
     "title": "指令库",

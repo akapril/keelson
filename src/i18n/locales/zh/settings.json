@@ -3,7 +3,7 @@
   "page": { "title": "设置" },
   "shortcut": {
     "title": "全局唤起快捷键",
-    "desc": "在任意界面按下此组合键，即可唤起 / 隐藏 Spotlight 搜索窗口。修改后立即生效，无需重启。",
+    "desc": "任意界面按此组合键唤起 / 隐藏 Spotlight 搜索。修改即时生效。",
     "hint": "点击上方控件后，按下目标组合键（需含修饰键，如 Ctrl / Alt / Shift）；按 Esc 取消捕获。",
     "saving": "保存中…",
     "capturePrompt": "按下快捷键组合…",
@@ -20,7 +20,7 @@
   },
   "projectDefaultTab": {
     "title": "项目默认打开标签页",
-    "desc": "打开一个项目时默认停留的标签页。系统会自动记住每个项目上次停留的位置并优先回到那里；此处仅作为「从未打开过」时的兜底默认。",
+    "desc": "打开项目时默认停留的标签页；系统会记住每个项目上次的位置，此处仅作首次打开的兜底。",
     "placeholder": "选择默认标签页",
     "tabs": {
       "overview": "概览",
@@ -56,7 +56,7 @@
   },
   "autoArchive": {
     "title": "看板已完成任务自动归档",
-    "desc": "打开项目时，把「完成」列中停留超过所选天数的任务自动归档（软删除、保留会话/提交溯源，默认从看板隐藏，可随时「显示归档」查看或取消归档）。不会删除任何数据。",
+    "desc": "把「完成」列中停留超过所选天数的任务自动归档（软删除、不丢数据，可随时「显示归档」找回）。",
     "placeholder": "选择自动归档时机",
     "options": {
       "off": "关闭（仅手动归档）",
@@ -93,7 +93,7 @@
       "placeholderClaude": "留空自动查找；如 C:\\Users\\you\\AppData\\Roaming\\npm\\claude.cmd",
       "placeholderCodex": "留空自动查找；如 C:\\Users\\you\\AppData\\Roaming\\npm\\codex.cmd"
     },
-    "cliHint": "将调用本机的 {{cmd}} 命令行（走本地订阅，数据不出本机）。若提示「program not found」但终端里能运行，在上面填它的绝对路径即可（终端里用 where {{cmd}} 查）。",
+    "cliHint": "调用本机 {{cmd}} 命令行（走本地订阅，数据不出本机）。若提示 program not found 但终端能跑，填它的绝对路径（终端 where {{cmd}} 查）。",
     "apiBaseUrlPlaceholderAnthropic": "https://api.anthropic.com（留空用默认）",
     "apiBaseUrlPlaceholderOpenai": "https://api.openai.com/v1（留空用默认）"
   },
@@ -141,7 +141,7 @@
   },
   "claudeIntegration": {
     "title": "Claude Code 集成",
-    "desc": "一键启用 Keelson 与 Claude Code 的联动：① 每次工具操作实时上报<1>活动流</1>（看板同步依赖它）；② Claude 起 <2>npm run dev</2> 等长驻进程时<3>自动托管</3>进「进程」页。只增删 Keelson 自己那两条 hook，其它设置逐字保留。需重启 Claude 会话生效。",
+    "desc": "一键联动 Claude Code：① 工具操作实时上报<1>活动流</1>（看板同步依赖它）；② 长驻进程如 <2>npm run dev</2> <3>自动托管</3>进「进程」页。只增删自有 hook，需重启会话生效。",
     "loading": "读取状态中…",
     "statusEnabled": "已启用（最新）",
     "statusStale": "已启用（有更新，建议升级）",
@@ -158,12 +158,12 @@
   },
   "autoSyncTasks": {
     "title": "看板自动同步（CLI 任务）",
-    "desc": "开启后，Claude 会话里建/改任务（TaskCreate/TaskUpdate）会实时同步进其关联项目的看板。关掉则不自动同步，仍可在会话预览手动点「同步任务」。依赖上方「实时活动 hook」已启用。",
+    "desc": "开启后 Claude 会话里建 / 改任务（TaskCreate/TaskUpdate）自动同步进关联项目看板；关掉仍可在会话预览手动同步。依赖上方活动 hook。",
     "checkboxLabel": "自动同步 CLI 任务到看板"
   },
   "notify": {
     "title": "通知偏好",
-    "desc": "控制哪些类型的通知写入铃铛/收件箱，以及是否弹出桌面系统通知。关闭后，该类型既不创建也不显示（含外部 Agent 写入的同类型通知）。",
+    "desc": "控制各类型通知是否写入铃铛 / 收件箱、是否弹桌面通知。关闭后该类型不创建也不显示。",
     "sessionGranularity": "会话提醒细粒度",
     "newSessionsLabel": "发现新的本地 CLI 会话时提醒（启动时汇总一条，需「会话」类型也开启才生效）",
     "types": {
@@ -177,7 +177,7 @@
   },
   "backend": {
     "title": "后端 / 远程 PocketBase",
-    "desc": "默认使用本地内置 PocketBase（免登录）。填写远程地址后将连接远程并要求邮箱/密码登录，",
+    "desc": "默认使用本地内置 PocketBase（免登录）。填写远程地址后连接远程、要求邮箱 / 密码登录，可多设备共享；需重载生效。",
     "urlLabel": "远程 PocketBase 地址",
     "urlPlaceholder": "https://pb.example.com（留空用本地）",
     "applyBtn": "应用并重载",
@@ -226,7 +226,7 @@
     "codeLoading": "加载中…",
     "regenerateBtn": "重新生成",
     "regenerating": "生成中…",
-    "codeHint": "配对码轮换：每成功配对一台设备后自动作废，配下一台请用此处最新码；手动点「重新生成」可随时作废当前码（如怀疑泄露）。",
+    "codeHint": "每成功配对一台设备后自动轮换，配下一台用此处最新码；怀疑泄露可点「重新生成」立即作废当前码。",
     "codeRegeneratedToast": "配对码已轮换，旧码即刻失效",
     "codeLoadError": "加载配对码失败：{{message}}",
     "codeRegenerateError": "轮换配对码失败：{{message}}",
