@@ -66,9 +66,26 @@ import {
   parseRepeat,
   buildRepeat,
 } from "./recurrence";
+import AgendaView from "./AgendaView";
 
 // 弹窗默认颜色（十六进制，供 <input type="color"> 使用）
 const DEFAULT_COLOR = "#6366f1";
+
+// 日历视图种类
+type CalendarView = "month" | "week" | "day" | "agenda";
+// 视图偏好持久化的 localStorage 键
+const VIEW_STORAGE_KEY = "keelson-calendar-view";
+
+/** 从 localStorage 读取上次选中的视图（非法值回退 month）。 */
+function loadInitialView(): CalendarView {
+  try {
+    const v = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (v === "month" || v === "week" || v === "day" || v === "agenda") return v;
+  } catch {
+    /* localStorage 不可用时静默回退 */
+  }
+  return "month";
+}
 
 // 弹窗状态：open 控制显隐；editing 为编辑目标（无则新建）；dateStr 为预填日期
 interface DialogState {
@@ -82,6 +99,10 @@ interface FormState {
   title: string;
   start: string;
   end: string;
+  /** 开始时刻 "HH:mm"（仅非全天时使用） */
+  startTime: string;
+  /** 结束时刻 "HH:mm"（仅非全天时使用） */
+  endTime: string;
   all_day: boolean;
   color: string;
   description: string;
@@ -144,6 +165,8 @@ function initialForm(state: DialogState): FormState {
       title: ev.title,
       start: toDateInput(ev.start),
       end: toDateInput(ev.end),
+      startTime: ev.start_time || "", // 回填开始时刻
+      endTime: ev.end_time || "", // 回填结束时刻
       all_day: ev.all_day,
       color: ev.color || DEFAULT_COLOR,
       description: ev.description,
@@ -158,6 +181,8 @@ function initialForm(state: DialogState): FormState {
     title: "",
     start: dateStr,
     end: "",
+    startTime: "", // 新建默认无时刻
+    endTime: "",
     all_day: false,
     color: DEFAULT_COLOR,
     description: "",
@@ -196,6 +221,18 @@ export default function CalendarPage() {
 
   // 当前浏览的月份（取任意一天即可代表该月）
   const [viewDate, setViewDate] = useState<Date>(() => new Date());
+  // 当前视图（月/周/日/议程），持久化到 localStorage
+  const [view, setView] = useState<CalendarView>(() => loadInitialView());
+
+  // 切换视图并持久化偏好
+  const changeView = (next: CalendarView) => {
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, next);
+    } catch {
+      /* localStorage 不可用时静默忽略 */
+    }
+  };
   // 弹窗状态
   const [dialog, setDialog] = useState<DialogState>({ open: false });
   // 表单状态
@@ -244,6 +281,14 @@ export default function CalendarPage() {
     [events, days],
   );
 
+  // 议程视图专用：把重复事件在「今天起未来 30 天」区间内展开（与月网格区间不同）
+  const agendaEvents = useMemo(() => {
+    if (view !== "agenda") return events; // 非议程视图不额外计算
+    const start = startOfDay(new Date());
+    const end = addDays(start, 29); // 含今天共 30 天
+    return expandRecurringEvents(events, start, end);
+  }, [events, view]);
+
   // 打开新建弹窗（可携带预填日期）
   const openAdd = (dateStr?: string) => {
     const next: DialogState = { open: true, dateStr };
@@ -271,6 +316,9 @@ export default function CalendarPage() {
       title,
       start: form.start,
       end: form.end || undefined,
+      // 全天事件忽略时刻，存空串
+      start_time: form.all_day ? "" : form.startTime,
+      end_time: form.all_day ? "" : form.endTime,
       all_day: form.all_day,
       color: form.color,
       description: form.description.trim(),
@@ -358,11 +406,29 @@ export default function CalendarPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
-      {/* 头部：当前月份标题 + 月份切换 + 新建 */}
+      {/* 头部：标题 + 视图切换 + 导航 + 新建 */}
       <header className="mb-4 flex shrink-0 items-center justify-between gap-3">
-        <h1 className="font-heading text-xl font-semibold text-foreground">
-          {formatMonthTitle(viewDate)}
-        </h1>
+        <div className="flex items-center gap-3">
+          {/* 月视图显示月份标题；其它视图显示视图名 */}
+          <h1 className="font-heading text-xl font-semibold text-foreground">
+            {view === "month" ? formatMonthTitle(viewDate) : t(`view.${view}`)}
+          </h1>
+          {/* 分段视图切换：月 | 周 | 日 | 议程 */}
+          <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
+            {(["month", "week", "day", "agenda"] as CalendarView[]).map((v) => (
+              <Button
+                key={v}
+                type="button"
+                size="sm"
+                variant={view === v ? "default" : "ghost"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => changeView(v)}
+              >
+                {t(`view.${v}`)}
+              </Button>
+            ))}
+          </div>
+        </div>
 
         <div className="flex items-center gap-2">
           {/* 加载 / 错误状态（低调展示于按钮区左侧） */}
@@ -375,25 +441,30 @@ export default function CalendarPage() {
             </span>
           )}
 
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label={t("page.prevMonth")}
-            onClick={() => setViewDate(addMonths(viewDate, -1))}
-          >
-            <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
-          </Button>
-          <Button variant="outline" onClick={() => setViewDate(new Date())}>
-            {t("page.today")}
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label={t("page.nextMonth")}
-            onClick={() => setViewDate(addMonths(viewDate, 1))}
-          >
-            <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
-          </Button>
+          {/* 月份导航仅在月视图显示（周/日视图为占位，议程无需导航） */}
+          {view === "month" && (
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label={t("page.prevMonth")}
+                onClick={() => setViewDate(addMonths(viewDate, -1))}
+              >
+                <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
+              </Button>
+              <Button variant="outline" onClick={() => setViewDate(new Date())}>
+                {t("page.today")}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label={t("page.nextMonth")}
+                onClick={() => setViewDate(addMonths(viewDate, 1))}
+              >
+                <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
+              </Button>
+            </>
+          )}
           <Button onClick={() => openAdd(format(new Date(), "yyyy-MM-dd"))}>
             <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
             {t("page.create")}
@@ -401,6 +472,26 @@ export default function CalendarPage() {
         </div>
       </header>
 
+      {/* 议程视图 */}
+      {view === "agenda" && (
+        <AgendaView
+          events={agendaEvents}
+          tasks={dueTasks}
+          onEventClick={openEdit}
+          onTaskClick={(tk) => navigate(`/board?open=${tk.project}`)}
+        />
+      )}
+
+      {/* 周 / 日视图：本阶段占位（Stage 3-4 实现时间轴） */}
+      {(view === "week" || view === "day") && (
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <p className="text-sm text-muted-foreground">{t("view.comingSoon")}</p>
+        </div>
+      )}
+
+      {/* ── 月视图（星期表头 + 网格），仅在 month 视图渲染 ── */}
+      {view === "month" && (
+      <>
       {/* 星期表头：7 列 */}
       <div className="grid shrink-0 grid-cols-7 border-b border-border">
         {weekdays.map((w, i) => (
@@ -486,7 +577,11 @@ export default function CalendarPage() {
                             background: ev.color || "var(--color-primary)",
                           }}
                         />
-                        <span className="truncate text-foreground">{ev.title}</span>
+                        <span className="truncate text-foreground">
+                          {/* 带时刻的非全天事件：标题前缀显示 "HH:mm " */}
+                          {!ev.all_day && ev.start_time ? ev.start_time + " " : ""}
+                          {ev.title}
+                        </span>
                       </button>
                     </ContextMenuTrigger>
                     <ContextMenuContent>
@@ -541,6 +636,8 @@ export default function CalendarPage() {
           );
         })}
       </div>
+      </>
+      )}
 
       {/* 新建 / 编辑弹窗 */}
       <Dialog
@@ -627,6 +724,34 @@ export default function CalendarPage() {
                 />
               </Label>
             </div>
+
+            {/* 开始 / 结束时刻：仅非全天时显示 */}
+            {!form.all_day && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cal-start-time">{t("dialog.fieldStartTime")}</Label>
+                  <Input
+                    id="cal-start-time"
+                    type="time"
+                    value={form.startTime}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, startTime: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="cal-end-time">{t("dialog.fieldEndTime")}</Label>
+                  <Input
+                    id="cal-end-time"
+                    type="time"
+                    value={form.endTime}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, endTime: e.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+            )}
 
             {/* 重复（轻量循环：单位 + 每 N 步长，仅展开显示） */}
             <div className="flex flex-col gap-1.5">

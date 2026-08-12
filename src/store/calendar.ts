@@ -53,6 +53,10 @@ interface CalendarStoreState {
     title: string;
     start: string;
     end?: string;
+    /** 开始时刻 "HH:mm"（可选，all_day 时忽略） */
+    start_time?: string;
+    /** 结束时刻 "HH:mm"（可选，all_day 时忽略） */
+    end_time?: string;
     all_day?: boolean;
     color?: string;
     description?: string;
@@ -68,6 +72,8 @@ interface CalendarStoreState {
         | "title"
         | "start"
         | "end"
+        | "start_time"
+        | "end_time"
         | "all_day"
         | "color"
         | "description"
@@ -120,6 +126,8 @@ export const useCalendarStore = create<CalendarStoreState>((set, get) => ({
       title: input.title,
       start: input.start,
       end: input.end ?? "", // end 默认空串
+      start_time: input.start_time ?? "", // 开始时刻默认空串
+      end_time: input.end_time ?? "", // 结束时刻默认空串
       all_day: input.all_day ?? false, // 默认非全天
       color: input.color ?? "", // color 默认空串
       description: input.description ?? "", // description 默认空串

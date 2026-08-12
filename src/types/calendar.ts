@@ -11,6 +11,10 @@ export interface CalendarEvent {
   description: string;
   start: string;
   end: string;
+  /** 开始时刻（"HH:mm"）；all_day 为真时忽略；空串=未设置 */
+  start_time?: string;
+  /** 结束时刻（"HH:mm"）；all_day 为真时忽略；空串=未设置 */
+  end_time?: string;
   all_day: boolean;
   color: string;
   /** 重复规则（空串=不重复 / daily / weekly / monthly / yearly）；轻量循环，仅展开显示 */

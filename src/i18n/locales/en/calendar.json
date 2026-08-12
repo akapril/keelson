@@ -7,6 +7,20 @@
     "loading": "Loading…",
     "weekdays": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
   },
+  "view": {
+    "month": "Month",
+    "week": "Week",
+    "day": "Day",
+    "agenda": "Agenda",
+    "comingSoon": "Coming soon"
+  },
+  "agenda": {
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "allDay": "All day",
+    "taskBadge": "Task",
+    "empty": "No events in the next 30 days"
+  },
   "event": {
     "contextEdit": "Edit",
     "contextDelete": "Delete",
@@ -19,6 +33,8 @@
     "fieldTitlePlaceholder": "Event title",
     "fieldStart": "Start date",
     "fieldEnd": "End date",
+    "fieldStartTime": "Start time",
+    "fieldEndTime": "End time",
     "fieldAllDay": "All day",
     "fieldColor": "Color",
     "fieldRepeat": "Repeat",
