@@ -39,12 +39,7 @@ import {
 } from "@/features/docs/MilkdownDocumentEditor";
 import { parseHeadings } from "@/features/docs/toc";
 import { parseWikiLinks, contentLinksTo } from "@/features/docs/wiki-links";
-import {
-  openDocWindow,
-  closeThisWindow,
-  minimizeThisWindow,
-  toggleMaximizeThisWindow,
-} from "@/lib/tauri/window";
+import { openDocWindow, closeThisWindow } from "@/lib/tauri/window";
 import {
   getDocRecord,
   updateDocRecord,
@@ -54,39 +49,6 @@ import {
 import { listProjects } from "@/lib/pb/board";
 import type { BoardDoc } from "@/types/docs";
 import type { BoardProject } from "@/types/board";
-
-// 独立窗口控制按钮（最小化 / 最大化-还原 / 关闭）——无原生边框时替代原生按钮。
-// 内联 SVG，零图标依赖；不放进拖拽区（按钮自身可点，周围空白仍可拖拽）。
-function WindowControls() {
-  const { t } = useTranslation("shell");
-  const btn =
-    "inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
-  return (
-    <div className="ml-1 flex items-center gap-0.5">
-      <button type="button" aria-label={t("doc.ariaMinimize")} className={btn} onClick={() => void minimizeThisWindow()}>
-        <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
-          <line x1="0" y1="5.5" x2="10" y2="5.5" stroke="currentColor" strokeWidth="1" />
-        </svg>
-      </button>
-      <button type="button" aria-label={t("doc.ariaMaximize")} className={btn} onClick={() => void toggleMaximizeThisWindow()}>
-        <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
-          <rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="1" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        aria-label={t("doc.ariaClose")}
-        className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-white"
-        onClick={() => void closeThisWindow()}
-      >
-        <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
-          <line x1="0.5" y1="0.5" x2="9.5" y2="9.5" stroke="currentColor" strokeWidth="1.2" />
-          <line x1="9.5" y1="0.5" x2="0.5" y2="9.5" stroke="currentColor" strokeWidth="1.2" />
-        </svg>
-      </button>
-    </div>
-  );
-}
 
 export default function DocPage({ windowMode = false }: { windowMode?: boolean }) {
   const { t } = useTranslation("shell");
@@ -247,13 +209,11 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
 
   return (
     <div className="flex h-full min-h-0 flex-col p-6">
-      {/* 头部：返回 + 标题 + 所属项目 + 删除。
-          独立窗口下这一行即充当标题栏：整行可拖拽移动窗口，右侧带窗口控制。 */}
-      <div
-        data-tauri-drag-region={windowMode ? "" : undefined}
-        className="mb-3 flex shrink-0 items-center gap-2"
-      >
-        {/* 独立窗口下窗口控制交给自建标题栏，这里不再重复返回/关闭按钮 */}
+      {/* 头部工具栏：返回 + 标题 + 所属项目 + 删除。
+          独立窗口的窗口控制(拖拽/最小化/最大化/关闭)在顶部 TitleBar，不放这一行——
+          避免破坏性「删除」和窗口「关闭」相邻误点。 */}
+      <div className="mb-3 flex shrink-0 items-center gap-2">
+        {/* 独立窗口下返回/关闭交给顶部 TitleBar，这里不再重复 */}
         {!windowMode && (
           <Button
             variant="ghost"
@@ -336,8 +296,6 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        {/* 独立窗口：窗口控制（最小化/最大化/关闭），无原生边框时的替代 */}
-        {windowMode && <WindowControls />}
       </div>
 
       {/* 所属项目胶囊（只读展示，便于确认归属） */}

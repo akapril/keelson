@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { DashboardLayout } from "./components/dashboard-layout";
+import { TitleBar } from "./components/title-bar";
 
 // 路由懒加载：重型页面（recharts/milkdown/codemirror 等）按需加载，加快首屏启动。
 // 布局(DashboardLayout)保持同步以立即渲染外壳；页面在 <Suspense> 下延迟加载。
@@ -23,14 +24,18 @@ export function AppRouter() {
   return (
     <HashRouter>
       <Routes>
-        {/* 独立文档窗口：无原生边框、无侧栏；DocPage 头部本身充当标题栏(可拖拽+窗口控制) */}
+        {/* 独立文档窗口：无原生边框、无侧栏；顶部规范 TitleBar(拖拽+窗口控制)，下方纯文档编辑器。
+            窗口控制与文档操作(删除等)分离，与主窗口观感一致。 */}
         <Route
           path="/doc-window/:id"
           element={
-            <div className="h-screen">
-              <Suspense fallback={null}>
-                <DocPage windowMode />
-              </Suspense>
+            <div className="flex h-screen flex-col">
+              <TitleBar />
+              <div className="min-h-0 flex-1">
+                <Suspense fallback={null}>
+                  <DocPage windowMode />
+                </Suspense>
+              </div>
             </div>
           }
         />

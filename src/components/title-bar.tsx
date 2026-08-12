@@ -1,6 +1,6 @@
 // 自建标题栏（decorations:false 后替代原生标题栏）。
 // 顶部细条：可拖拽区（data-tauri-drag-region，双击最大化/还原）+ 窗口控制按钮。
-// 控件用内联 SVG，零图标依赖。仅主窗口渲染（spotlight 无标题栏）。
+// 控件用内联 SVG，零图标依赖。主窗口与文档独立窗口渲染（spotlight 无标题栏）。
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
 
