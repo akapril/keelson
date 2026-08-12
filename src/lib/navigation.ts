@@ -63,6 +63,12 @@ export const navGroups: NavGroup[] = [
         icon: BookOpen01Icon,
         descriptionKey: "nav.reading.description",
       },
+    ],
+  },
+  {
+    // 「更多」：非日常主线的功能收进此组，保持主工作区清爽（仍可访问/搜索）
+    labelKey: "nav.groupMore",
+    items: [
       {
         titleKey: "nav.calendar.title",
         url: "/calendar",

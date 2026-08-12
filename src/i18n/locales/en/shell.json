@@ -107,6 +107,7 @@
   },
   "nav": {
     "groupWorkspace": "Workspace",
+    "groupMore": "More",
     "groupSystem": "System",
     "dashboard": { "title": "Overview", "description": "Sessions · Board · Reading · Calendar" },
     "sessions": { "title": "Sessions", "description": "Browse, search and restore local AI CLI sessions" },

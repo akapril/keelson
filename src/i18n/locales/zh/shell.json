@@ -107,6 +107,7 @@
   },
   "nav": {
     "groupWorkspace": "工作区",
+    "groupMore": "更多",
     "groupSystem": "系统",
     "dashboard": { "title": "总览", "description": "会话 · 看板 · 阅读 · 日程一览" },
     "sessions": { "title": "会话中枢", "description": "本地 AI CLI 会话的浏览、检索与恢复" },
