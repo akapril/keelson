@@ -19,6 +19,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { StarIcon, ArrowRight01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
+import { toast } from "sonner";
 import {
   Sidebar,
   SidebarContent,
@@ -28,6 +29,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -35,18 +37,41 @@ import {
 import { Logo } from "@/components/logo";
 import { navGroups } from "@/lib/navigation";
 import { useBoardStore, selectPinnedProjects } from "@/store/board";
+import { useSessionsStore } from "@/store/sessions";
+import { useRestoreStore } from "@/store/restore";
+import type { Session } from "@/types/session";
 
 /** 收藏组单行：可拖拽排序，点击 NavLink 走 /board?open=<id>（board 页据此打开项目）。
  * SidebarMenuItem 未用 forwardRef 不接受 ref，故这里直接渲染等价的 <li>（复制其
  * data-slot/data-sidebar/className）承接 dnd-kit 的 ref/style，避免 ul>div>li 语义违规。
  */
-function FavoriteRow({ id, name }: { id: string; name: string }) {
+function FavoriteRow({
+  id,
+  name,
+  latestSession,
+}: {
+  id: string;
+  name: string;
+  /** 该项目最近会话（供悬停「继续」一键续接；无则不显示继续按钮） */
+  latestSession?: Session;
+}) {
+  const { t } = useTranslation("board");
+  const restore = useRestoreStore((s) => s.restore);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
+  };
+  // 一键续接最近会话：直接开(新终端窗，跳过选窗口/标签弹窗)，不导航进项目
+  const handleResume = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!latestSession) return;
+    await restore(latestSession, false);
+    const err = useRestoreStore.getState().error;
+    if (err) toast.error(t("project.toast.resumeError", { msg: err }));
   };
   return (
     <li
@@ -62,6 +87,16 @@ function FavoriteRow({ id, name }: { id: string; name: string }) {
           <span className="truncate">{name}</span>
         </NavLink>
       </SidebarMenuButton>
+      {/* 悬停「继续」：续接该项目最近会话，不必先进项目 */}
+      {latestSession && (
+        <SidebarMenuAction
+          showOnHover
+          onClick={handleResume}
+          title={t("project.continueTitle", { provider: latestSession.provider })}
+        >
+          <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
+        </SidebarMenuAction>
+      )}
     </li>
   );
 }
@@ -74,6 +109,14 @@ export function AppSidebar() {
   const projects = useBoardStore((s) => s.projects);
   const reorderPin = useBoardStore((s) => s.reorderPin);
   const pinned = useMemo(() => selectPinnedProjects(projects), [projects]);
+
+  // 会话缓存：供收藏行「继续」定位每个项目的最近会话
+  const sessions = useSessionsStore((s) => s.sessions);
+  const latestSessionOf = (repoPath?: string): Session | undefined => {
+    if (!repoPath) return undefined;
+    const list = sessions.filter((s) => s.project_path === repoPath);
+    return list.length ? list.reduce((a, b) => (a.updated_at > b.updated_at ? a : b)) : undefined;
+  };
 
   // 「更多」组折叠态（默认收起，记住选择）——降级的功能收进这里，日常不占前排
   const [moreOpen, setMoreOpen] = useState<boolean>(
@@ -159,7 +202,12 @@ export function AppSidebar() {
                     strategy={verticalListSortingStrategy}
                   >
                     {pinned.map((p) => (
-                      <FavoriteRow key={p.id} id={p.id} name={p.name} />
+                      <FavoriteRow
+                        key={p.id}
+                        id={p.id}
+                        name={p.name}
+                        latestSession={latestSessionOf(p.repo_path)}
+                      />
                     ))}
                   </SortableContext>
                 </DndContext>
