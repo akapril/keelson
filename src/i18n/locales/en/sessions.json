@@ -132,8 +132,9 @@
   },
   "fileChanges": {
     "loading": "Reading files changed in this session…",
-    "empty": "No file change records (or not a Claude session).",
-    "editsCount": "{{n}} edits"
+    "empty": "No file change records.",
+    "editsCount": "{{n}} edits",
+    "deleted": "(file deleted)"
   },
   "linkedTasks": {
     "empty": "No linked tasks.",

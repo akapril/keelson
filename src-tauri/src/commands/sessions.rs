@@ -86,18 +86,16 @@ pub async fn sessions_timeline(
     })
 }
 
-/// 返回指定会话改动的文件列表（从转录里的 Write/Edit/MultiEdit 还原，含未提交改动）。
-/// v1 仅 Claude（转录带结构化 tool_use）；其它 provider 返回空。
+/// 返回指定会话改动的文件列表（从转录还原，含未提交改动）。
+/// - Claude：Write/Edit/MultiEdit 结构化 tool_use；
+/// - Codex：apply_patch 信封（exec/shell 的非结构化改动不解析）。
 /// async + spawn_blocking：解析转录移出主线程。
 #[tauri::command]
 pub async fn session_file_changes(provider: String, session_id: String) -> Vec<FileChange> {
-    tokio::task::spawn_blocking(move || {
-        if provider == "claude" {
-            crate::providers::claude::read_claude_file_changes(&session_id)
-        } else {
-            // Codex 的文件改动走 apply_patch/shell，结构不同，v1 暂不支持
-            Vec::new()
-        }
+    tokio::task::spawn_blocking(move || match provider.as_str() {
+        "claude" => crate::providers::claude::read_claude_file_changes(&session_id),
+        "codex" => crate::providers::codex::read_codex_file_changes(&session_id),
+        _ => Vec::new(),
     })
     .await
     .unwrap_or_default()

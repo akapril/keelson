@@ -409,14 +409,16 @@ fn read_claude_timeline(session_id: &str) -> Vec<TimelineMessage> {
 /// 单个字段截断上限（防止 Write 大文件把 payload 撑爆）。
 const FILE_EDIT_CAP: usize = 4000;
 /// 单会话最多返回的改动条目（跨所有文件），防极端会话。
-const MAX_EDITS: usize = 400;
+/// pub(crate)：codex.rs 的文件改动解析复用同一上限，避免两处漂移。
+pub(crate) const MAX_EDITS: usize = 400;
 
 /// 时间轴单条消息字符上限：对真实消息等于"不截断"（正常消息远小于此），
 /// 仅对病态巨型粘贴（贴整个文件）保留兜底，避免 IPC 一次传十几 MB。用于阅读全文。
 const TIMELINE_MSG_CHARS: usize = 20000;
 
 /// 截断长文本，超限追加省略标记。
-fn cap_text(s: &str) -> String {
+/// pub(crate)：codex.rs 的文件改动解析复用同一截断规则。
+pub(crate) fn cap_text(s: &str) -> String {
     if s.chars().count() <= FILE_EDIT_CAP {
         s.to_string()
     } else {

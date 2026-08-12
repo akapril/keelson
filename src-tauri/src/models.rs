@@ -1,15 +1,17 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-/// 会话内一次文件改动（来自转录里的 Write/Edit/MultiEdit 工具调用）。
-/// old/new 为截断后的前后文本（Write 时 old 为空、new 为写入内容）。
+/// 会话内一次文件改动（来自转录里的工具调用）。
+/// - Claude：Write/Edit/MultiEdit → old/new 为截断后前后文本（Write 时 old 空）。
+/// - Codex：apply_patch 信封 → 新增文件 old 空、修改块 old/new 为块前后文、
+///   删除文件 old/new 皆空（tool="apply_patch" 供前端识别删除）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileEdit {
-    /// 工具名：Write / Edit / MultiEdit
+    /// 工具名：Write / Edit / MultiEdit / apply_patch
     pub tool: String,
-    /// 改动前文本（Write 为空串）
+    /// 改动前文本（新增文件为空串）
     pub old: String,
-    /// 改动后文本
+    /// 改动后文本（删除文件为空串）
     pub new: String,
 }
 

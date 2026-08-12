@@ -132,8 +132,9 @@
   },
   "fileChanges": {
     "loading": "正在读取本会话改动的文件…",
-    "empty": "无文件改动记录（或非 Claude 会话）。",
-    "editsCount": "{{n}} 处"
+    "empty": "无文件改动记录。",
+    "editsCount": "{{n}} 处",
+    "deleted": "（文件已删除）"
   },
   "linkedTasks": {
     "empty": "无关联任务。",
