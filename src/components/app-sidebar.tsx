@@ -1,5 +1,5 @@
 // 应用侧栏 —— 移植自 workavera（Apache-2.0），改用 Keelson 品牌与路由，react-router-dom。
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -16,7 +16,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { StarIcon } from "@hugeicons/core-free-icons";
+import { StarIcon, ArrowRight01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -74,6 +74,17 @@ export function AppSidebar() {
   const projects = useBoardStore((s) => s.projects);
   const reorderPin = useBoardStore((s) => s.reorderPin);
   const pinned = useMemo(() => selectPinnedProjects(projects), [projects]);
+
+  // 「更多」组折叠态（默认收起，记住选择）——降级的功能收进这里，日常不占前排
+  const [moreOpen, setMoreOpen] = useState<boolean>(
+    () => localStorage.getItem("keelson-nav-more-open") === "1",
+  );
+  const toggleMore = () =>
+    setMoreOpen((o) => {
+      const next = !o;
+      localStorage.setItem("keelson-nav-more-open", next ? "1" : "0");
+      return next;
+    });
 
   // 兜底：侧栏在任意页都可见，若项目尚未加载（用户没进过「项目」页）则拉一次，
   // 使收藏组启动即可用。loadProjects 仅做列表拉取（无实时订阅副作用），重复调用安全。
@@ -156,34 +167,59 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
-        {navGroups.map((group) => (
-          <SidebarGroup key={group.labelKey}>
-            <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
-              {t(group.labelKey)}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.titleKey}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={t(item.titleKey)}
-                      isActive={
-                        pathname === item.url ||
-                        pathname.startsWith(item.url + "/")
-                      }
-                    >
-                      <NavLink to={item.url}>
-                        <HugeiconsIcon icon={item.icon} strokeWidth={2} />
-                        <span>{t(item.titleKey)}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+        {navGroups.map((group) => {
+          // 「更多」组可折叠（默认收起）；其余组照常展开
+          const isMore = group.labelKey === "nav.groupMore";
+          const showItems = !isMore || moreOpen;
+          return (
+            <SidebarGroup key={group.labelKey}>
+              {isMore ? (
+                <SidebarGroupLabel asChild className="sticky top-0 z-10 bg-sidebar">
+                  <button
+                    type="button"
+                    onClick={toggleMore}
+                    aria-expanded={moreOpen}
+                    className="flex w-full items-center gap-1"
+                  >
+                    <HugeiconsIcon
+                      icon={moreOpen ? ArrowDown01Icon : ArrowRight01Icon}
+                      strokeWidth={2}
+                      className="size-3.5 shrink-0"
+                    />
+                    {t(group.labelKey)}
+                  </button>
+                </SidebarGroupLabel>
+              ) : (
+                <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
+                  {t(group.labelKey)}
+                </SidebarGroupLabel>
+              )}
+              {showItems && (
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {group.items.map((item) => (
+                      <SidebarMenuItem key={item.titleKey}>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip={t(item.titleKey)}
+                          isActive={
+                            pathname === item.url ||
+                            pathname.startsWith(item.url + "/")
+                          }
+                        >
+                          <NavLink to={item.url}>
+                            <HugeiconsIcon icon={item.icon} strokeWidth={2} />
+                            <span>{t(item.titleKey)}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              )}
+            </SidebarGroup>
+          );
+        })}
       </SidebarContent>
 
       <SidebarFooter>
