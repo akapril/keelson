@@ -98,8 +98,18 @@ function FavoriteRow({
       .catch((err) => toast.error(t("sessions.toast.startError", { msg: String(err) })));
   };
 
-  const actBtn =
-    "flex size-5 items-center justify-center rounded text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground";
+  // 接续为主：略突出(主色)；新终端为辅(临时)：更淡
+  const resumeBtnCls =
+    "flex size-5 items-center justify-center rounded text-primary/80 transition-colors hover:bg-sidebar-accent hover:text-primary";
+  const newBtnCls =
+    "flex size-5 items-center justify-center rounded text-sidebar-foreground/45 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground";
+  // 接续提示：显示会接到哪个会话(最近会话的摘要)，让你续接前看清目标
+  const promptSnippet = latestSession
+    ? (latestSession.last_prompt || latestSession.first_prompt || "").trim().slice(0, 40)
+    : "";
+  const resumeTitle = promptSnippet
+    ? t("project.resumeActionTitle", { provider, text: promptSnippet })
+    : t("project.continueTitle", { provider });
 
   return (
     <li
@@ -121,9 +131,9 @@ function FavoriteRow({
           {latestSession && (
             <button
               type="button"
-              className={actBtn}
+              className={resumeBtnCls}
               onClick={handleResume}
-              title={t("project.continueTitle", { provider })}
+              title={resumeTitle}
             >
               <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-3.5" />
             </button>
@@ -131,9 +141,9 @@ function FavoriteRow({
           {repoPath && (
             <button
               type="button"
-              className={actBtn}
+              className={newBtnCls}
               onClick={handleNewTerminal}
-              title={t("project.newTerminalTitle", { provider: providerLabel })}
+              title={t("project.newTempTitle", { provider: providerLabel })}
             >
               <HugeiconsIcon icon={Add01Icon} strokeWidth={2} className="size-3.5" />
             </button>

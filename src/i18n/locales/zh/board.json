@@ -145,6 +145,8 @@
     "continueTitle": "续接最近会话（{{provider}}）",
     "newTerminalBtn": "终端",
     "newTerminalTitle": "在项目目录新建 {{provider}} 会话",
+    "resumeActionTitle": "接续最近会话（{{provider}}）：{{text}}",
+    "newTempTitle": "新建临时终端会话（{{provider}}）",
     "ctxMenu": {
       "open": "打开项目",
       "copyRepoPath": "复制仓库路径",

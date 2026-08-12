@@ -145,6 +145,8 @@
     "continueTitle": "Resume latest session ({{provider}})",
     "newTerminalBtn": "Terminal",
     "newTerminalTitle": "New {{provider}} session in project directory",
+    "resumeActionTitle": "Resume latest session ({{provider}}): {{text}}",
+    "newTempTitle": "New temporary session ({{provider}})",
     "ctxMenu": {
       "open": "Open project",
       "copyRepoPath": "Copy repo path",
