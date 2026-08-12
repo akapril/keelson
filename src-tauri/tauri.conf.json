@@ -59,7 +59,10 @@
       "icons/icon.ico"
     ],
     "externalBin": ["binaries/pocketbase"],
-    "resources": ["pb_migrations/*"],
+    "resources": {
+      "pb_migrations/*": "pb_migrations/",
+      "../dist/": "dist/"
+    },
     "macOS": {
       "signingIdentity": "-"
     }
