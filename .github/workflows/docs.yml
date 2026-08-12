@@ -1,0 +1,54 @@
+name: Docs (VitePress → GitHub Pages)
+
+# 仅在 docs 或根 package.json 变化时构建部署文档站；也支持手动触发
+on:
+  push:
+    branches: [master]
+    paths:
+      - "docs/**"
+      - "package.json"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+# GitHub Pages 部署所需权限
+permissions:
+  pages: write
+  id-token: write
+  contents: read
+
+# 防止并发部署互相覆盖
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 构建文档站
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+      - name: 构建 VitePress
+        run: pnpm docs:build
+      - name: 上传 Pages 产物
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    name: 部署到 GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 部署
+        id: deployment
+        uses: actions/deploy-pages@v4
