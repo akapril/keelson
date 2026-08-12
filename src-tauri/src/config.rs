@@ -124,6 +124,8 @@ mod tests {
             terminal_pref: "wt".to_string(),
             web_autostart: true,
             on_exit_processes: "ask".to_string(),
+            log_retention_days: default_log_retention_days(),
+            clear_logs_pending: false,
         };
         original.save(&path).expect("save 应成功");
 
