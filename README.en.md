@@ -185,9 +185,9 @@ All app data lives in the local PocketBase `pb_data` directory (Settings → Bac
 
 | Platform | Path |
 |---|---|
-| Windows | `%APPDATA%\com.rework.app\pb_data` |
-| macOS | `~/Library/Application Support/com.rework.app/pb_data` |
-| Linux | `~/.local/share/com.rework.app/pb_data` |
+| Windows | `%APPDATA%\com.keelson.app\pb_data` |
+| macOS | `~/Library/Application Support/com.keelson.app/pb_data` |
+| Linux | `~/.local/share/com.keelson.app/pb_data` |
 
 Backup = quit Keelson and copy the whole directory (`data.db` is the main store, `storage/` holds doc images). Sessions themselves aren't here — they're live scans of `~/.claude` etc., not stored by Keelson.
 

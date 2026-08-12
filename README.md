@@ -185,9 +185,9 @@ PocketBase sidecar 由 `scripts/fetch-pocketbase.mjs` 在 `prebuild` 阶段按�
 
 | 平台 | 路径 |
 |---|---|
-| Windows | `%APPDATA%\com.rework.app\pb_data` |
-| macOS | `~/Library/Application Support/com.rework.app/pb_data` |
-| Linux | `~/.local/share/com.rework.app/pb_data` |
+| Windows | `%APPDATA%\com.keelson.app\pb_data` |
+| macOS | `~/Library/Application Support/com.keelson.app/pb_data` |
+| Linux | `~/.local/share/com.keelson.app/pb_data` |
 
 备份 = 关闭 Keelson 后整目录拷走即可（`data.db` 为主库，`storage/` 为文档图片）。会话本身不在此——它们是 `~/.claude` 等的实时扫描，不由 Keelson 存储。
 
