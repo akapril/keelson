@@ -15,10 +15,13 @@ export function UpdateSection() {
   const install = async () => {
     toast.loading(t("updater.toast.loading"), { id: "app-update" });
     await useUpdaterStore.getState().installAndRestart();
-    toast.error(
-      t("updater.toast.error", { error: useUpdaterStore.getState().error ?? "Unknown error" }),
-      { id: "app-update" },
-    );
+    // 成功会 relaunch（应用重启，此后代码不执行）；能走到这里说明未重启——仅在确有错误时报错，否则收起 loading。
+    const err = useUpdaterStore.getState().error;
+    if (err) {
+      toast.error(t("updater.toast.error", { error: err }), { id: "app-update" });
+    } else {
+      toast.dismiss("app-update");
+    }
   };
 
   return (
