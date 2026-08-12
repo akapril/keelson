@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/akapril/keelson/compare/v0.3.0...v0.3.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* **updater:** 安装成功不再误弹错误 toast ([d9522a6](https://github.com/akapril/keelson/commit/d9522a6b8cd7fa1b0876e64c7e2755a9625159e3))
+* **web:** 配对码后台轮询改静默刷新，不再每 4 秒闪一次 ([7b888bb](https://github.com/akapril/keelson/commit/7b888bb132a9f61e92da66ba2d44eed378e3512f))
+
 ## [0.3.0](https://github.com/akapril/keelson/compare/v0.2.0...v0.3.0) (2026-08-12)
 
 
