@@ -1,8 +1,9 @@
-// 设置页：仅做区块组合与 store 加载。各设置区已拆到 features/settings/*，
-// 主体不再持有各区状态、也不再全量订阅 settings store（只取 error + load）。
-import { useEffect } from "react";
+// 设置页：左侧分类导航 + 右侧该分类的设置区。各设置区已拆到 features/settings/*，
+// 主体只做分类编排与 store 加载（只取 error + load，各区各自订阅所需 slice）。
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/store/settings";
 import { ExportSection } from "@/features/export/ExportSection";
 import { UpdateSection } from "@/features/updater/UpdateSection";
@@ -22,45 +23,96 @@ import { AutoSyncTasksSection } from "@/features/settings/AutoSyncTasksSection";
 import { NotifyPrefsSection } from "@/features/settings/NotifyPrefsSection";
 import { WebGatewaySection } from "@/features/settings/WebGatewaySection";
 
-/** 分隔线（各设置区之间）。 */
+/** 分隔线（同分类内各区之间）。 */
 function Divider() {
   return <div className="border-t border-border" />;
 }
 
 /**
- * 设置页面。各区块拆分见 features/settings/*：
- * 快捷键 / 工作区 / 项目默认 tab / 自动归档 / AI / 检索嵌入 / MCP / Claude 集成 /
- * 自动同步 / 通知偏好 / 导出 / 更新 / 后端。
+ * 设置页面。区块拆分见 features/settings/*，按 4 个分类编排：
+ * 通用 / AI 与集成 / 数据与远程 / 系统。
+ * 每个 section 带稳定 id，供 ?section=<id> 深链定位（先切到所属分类再滚动）。
  * 颜色全部使用 Tailwind 语义类（无硬编码 hex/rgba），自动适配明暗主题。
  */
 export default function Settings() {
   const { t } = useTranslation("settings");
-  // 主体只取 error（顶部错误提示）与 load（挂载加载）；各区各自订阅所需 slice。
   const error = useSettingsStore((s) => s.error);
   const load = useSettingsStore((s) => s.load);
-  // 深链定位：?section=<id>（如首页「去接入」跳 ?section=mcp）→ 滚动到该区块。
-  // HashRouter 下用 query 参而非 #锚点（#会和路由 hash 冲突）。
   const [params] = useSearchParams();
+  const [active, setActive] = useState(0);
+
+  // 分类编排：id 用于导航高亮，section.id 用于深链定位。仅渲染当前分类的区块（其余惰性挂载）。
+  const categories = useMemo(
+    () => [
+      {
+        id: "general",
+        label: t("categories.general"),
+        sections: [
+          { id: "language", el: <LanguageSection /> },
+          { id: "shortcut", el: <ShortcutSection /> },
+          { id: "projectDefaultTab", el: <ProjectDefaultTabSection /> },
+          { id: "notify", el: <NotifyPrefsSection /> },
+        ],
+      },
+      {
+        id: "ai",
+        label: t("categories.ai"),
+        sections: [
+          { id: "ai", el: <AiSection /> },
+          { id: "embed", el: <EmbedSection /> },
+          { id: "mcp", el: <McpSection /> },
+          { id: "claudeIntegration", el: <ClaudeIntegrationSection /> },
+          { id: "autoSyncTasks", el: <AutoSyncTasksSection /> },
+        ],
+      },
+      {
+        id: "data",
+        label: t("categories.data"),
+        sections: [
+          { id: "workspacePath", el: <WorkspacePathSection /> },
+          { id: "autoArchive", el: <AutoArchiveSection /> },
+          { id: "backend", el: <BackendSection /> },
+          { id: "webGateway", el: <WebGatewaySection /> },
+          { id: "export", el: <ExportSection /> },
+        ],
+      },
+      {
+        id: "system",
+        label: t("categories.system"),
+        sections: [
+          { id: "systemData", el: <SystemDataSection /> },
+          { id: "processExit", el: <ProcessExitSection /> },
+          { id: "updater", el: <UpdateSection /> },
+        ],
+      },
+    ],
+    [t],
+  );
 
   // 挂载时从后端加载设置
   useEffect(() => {
     load();
   }, [load]);
 
-  // 有 ?section= 时滚动定位到对应区块（延一帧待各区渲染完）
+  // 深链 ?section=<id>：切到该 section 所属分类，再滚动定位（延一帧待渲染）
   useEffect(() => {
     const section = params.get("section");
     if (!section) return;
-    const id = window.requestAnimationFrame(() => {
+    const catIdx = categories.findIndex((c) => c.sections.some((s) => s.id === section));
+    if (catIdx < 0) return;
+    setActive(catIdx);
+    const raf = window.requestAnimationFrame(() => {
       document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    return () => window.cancelAnimationFrame(id);
-  }, [params]);
+    return () => window.cancelAnimationFrame(raf);
+  }, [params, categories]);
+
+  const current = categories[active] ?? categories[0];
 
   return (
-    <div className="mx-auto max-w-xl space-y-8 px-6 py-6">
+    <div className="mx-auto max-w-4xl px-6 py-6">
       {/* 标题 + 当前版本号（版本经 vite define __APP_VERSION__ 注入，见 vite.config） */}
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="mb-6 flex items-baseline justify-between gap-3">
         <h1 className="text-lg font-semibold">{t("page.title")}</h1>
         <span className="shrink-0 font-mono text-xs text-muted-foreground">
           Keelson v{__APP_VERSION__}
@@ -71,48 +123,44 @@ export default function Settings() {
       {error && (
         <div
           role="alert"
-          className="rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          className="mb-6 rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           {error}
         </div>
       )}
 
-      <LanguageSection />
-      <Divider />
-      <ShortcutSection />
-      <Divider />
-      <WorkspacePathSection />
-      <Divider />
-      <ProjectDefaultTabSection />
-      <Divider />
-      <ProcessExitSection />
-      <Divider />
-      <SystemDataSection />
-      <Divider />
-      <AutoArchiveSection />
-      <Divider />
-      <AiSection />
-      <Divider />
-      <EmbedSection />
-      <Divider />
-      {/* id=mcp：供首页「去接入」深链滚动定位；scroll-mt 留出顶栏偏移 */}
-      <div id="mcp" className="scroll-mt-6">
-        <McpSection />
+      <div className="flex gap-8">
+        {/* 左：分类导航（黏顶，窄页宽下也不换行） */}
+        <nav className="sticky top-6 flex w-36 shrink-0 flex-col gap-0.5 self-start">
+          {categories.map((c, i) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setActive(i)}
+              className={cn(
+                "rounded-md px-3 py-2 text-left text-sm transition-colors",
+                i === active
+                  ? "bg-muted font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+              )}
+            >
+              {c.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* 右：当前分类的设置区 */}
+        <div className="min-w-0 flex-1 space-y-8">
+          {current.sections.map((s, idx) => (
+            <Fragment key={s.id}>
+              {idx > 0 && <Divider />}
+              <div id={s.id} className="scroll-mt-6">
+                {s.el}
+              </div>
+            </Fragment>
+          ))}
+        </div>
       </div>
-      <Divider />
-      <ClaudeIntegrationSection />
-      <Divider />
-      <AutoSyncTasksSection />
-      <Divider />
-      <NotifyPrefsSection />
-      <Divider />
-      <WebGatewaySection />
-      <Divider />
-      <ExportSection />
-      <Divider />
-      <UpdateSection />
-      <Divider />
-      <BackendSection />
     </div>
   );
 }

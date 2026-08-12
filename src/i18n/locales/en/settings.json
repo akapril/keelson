@@ -1,6 +1,7 @@
 {
   "language": { "title": "Language", "desc": "Interface language. Follows the system by default; remembered after you switch.", "followSystem": "Follow system" },
   "page": { "title": "Settings" },
+  "categories": { "general": "General", "ai": "AI & Integration", "data": "Data & Remote", "system": "System" },
   "shortcut": {
     "title": "Global Shortcut",
     "desc": "Toggle Spotlight search from any screen. Takes effect immediately.",

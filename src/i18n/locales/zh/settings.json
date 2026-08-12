@@ -1,6 +1,7 @@
 {
   "language": { "title": "语言", "desc": "界面语言。默认跟随系统，手动切换后记住。", "followSystem": "跟随系统" },
   "page": { "title": "设置" },
+  "categories": { "general": "通用", "ai": "AI 与集成", "data": "数据与远程", "system": "系统" },
   "shortcut": {
     "title": "全局唤起快捷键",
     "desc": "任意界面按此组合键唤起 / 隐藏 Spotlight 搜索。修改即时生效。",
