@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/akapril/keelson/compare/v0.4.0...v0.4.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* **web:** 打包 dist 供网关 serve，修复远程访问「web dist 未构建」 ([659a863](https://github.com/akapril/keelson/commit/659a8632a86ba2aa6cc9e84787e494dc0ee82c23))
+
 ## [0.4.0](https://github.com/akapril/keelson/compare/v0.3.1...v0.4.0) (2026-08-12)
 
 
