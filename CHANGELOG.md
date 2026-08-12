@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.4.0](https://github.com/akapril/keelson/compare/v0.3.1...v0.4.0) (2026-08-12)
+
+
+### Features
+
+* **board:** 项目卡片一键「继续/新终端」，治会话入口太深 ([42a8794](https://github.com/akapril/keelson/commit/42a8794efedaafc7a136221e2725756a42a85974))
+* **calendar:** 事件加时刻 + 视图切换框架 + 议程视图 (stage 1+2) ([9c8cee0](https://github.com/akapril/keelson/commit/9c8cee013caec2aa55a4cd7005ac82b0270093a0))
+* **calendar:** 周/日视图拖拽改期 + 点空白按时刻新建 (stage 5) ([264f649](https://github.com/akapril/keelson/commit/264f6496848992420b7a600a2e0364fb2886397e))
+* **calendar:** 周视图(全天行 + 小时时间轴) (stage 3) ([a22cf34](https://github.com/akapril/keelson/commit/a22cf341a65e9f17742f58dd55dd218689c06d73))
+* **calendar:** 日视图 (stage 4) ([cfc98ab](https://github.com/akapril/keelson/commit/cfc98ab0f0037d4308edd0e2f9f1c4bd4d573886))
+* **nav:** 「更多」组可折叠(默认收起, 记住选择) ([9139966](https://github.com/akapril/keelson/commit/9139966cbd00fc4e44ba3ce153c98072b22302f3))
+* **nav:** 侧栏收藏行加「新终端」(+)，与继续并排 ([43bc287](https://github.com/akapril/keelson/commit/43bc2878df1bd9fdae00ede3db74733911b66b3e))
+* **nav:** 侧栏收藏行加悬停「继续」，一键续接收藏项目最近会话 ([41c6a5d](https://github.com/akapril/keelson/commit/41c6a5d7f86f6d0a0306b27ce4c5dfbf8084a63c))
+* **nav:** 收藏行以接续为主 + 提示显示会接到哪个会话 ([8ec6563](https://github.com/akapril/keelson/commit/8ec656391932c1747c048187bd03adfc74610538))
+* **settings:** 设置页改为左侧分类导航（通用 / AI 与集成 / 数据与远程 / 系统） ([3d42c0f](https://github.com/akapril/keelson/commit/3d42c0f56010883a3591089774eaad8f6590ba3e))
+
+
+### Bug Fixes
+
+* **docs:** 独立文档窗口的窗口控制移入顶部 TitleBar ([8500119](https://github.com/akapril/keelson/commit/85001194479b4391e231047072a89da1c132f40d))
+* **settings:** 固定设置页宽度，切换分类不再抖动 ([fc9f29b](https://github.com/akapril/keelson/commit/fc9f29bf0b57a60c38e52b1db50e3e9303160602))
+* **ui:** 精简啰嗦文案 + 面包屑改纯标题 + 修两处半截描述 ([e539eee](https://github.com/akapril/keelson/commit/e539eee603c9bd3e9046d062c29f08434786ee7a))
+
 ## [0.3.1](https://github.com/akapril/keelson/compare/v0.3.0...v0.3.1) (2026-08-12)
 
 
