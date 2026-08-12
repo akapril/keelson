@@ -16,7 +16,12 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { StarIcon, ArrowRight01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
+import {
+  StarIcon,
+  ArrowRight01Icon,
+  ArrowDown01Icon,
+  Add01Icon,
+} from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
 import { toast } from "sonner";
@@ -29,7 +34,6 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -39,6 +43,7 @@ import { navGroups } from "@/lib/navigation";
 import { useBoardStore, selectPinnedProjects } from "@/store/board";
 import { useSessionsStore } from "@/store/sessions";
 import { useRestoreStore } from "@/store/restore";
+import { ipc } from "@/lib/tauri/ipc";
 import type { Session } from "@/types/session";
 
 /** 收藏组单行：可拖拽排序，点击 NavLink 走 /board?open=<id>（board 页据此打开项目）。
@@ -48,11 +53,14 @@ import type { Session } from "@/types/session";
 function FavoriteRow({
   id,
   name,
+  repoPath,
   latestSession,
 }: {
   id: string;
   name: string;
-  /** 该项目最近会话（供悬停「继续」一键续接；无则不显示继续按钮） */
+  /** 项目仓库目录（供「新终端」就地起会话；无则不显示新终端） */
+  repoPath?: string;
+  /** 该项目最近会话（供「继续」一键续接；无则不显示继续） */
   latestSession?: Session;
 }) {
   const { t } = useTranslation("board");
@@ -64,7 +72,11 @@ function FavoriteRow({
     transition,
     opacity: isDragging ? 0.6 : 1,
   };
-  // 一键续接最近会话：直接开(新终端窗，跳过选窗口/标签弹窗)，不导航进项目
+  // 「新终端」的 provider 默认最近会话的（无则 claude）
+  const provider = latestSession?.provider ?? "claude";
+  const providerLabel = provider === "codex" ? "Codex" : "Claude";
+
+  // 继续：续接最近会话（新终端窗，跳过弹窗），不导航进项目
   const handleResume = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -73,6 +85,22 @@ function FavoriteRow({
     const err = useRestoreStore.getState().error;
     if (err) toast.error(t("project.toast.resumeError", { msg: err }));
   };
+  // 新终端：在项目目录起一个新会话
+  const handleNewTerminal = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!repoPath) return;
+    void ipc
+      .startSession(provider, repoPath)
+      .then(() =>
+        toast.success(t("sessions.toast.startSuccess", { provider: providerLabel })),
+      )
+      .catch((err) => toast.error(t("sessions.toast.startError", { msg: String(err) })));
+  };
+
+  const actBtn =
+    "flex size-5 items-center justify-center rounded text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground";
+
   return (
     <li
       ref={setNodeRef}
@@ -87,15 +115,30 @@ function FavoriteRow({
           <span className="truncate">{name}</span>
         </NavLink>
       </SidebarMenuButton>
-      {/* 悬停「继续」：续接该项目最近会话，不必先进项目 */}
-      {latestSession && (
-        <SidebarMenuAction
-          showOnHover
-          onClick={handleResume}
-          title={t("project.continueTitle", { provider: latestSession.provider })}
-        >
-          <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
-        </SidebarMenuAction>
+      {/* 悬停动作：继续(续接最近会话) + 新终端(项目目录起会话)；图标折叠侧栏时隐藏 */}
+      {(latestSession || repoPath) && (
+        <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/menu-item:opacity-100 group-data-[collapsible=icon]:hidden">
+          {latestSession && (
+            <button
+              type="button"
+              className={actBtn}
+              onClick={handleResume}
+              title={t("project.continueTitle", { provider })}
+            >
+              <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-3.5" />
+            </button>
+          )}
+          {repoPath && (
+            <button
+              type="button"
+              className={actBtn}
+              onClick={handleNewTerminal}
+              title={t("project.newTerminalTitle", { provider: providerLabel })}
+            >
+              <HugeiconsIcon icon={Add01Icon} strokeWidth={2} className="size-3.5" />
+            </button>
+          )}
+        </div>
       )}
     </li>
   );
@@ -206,6 +249,7 @@ export function AppSidebar() {
                         key={p.id}
                         id={p.id}
                         name={p.name}
+                        repoPath={p.repo_path}
                         latestSession={latestSessionOf(p.repo_path)}
                       />
                     ))}
