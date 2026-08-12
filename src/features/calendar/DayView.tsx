@@ -54,8 +54,15 @@ export interface DayViewProps {
   onEventClick: (ev: CalendarEvent) => void;
   /** 点击任务 → 跳转看板（复用父级跳转逻辑） */
   onTaskClick: (task: BoardTask) => void;
-  /** 点击空白 → 以该天日期新建（复用父级 openAdd） */
-  onDayClick: (day: Date) => void;
+  /**
+   * 点击空白 → 新建（复用父级 openAdd）。
+   * startMin 可选：时间轴空白按落点时刻预填（全天行点击不带 → undefined）。
+   */
+  onDayClick: (day: Date, startMin?: number) => void;
+  /**
+   * 时段事件拖拽落定改期（复用父级落库）：日视图仅改时刻，day 恒为本日。
+   */
+  onEventReschedule?: (ev: CalendarEvent, targetDay: Date, newStartMin: number) => void;
 }
 
 export default function DayView({
@@ -65,6 +72,7 @@ export default function DayView({
   onEventClick,
   onTaskClick,
   onDayClick,
+  onEventReschedule,
 }: DayViewProps) {
   const { t } = useTranslation("calendar");
   // 时间轴滚动容器：挂载后定位到默认可视起始小时（6:00），与周视图一致
@@ -176,12 +184,14 @@ export default function DayView({
             ))}
           </div>
 
-          {/* 单日时段列（复用 WeekView 的 DayColumn，1 列即整宽） */}
+          {/* 单日时段列（复用 WeekView 的 DayColumn，1 列即整宽）。
+              resolveDay 省略 → 落点目标日恒为本日，日视图拖拽只改时刻不跨列。 */}
           <DayColumn
             day={day}
             events={timedEvents}
             onEventClick={onEventClick}
             onEmptyClick={onDayClick}
+            onEventReschedule={onEventReschedule}
           />
         </div>
       </div>

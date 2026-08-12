@@ -1,7 +1,7 @@
 // 周视图 —— 星期表头 + 全天行 + 小时时间轴（0:00–24:00 网格，默认滚动定位 6:00）。
 // 组件仅接收父级已加载并展开好的数据；自身不访问 pb / store。
 // DayColumn / layoutDayEvents 抽成可复用块，供 Stage 4 日视图（1 列）直接复用。
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   format,
@@ -15,6 +15,18 @@ import { KanbanIcon } from "@hugeicons/core-free-icons";
 import type { CalendarEvent } from "@/types/calendar";
 import type { BoardTask } from "@/types/board";
 import { cn } from "@/lib/utils";
+import {
+  snapMinutes,
+  minuteFromY,
+  durationMin,
+  minutesToHM,
+  dayIndexFromX,
+} from "./timeGrid";
+
+// 点/拖区分阈值（px）：指针移动超过该距离才算拖拽，否则当点击。
+const DRAG_THRESHOLD_PX = 4;
+// 拖拽/点空白的吸附步长（分钟）
+const SNAP_STEP_MIN = 15;
 
 // 每小时行高（px）；时段事件的定位/高度都以此为基准
 export const HOUR_PX = 48;
@@ -163,37 +175,141 @@ interface DayColumnProps {
   events: CalendarEvent[];
   /** 点击事件 → 编辑 */
   onEventClick: (ev: CalendarEvent) => void;
-  /** 点击空白 → 以该天日期新建 */
-  onEmptyClick: (day: Date) => void;
+  /**
+   * 点击空白 → 新建。startMin 为落点吸附后的起始分钟（距 0:00）。
+   * 父级据此预填 start_time / end_time(+1h)。
+   */
+  onEmptyClick: (day: Date, startMin: number) => void;
+  /**
+   * 拖拽落定改期：ev=被拖事件，targetDay=落点目标日（日视图恒为本列 day，
+   * 周视图由 resolveDay 跨列换算），newStartMin=吸附后的新起始分钟（距 0:00）。
+   * 父级负责保留原时长并落库。未传则该列不支持拖拽（退化为纯点击）。
+   */
+  onEventReschedule?: (ev: CalendarEvent, targetDay: Date, newStartMin: number) => void;
+  /**
+   * 由指针 clientX 换算落点目标日（周视图跨 7 列用）。默认返回本列 day（日视图/单列）。
+   * 抽成注入回调：几何统筹留给知道 7 列布局的 WeekView，DayColumn 只管垂直换算。
+   */
+  resolveDay?: (clientX: number) => Date;
+}
+
+// 拖拽进行中的临时状态（组件内，落定即清除）
+interface DragState {
+  ev: CalendarEvent;
+  /** 原始起始分钟（用于回退/时长基准） */
+  origStartMin: number;
+  /** 该事件时长（分钟，拖拽全程保留） */
+  durMin: number;
+  /** 指针按下时的 clientX/clientY（判断是否越过阈值） */
+  downX: number;
+  downY: number;
+  /** 当前是否已判定为拖拽（越过阈值） */
+  moved: boolean;
+  /** 预览：跟随指针的新起始分钟（已吸附） */
+  previewStartMin: number;
 }
 
 /**
  * 单天时段列：高度 = 24 * HOUR_PX，内部按 layoutDayEvents 绝对定位事件块。
- * Stage 4 日视图可直接复用（1 列即整宽）。
+ * 日视图可直接复用（1 列即整宽）。
+ * Stage 5：指针拖拽改期（吸附 15 分钟、保留时长、周视图跨列）+ 点空白按时刻新建。
  */
-export function DayColumn({ day, events, onEventClick, onEmptyClick }: DayColumnProps) {
+export function DayColumn({
+  day,
+  events,
+  onEventClick,
+  onEmptyClick,
+  onEventReschedule,
+  resolveDay,
+}: DayColumnProps) {
   const layouts = useMemo(() => layoutDayEvents(events), [events]);
+  // 列容器 ref：用于 getBoundingClientRect() 做 y→分钟 的几何换算
+  const gridRef = useRef<HTMLDivElement>(null);
+  // 拖拽临时状态（null=未拖拽）
+  const [drag, setDrag] = useState<DragState | null>(null);
+
+  // 取列容器顶端在视口中的 y（含滚动已抵消，getBoundingClientRect 实时反映）
+  const gridTop = () => gridRef.current?.getBoundingClientRect().top ?? 0;
+
+  // 由指针 y 换算 → 吸附后的起始分钟（距 0:00，夹到 0..1440）
+  const startMinFromClientY = (clientY: number) =>
+    snapMinutes(minuteFromY(clientY, gridTop()), SNAP_STEP_MIN);
+
+  // 事件块指针按下：登记拖拽候选（尚未判定拖/点），并捕获指针。
+  // 始终登记候选 → pointerup 能区分点/拖；是否真正进入拖拽由 onEventReschedule 是否存在决定。
+  const handleEventPointerDown = (e: React.PointerEvent, ev: CalendarEvent, startMin: number) => {
+    e.stopPropagation(); // 阻止冒泡到列空白（避免误触发新建）
+    if (e.button !== 0) return; // 仅左键
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setDrag({
+      ev,
+      origStartMin: startMin,
+      durMin: durationMin(ev.start_time, ev.end_time),
+      downX: e.clientX,
+      downY: e.clientY,
+      moved: false,
+      previewStartMin: startMin,
+    });
+  };
+
+  // 事件块指针移动：越过阈值判为拖拽，实时更新预览起始分钟。
+  // 无改期回调时不进入拖拽（保持候选态，pointerup 仍当点击）。
+  const handleEventPointerMove = (e: React.PointerEvent) => {
+    if (!drag || !onEventReschedule) return;
+    const dx = e.clientX - drag.downX;
+    const dy = e.clientY - drag.downY;
+    const moved = drag.moved || Math.hypot(dx, dy) > DRAG_THRESHOLD_PX;
+    if (!moved) return; // 未越阈值：保持候选态
+    setDrag({ ...drag, moved: true, previewStartMin: startMinFromClientY(e.clientY) });
+  };
+
+  // 事件块指针抬起：区分「点击→编辑」与「拖拽→改期」
+  const handleEventPointerUp = (e: React.PointerEvent) => {
+    e.stopPropagation(); // 阻止冒泡到列空白 onPointerUp（避免误触发新建）
+    if (!drag) return;
+    const d = drag;
+    setDrag(null); // 先清预览，避免闪烁
+    if (!d.moved) {
+      onEventClick(d.ev); // 未拖拽 → 当点击，打开编辑
+      return;
+    }
+    // 拖拽落定：跨列目标日（周视图）由注入的 resolveDay 换算，默认本列 day
+    const targetDay = resolveDay ? resolveDay(e.clientX) : day;
+    const newStartMin = startMinFromClientY(e.clientY);
+    onEventReschedule?.(d.ev, targetDay, newStartMin);
+  };
+
+  // 列空白指针抬起：仅当不在拖拽态时，按落点时刻新建
+  const handleColumnPointerUp = (e: React.PointerEvent) => {
+    if (drag) return; // 拖拽中松手不触发新建（由事件块 up 处理）
+    onEmptyClick(day, startMinFromClientY(e.clientY));
+  };
 
   return (
     <div
+      ref={gridRef}
       className="relative border-r border-border"
       style={{ height: 24 * HOUR_PX }}
-      // 点击列空白区域 → 以该天新建（事件块自身 stopPropagation）
-      onClick={() => onEmptyClick(day)}
+      // 点列空白（松手且非拖拽）→ 以落点时刻新建
+      onPointerUp={handleColumnPointerUp}
     >
       {/* 小时分隔线（每小时一条，仅视觉引导） */}
       {Array.from({ length: 24 }, (_, h) => (
         <div
           key={h}
-          className="absolute inset-x-0 border-b border-border/50"
+          className="pointer-events-none absolute inset-x-0 border-b border-border/50"
           style={{ top: h * HOUR_PX, height: HOUR_PX }}
         />
       ))}
 
       {/* 时段事件块：绝对定位 + 重叠并排平分列宽 */}
       {layouts.map((lo) => {
-        const top = (lo.startMin / 60) * HOUR_PX;
-        const height = Math.max(24, ((lo.endMin - lo.startMin) / 60) * HOUR_PX);
+        // 拖拽预览：被拖块的 top 跟随指针（新起始分钟），其余块保持原位
+        const isDragging = drag?.moved && drag.ev.id === lo.ev.id;
+        const effStartMin = isDragging ? drag!.previewStartMin : lo.startMin;
+        const effEndMin = isDragging ? drag!.previewStartMin + drag!.durMin : lo.endMin;
+        const top = (effStartMin / 60) * HOUR_PX;
+        const height = Math.max(24, ((effEndMin - effStartMin) / 60) * HOUR_PX);
         // 并排：每列平分宽度，留 1px 间隙
         const widthPct = 100 / lo.colCount;
         const leftPct = widthPct * lo.colIndex;
@@ -202,12 +318,17 @@ export function DayColumn({ day, events, onEventClick, onEmptyClick }: DayColumn
           <button
             key={`${lo.ev.id}-${lo.startMin}`}
             type="button"
-            onClick={(e) => {
-              e.stopPropagation(); // 阻止冒泡到列空白新建
-              onEventClick(lo.ev);
-            }}
+            // 指针事件驱动拖/点区分（替代原 onClick，避免拖拽误触发编辑）
+            onPointerDown={(e) => handleEventPointerDown(e, lo.ev, lo.startMin)}
+            onPointerMove={handleEventPointerMove}
+            onPointerUp={handleEventPointerUp}
             title={lo.ev.title}
-            className="absolute overflow-hidden rounded-md border px-1.5 py-0.5 text-left text-xs leading-tight transition-shadow hover:shadow-md"
+            className={cn(
+              "absolute touch-none select-none overflow-hidden rounded-md border px-1.5 py-0.5 text-left text-xs leading-tight transition-shadow hover:shadow-md",
+              isDragging
+                ? "z-20 cursor-grabbing opacity-90 shadow-lg"
+                : "cursor-grab",
+            )}
             style={{
               top,
               height,
@@ -220,7 +341,8 @@ export function DayColumn({ day, events, onEventClick, onEmptyClick }: DayColumn
             }}
           >
             <span className="block truncate font-medium text-foreground">
-              {lo.ev.start_time} {lo.ev.title}
+              {/* 拖拽中实时显示预览起始时刻，便于对齐 */}
+              {isDragging ? minutesToHM(drag!.previewStartMin) : lo.ev.start_time} {lo.ev.title}
             </span>
           </button>
         );
@@ -240,8 +362,16 @@ export interface WeekViewProps {
   onEventClick: (ev: CalendarEvent) => void;
   /** 点击任务 → 跳转看板（复用父级跳转逻辑） */
   onTaskClick: (task: BoardTask) => void;
-  /** 点击某天空白 → 以该天日期新建（复用父级 openAdd） */
-  onDayClick: (day: Date) => void;
+  /**
+   * 点击某天空白 → 新建（复用父级 openAdd）。
+   * startMin 可选：时间轴空白按落点时刻预填（全天行点击不带 → undefined）。
+   */
+  onDayClick: (day: Date, startMin?: number) => void;
+  /**
+   * 时段事件拖拽落定改期（复用父级落库）：targetDay=落点目标日（跨列），
+   * newStartMin=吸附后新起始分钟。父级保留原时长并更新 start/end/start_time/end_time。
+   */
+  onEventReschedule?: (ev: CalendarEvent, targetDay: Date, newStartMin: number) => void;
 }
 
 export default function WeekView({
@@ -251,10 +381,13 @@ export default function WeekView({
   onEventClick,
   onTaskClick,
   onDayClick,
+  onEventReschedule,
 }: WeekViewProps) {
   const { t } = useTranslation("calendar");
   // 时间轴滚动容器：挂载后定位到默认可视起始小时（6:00）
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 天列区容器（不含左侧刻度列）：用于跨列拖拽时按 x 换算目标列
+  const daysGridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -362,8 +495,9 @@ export default function WeekView({
       </div>
 
       {/* ── 小时时间轴（可纵向滚动）：0:00–24:00 全渲染，初始滚动到 6:00 ── */}
+      {/* 时间轴外层网格：刻度列 + 「7 天子网格」整块（子网格内部再 7 等分），列宽与表头对齐 */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-        <div className="grid" style={gridCols}>
+        <div className="grid" style={timelineGridCols}>
           {/* 左侧小时刻度列 */}
           <div className="relative border-r border-border" style={{ height: 24 * HOUR_PX }}>
             {Array.from({ length: 24 }, (_, h) => (
@@ -378,23 +512,44 @@ export default function WeekView({
             ))}
           </div>
 
-          {/* 7 天时段列（复用 DayColumn，Stage 4 日视图同一块） */}
-          {perDay.map(({ day, timedEvents }) => (
-            <DayColumn
-              key={day.toISOString()}
-              day={day}
-              events={timedEvents}
-              onEventClick={onEventClick}
-              onEmptyClick={onDayClick}
-            />
-          ))}
+          {/* 7 天时段列（复用 DayColumn）：包一层 7 等分子网格，供跨列拖拽按 x 换算目标列 */}
+          <div ref={daysGridRef} className="grid" style={daysGridCols}>
+            {perDay.map(({ day, timedEvents }) => (
+              <DayColumn
+                key={day.toISOString()}
+                day={day}
+                events={timedEvents}
+                onEventClick={onEventClick}
+                onEmptyClick={onDayClick}
+                onEventReschedule={onEventReschedule}
+                // 跨列换算：按指针 x 落在天列区第几列，映射到该列的 day
+                resolveDay={(clientX) => {
+                  const rect = daysGridRef.current?.getBoundingClientRect();
+                  if (!rect) return day;
+                  const idx = dayIndexFromX(clientX, rect.left, rect.width, days.length);
+                  return days[idx] ?? day;
+                }}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// 网格列模板：固定时间列(3.5rem) + 7 等分天列。抽为常量供表头/全天行/时间轴共享，保证列对齐。
+// 网格列模板：固定时间列(3.5rem) + 7 等分天列。表头/全天行直接铺 7 个子项时用。
 const gridCols: React.CSSProperties = {
   gridTemplateColumns: "3.5rem repeat(7, minmax(0, 1fr))",
+};
+
+// 时间轴外层网格：刻度列(3.5rem) + 「7 天子网格」整块占满剩余 1fr（子网格内部再 7 等分）。
+// 与 gridCols 的可视列宽一致（3.5rem + 剩余 7 等分），保证表头/全天行/时间轴对齐。
+const timelineGridCols: React.CSSProperties = {
+  gridTemplateColumns: "3.5rem minmax(0, 1fr)",
+};
+
+// 时间轴内层「7 天子网格」列模板：7 等分。
+const daysGridCols: React.CSSProperties = {
+  gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
 };

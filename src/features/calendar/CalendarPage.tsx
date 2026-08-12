@@ -69,6 +69,7 @@ import {
 import AgendaView from "./AgendaView";
 import WeekView from "./WeekView";
 import DayView from "./DayView";
+import { minutesToHM, addMinutesToHM, durationMin } from "./timeGrid";
 
 // 弹窗默认颜色（十六进制，供 <input type="color"> 使用）
 const DEFAULT_COLOR = "#6366f1";
@@ -89,11 +90,16 @@ function loadInitialView(): CalendarView {
   return "month";
 }
 
-// 弹窗状态：open 控制显隐；editing 为编辑目标（无则新建）；dateStr 为预填日期
+// 弹窗状态：open 控制显隐；editing 为编辑目标（无则新建）；dateStr 为预填日期。
+// startTime/endTime 为可选预填时刻（点空白时段新建时按落点填充；月视图点格子不带）。
 interface DialogState {
   open: boolean;
   editing?: CalendarEvent;
   dateStr?: string;
+  /** 预填开始时刻 "HH:mm"（点时间轴空白新建时用；不带=沿用无时刻默认） */
+  startTime?: string;
+  /** 预填结束时刻 "HH:mm"（点时间轴空白新建时用；一般为 startTime + 1h） */
+  endTime?: string;
 }
 
 // 表单字段集合（日期均为 yyyy-MM-dd 字符串，直接透传 store）
@@ -177,15 +183,15 @@ function initialForm(state: DialogState): FormState {
       repeatInterval: parseRepeat(ev.repeat)?.interval ?? 1,
     };
   }
-  // 新建：起始日预填为点击的日期（或今天）
+  // 新建：起始日预填为点击的日期（或今天）；点时间轴空白时另带落点时刻（非全天定时事件）
   const dateStr = state.dateStr || format(new Date(), "yyyy-MM-dd");
   return {
     title: "",
     start: dateStr,
     end: "",
-    startTime: "", // 新建默认无时刻
-    endTime: "",
-    all_day: false,
+    startTime: state.startTime || "", // 落点时刻，或无时刻默认
+    endTime: state.endTime || "",
+    all_day: false, // 新建默认非全天（带落点时刻时即为定时事件）
     color: DEFAULT_COLOR,
     description: "",
     project: "",
@@ -324,11 +330,49 @@ export default function CalendarPage() {
     return expandRecurringEvents(events, d, d);
   }, [events, view, viewDate]);
 
-  // 打开新建弹窗（可携带预填日期）
-  const openAdd = (dateStr?: string) => {
-    const next: DialogState = { open: true, dateStr };
+  // 打开新建弹窗（可携带预填日期 + 可选落点时刻，用于点时段新建）
+  const openAdd = (dateStr?: string, startTime?: string, endTime?: string) => {
+    const next: DialogState = { open: true, dateStr, startTime, endTime };
     setForm(initialForm(next));
     setDialog(next);
+  };
+
+  // 点周/日视图时间轴空白：按落点时刻（吸附 15 分）新建，预填 start_time + end_time(+1h)。
+  const handleTimedAdd = (day: Date, startMin?: number) => {
+    const dateStr = format(day, "yyyy-MM-dd");
+    if (startMin === undefined) {
+      // 无落点时刻（如全天行点击）→ 沿用无时刻新建
+      openAdd(dateStr);
+      return;
+    }
+    // 落点分钟 → "HH:mm"，结束默认 +60 分钟（内部已夹到当天末）
+    openAdd(dateStr, minutesToHM(startMin), addMinutesToHM(minutesToHM(startMin), 60));
+  };
+
+  // 时段事件拖拽落定改期：保留原时长，改天（周视图跨列）+ 改起始时刻。
+  // 时段事件视为单日 → start=end=目标日；start_time=新时刻，end_time=新时刻+原时长。
+  const handleReschedule = async (
+    ev: CalendarEvent,
+    targetDay: Date,
+    newStartMin: number,
+  ) => {
+    // 作用于母事件：occurrence 携带母 id，避免用平移日期覆盖母事件
+    const master = events.find((e) => e.id === ev.id) ?? ev;
+    const dayStr = format(targetDay, "yyyy-MM-dd");
+    const durMin = durationMin(master.start_time, master.end_time); // 保留原时长
+    const newStart = minutesToHM(newStartMin);
+    const newEnd = addMinutesToHM(newStart, durMin);
+    try {
+      await updateEvent(master.id, {
+        start: dayStr,
+        end: dayStr,
+        start_time: newStart,
+        end_time: newEnd,
+      });
+    } catch (e) {
+      // 拖拽改期失败提示（store 已回滚乐观更新）
+      toast.error(t("toast.moveError", { msg: String(e) }));
+    }
   };
 
   // 打开编辑弹窗（回填该事件）。occurrence 携带母 id → 取回真实母事件编辑（作用于全部），
@@ -545,7 +589,8 @@ export default function CalendarPage() {
           tasks={dueTasks}
           onEventClick={openEdit}
           onTaskClick={(tk) => navigate(`/board?open=${tk.project}`)}
-          onDayClick={(day) => openAdd(format(day, "yyyy-MM-dd"))}
+          onDayClick={handleTimedAdd}
+          onEventReschedule={handleReschedule}
         />
       )}
 
@@ -557,7 +602,8 @@ export default function CalendarPage() {
           tasks={dueTasks}
           onEventClick={openEdit}
           onTaskClick={(tk) => navigate(`/board?open=${tk.project}`)}
-          onDayClick={(day) => openAdd(format(day, "yyyy-MM-dd"))}
+          onDayClick={handleTimedAdd}
+          onEventReschedule={handleReschedule}
         />
       )}
 
