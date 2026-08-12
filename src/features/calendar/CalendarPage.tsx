@@ -67,6 +67,7 @@ import {
   buildRepeat,
 } from "./recurrence";
 import AgendaView from "./AgendaView";
+import WeekView from "./WeekView";
 
 // 弹窗默认颜色（十六进制，供 <input type="color"> 使用）
 const DEFAULT_COLOR = "#6366f1";
@@ -289,6 +290,22 @@ export default function CalendarPage() {
     return expandRecurringEvents(events, start, end);
   }, [events, view]);
 
+  // 周视图的 7 天：以 viewDate（游标）所在周展开。周起始与月网格一致（同用 startOfWeek 默认 weekStartsOn=0）。
+  const weekDays = useMemo(
+    () =>
+      eachDayOfInterval({
+        start: startOfWeek(viewDate),
+        end: endOfWeek(viewDate),
+      }),
+    [viewDate],
+  );
+
+  // 周视图专用：把重复事件在「当前周 7 天」区间内展开（仅周视图时计算）
+  const weekEvents = useMemo(() => {
+    if (view !== "week") return events; // 非周视图不额外计算
+    return expandRecurringEvents(events, weekDays[0], weekDays[weekDays.length - 1]);
+  }, [events, view, weekDays]);
+
   // 打开新建弹窗（可携带预填日期）
   const openAdd = (dateStr?: string) => {
     const next: DialogState = { open: true, dateStr };
@@ -393,6 +410,22 @@ export default function CalendarPage() {
     }
   };
 
+  // 通用导航步进：按当前视图移动游标（月=±1 月 / 周=±7 天 / 日=±1 天，为 Stage 4 预留）。
+  // dir 取 -1（上一页）或 +1（下一页）。
+  const stepCursor = (dir: number) => {
+    setViewDate((cur) => {
+      switch (view) {
+        case "week":
+          return addDays(cur, 7 * dir);
+        case "day":
+          return addDays(cur, dir);
+        case "month":
+        default:
+          return addMonths(cur, dir);
+      }
+    });
+  };
+
   // 重复单位对应的步长单位文案
   const repeatUnitLabel = (unit: string): string => {
     switch (unit) {
@@ -409,9 +442,11 @@ export default function CalendarPage() {
       {/* 头部：标题 + 视图切换 + 导航 + 新建 */}
       <header className="mb-4 flex shrink-0 items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          {/* 月视图显示月份标题；其它视图显示视图名 */}
+          {/* 月/周视图显示所在月份标题（周视图跟随游标所在月）；其它视图显示视图名 */}
           <h1 className="font-heading text-xl font-semibold text-foreground">
-            {view === "month" ? formatMonthTitle(viewDate) : t(`view.${view}`)}
+            {view === "month" || view === "week"
+              ? formatMonthTitle(viewDate)
+              : t(`view.${view}`)}
           </h1>
           {/* 分段视图切换：月 | 周 | 日 | 议程 */}
           <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
@@ -441,14 +476,14 @@ export default function CalendarPage() {
             </span>
           )}
 
-          {/* 月份导航仅在月视图显示（周/日视图为占位，议程无需导航） */}
-          {view === "month" && (
+          {/* 导航在月/周视图显示（按当前视图步进；议程无需导航）。日视图 Stage 4 起用。 */}
+          {(view === "month" || view === "week") && (
             <>
               <Button
                 variant="outline"
                 size="icon"
-                aria-label={t("page.prevMonth")}
-                onClick={() => setViewDate(addMonths(viewDate, -1))}
+                aria-label={t("page.prev")}
+                onClick={() => stepCursor(-1)}
               >
                 <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
               </Button>
@@ -458,8 +493,8 @@ export default function CalendarPage() {
               <Button
                 variant="outline"
                 size="icon"
-                aria-label={t("page.nextMonth")}
-                onClick={() => setViewDate(addMonths(viewDate, 1))}
+                aria-label={t("page.next")}
+                onClick={() => stepCursor(1)}
               >
                 <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
               </Button>
@@ -482,8 +517,20 @@ export default function CalendarPage() {
         />
       )}
 
-      {/* 周 / 日视图：本阶段占位（Stage 3-4 实现时间轴） */}
-      {(view === "week" || view === "day") && (
+      {/* 周视图：全天行 + 小时时间轴（Stage 3） */}
+      {view === "week" && (
+        <WeekView
+          days={weekDays}
+          events={weekEvents}
+          tasks={dueTasks}
+          onEventClick={openEdit}
+          onTaskClick={(tk) => navigate(`/board?open=${tk.project}`)}
+          onDayClick={(day) => openAdd(format(day, "yyyy-MM-dd"))}
+        />
+      )}
+
+      {/* 日视图：本阶段占位（Stage 4 实现单日时间轴） */}
+      {view === "day" && (
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <p className="text-sm text-muted-foreground">{t("view.comingSoon")}</p>
         </div>

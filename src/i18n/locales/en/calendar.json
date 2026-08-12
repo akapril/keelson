@@ -2,6 +2,8 @@
   "page": {
     "prevMonth": "Previous month",
     "nextMonth": "Next month",
+    "prev": "Previous",
+    "next": "Next",
     "today": "Today",
     "create": "New",
     "loading": "Loading…",
