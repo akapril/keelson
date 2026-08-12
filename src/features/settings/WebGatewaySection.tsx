@@ -44,30 +44,38 @@ export function WebGatewaySection() {
   const [renaming, setRenaming] = useState(false);
 
   // ── 刷新配对码 ───────────────────────────────────────────────
-  const refreshCode = useCallback(async () => {
-    setCodeLoading(true);
-    try {
-      const code = await ipc.webPairingCode();
-      setPairingCode(code);
-    } catch (e) {
-      toast.error(t("webGateway.codeLoadError", { message: String(e) }));
-    } finally {
-      setCodeLoading(false);
-    }
-  }, [t]);
+  // silent=true 用于后台轮询：不闪 loading、不弹错误、码没变就不重渲染，避免界面每几秒闪一次。
+  const refreshCode = useCallback(
+    async (silent = false) => {
+      if (!silent) setCodeLoading(true);
+      try {
+        const code = await ipc.webPairingCode();
+        setPairingCode((prev) => (prev === code ? prev : code));
+      } catch (e) {
+        if (!silent) toast.error(t("webGateway.codeLoadError", { message: String(e) }));
+      } finally {
+        if (!silent) setCodeLoading(false);
+      }
+    },
+    [t],
+  );
 
   // ── 刷新设备列表 ─────────────────────────────────────────────
-  const refreshDevices = useCallback(async () => {
-    setDevicesLoading(true);
-    try {
-      const list = await ipc.webListDevices();
-      setDevices(list);
-    } catch (e) {
-      toast.error(t("webGateway.devicesLoadError", { message: String(e) }));
-    } finally {
-      setDevicesLoading(false);
-    }
-  }, [t]);
+  // silent=true 同上：后台轮询时不闪「刷新中」、不弹错误。
+  const refreshDevices = useCallback(
+    async (silent = false) => {
+      if (!silent) setDevicesLoading(true);
+      try {
+        const list = await ipc.webListDevices();
+        setDevices(list);
+      } catch (e) {
+        if (!silent) toast.error(t("webGateway.devicesLoadError", { message: String(e) }));
+      } finally {
+        if (!silent) setDevicesLoading(false);
+      }
+    },
+    [t],
+  );
 
   // ── 挂载时同步 gateway 状态 ──────────────────────────────────
   useEffect(() => {
@@ -81,12 +89,12 @@ export function WebGatewaySection() {
     });
   }, [refreshCode, refreshDevices]);
 
-  // 网关开启时轮询：某设备成功配对后服务端会自动轮换配对码——定时刷新以显示新码 + 新设备。
+  // 网关开启时轮询：某设备成功配对后服务端会自动轮换配对码——静默刷新以显示新码 + 新设备（不闪 loading）。
   useEffect(() => {
     if (!enabled) return;
     const id = setInterval(() => {
-      void refreshCode();
-      void refreshDevices();
+      void refreshCode(true);
+      void refreshDevices(true);
     }, 4000);
     return () => clearInterval(id);
   }, [enabled, refreshCode, refreshDevices]);
