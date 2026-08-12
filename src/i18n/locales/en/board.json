@@ -141,6 +141,10 @@
     "taskCount": "Tasks {{done}}/{{total}}",
     "docCount": "Docs {{count}}",
     "sessionCount": "Sessions {{count}}",
+    "continueBtn": "Continue",
+    "continueTitle": "Resume latest session ({{provider}})",
+    "newTerminalBtn": "Terminal",
+    "newTerminalTitle": "New {{provider}} session in project directory",
     "ctxMenu": {
       "open": "Open project",
       "copyRepoPath": "Copy repo path",
@@ -156,7 +160,8 @@
     "toast": {
       "pinError": "Pin failed: {{msg}}",
       "archiveError": "Action failed: {{msg}}",
-      "copySuccess": "Copied {{label}}"
+      "copySuccess": "Copied {{label}}",
+      "resumeError": "Resume failed: {{msg}}"
     },
     "list": {
       "allArchived": "No active projects",

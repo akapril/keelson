@@ -3,6 +3,9 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { useBoardStore } from "../../store/board";
 import { useSessionsStore } from "../../store/sessions";
+import { useRestoreStore } from "../../store/restore";
+import { ipc } from "@/lib/tauri/ipc";
+import type { Session } from "../../types/session";
 import { listAllTasks, listAllStates } from "../../lib/pb/board";
 import { listAllDocs } from "../../lib/pb/docs";
 import {
@@ -51,6 +54,7 @@ function ProjectCard({
   stat,
   duplicate,
   hint,
+  latestSession,
 }: {
   project: BoardProject;
   stat?: ProjectStat;
@@ -58,13 +62,43 @@ function ProjectCard({
   duplicate: boolean;
   /** 无描述时的兜底提示：扫描到的最近会话提示词（「在做什么」） */
   hint?: string;
+  /** 该项目最近的会话（供「继续」一键续接；无会话则不显示） */
+  latestSession?: Session;
 }) {
   const { t, i18n } = useTranslation("board");
   const openProject = useBoardStore((s) => s.openProject);
   const updateProject = useBoardStore((s) => s.updateProject);
   // 收藏切换方法（Task 2 store 提供）
   const toggleProjectPin = useBoardStore((s) => s.toggleProjectPin);
+  const restore = useRestoreStore((s) => s.restore);
   const handleOpen = () => void openProject(project.id);
+
+  // 「新终端」默认用该项目最近会话的 provider（无则 claude），避免再让用户选
+  const newProvider = latestSession?.provider ?? "claude";
+  const providerLabel = (p: string) => (p === "codex" ? "Codex" : "Claude");
+
+  // 一键续接最近会话：直接开（新终端窗，跳过选窗口/标签弹窗）。治「入口太深」。
+  const handleResume = async () => {
+    if (!latestSession) return;
+    await restore(latestSession, false);
+    const err = useRestoreStore.getState().error;
+    if (err) toast.error(t("project.toast.resumeError", { msg: err }));
+  };
+
+  // 在项目目录新建会话（provider 默认最近用的）
+  const handleNewTerminal = () => {
+    if (!project.repo_path) return;
+    void ipc
+      .startSession(newProvider, project.repo_path)
+      .then(() =>
+        toast.success(t("sessions.toast.startSuccess", { provider: providerLabel(newProvider) })),
+      )
+      .catch((e) => toast.error(t("sessions.toast.startError", { msg: String(e) })));
+  };
+
+  // 悬停快捷动作按钮样式（同收藏星标：默认淡出，卡片 hover 才显；点击不冒泡到打开）
+  const quickBtnCls =
+    "shrink-0 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring";
 
   const total = stat?.total ?? 0;
   const done = stat?.done ?? 0;
@@ -89,6 +123,33 @@ function ProjectCard({
           <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
             {t("project.archived")}
           </span>
+        )}
+        {/* 悬停快捷：一键续接最近会话 / 项目目录新建终端 —— 从项目列表直达，不必钻进会话 tab */}
+        {latestSession && (
+          <button
+            type="button"
+            title={t("project.continueTitle", { provider: latestSession.provider })}
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleResume();
+            }}
+            className={quickBtnCls}
+          >
+            {t("project.continueBtn")}
+          </button>
+        )}
+        {project.repo_path && (
+          <button
+            type="button"
+            title={t("project.newTerminalTitle", { provider: providerLabel(newProvider) })}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNewTerminal();
+            }}
+            className={quickBtnCls}
+          >
+            {t("project.newTerminalBtn")}
+          </button>
         )}
         {/* 收藏星标：已收藏常亮(primary)，未收藏淡显、卡片 hover 才出；点击不触发打开 */}
         <button
@@ -267,6 +328,14 @@ export function ProjectList({ showArchived = false }: { showArchived?: boolean }
     return (latest.last_prompt || latest.first_prompt || "").trim();
   };
 
+  // 该项目最近的会话对象（供卡片「继续」一键续接）
+  const latestSessionOf = (repoPath?: string): Session | undefined => {
+    if (!repoPath) return undefined;
+    const list = sessions.filter((s) => s.project_path === repoPath);
+    if (list.length === 0) return undefined;
+    return list.reduce((a, b) => (a.updated_at > b.updated_at ? a : b));
+  };
+
   // 同名检测（用于消歧显示）
   const nameCounts = projects.reduce<Record<string, number>>((acc, p) => {
     acc[p.name] = (acc[p.name] ?? 0) + 1;
@@ -315,6 +384,7 @@ export function ProjectList({ showArchived = false }: { showArchived?: boolean }
             project={project}
             duplicate={(nameCounts[project.name] ?? 0) > 1}
             hint={latestPrompt(project.repo_path)}
+            latestSession={latestSessionOf(project.repo_path)}
             stat={{
               total: stat?.total ?? 0,
               done: stat?.done ?? 0,

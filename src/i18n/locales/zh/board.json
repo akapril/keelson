@@ -141,6 +141,10 @@
     "taskCount": "任务 {{done}}/{{total}}",
     "docCount": "文档 {{count}}",
     "sessionCount": "会话 {{count}}",
+    "continueBtn": "继续",
+    "continueTitle": "续接最近会话（{{provider}}）",
+    "newTerminalBtn": "终端",
+    "newTerminalTitle": "在项目目录新建 {{provider}} 会话",
     "ctxMenu": {
       "open": "打开项目",
       "copyRepoPath": "复制仓库路径",
@@ -156,7 +160,8 @@
     "toast": {
       "pinError": "收藏失败：{{msg}}",
       "archiveError": "操作失败：{{msg}}",
-      "copySuccess": "已复制{{label}}"
+      "copySuccess": "已复制{{label}}",
+      "resumeError": "续接失败：{{msg}}"
     },
     "list": {
       "allArchived": "当前无进行中的项目",
