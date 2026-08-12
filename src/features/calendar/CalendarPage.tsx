@@ -68,6 +68,7 @@ import {
 } from "./recurrence";
 import AgendaView from "./AgendaView";
 import WeekView from "./WeekView";
+import DayView from "./DayView";
 
 // 弹窗默认颜色（十六进制，供 <input type="color"> 使用）
 const DEFAULT_COLOR = "#6366f1";
@@ -201,6 +202,16 @@ function formatMonthTitle(date: Date): string {
   return format(date, "MMMM yyyy");
 }
 
+/** 根据当前语言格式化单日标题（中文：yyyy 年 M 月 d 日；英文：MMMM d, yyyy） */
+function formatDayTitle(date: Date): string {
+  if (i18n.language.startsWith("zh")) {
+    return (
+      format(date, "yyyy") + " 年 " + format(date, "M") + " 月 " + format(date, "d") + " 日"
+    );
+  }
+  return format(date, "MMMM d, yyyy");
+}
+
 export default function CalendarPage() {
   const { t } = useTranslation("calendar");
 
@@ -305,6 +316,13 @@ export default function CalendarPage() {
     if (view !== "week") return events; // 非周视图不额外计算
     return expandRecurringEvents(events, weekDays[0], weekDays[weekDays.length - 1]);
   }, [events, view, weekDays]);
+
+  // 日视图专用：把重复事件在「viewDate 当天」区间内展开（仅日视图时计算）
+  const dayEvents = useMemo(() => {
+    if (view !== "day") return events; // 非日视图不额外计算
+    const d = startOfDay(viewDate);
+    return expandRecurringEvents(events, d, d);
+  }, [events, view, viewDate]);
 
   // 打开新建弹窗（可携带预填日期）
   const openAdd = (dateStr?: string) => {
@@ -442,11 +460,13 @@ export default function CalendarPage() {
       {/* 头部：标题 + 视图切换 + 导航 + 新建 */}
       <header className="mb-4 flex shrink-0 items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          {/* 月/周视图显示所在月份标题（周视图跟随游标所在月）；其它视图显示视图名 */}
+          {/* 月/周视图显示所在月份标题（周视图跟随游标所在月）；日视图显示当日日期；其它显示视图名 */}
           <h1 className="font-heading text-xl font-semibold text-foreground">
             {view === "month" || view === "week"
               ? formatMonthTitle(viewDate)
-              : t(`view.${view}`)}
+              : view === "day"
+                ? formatDayTitle(viewDate)
+                : t(`view.${view}`)}
           </h1>
           {/* 分段视图切换：月 | 周 | 日 | 议程 */}
           <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
@@ -476,8 +496,8 @@ export default function CalendarPage() {
             </span>
           )}
 
-          {/* 导航在月/周视图显示（按当前视图步进；议程无需导航）。日视图 Stage 4 起用。 */}
-          {(view === "month" || view === "week") && (
+          {/* 导航在月/周/日视图显示（按当前视图步进：月±1月 / 周±7天 / 日±1天；议程无需导航）。 */}
+          {(view === "month" || view === "week" || view === "day") && (
             <>
               <Button
                 variant="outline"
@@ -529,11 +549,16 @@ export default function CalendarPage() {
         />
       )}
 
-      {/* 日视图：本阶段占位（Stage 4 实现单日时间轴） */}
+      {/* 日视图：单日「表头 + 全天行 + 小时时间轴」（Stage 4） */}
       {view === "day" && (
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <p className="text-sm text-muted-foreground">{t("view.comingSoon")}</p>
-        </div>
+        <DayView
+          day={viewDate}
+          events={dayEvents}
+          tasks={dueTasks}
+          onEventClick={openEdit}
+          onTaskClick={(tk) => navigate(`/board?open=${tk.project}`)}
+          onDayClick={(day) => openAdd(format(day, "yyyy-MM-dd"))}
+        />
       )}
 
       {/* ── 月视图（星期表头 + 网格），仅在 month 视图渲染 ── */}
