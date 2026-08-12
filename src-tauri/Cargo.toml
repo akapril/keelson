@@ -2,7 +2,7 @@
 name = "keelson"
 # 注：应用版本以 package.json 为唯一来源（tauri.conf.json version 指向它）。
 # 此处为 Rust crate 内部版本，与应用展示/打包版本解耦，无需随应用版本变动。
-version = "0.2.0"
+version = "0.3.0"
 description = "Keelson — Tauri v2 + React 19 桌面应用"
 authors = ["akapril"]
 edition = "2021"
