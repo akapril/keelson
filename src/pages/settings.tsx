@@ -110,7 +110,7 @@ export default function Settings() {
   const current = categories[active] ?? categories[0];
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-6">
+    <div className="mx-auto w-full max-w-4xl px-6 py-6">
       {/* 标题 + 当前版本号（版本经 vite define __APP_VERSION__ 注入，见 vite.config） */}
       <div className="mb-6 flex items-baseline justify-between gap-3">
         <h1 className="text-lg font-semibold">{t("page.title")}</h1>
