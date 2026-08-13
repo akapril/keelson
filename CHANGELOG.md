@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2](https://github.com/akapril/keelson/compare/v0.4.1...v0.4.2) (2026-08-13)
+
+
+### Bug Fixes
+
+* **pb:** 密钥读取文件回退优先，消除 macOS 反复弹钥匙串 ([e1ca526](https://github.com/akapril/keelson/commit/e1ca5260fa9e32541096beaaf6780bf4779e5978))
+* **web:** macOS 从 Dock 启动注入登录 shell PATH，修复 web 终端起不来 ([c31b09f](https://github.com/akapril/keelson/commit/c31b09f630d2495e23be68bc8d70b839dc23490e))
+
 ## [0.4.1](https://github.com/akapril/keelson/compare/v0.4.0...v0.4.1) (2026-08-12)
 
 
