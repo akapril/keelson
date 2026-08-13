@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/akapril/keelson/compare/v0.4.2...v0.5.0) (2026-08-13)
+
+
+### Features
+
+* **nav:** 收藏行「⋯ 更多操作」菜单——选历史会话/选终端类型/更多 ([d1b1bc7](https://github.com/akapril/keelson/commit/d1b1bc77ef2c52a5caf47087c566e51b609e90f4))
+
 ## [0.4.2](https://github.com/akapril/keelson/compare/v0.4.1...v0.4.2) (2026-08-13)
 
 
