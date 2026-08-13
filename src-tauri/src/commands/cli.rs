@@ -10,6 +10,85 @@ pub fn is_cli_provider(provider: &str) -> bool {
     cli_bin_for(provider).is_some()
 }
 
+/// 可「新建会话」的 provider 候选：(provider id, 二进制基名, 展示名)。
+/// - **gemini 已移出**：Google 2026-06 关停了消费级 Gemini CLI 的 OAuth，`gemini` 新建会话无法登录
+///   （报「migrate to Antigravity」）→ 提供「新建 Gemini」是误导；其历史会话仍由 Gemini provider 读。
+/// - **antigravity(agy) 加入**：Gemini 的官方替代；二进制名 `agy`，常装在 `%LOCALAPPDATA%\agy\bin`
+///   （不在 PATH），故 [`startable_bin_available`] 对它做特殊位置探测。
+/// - hermes 无可起二进制、只读，不在此列。展示名与前端 PROVIDER_META 保持一致。
+const STARTABLE_PROVIDERS: &[(&str, &str, &str)] = &[
+    ("claude", "claude", "Claude"),
+    ("codex", "codex", "Codex"),
+    ("opencode", "opencode", "OpenCode"),
+    ("antigravity", "agy", "Antigravity"),
+];
+
+/// 探测「新建会话」用的二进制是否可用：先查 PATH，再查已知的非 PATH 安装位置。
+/// agy（Antigravity CLI）常装在 `%LOCALAPPDATA%\agy\bin\agy.exe`、不在 PATH，需单独探测。
+fn startable_bin_available(bin: &str) -> bool {
+    if bin_in_path(bin) {
+        return true;
+    }
+    if bin == "agy" {
+        if let Some(local) = dirs::data_local_dir() {
+            let dir = local.join("agy").join("bin");
+            let names: &[&str] = if cfg!(windows) {
+                &["agy.exe", "agy.cmd", "agy"]
+            } else {
+                &["agy"]
+            };
+            return names.iter().any(|n| dir.join(n).exists());
+        }
+    }
+    false
+}
+
+/// 前端「新建会话」下拉的一项：id 用于 startSession，label 用于展示。
+#[derive(serde::Serialize)]
+pub struct StartableProvider {
+    pub id: String,
+    pub label: String,
+}
+
+/// 判断某个 CLI 基名是否在系统 PATH 上（不启子进程，仅查文件存在）。
+/// Windows 补 .exe/.cmd/.bat 后缀。统一 opencode/gemini provider 里重复的探测逻辑。
+pub fn bin_in_path(bin: &str) -> bool {
+    let path_var = match std::env::var_os("PATH") {
+        Some(p) => p,
+        None => return false,
+    };
+    // Windows 常见可执行扩展名；类 Unix 直接查裸名
+    let names: Vec<String> = if cfg!(windows) {
+        vec![
+            format!("{bin}.exe"),
+            format!("{bin}.cmd"),
+            format!("{bin}.bat"),
+            bin.to_string(),
+        ]
+    } else {
+        vec![bin.to_string()]
+    };
+    for dir in std::env::split_paths(&path_var) {
+        for name in &names {
+            if dir.join(name).exists() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// 返回「能起新会话」的 provider 列表：候选中 CLI 二进制在 PATH 上的那些。
+/// 前端据此渲染「新建会话」下拉，避免硬编码 + 展示未安装的 provider。
+#[tauri::command]
+pub fn list_startable_providers() -> Vec<StartableProvider> {
+    STARTABLE_PROVIDERS
+        .iter()
+        .filter(|(_, bin, _)| startable_bin_available(bin))
+        .map(|(id, _, label)| StartableProvider { id: id.to_string(), label: label.to_string() })
+        .collect()
+}
+
 /// provider 取值 → 可执行文件基名。
 pub fn cli_bin_for(provider: &str) -> Option<&'static str> {
     match provider {

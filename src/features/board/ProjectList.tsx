@@ -5,6 +5,7 @@ import { useBoardStore } from "../../store/board";
 import { useSessionsStore } from "../../store/sessions";
 import { useRestoreStore } from "../../store/restore";
 import { ipc } from "@/lib/tauri/ipc";
+import { providerLabel } from "@/lib/providers";
 import type { Session } from "../../types/session";
 import { listAllTasks, listAllStates } from "../../lib/pb/board";
 import { listAllDocs } from "../../lib/pb/docs";
@@ -75,7 +76,6 @@ function ProjectCard({
 
   // 「新终端」默认用该项目最近会话的 provider（无则 claude），避免再让用户选
   const newProvider = latestSession?.provider ?? "claude";
-  const providerLabel = (p: string) => (p === "codex" ? "Codex" : "Claude");
 
   // 一键续接最近会话：直接开（新终端窗，跳过选窗口/标签弹窗）。治「入口太深」。
   const handleResume = async () => {

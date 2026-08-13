@@ -8,6 +8,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
   FolderOpenIcon,
+  TerminalIcon,
   Settings02Icon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
@@ -173,6 +174,20 @@ export function ProjectWorkspace() {
           >
             <HugeiconsIcon icon={FolderOpenIcon} strokeWidth={2} />
             {t("workspace.openPath")}
+          </Button>
+        )}
+        {repoPath && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              void ipc
+                .openTerminal(repoPath)
+                .catch((e) => toast.error(t("workspace.toast.openTerminalError", { msg: String(e) })))
+            }
+          >
+            <HugeiconsIcon icon={TerminalIcon} strokeWidth={2} />
+            {t("workspace.openTerminal")}
           </Button>
         )}
         {repoPath && (

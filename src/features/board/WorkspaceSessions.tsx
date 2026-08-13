@@ -5,35 +5,70 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowDown01Icon, Add01Icon } from "@hugeicons/core-free-icons";
 import { useSessionsStore } from "@/store/sessions";
+import { useStartableProvidersStore } from "@/store/startable-providers";
 import { ipc } from "@/lib/tauri/ipc";
+import { providerLabel } from "@/lib/providers";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import type { Session } from "@/types/session";
 import { SessionCard } from "@/features/sessions/SessionCard";
 import { SessionPreviewPane } from "@/features/sessions/SessionPreviewPane";
 
-/** 「新建会话」控件：在项目仓库目录就地起 claude / codex 的两个按钮。 */
+/** 「新建会话」下拉：菜单项 = 后端探测到「CLI 在 PATH」的 provider；无可用时禁用并提示。 */
 function NewSessionButtons({ repoPath }: { repoPath: string }) {
   const { t } = useTranslation("board");
-  const start = (provider: "claude" | "codex") => {
-    const providerLabel = provider === "claude" ? "Claude" : "Codex";
+  const startable = useStartableProvidersStore((s) => s.providers);
+  const loaded = useStartableProvidersStore((s) => s.loaded);
+  const ensureLoaded = useStartableProvidersStore((s) => s.ensureLoaded);
+  useEffect(() => {
+    void ensureLoaded();
+  }, [ensureLoaded]);
+
+  const start = (provider: string) => {
     void ipc
       .startSession(provider, repoPath)
       .then(() =>
-        toast.success(t("sessions.toast.startSuccess", { provider: providerLabel })),
+        toast.success(
+          t("sessions.toast.startSuccess", { provider: providerLabel(provider) }),
+        ),
       )
       .catch((e) => toast.error(t("sessions.toast.startError", { msg: String(e) })));
   };
-  const cls =
-    "rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground";
+
+  // 已加载完但无可起 provider：禁用按钮 + 提示未检测到可用 CLI
+  const noneAvailable = loaded && startable.length === 0;
+  const triggerCls =
+    "inline-flex items-center gap-1 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50";
+
   return (
-    <div className="flex items-center gap-2">
-      <button type="button" className={cls} onClick={() => start("claude")}>
-        {t("sessions.newClaude")}
-      </button>
-      <button type="button" className={cls} onClick={() => start("codex")}>
-        {t("sessions.newCodex")}
-      </button>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={triggerCls}
+          disabled={noneAvailable}
+          title={noneAvailable ? t("sessions.noStartable") : t("sessions.newSession")}
+        >
+          <span>{t("sessions.newSession")}</span>
+          <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        {startable.map((p) => (
+          <DropdownMenuItem key={p.id} onClick={() => start(p.id)} className="gap-2">
+            <HugeiconsIcon icon={Add01Icon} strokeWidth={2} className="size-3.5 shrink-0" />
+            <span>{providerLabel(p.id)}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

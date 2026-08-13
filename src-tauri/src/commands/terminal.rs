@@ -84,3 +84,19 @@ pub fn terminal_start(
     let plan = build_plan(&kind, &req);
     execute(plan).map_err(|e| format!("启动终端失败: {e:#}"))
 }
+
+/// 在系统终端中「打开」项目目录——**纯终端，不起任何 CLI**：cd 到 project_path 后停在 shell。
+/// 与 `terminal_start` 的区别：`resume_cmd` 为空 → `build_plan`/`*_cd_and_resume` 已支持空命令
+/// （仅 cd、不追加 `&& <cmd>`），故各平台都只是「在项目目录开一个普通终端」。
+/// 供项目/收藏项「快速打开终端」用（想用哪个 CLI 用户自己在终端里敲）。
+#[tauri::command]
+pub fn terminal_open(project_path: String, state: State<AppState>) -> Result<(), String> {
+    let req = ResumeRequest {
+        project_path,
+        resume_cmd: String::new(), // 空 = 仅 cd、不跑 CLI
+    };
+    let term_pref = state.config.lock().terminal_pref.clone();
+    let kind = detect_terminal(&term_pref);
+    let plan = build_plan(&kind, &req);
+    execute(plan).map_err(|e| format!("打开终端失败: {e:#}"))
+}

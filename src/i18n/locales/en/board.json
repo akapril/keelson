@@ -164,7 +164,8 @@
       "archiveError": "Action failed: {{msg}}",
       "copySuccess": "Copied {{label}}",
       "resumeError": "Resume failed: {{msg}}",
-      "openDirError": "Failed to open folder: {{msg}}"
+      "openDirError": "Failed to open folder: {{msg}}",
+      "openTerminalError": "Failed to open terminal: {{msg}}"
     },
     "list": {
       "allArchived": "No active projects",
@@ -176,7 +177,8 @@
       "moreTitle": "More actions",
       "recentLabel": "Resume session",
       "newTerminalLabel": "New terminal",
-      "openDir": "Open folder"
+      "openDir": "Open folder",
+      "openTerminal": "Open terminal"
     }
   },
   "createProject": {
@@ -270,7 +272,8 @@
       "ai": "AI"
     },
     "toast": {
-      "openPathError": "Failed to open location: {{msg}}"
+      "openPathError": "Failed to open location: {{msg}}",
+      "openTerminalError": "Failed to open terminal: {{msg}}"
     },
     "overview": {
       "statTaskTotal": "Total tasks",
@@ -291,7 +294,8 @@
       "eventsTitle": "Upcoming events"
     },
     "noRepo": "This project has no repo path — fill in repo_path in \"Project Settings\" to link local sessions.",
-    "noRepoCommits": "This project has no repo path."
+    "noRepoCommits": "This project has no repo path.",
+    "openTerminal": "Open terminal"
   },
   "projectSheet": {
     "title": "Project settings",
@@ -371,7 +375,11 @@
     "toast": {
       "startSuccess": "Started {{provider}} session in terminal (will appear here after a conversation)",
       "startError": "Start failed: {{msg}}"
-    }
+    },
+    "newOpenCode": "+ OpenCode session",
+    "newGemini": "+ Gemini session",
+    "newSession": "New session",
+    "noStartable": "No available CLI detected (claude / codex / opencode / gemini not found in PATH)"
   },
   "commits": {
     "loading": "Loading commits…",

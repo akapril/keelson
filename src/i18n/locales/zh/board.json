@@ -164,7 +164,8 @@
       "archiveError": "操作失败：{{msg}}",
       "copySuccess": "已复制{{label}}",
       "resumeError": "续接失败：{{msg}}",
-      "openDirError": "打开目录失败：{{msg}}"
+      "openDirError": "打开目录失败：{{msg}}",
+      "openTerminalError": "打开终端失败：{{msg}}"
     },
     "list": {
       "allArchived": "当前无进行中的项目",
@@ -176,7 +177,8 @@
       "moreTitle": "更多操作",
       "recentLabel": "继续会话",
       "newTerminalLabel": "新建终端",
-      "openDir": "打开目录"
+      "openDir": "打开目录",
+      "openTerminal": "打开终端"
     }
   },
   "createProject": {
@@ -270,7 +272,8 @@
       "ai": "AI"
     },
     "toast": {
-      "openPathError": "打开位置失败：{{msg}}"
+      "openPathError": "打开位置失败：{{msg}}",
+      "openTerminalError": "打开终端失败：{{msg}}"
     },
     "overview": {
       "statTaskTotal": "任务总数",
@@ -291,7 +294,8 @@
       "eventsTitle": "近期事件"
     },
     "noRepo": "该项目未绑定仓库路径 —— 在「项目设置」填写 repo_path 后即可关联本地会话。",
-    "noRepoCommits": "该项目未绑定仓库路径。"
+    "noRepoCommits": "该项目未绑定仓库路径。",
+    "openTerminal": "打开终端"
   },
   "projectSheet": {
     "title": "项目设置",
@@ -371,7 +375,11 @@
     "toast": {
       "startSuccess": "已在终端启动 {{provider}} 会话（对话后会自动出现在此）",
       "startError": "启动失败：{{msg}}"
-    }
+    },
+    "newOpenCode": "+ OpenCode 会话",
+    "newGemini": "+ Gemini 会话",
+    "newSession": "新建会话",
+    "noStartable": "未检测到可用 CLI（未在 PATH 找到 claude / codex / opencode / gemini）"
   },
   "commits": {
     "loading": "加载提交…",

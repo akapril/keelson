@@ -10,6 +10,7 @@ import { useSessionSearchStore } from "../../store/session-search";
 import { SessionCard } from "./SessionCard";
 import { PromoteToProjectDialog } from "../board/PromoteToProjectDialog";
 import { AskPane } from "./AskPane";
+import { providerMeta } from "../../lib/providers";
 import type { Session } from "../../types/session";
 
 // ── Props ──────────────────────────────────────────────────
@@ -85,21 +86,41 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
   // 「只看收藏」/「显示已隐藏」筛选
   const [favOnly, setFavOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
-  // 单条是否应展示：默认排除已隐藏（除非显示隐藏）；favOnly 时仅收藏
+  // provider 筛选：多选 toggle 集合。空集=全部（不过滤）；否则仅显示所选 provider。
+  const [providerFilter, setProviderFilter] = useState<Set<string>>(new Set());
+  const toggleProvider = (p: string) =>
+    setProviderFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+
+  // 当前会话里「实际出现过」的 provider（去重，保持稳定排序），仅这些渲染成筛选 chip。
+  const presentProviders = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of results) set.add(s.provider);
+    for (const list of Object.values(groups)) for (const s of list) set.add(s.provider);
+    return [...set].sort();
+  }, [results, groups]);
+
+  // 单条是否应展示：默认排除已隐藏（除非显示隐藏）；favOnly 时仅收藏；provider 筛选命中。
   const keep = useMemo(
-    () => (id: string) =>
-      (showHidden || !hidden.has(id)) && (!favOnly || favorites.has(id)),
-    [showHidden, hidden, favOnly, favorites],
+    () => (s: Session) =>
+      (showHidden || !hidden.has(s.session_id)) &&
+      (!favOnly || favorites.has(s.session_id)) &&
+      (providerFilter.size === 0 || providerFilter.has(s.provider)),
+    [showHidden, hidden, favOnly, favorites, providerFilter],
   );
   const shownResults = useMemo(
-    () => results.filter((s) => keep(s.session_id)),
+    () => results.filter((s) => keep(s)),
     [results, keep],
   );
   // 分组视图：过滤每组、丢弃空组
   const shownGroups = useMemo(() => {
     const out: Record<string, Session[]> = {};
     for (const [path, list] of Object.entries(groups)) {
-      const kept = list.filter((s) => keep(s.session_id));
+      const kept = list.filter((s) => keep(s));
       if (kept.length) out[path] = kept;
     }
     return out;
@@ -156,6 +177,11 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
     if (favOnly && !favorites.has(selectedId)) setFavOnly(false);
     // 被「隐藏项」挡住(已隐藏且未显示隐藏) → 打开 showHidden
     if (!showHidden && hidden.has(selectedId)) setShowHidden(true);
+    // 被 provider 筛选挡住 → 清空筛选（让目标会话可见）
+    if (providerFilter.size > 0) {
+      const sel = groups[path]?.find((s) => s.session_id === selectedId);
+      if (sel && !providerFilter.has(sel.provider)) setProviderFilter(new Set());
+    }
     // 所属分组处于折叠 → 展开
     if (collapsed.has(path)) {
       setCollapsed((prev) => {
@@ -255,6 +281,34 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
           {t("list.batchSelect")}
         </button>
       </div>
+
+      {/* provider 筛选 chips：仅列出会话里实际出现过的 provider；多选 toggle，全不选=全部 */}
+      {presentProviders.length > 1 && (
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+          {presentProviders.map((p) => {
+            const meta = providerMeta(p);
+            const active = providerFilter.has(p);
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => toggleProvider(p)}
+                aria-pressed={active}
+                title={t("list.filterByProvider", { provider: meta.label })}
+                className={[
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors",
+                  active
+                    ? `border-transparent ${meta.chip}`
+                    : "border-border text-muted-foreground hover:bg-accent/50",
+                ].join(" ")}
+              >
+                <span className={`size-1.5 shrink-0 rounded-full ${meta.dot}`} />
+                {meta.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* 批量选择工具栏 */}
       {selectMode && (

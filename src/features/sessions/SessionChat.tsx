@@ -5,7 +5,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { SentIcon } from "@hugeicons/core-free-icons";
+import { SentIcon, ToolsIcon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +37,17 @@ const HistoryBubble = memo(function HistoryBubble({
   isStreaming: boolean;
 }) {
   const { t } = useTranslation("sessions");
+  // 工具调用条目：不渲染气泡，只渲染一行居中的紧凑 muted chip（🔧 + 工具名: 目标）
+  if (message.role === "tool") {
+    return (
+      <div className="flex justify-center">
+        <span className="inline-flex max-w-[88%] items-center gap-1.5 truncate rounded-full bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground">
+          <HugeiconsIcon icon={ToolsIcon} className="size-3 shrink-0" strokeWidth={2} />
+          <span className="truncate">{message.content}</span>
+        </span>
+      </div>
+    );
+  }
   const isUser = message.role === "user";
   // 错误消息用内部哨兵前缀标记（\x00ERR:）区分正常内容
   const isError = message.role === "assistant" && message.content.startsWith("\x00ERR:");
@@ -155,8 +166,10 @@ export function SessionChat({
       .sessionTimeline(session.provider, session.session_id)
       .then((tl) => {
         if (cancelled) return;
+        // 展示用历史：保留 user/assistant/tool（tool = 工具调用 chip）；system 等丢弃。
+        // tool 仅供展示，发送给模型前会在 ctx 处过滤掉。
         const msgs = tl
-          .filter((m) => m.role === "user" || m.role === "assistant")
+          .filter((m) => m.role === "user" || m.role === "assistant" || m.role === "tool")
           .map((m) => ({ role: m.role, content: m.content }));
         setHistory(msgs);
         setCachedTimeline(
@@ -233,8 +246,11 @@ export function SessionChat({
       role: "system",
       content: `以下对话是用户此前在「${session.project_name}」项目中与 ${session.provider} CLI 的会话历史，请理解上下文并继续协助，用简洁中文回答。`,
     };
-    // 送 AI 的上下文：完整历史+续聊+本轮用户消息，截断到最近 CONTEXT_LIMIT 条（控成本）
-    const ctx = [...history, ...continued, userMsg].slice(-CONTEXT_LIMIT);
+    // 送 AI 的上下文：完整历史+续聊+本轮用户消息，**排除工具调用 chip**（tool 不发给模型），
+    // 再截断到最近 CONTEXT_LIMIT 条（控成本）
+    const ctx = [...history, ...continued, userMsg]
+      .filter((m) => m.role !== "tool")
+      .slice(-CONTEXT_LIMIT);
     const reqMsgs: AiChatMessage[] = [sys, ...ctx];
     const streamId = crypto.randomUUID();
     activeStreamId.current = streamId;

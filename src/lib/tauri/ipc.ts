@@ -144,6 +144,14 @@ export const ipc = {
   startSession: (provider: string, projectPath: string, initialPrompt?: string) =>
     call<void>("terminal_start", { provider, projectPath, initialPrompt }),
 
+  /** 在项目目录打开一个纯终端（不起任何 CLI，仅 cd 到项目目录）。 */
+  openTerminal: (projectPath: string) =>
+    call<void>("terminal_open", { projectPath }),
+
+  /** 列出「能起新会话」的 provider（其 CLI 二进制在 PATH）。桌面专属，web 环境 404 → 前端回退空列表。 */
+  listStartableProviders: () =>
+    call<{ id: string; label: string }[]>("list_startable_providers"),
+
   // ── 配置 ──────────────────────────────────────────────────
   /** 获取全局快捷键配置（Task 17） */
   getHotkey: () => call<string>("config_get_hotkey"),

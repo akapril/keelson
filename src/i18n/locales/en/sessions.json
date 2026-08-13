@@ -66,6 +66,7 @@
     "batchDone": "Done",
     "collapseTitle": "Collapse",
     "expandTitle": "Expand",
+    "filterByProvider": "Filter by {{provider}}",
     "promoteTitle": "Promote to board project",
     "loading": "Loading…",
     "searching": "Searching…",

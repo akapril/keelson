@@ -337,6 +337,18 @@ pub fn read_codex_timeline_from_path(path: &Path) -> Vec<TimelineMessage> {
                     _ => {} // token_count 等事件不加入时间轴
                 }
             }
+        } else if entry_type == "response_item" {
+            // 工具调用（function_call / custom_tool_call）→ 额外产出 role="tool" 条目，
+            // 按转录顺序插入，紧跟触发它的助手消息。
+            if let Some(p) = payload {
+                if let Some(summary) = codex_tool_summary(p) {
+                    messages.push(TimelineMessage {
+                        role: "tool".to_string(),
+                        content: summary,
+                        timestamp: format_timestamp(&timestamp),
+                    });
+                }
+            }
         }
     }
 
@@ -345,6 +357,102 @@ pub fn read_codex_timeline_from_path(path: &Path) -> Vec<TimelineMessage> {
         messages.drain(0..messages.len() - 500);
     }
     messages
+}
+
+/// 纯函数：从一个 Codex `response_item.payload` 生成时间线里的「工具调用」简洁描述。
+/// 仅对工具调用类 payload 产出（function_call / custom_tool_call）；
+/// message/agent_message/reasoning/*_output 等返回 `None`（不进时间线）。
+/// 格式约定：
+/// - custom_tool_call name=apply_patch → `"apply_patch: N 个文件"`（数改动文件数）
+/// - custom_tool_call name=exec/shell → `"exec: <命令前若干字>"`（尽力从 shell_command 抽 command）
+/// - function_call name=update_plan → `"update_plan"`
+/// - function_call 其它 → `"<name>"`（取不到有意义参数时仅工具名）
+pub fn codex_tool_summary(payload: &serde_json::Value) -> Option<String> {
+    let ptype = payload.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    match ptype {
+        "custom_tool_call" => {
+            let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            if name.is_empty() {
+                return None;
+            }
+            let input = payload.get("input").and_then(|v| v.as_str()).unwrap_or("");
+            if name == "apply_patch" {
+                // 复用已有 apply_patch 解析，去重后数文件个数
+                let mut paths: Vec<String> = parse_apply_patch(input)
+                    .into_iter()
+                    .map(|(p, _)| p)
+                    .collect();
+                paths.sort();
+                paths.dedup();
+                let n = paths.len();
+                return Some(if n > 0 {
+                    format!("apply_patch: {} 个文件", n)
+                } else {
+                    "apply_patch".to_string()
+                });
+            }
+            // exec/shell 等：input 常是形如 tools.shell_command({command:"..."}) 的字符串，
+            // 尽力抽出 command 内容；抽不到则退回展示 input 前若干字。
+            match extract_shell_command(input) {
+                Some(cmd) => Some(format!("{}: {}", name, super::tool_target_summary(&cmd))),
+                None if !input.is_empty() => {
+                    Some(format!("{}: {}", name, super::tool_target_summary(input)))
+                }
+                None => Some(name.to_string()),
+            }
+        }
+        "function_call" => {
+            let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            if name.is_empty() {
+                return None;
+            }
+            // update_plan 等无需展示参数；其余仅工具名（arguments 是字符串化 JSON，信息量低）
+            Some(name.to_string())
+        }
+        _ => None, // message / reasoning / *_output / local_shell_call 等不进时间线
+    }
+}
+
+/// 尽力从 custom_tool_call(exec) 的 input 字符串里抽出 shell 命令内容。
+/// input 典型形如：`const r = await tools.shell_command({command:"<命令>", ...})`。
+/// 策略：定位 `command:"` 后的内容，读到配对的未转义引号为止（够用即可，非严格 JS 解析）。
+fn extract_shell_command(input: &str) -> Option<String> {
+    // 兼容 command:" 与 command: " 两种写法
+    let marker_pos = input.find("command:")?;
+    let after = &input[marker_pos + "command:".len()..];
+    let after = after.trim_start();
+    let mut chars = after.chars();
+    let quote = chars.next()?; // 期望是 " 或 '
+    if quote != '"' && quote != '\'' {
+        return None;
+    }
+    let mut out = String::new();
+    let mut escaped = false;
+    for c in chars {
+        if escaped {
+            // 还原常见转义：\" \' \\ \n \t，其余原样
+            match c {
+                'n' => out.push('\n'),
+                't' => out.push('\t'),
+                other => out.push(other),
+            }
+            escaped = false;
+            continue;
+        }
+        if c == '\\' {
+            escaped = true;
+            continue;
+        }
+        if c == quote {
+            break; // 命令字符串结束
+        }
+        out.push(c);
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
 }
 
 /// 读取 Codex 会话「规划的任务」——取转录里**最后一次** `update_plan` 的 plan 数组
@@ -683,6 +791,71 @@ mod tests {
         // 验证项目路径和名称
         assert_eq!(session.project_path, "/home/user/workspace/myproject");
         assert_eq!(session.project_name, "myproject");
+    }
+
+    // -------- 工具调用时间线摘要 --------
+
+    /// custom_tool_call apply_patch → "apply_patch: N 个文件"（数去重后文件数）。
+    #[test]
+    fn tool_summary_apply_patch_counts_files() {
+        let env = "*** Begin Patch\n*** Add File: a.rs\n+x\n*** Update File: b.rs\n@@\n-y\n+z\n*** End Patch";
+        let p = serde_json::json!({"type":"custom_tool_call","name":"apply_patch","input":env});
+        assert_eq!(codex_tool_summary(&p).unwrap(), "apply_patch: 2 个文件");
+    }
+
+    /// custom_tool_call exec → 从 shell_command({command:"..."}) 抽命令并单行化。
+    #[test]
+    fn tool_summary_exec_extracts_command() {
+        let input = r#"const r = await tools.shell_command({command:"ls -la\ncat foo"});"#;
+        let p = serde_json::json!({"type":"custom_tool_call","name":"exec","input":input});
+        assert_eq!(codex_tool_summary(&p).unwrap(), "exec: ls -la cat foo");
+    }
+
+    /// custom_tool_call exec 抽不到 command → 退回展示 input 前若干字。
+    #[test]
+    fn tool_summary_exec_falls_back_to_input() {
+        let input = "some raw text without command marker";
+        let p = serde_json::json!({"type":"custom_tool_call","name":"exec","input":input});
+        assert_eq!(
+            codex_tool_summary(&p).unwrap(),
+            "exec: some raw text without command marker"
+        );
+    }
+
+    /// function_call update_plan → 仅工具名。
+    #[test]
+    fn tool_summary_function_call_name_only() {
+        let p = serde_json::json!({"type":"function_call","name":"update_plan","arguments":"{}"});
+        assert_eq!(codex_tool_summary(&p).unwrap(), "update_plan");
+    }
+
+    /// 非工具类 payload（message / reasoning / *_output）→ None。
+    #[test]
+    fn tool_summary_ignores_non_tool_payloads() {
+        for t in ["message", "agent_message", "reasoning", "function_call_output"] {
+            let p = serde_json::json!({"type": t});
+            assert!(codex_tool_summary(&p).is_none(), "{t} 不应产出工具条目");
+        }
+    }
+
+    /// 时间线：response_item 工具调用被额外插入为 role="tool"，保持顺序。
+    #[test]
+    fn timeline_includes_codex_tool_entries() {
+        let lines = [
+            r#"{"type":"event_msg","timestamp":"2026-08-13T10:00:00Z","payload":{"type":"user_message","message":"读一下"}}"#,
+            r#"{"type":"response_item","timestamp":"2026-08-13T10:00:01Z","payload":{"type":"function_call","name":"update_plan","arguments":"{}"}}"#,
+            r#"{"type":"event_msg","timestamp":"2026-08-13T10:00:02Z","payload":{"type":"agent_message","message":"好了"}}"#,
+        ]
+        .join("\n");
+        let tmp = std::env::temp_dir().join("keelson_codex_tool_timeline.jsonl");
+        std::fs::write(&tmp, lines).unwrap();
+        let msgs = read_codex_timeline_from_path(&tmp);
+        let _ = std::fs::remove_file(&tmp);
+        assert_eq!(msgs.len(), 3);
+        assert_eq!(msgs[0].role, "user");
+        assert_eq!(msgs[1].role, "tool");
+        assert_eq!(msgs[1].content, "update_plan");
+        assert_eq!(msgs[2].role, "assistant");
     }
 
     // -------- 文件改动溯源（apply_patch）--------

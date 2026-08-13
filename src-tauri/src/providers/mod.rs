@@ -3,8 +3,12 @@
 // 下游的扫描/更新/时间轴/终端任务（Task 10–16）通过本模块路由，
 // 无需任何 `match provider` 分支。
 
+pub mod antigravity;
 pub mod claude;
 pub mod codex;
+pub mod gemini;
+pub mod hermes;
+pub mod opencode;
 
 use std::path::{Path, PathBuf};
 use crate::models::{Session, TimelineMessage};
@@ -17,6 +21,23 @@ pub(crate) fn truncate(s: &str, max: usize) -> String {
     } else {
         s.to_string()
     }
+}
+
+/// 工具调用条目「简短目标」的字符上限（如 Bash 命令、update_plan 参数摘要）。
+/// 时间线里工具调用只作紧凑一行 chip 展示，取命令/目标前若干字符即可。
+pub(crate) const TOOL_SUMMARY_CAP: usize = 60;
+
+/// 把一条命令/目标压成单行摘要：换行/回车替换为空格、折叠多余空白、再按 TOOL_SUMMARY_CAP 截断。
+/// 供各 provider 的工具调用摘要复用（Bash/shell 命令常含换行，直接展示会撑破 chip）。
+pub(crate) fn tool_target_summary(raw: &str) -> String {
+    // 换行、制表符归一为空格，避免 chip 里出现多行
+    let flattened: String = raw
+        .chars()
+        .map(|c| if c == '\n' || c == '\r' || c == '\t' { ' ' } else { c })
+        .collect();
+    // 折叠连续空白为单个空格并去首尾
+    let collapsed = flattened.split_whitespace().collect::<Vec<_>>().join(" ");
+    truncate(&collapsed, TOOL_SUMMARY_CAP)
 }
 
 /// 文件系统监听根节点
@@ -123,12 +144,16 @@ pub struct ProviderRegistry {
 }
 
 impl ProviderRegistry {
-    /// 创建注册表：注册 Claude provider（Task 10）+ Codex provider（Task 11）
+    /// 创建注册表：注册 Claude（Task 10）+ Codex（Task 11）+ OpenCode + Gemini + Hermes + Antigravity provider
     pub fn new() -> Self {
         Self {
             providers: vec![
                 Box::new(claude::ClaudeProvider),
                 Box::new(codex::CodexProvider),
+                Box::new(opencode::OpenCodeProvider),
+                Box::new(gemini::GeminiProvider),
+                Box::new(hermes::HermesProvider),
+                Box::new(antigravity::AntigravityProvider),
             ],
         }
     }

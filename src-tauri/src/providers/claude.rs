@@ -586,6 +586,49 @@ pub fn parse_claude_file_changes(content: &str) -> Vec<FileChange> {
         .collect()
 }
 
+/// 纯函数：从一个 Claude `tool_use` content block 生成时间线里的「工具调用」简洁描述。
+/// 输入是形如 `{"type":"tool_use","name":"Bash","input":{...}}` 的 JSON block。
+/// 返回 `None` 表示该 block 非工具调用（理论上不会发生，调用方已过滤 type）。
+/// 格式约定（与 codex/gemini/opencode 对齐）：
+/// - Read/Edit/Write/MultiEdit → `"工具名: <file_path>"`（取 input.file_path）
+/// - Bash → `"Bash: <命令前若干字>"`（取 input.command，单行化并截断）
+/// - 其它/取不到参数 → 仅工具名。
+pub fn claude_tool_summary(block: &serde_json::Value) -> Option<String> {
+    let name = block.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    if name.is_empty() {
+        return None;
+    }
+    let input = block.get("input");
+    // 取某个字符串参数的辅助闭包
+    let str_arg = |key: &str| -> Option<String> {
+        input
+            .and_then(|i| i.get(key))
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+    };
+    let summary = match name {
+        // 文件类工具：展示目标文件路径
+        "Read" | "Edit" | "Write" | "MultiEdit" | "NotebookEdit" => match str_arg("file_path") {
+            Some(p) => format!("{}: {}", name, p),
+            None => name.to_string(),
+        },
+        // 命令类工具：展示命令前若干字（单行化）
+        "Bash" | "BashOutput" => match str_arg("command") {
+            Some(cmd) => format!("{}: {}", name, super::tool_target_summary(&cmd)),
+            None => name.to_string(),
+        },
+        // 检索类：展示 pattern
+        "Grep" | "Glob" => match str_arg("pattern") {
+            Some(p) => format!("{}: {}", name, super::tool_target_summary(&p)),
+            None => name.to_string(),
+        },
+        // 其它（Task/WebFetch/TodoWrite/自定义 MCP 工具等）：仅工具名
+        _ => name.to_string(),
+    };
+    Some(summary)
+}
+
 /// 从给定路径读取时间轴（方便测试注入 fixture）
 pub fn read_timeline_from_path(path: &Path) -> Vec<TimelineMessage> {
     let file = match File::open(path) {
@@ -627,22 +670,36 @@ pub fn read_timeline_from_path(path: &Path) -> Vec<TimelineMessage> {
                 }
             }
             "assistant" => {
-                // 助手消息：提取 text 块
+                // 助手消息：按 content 数组顺序提取 text 块与 tool_use 块，
+                // 使工具调用 chip 紧跟触发它的助手文本、保持时间顺序。
                 if let Some(msg) = raw.get("message") {
                     if let Some(content_arr) = msg.get("content").and_then(|c| c.as_array()) {
                         for block in content_arr {
                             let block_type =
                                 block.get("type").and_then(|v| v.as_str()).unwrap_or("");
-                            if block_type == "text" {
-                                let text =
-                                    block.get("text").and_then(|v| v.as_str()).unwrap_or("");
-                                if !text.is_empty() {
-                                    messages.push(TimelineMessage {
-                                        role: "assistant".to_string(),
-                                        content: truncate(text, TIMELINE_MSG_CHARS),
-                                        timestamp: format_timestamp(&timestamp),
-                                    });
+                            match block_type {
+                                "text" => {
+                                    let text =
+                                        block.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                                    if !text.is_empty() {
+                                        messages.push(TimelineMessage {
+                                            role: "assistant".to_string(),
+                                            content: truncate(text, TIMELINE_MSG_CHARS),
+                                            timestamp: format_timestamp(&timestamp),
+                                        });
+                                    }
                                 }
+                                "tool_use" => {
+                                    // 工具调用 → 额外产出一条 role="tool" 的紧凑条目
+                                    if let Some(summary) = claude_tool_summary(block) {
+                                        messages.push(TimelineMessage {
+                                            role: "tool".to_string(),
+                                            content: summary,
+                                            timestamp: format_timestamp(&timestamp),
+                                        });
+                                    }
+                                }
+                                _ => {}
                             }
                         }
                     }
@@ -936,6 +993,65 @@ mod tests {
         assert_eq!(messages[2].content, "能再详细一些吗？");
         assert_eq!(messages[3].role, "assistant");
         assert_eq!(messages[3].content, "当然，以下是详细分析...");
+    }
+
+    /// claude_tool_summary：Read/Edit/Write 取 file_path，格式 "工具名: 路径"。
+    #[test]
+    fn tool_summary_file_tools_use_file_path() {
+        let read = serde_json::json!({"type":"tool_use","name":"Read","input":{"file_path":"/a/b.rs"}});
+        assert_eq!(claude_tool_summary(&read).unwrap(), "Read: /a/b.rs");
+        let edit = serde_json::json!({"type":"tool_use","name":"Edit","input":{"file_path":"/c.txt","old_string":"x","new_string":"y"}});
+        assert_eq!(claude_tool_summary(&edit).unwrap(), "Edit: /c.txt");
+    }
+
+    /// claude_tool_summary：Bash 取 command 并单行化 + 截断。
+    #[test]
+    fn tool_summary_bash_uses_command_flattened() {
+        let bash = serde_json::json!({"type":"tool_use","name":"Bash","input":{"command":"echo hi\nls -la"}});
+        // 换行被压成空格
+        assert_eq!(claude_tool_summary(&bash).unwrap(), "Bash: echo hi ls -la");
+    }
+
+    /// claude_tool_summary：超长命令被截断（含省略号）。
+    #[test]
+    fn tool_summary_long_command_truncated() {
+        let long = "a".repeat(200);
+        let bash = serde_json::json!({"type":"tool_use","name":"Bash","input":{"command": long}});
+        let s = claude_tool_summary(&bash).unwrap();
+        assert!(s.starts_with("Bash: "));
+        assert!(s.ends_with("..."), "超长命令应以省略号结尾: {s}");
+        // "Bash: " (6) + 60 字符 + "..." (3)
+        assert_eq!(s.chars().count(), 6 + 60 + 3);
+    }
+
+    /// claude_tool_summary：取不到参数或未知工具 → 仅工具名。
+    #[test]
+    fn tool_summary_unknown_or_no_arg_falls_back_to_name() {
+        let plan = serde_json::json!({"type":"tool_use","name":"TodoWrite","input":{"todos":[]}});
+        assert_eq!(claude_tool_summary(&plan).unwrap(), "TodoWrite");
+        let noarg = serde_json::json!({"type":"tool_use","name":"Read","input":{}});
+        assert_eq!(claude_tool_summary(&noarg).unwrap(), "Read");
+    }
+
+    /// read_timeline_from_path：助手回合里的 tool_use 会额外产出 role="tool" 条目，
+    /// 并紧跟触发它的助手文本、保持时间顺序。
+    #[test]
+    fn timeline_includes_tool_entries_in_order() {
+        let jsonl = [
+            r#"{"type":"user","timestamp":"2026-08-13T10:00:00Z","message":{"role":"user","content":"帮我读文件"}}"#,
+            r#"{"type":"assistant","timestamp":"2026-08-13T10:00:01Z","message":{"role":"assistant","content":[{"type":"text","text":"好的，我来读"},{"type":"tool_use","name":"Read","input":{"file_path":"/x.rs"}}]}}"#,
+        ]
+        .join("\n");
+        let tmp = std::env::temp_dir().join("keelson_claude_tool_timeline.jsonl");
+        std::fs::write(&tmp, jsonl).unwrap();
+        let msgs = read_timeline_from_path(&tmp);
+        let _ = std::fs::remove_file(&tmp);
+        assert_eq!(msgs.len(), 3);
+        assert_eq!(msgs[0].role, "user");
+        assert_eq!(msgs[1].role, "assistant");
+        assert_eq!(msgs[1].content, "好的，我来读");
+        assert_eq!(msgs[2].role, "tool");
+        assert_eq!(msgs[2].content, "Read: /x.rs");
     }
 
     /// 测试 resume_command 格式正确

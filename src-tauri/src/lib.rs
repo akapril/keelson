@@ -486,6 +486,9 @@ pub fn run() {
             // 终端（Task 16 - terminal.rs）
             commands::terminal::terminal_resume,
             commands::terminal::terminal_start,
+            commands::terminal::terminal_open,
+            // 可「新建会话」的 provider（CLI 二进制在 PATH，cli.rs）
+            commands::cli::list_startable_providers,
             // 配置（Task 16 - config.rs）
             commands::config::config_get_hotkey,
             commands::config::config_set_hotkey,

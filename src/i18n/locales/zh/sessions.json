@@ -66,6 +66,7 @@
     "batchDone": "完成",
     "collapseTitle": "折叠",
     "expandTitle": "展开",
+    "filterByProvider": "按 {{provider}} 筛选",
     "promoteTitle": "提升为看板项目",
     "loading": "加载中…",
     "searching": "检索中…",

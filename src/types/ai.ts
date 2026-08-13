@@ -12,7 +12,8 @@ export interface AiConfig {
 }
 
 export interface AiChatMessage {
-  role: "system" | "user" | "assistant";
+  // "tool" 仅用于会话时间线展示工具调用 chip（Bash/Read/Edit 等），发送给模型前会被过滤掉
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
 }
 

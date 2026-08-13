@@ -58,8 +58,8 @@ export interface PlannedTask {
 
 /** 会话时间线中的单条消息（对应 Rust TimelineMessage 结构体） */
 export interface TimelineMessage {
-  /** 消息角色 */
-  role: "user" | "assistant" | "system";
+  /** 消息角色。"tool" = 助手回合里的工具调用（Bash/Read/Edit 等），时间线里以紧凑 chip 展示，不进 AI 上下文 */
+  role: "user" | "assistant" | "system" | "tool";
   /** 消息内容文本 */
   content: string;
   /** ISO 8601 格式的消息时间戳（Rust 为非 Option，必填） */

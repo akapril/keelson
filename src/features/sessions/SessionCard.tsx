@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
+import { providerMeta } from "@/lib/providers";
 import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
 import { RestoreDialog } from "./RestoreDialog";
@@ -222,9 +223,20 @@ function SessionCardImpl({
           </div>
         </div>
 
-        {/* 第二行：provider 标签 + 消息数量 + 相对时间（更新时间） */}
+        {/* 第二行：provider 徽标（色点 + 展示名）+ 消息数量 + 相对时间（更新时间） */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{session.provider}</span>
+          {(() => {
+            // 色点 + providerLabel 的小徽标（替代原始 provider 串），颜色统一走 PROVIDER_META
+            const meta = providerMeta(session.provider);
+            return (
+              <span
+                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium ${meta.chip}`}
+              >
+                <span className={`size-1.5 shrink-0 rounded-full ${meta.dot}`} />
+                {meta.label}
+              </span>
+            );
+          })()}
           <span>{t("card.messageCount", { n: session.message_count })}</span>
           {relTime && (
             <span className="ml-auto shrink-0" title={session.updated_at}>

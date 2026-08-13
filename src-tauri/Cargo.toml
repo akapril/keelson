@@ -43,6 +43,9 @@ sha2 = "0.10"
 base64 = "0.22" # Web 认证：配对码/token 的 base64url 编码（Cargo.lock 已有 0.22.1 传递依赖，此处仅提升为直接依赖）
 hex = "0.4"
 notify = "7"
+# Hermes provider（首个 SQLite provider）：读 hermes/state.db。
+# bundled 内联编译 SQLite，无系统依赖、跨平台；始终只读打开（SQLITE_OPEN_READ_ONLY）。
+rusqlite = { version = "0.32", features = ["bundled"] }
 tantivy = "0.22"
 jieba-rs = "0.7"
 toml = "0.8"
