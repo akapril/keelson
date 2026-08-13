@@ -27,6 +27,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { SentIcon, AiChat02Icon, Delete02Icon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Markdown } from "@/components/markdown";
 import { useSettingsStore } from "@/store/settings";
@@ -392,21 +393,21 @@ export function AiChatPanel({ projectId, projectName, repoPath }: AiChatPanelPro
       {/* 工具行：上下文开关 + 工具模式 + 清空对话 */}
       <div className="flex shrink-0 items-start justify-between gap-2 px-1 pt-2">
         <div className="flex flex-col gap-1">
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
+          <label htmlFor="chat-include-context" className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            <Checkbox
+              id="chat-include-context"
               checked={includeContext}
-              onChange={(e) => setIncludeContext(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-input accent-primary"
+              onCheckedChange={(v) => setIncludeContext(v === true)}
+              className="size-3.5"
             />
             {t("chat.includeContext")}
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
+          <label htmlFor="chat-use-tools" className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            <Checkbox
+              id="chat-use-tools"
               checked={useTools}
-              onChange={(e) => setUseTools(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-input accent-primary"
+              onCheckedChange={(v) => setUseTools(v === true)}
+              className="size-3.5"
             />
             {t("chat.toolMode")}
           </label>

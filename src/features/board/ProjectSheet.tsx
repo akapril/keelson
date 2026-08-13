@@ -25,6 +25,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -329,12 +330,12 @@ function ProjectFields({
       </div>
 
       {/* 归档开关：无 switch 原语，使用带样式的 checkbox */}
-      <label className="flex cursor-pointer items-center gap-2 pt-1 text-sm text-foreground select-none">
-        <input
-          type="checkbox"
+      <label htmlFor="project-archived" className="flex cursor-pointer items-center gap-2 pt-1 text-sm text-foreground select-none">
+        <Checkbox
+          id="project-archived"
           checked={archived}
-          onChange={(e) => void patch({ archived: e.target.checked })}
-          className="size-4 cursor-pointer rounded border-input accent-primary"
+          onCheckedChange={(v) => void patch({ archived: v === true })}
+          className="cursor-pointer"
         />
         <span>{t("projectSheet.archived")}</span>
         <span className="text-xs text-muted-foreground">
@@ -381,13 +382,13 @@ function ProjectFields({
           </AlertDialogHeader>
 
           {/* 可选：同时删除仅属于本项目的文档（共享文档仍只解除关联） */}
-          <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm select-none">
-            <input
-              type="checkbox"
+          <label htmlFor="project-delete-docs" className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm select-none">
+            <Checkbox
+              id="project-delete-docs"
               checked={deleteDocs}
-              onChange={(e) => setDeleteDocs(e.target.checked)}
+              onCheckedChange={(v) => setDeleteDocs(v === true)}
               disabled={deleting}
-              className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-input accent-destructive"
+              className="mt-0.5 shrink-0 cursor-pointer"
             />
             <span>
               {t("projectSheet.deleteProjectDocs")}

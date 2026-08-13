@@ -8,6 +8,7 @@ import { useNotificationsStore } from "@/store/notifications";
 import { useNotifPrefsStore } from "@/store/notification-prefs";
 import type { AppNotification, NotificationKind } from "@/types/notifications";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -132,8 +133,8 @@ export default function InboxPage() {
         </Select>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-            <input type="checkbox" checked={allChecked} onChange={toggleAll} className="size-3.5 accent-primary" />
+          <label htmlFor="inbox-select-all" className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+            <Checkbox id="inbox-select-all" checked={allChecked} onCheckedChange={toggleAll} className="size-3.5" />
             {t("inbox:bulk.selectAll")}
           </label>
           <Button
@@ -179,11 +180,10 @@ export default function InboxPage() {
                   n.read ? "bg-card" : "bg-primary/5"
                 }`}
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={checked.has(n.id)}
-                  onChange={() => toggleOne(n.id)}
-                  className="mt-1 size-3.5 shrink-0 accent-primary"
+                  onCheckedChange={() => toggleOne(n.id)}
+                  className="mt-1 size-3.5 shrink-0"
                   aria-label={t("inbox:item.selectAriaLabel")}
                 />
                 <span className={`mt-1.5 size-2 shrink-0 rounded-full ${KIND_DOT[n.kind] ?? "bg-muted-foreground"}`} />

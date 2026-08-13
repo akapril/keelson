@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ipc } from "@/lib/tauri/ipc";
 import { useSettingsStore } from "@/store/settings";
 import { useBoardStore } from "@/store/board";
@@ -144,11 +145,10 @@ export function TaskBreakdownDialog({
                     key={i}
                     className="flex cursor-pointer items-start gap-2 rounded-lg border border-border bg-card p-2.5 text-sm"
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={sel.has(i)}
-                      onChange={() => toggle(i)}
-                      className="mt-0.5 size-3.5 rounded border-input accent-primary"
+                      onCheckedChange={() => toggle(i)}
+                      className="mt-0.5 size-3.5"
                     />
                     <span className="min-w-0 flex-1">
                       <span className="font-medium text-foreground">{s.title}</span>

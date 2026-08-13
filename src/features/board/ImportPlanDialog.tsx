@@ -14,6 +14,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ipc, type MdFile } from "@/lib/tauri/ipc";
 import { useBoardStore } from "@/store/board";
 import { createDocRecord } from "@/lib/pb/docs";
@@ -229,12 +230,12 @@ export function ImportPlanDialog({
         </div>
 
         {sel && specFile && (
-          <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-foreground">
-            <input
-              type="checkbox"
+          <label htmlFor="import-plan-with-spec" className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-foreground">
+            <Checkbox
+              id="import-plan-with-spec"
               checked={withSpec}
-              onChange={(e) => setWithSpec(e.target.checked)}
-              className="size-3.5 accent-primary"
+              onCheckedChange={(v) => setWithSpec(v === true)}
+              className="size-3.5"
             />
             {t("importPlan.withSpec", { name: specNameForPlan(sel.name) })}
           </label>

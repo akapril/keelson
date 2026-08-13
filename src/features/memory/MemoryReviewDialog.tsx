@@ -28,6 +28,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ipc } from "@/lib/tauri/ipc";
 import { useSettingsStore } from "@/store/settings";
 import { currentUserId } from "@/lib/pb";
@@ -205,11 +206,10 @@ export function MemoryReviewDialog({
                       dup ? "bg-muted/40 opacity-70" : "bg-card"
                     }`}
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={sel.has(i)}
-                      onChange={() => toggle(i)}
-                      className="mt-0.5 size-3.5 accent-primary"
+                      onCheckedChange={() => toggle(i)}
+                      className="mt-0.5 size-3.5"
                     />
                     <span className="min-w-0 flex-1">
                       <span className="text-foreground">{item.candidate.content}</span>

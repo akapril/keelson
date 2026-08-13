@@ -10,6 +10,7 @@ import { on } from "@/lib/tauri/events";
 import { cn } from "@/lib/utils";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import type { RuntimeProcess, RuntimeLog } from "@/types/runtime";
 import { InteractivePtyView } from "@/components/terminal/InteractivePtyView";
@@ -403,11 +404,11 @@ export function WorkspaceProcesses({ repoPath }: { repoPath?: string }) {
               onChanged={() => setCmdVersion((v) => v + 1)}
             />
             {/* 交互式启动 checkbox：sudo / ssh 等需要终端输入的命令勾选此项 */}
-            <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
+            <label htmlFor="ws-proc-interactive" className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <Checkbox
+                id="ws-proc-interactive"
                 checked={interactive}
-                onChange={(e) => setInteractive(e.target.checked)}
+                onCheckedChange={(v) => setInteractive(v === true)}
                 disabled={busy}
               />
               {t("processes.interactiveLabel")}

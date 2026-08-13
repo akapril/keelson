@@ -9,6 +9,7 @@ import { listProjects } from "@/lib/pb/board";
 import { type Memory, type MemoryKind } from "@/types/memory";
 import type { BoardProject } from "@/types/board";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Markdown } from "@/components/markdown";
 import { MemoryEditDialog } from "@/features/memory/MemoryEditDialog";
@@ -308,11 +309,9 @@ export default function MemoryPage() {
                   }`}
                 >
                   {selectMode && (
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={isSel}
-                      readOnly
-                      className="mt-0.5 size-3.5 shrink-0 accent-primary"
+                      className="mt-0.5 size-3.5 shrink-0"
                       aria-label={t("page.selectCheckboxLabel")}
                     />
                   )}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ipc } from "@/lib/tauri/ipc";
 import { isTauri } from "@/lib/env";
@@ -84,12 +85,12 @@ export function SystemDataSection() {
       </div>
 
       {/* 开机自启 */}
-      <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
-        <input
-          type="checkbox"
+      <label htmlFor="system-autostart" className="flex cursor-pointer items-center gap-2 text-sm select-none">
+        <Checkbox
+          id="system-autostart"
           checked={autostart}
-          onChange={(e) => void toggleAutostart(e.target.checked)}
-          className="size-4 cursor-pointer rounded border-input accent-primary"
+          onCheckedChange={(v) => void toggleAutostart(v === true)}
+          className="cursor-pointer"
         />
         <span>{t("systemData.autostartLabel")}</span>
       </label>

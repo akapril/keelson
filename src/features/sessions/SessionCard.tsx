@@ -8,6 +8,7 @@ import { RestoreDialog } from "./RestoreDialog";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 import { MemoryReviewDialog } from "../memory/MemoryReviewDialog";
 import { PromptDialog } from "@/components/prompt-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -180,11 +181,9 @@ function SessionCardImpl({
         {/* 首行：[批量勾选框] + 项目名 + 收藏星标 + 恢复按钮 */}
         <div className="flex items-center justify-between gap-2">
           {selectMode && (
-            <input
-              type="checkbox"
+            <Checkbox
               checked={checked}
-              readOnly
-              className="size-3.5 shrink-0 rounded border-input accent-primary"
+              className="size-3.5 shrink-0"
               aria-label={t("card.selectSession")}
             />
           )}

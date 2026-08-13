@@ -2,6 +2,7 @@
 // 逐类型开关（铃铛 + 桌面），可独立关闭任意来源；「发现新会话」保留旧独立开关。
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   newSessionsPref,
   setNewSessionsPref,
@@ -39,14 +40,15 @@ export function NotifyPrefsSection() {
           return (
             <label
               key={source}
+              htmlFor={`notify-${source}`}
               className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent/40"
             >
               <span className="select-none">{label}</span>
-              <input
-                type="checkbox"
+              <Checkbox
+                id={`notify-${source}`}
                 checked={enabled}
-                onChange={(e) => setEnabled(source, e.target.checked)}
-                className="h-3.5 w-3.5 shrink-0 accent-primary"
+                onCheckedChange={(v) => setEnabled(source, v === true)}
+                className="size-3.5 shrink-0"
               />
             </label>
           );
@@ -56,12 +58,12 @@ export function NotifyPrefsSection() {
       {/* 旧：会话摘要粒度控制（启动时是否推摘要条；与"会话"类型开关叠加） */}
       <div className="space-y-1.5">
         <p className="text-xs font-medium text-muted-foreground">{t("notify.sessionGranularity")}</p>
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+        <label htmlFor="notify-new-sessions" className="flex cursor-pointer items-center gap-2 text-sm">
+          <Checkbox
+            id="notify-new-sessions"
             checked={newSessions}
-            onChange={(e) => toggleNewSessions(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-input accent-primary"
+            onCheckedChange={(v) => toggleNewSessions(v === true)}
+            className="size-3.5"
           />
           <span>{t("notify.newSessionsLabel")}</span>
         </label>

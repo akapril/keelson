@@ -2,6 +2,7 @@
 // Claude 会话的 TaskCreate/TaskUpdate 经活动 hook 到达时是否自动同步进匹配项目看板。纯本地偏好。
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   getAutoSyncTasks,
   setAutoSyncTasks,
@@ -18,15 +19,15 @@ export function AutoSyncTasksSection() {
           {t("autoSyncTasks.desc")}
         </p>
       </div>
-      <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
-        <input
-          type="checkbox"
+      <label htmlFor="auto-sync-tasks" className="flex cursor-pointer items-center gap-2 text-sm select-none">
+        <Checkbox
+          id="auto-sync-tasks"
           checked={on}
-          onChange={(e) => {
-            setOn(e.target.checked);
-            setAutoSyncTasks(e.target.checked);
+          onCheckedChange={(v) => {
+            setOn(v === true);
+            setAutoSyncTasks(v === true);
           }}
-          className="size-4 cursor-pointer rounded border-input accent-primary"
+          className="cursor-pointer"
         />
         <span>{t("autoSyncTasks.checkboxLabel")}</span>
       </label>

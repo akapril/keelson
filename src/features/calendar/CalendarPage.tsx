@@ -41,6 +41,7 @@ import type { CalendarEvent } from "@/types/calendar";
 import { listDueTasks, listProjects, updateTaskDueDate } from "@/lib/pb/board";
 import type { BoardTask, BoardProject } from "@/types/board";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -818,14 +819,12 @@ export default function CalendarPage() {
             {/* 全天 + 颜色 */}
             <div className="flex items-center justify-between gap-3">
               <Label htmlFor="cal-allday" className="cursor-pointer">
-                <input
+                <Checkbox
                   id="cal-allday"
-                  type="checkbox"
                   checked={form.all_day}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, all_day: e.target.checked }))
+                  onCheckedChange={(v) =>
+                    setForm((f) => ({ ...f, all_day: v === true }))
                   }
-                  className="size-4 accent-primary"
                 />
                 {t("dialog.fieldAllDay")}
               </Label>

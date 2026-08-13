@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -247,11 +248,10 @@ export function DistillDialog({
                         key={i}
                         className="flex cursor-pointer items-start gap-2 rounded-lg border border-border bg-card p-2.5 text-sm"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={taskSel.has(i)}
-                          onChange={() => toggle(taskSel, setTaskSel, i)}
-                          className="mt-0.5 size-3.5 rounded border-input accent-primary"
+                          onCheckedChange={() => toggle(taskSel, setTaskSel, i)}
+                          className="mt-0.5 size-3.5"
                         />
                         <span className="min-w-0 flex-1">
                           <span className="font-medium text-foreground">{tk.title}</span>
@@ -284,11 +284,10 @@ export function DistillDialog({
                         key={i}
                         className="flex cursor-pointer items-start gap-2 rounded-lg border border-border bg-card p-2.5 text-sm"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={docSel.has(i)}
-                          onChange={() => toggle(docSel, setDocSel, i)}
-                          className="mt-0.5 size-3.5 rounded border-input accent-primary"
+                          onCheckedChange={() => toggle(docSel, setDocSel, i)}
+                          className="mt-0.5 size-3.5"
                         />
                         <span className="min-w-0 flex-1">
                           <span className="font-medium text-foreground">{d.title}</span>
