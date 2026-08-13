@@ -8,11 +8,11 @@
     <img alt="stack" src="https://img.shields.io/badge/Tauri%20v2-React%2019-blue" />
     <a href="https://github.com/akapril/keelson/releases"><img alt="release" src="https://img.shields.io/github/v/release/akapril/keelson?include_prereleases&label=下载" /></a>
     <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-green" /></a>
+    <a href="https://linux.do"><img alt="LINUX DO" src="https://img.shields.io/badge/LINUX-DO-FFB003" /></a>
   </p>
 </div>
 
 ---
-
 Keelson 是一个本地优先的跨平台桌面应用，把散落的 AI-CLI 会话、项目、任务、文档收拢到一处。数据默认留在本机——会话正文不进数据库、AI 检索倾向本地 embedding、正文不发第三方。
 
 ## 核心能力

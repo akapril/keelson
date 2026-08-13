@@ -8,6 +8,7 @@
     <img alt="stack" src="https://img.shields.io/badge/Tauri%20v2-React%2019-blue" />
     <a href="https://github.com/akapril/keelson/releases"><img alt="release" src="https://img.shields.io/github/v/release/akapril/keelson?include_prereleases&label=download" /></a>
     <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-green" /></a>
+    <a href="https://linux.do"><img alt="LINUX DO" src="https://img.shields.io/badge/LINUX-DO-FFB003" /></a>
   </p>
 </div>
 
