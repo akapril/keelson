@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/akapril/keelson/compare/v0.5.0...v0.5.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **ui:** 多选框统一为 Checkbox 组件，替换 20 处原生 checkbox ([ac89ce6](https://github.com/akapril/keelson/commit/ac89ce6f00e057167c55c9d1dc696937e07eadb1))
+
 ## [0.5.0](https://github.com/akapril/keelson/compare/v0.4.2...v0.5.0) (2026-08-13)
 
 
