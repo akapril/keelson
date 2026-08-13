@@ -314,7 +314,54 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+/// 修正 GUI（Dock/Finder/Launchpad）启动时的极简 PATH（仅 macOS）。
+///
+/// macOS 从 Dock 启动的应用只继承 `/usr/bin:/bin:/usr/sbin:/sbin`，**不含** homebrew /
+/// npm 全局 / `~/.local/bin` 等 CLI（claude/codex）所在目录 → web 远程终端在本进程内
+/// spawn CLI 时找不到二进制、浏览器一连上就收到 `{"type":"exit"}`。而从 Terminal 启动的
+/// 应用继承了用户 shell 的完整 PATH，故正常——这正是「Terminal 能开、Dock 不行」的根因。
+///
+/// 修法：用**登录+交互** shell（sources `~/.zprofile`/`~/.zshrc` 等）取用户真实 PATH，注入本
+/// 进程环境。之后所有 spawn（含 web PTY）都能解析到 CLI。用唯一标记包裹 `$PATH` 隔离 shell
+/// 启动横幅等 stdout 噪声。best-effort：任何失败都保持原 PATH（不影响 Terminal 启动路径）。
+#[cfg(target_os = "macos")]
+fn fix_gui_path() {
+    use std::process::Command;
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    const MARKER: &str = "__KEELSON_PATH_MARKER__";
+    // printf 不加换行；单引号标记 + 双引号 $PATH → 只展开 PATH，输出 <MARKER>PATH<MARKER>。
+    let script = format!("printf '%s%s%s' '{MARKER}' \"$PATH\" '{MARKER}'");
+    let Ok(out) = Command::new(&shell).args(["-ilc", script.as_str()]).output() else {
+        return;
+    };
+    if !out.status.success() {
+        return;
+    }
+    // 取两个标记之间的内容 = 真实 PATH，隔离横幅/提示等噪声。
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let Some(start) = stdout.find(MARKER) else {
+        return;
+    };
+    let rest = &stdout[start + MARKER.len()..];
+    let Some(end) = rest.find(MARKER) else {
+        return;
+    };
+    let path = rest[..end].trim();
+    if !path.is_empty() {
+        // 此刻 run() 仍单线程（早于 Tauri builder 起线程）→ set_var 安全。
+        std::env::set_var("PATH", path);
+    }
+}
+
+/// 非 macOS：无此问题（Windows GUI 继承完整 PATH；Linux 桌面项通常继承会话 PATH），空实现。
+#[cfg(not(target_os = "macos"))]
+fn fix_gui_path() {}
+
 pub fn run() {
+    // GUI（Dock）启动的 mac 应用 PATH 极简 → web 终端进程内 spawn 找不到 claude/codex。
+    // 须在任何 spawn（pocketbase/gateway/PTY）之前、且此刻仍单线程 → set_var 安全。
+    fix_gui_path();
+
     // keyring 服务名 rework→keelson 兼容：把旧服务下的密钥拷到新服务，须早于任何密钥读取
     //（否则读空→重生成→与 pb_data 用户密码对不上→登录失败）。幂等、best-effort。
     pb::bootstrap::migrate_keyring();
