@@ -27,16 +27,23 @@ const OLD_KEYRING_SERVICE: &str = "rework";
 /// 覆盖全部账户；幂等（新服务已有该账户则跳过）；best-effort（失败即忽略，回退文件/重生成）。
 /// **必须在读取任何密钥（get_passwords）之前调用**（见 lib.rs run 开头）。
 pub fn migrate_keyring() {
-    for account in ["superuser-pw", "local-user-pw", "mcp-secret", "local-user-token"] {
+    // local-user-token 不含在内：它只是无人读取的缓存（bootstrap 每次重新登录），改走文件，不再进 keychain。
+    for account in ["superuser-pw", "local-user-pw", "mcp-secret"] {
+        // 文件回退已有该值 → 稳态启动直接走文件，无需任何 keychain 访问（避免 macOS 弹窗）。
+        if read_secret_file(account).is_some() {
+            continue;
+        }
         let Ok(new) = keyring::Entry::new(KEYRING_SERVICE, account) else {
             continue;
         };
-        if new.get_password().is_ok() {
+        if let Ok(v) = new.get_password() {
+            let _ = write_secret_file(account, &v); // 顺带落文件，下次启动即走文件、不再弹
             continue; // 新服务已有 → 已迁移 / 无需动
         }
         if let Ok(old) = keyring::Entry::new(OLD_KEYRING_SERVICE, account) {
             if let Ok(v) = old.get_password() {
                 let _ = new.set_password(&v);
+                let _ = write_secret_file(account, &v); // 迁移同时落文件，后续无需再读 keychain
             }
         }
     }
@@ -62,32 +69,31 @@ fn random_pw() -> String {
         .collect()
 }
 
-/// 幂等地获取某个 secret（如 mcp-secret / superuser-pw / local-user-token）：
-/// 读取优先级 keychain → 文件回退；两者都没有时才生成新值并同时写回，保证「已存在即复用、
+/// 幂等地获取某个 secret（如 mcp-secret / superuser-pw / local-user-pw）：
+/// 读取优先级 **文件回退 → keychain**；两者都没有时才生成新值并同时写回，保证「已存在即复用、
 /// 缺失才生成」，从而跨重启稳定。
+///
+/// 为什么文件优先（macOS 弹窗）：ad-hoc 签名（signingIdentity:"-"）下 macOS 每次访问 keychain
+/// 都可能弹密码，且「始终允许」的授权绑定到代码签名、每次应用更新即失效 → 反复弹。文件回退在
+/// **app 数据目录**（跨应用更新保留），文件优先可把稳态启动（文件已有值）的 keychain 弹窗降到零。
 ///
 /// 背景（根因）：`keyring` v3 若未启用平台后端 feature（如 windows-native），会静默退化为
 /// **内存 mock** 存储 —— 每次 `Entry::new` 都是全新空实例，`get_password` 必返回 NoEntry，
 /// 于是每次启动都重新生成随机值、写入也随进程退出丢失，导致 secret 重启即变。现已在 Cargo.toml
 /// 启用平台后端；同时加一层「仅当前用户可读」的文件回退，即便 keychain 不可用也能稳定持久化。
 pub(crate) fn get_or_make_secret(account: &str) -> String {
-    // 1) 优先读 keychain（平台后端已启用时为真实持久存储）
+    // 1) 优先读文件回退（app_data，读取零 keychain 弹窗；且跨应用更新保留）。命中直接返回。
+    if let Some(pw) = read_secret_file(account) {
+        return pw;
+    }
+
+    // 2) 文件缺失：读 keychain（平台真实持久存储 / 历史值）。命中则补写文件，之后启动即走文件、不再弹。
     let entry = keyring::Entry::new(KEYRING_SERVICE, account).ok();
     if let Some(e) = entry.as_ref() {
         if let Ok(pw) = e.get_password() {
-            // keychain 命中：顺便同步到文件回退（幂等，忽略失败），保证两处一致
             let _ = write_secret_file(account, &pw);
             return pw;
         }
-    }
-
-    // 2) keychain 未命中：读文件回退（keychain 曾不可用/读失败时的历史值）
-    if let Some(pw) = read_secret_file(account) {
-        // 若 keychain 可用则把文件里的历史值补写回 keychain（幂等，忽略失败）
-        if let Some(e) = entry.as_ref() {
-            let _ = e.set_password(&pw);
-        }
-        return pw;
     }
 
     // 3) 两处都没有：确属首次，生成新值并同时写入 keychain + 文件
@@ -188,10 +194,9 @@ pub async fn bootstrap(base_url: &str, super_pw: &str, user_pw: &str) -> anyhow:
     // 3) 以 local-user 身份登录，获取用户 token
     let token = user_login(&http, base_url, LOCAL_EMAIL, user_pw).await?;
 
-    // 4) 将 token 写入 keychain 供复用
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, "local-user-token") {
-        let _ = entry.set_password(&token);
-    }
+    // 4) 缓存 token 到文件回退供复用（不写 keychain：避免 macOS ad-hoc 下的写入弹窗；
+    //    该缓存无人经 keychain 读取，bootstrap 每次都重新登录，文件缓存足矣）。
+    let _ = write_secret_file("local-user-token", &token);
 
     Ok(BootstrapAuth {
         base_url: base_url.into(),
