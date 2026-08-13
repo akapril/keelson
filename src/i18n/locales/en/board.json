@@ -163,13 +163,20 @@
       "pinError": "Pin failed: {{msg}}",
       "archiveError": "Action failed: {{msg}}",
       "copySuccess": "Copied {{label}}",
-      "resumeError": "Resume failed: {{msg}}"
+      "resumeError": "Resume failed: {{msg}}",
+      "openDirError": "Failed to open folder: {{msg}}"
     },
     "list": {
       "allArchived": "No active projects",
       "empty": "No projects yet",
       "allArchivedHint": "All projects are archived — click \"Show archived\" in the top right",
       "emptyHint": "Click \"New project\" to create your first board"
+    },
+    "favMenu": {
+      "moreTitle": "More actions",
+      "recentLabel": "Resume session",
+      "newTerminalLabel": "New terminal",
+      "openDir": "Open folder"
     }
   },
   "createProject": {

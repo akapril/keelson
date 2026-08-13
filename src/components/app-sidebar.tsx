@@ -20,7 +20,6 @@ import {
   StarIcon,
   ArrowRight01Icon,
   ArrowDown01Icon,
-  Add01Icon,
 } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
@@ -43,7 +42,8 @@ import { navGroups } from "@/lib/navigation";
 import { useBoardStore, selectPinnedProjects } from "@/store/board";
 import { useSessionsStore } from "@/store/sessions";
 import { useRestoreStore } from "@/store/restore";
-import { ipc } from "@/lib/tauri/ipc";
+import { FavoriteRowMenu } from "@/components/favorite-row-menu";
+import { recentSessionsOf } from "@/lib/recent-sessions";
 import type { Session } from "@/types/session";
 
 /** 收藏组单行：可拖拽排序，点击 NavLink 走 /board?open=<id>（board 页据此打开项目）。
@@ -54,14 +54,14 @@ function FavoriteRow({
   id,
   name,
   repoPath,
-  latestSession,
+  recentSessions,
 }: {
   id: string;
   name: string;
-  /** 项目仓库目录（供「新终端」就地起会话；无则不显示新终端） */
+  /** 项目仓库目录（供菜单「新终端 / 打开目录」；无则隐藏对应项） */
   repoPath?: string;
-  /** 该项目最近会话（供「继续」一键续接；无则不显示继续） */
-  latestSession?: Session;
+  /** 该项目最近若干会话：[0] 供行上「接续最近」一键，全部供 ⋯ 菜单逐条接续 */
+  recentSessions: Session[];
 }) {
   const { t } = useTranslation("board");
   const restore = useRestoreStore((s) => s.restore);
@@ -72,9 +72,8 @@ function FavoriteRow({
     transition,
     opacity: isDragging ? 0.6 : 1,
   };
-  // 「新终端」的 provider 默认最近会话的（无则 claude）
+  const latestSession = recentSessions[0];
   const provider = latestSession?.provider ?? "claude";
-  const providerLabel = provider === "codex" ? "Codex" : "Claude";
 
   // 继续：续接最近会话（新终端窗，跳过弹窗），不导航进项目
   const handleResume = async (e: React.MouseEvent) => {
@@ -85,23 +84,11 @@ function FavoriteRow({
     const err = useRestoreStore.getState().error;
     if (err) toast.error(t("project.toast.resumeError", { msg: err }));
   };
-  // 新终端：在项目目录起一个新会话
-  const handleNewTerminal = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!repoPath) return;
-    void ipc
-      .startSession(provider, repoPath)
-      .then(() =>
-        toast.success(t("sessions.toast.startSuccess", { provider: providerLabel })),
-      )
-      .catch((err) => toast.error(t("sessions.toast.startError", { msg: String(err) })));
-  };
 
-  // 接续为主：略突出(主色)；新终端为辅(临时)：更淡
+  // 接续为主：略突出(主色)；⋯ 菜单为辅：更淡
   const resumeBtnCls =
     "flex size-5 items-center justify-center rounded text-primary/80 transition-colors hover:bg-sidebar-accent hover:text-primary";
-  const newBtnCls =
+  const moreBtnCls =
     "flex size-5 items-center justify-center rounded text-sidebar-foreground/45 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground";
   // 接续提示：显示会接到哪个会话(最近会话的摘要)，让你续接前看清目标
   const promptSnippet = latestSession
@@ -125,31 +112,21 @@ function FavoriteRow({
           <span className="truncate">{name}</span>
         </NavLink>
       </SidebarMenuButton>
-      {/* 悬停动作：继续(续接最近会话) + 新终端(项目目录起会话)；图标折叠侧栏时隐藏 */}
-      {(latestSession || repoPath) && (
-        <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/menu-item:opacity-100 group-data-[collapsible=icon]:hidden">
-          {latestSession && (
-            <button
-              type="button"
-              className={resumeBtnCls}
-              onClick={handleResume}
-              title={resumeTitle}
-            >
-              <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-3.5" />
-            </button>
-          )}
-          {repoPath && (
-            <button
-              type="button"
-              className={newBtnCls}
-              onClick={handleNewTerminal}
-              title={t("project.newTempTitle", { provider: providerLabel })}
-            >
-              <HugeiconsIcon icon={Add01Icon} strokeWidth={2} className="size-3.5" />
-            </button>
-          )}
-        </div>
-      )}
+      {/* 悬停动作：接续最近(一键) + ⋯(展开会话列表/新终端/更多)；菜单打开时保持可见；折叠侧栏时隐藏 */}
+      <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/menu-item:opacity-100 has-[[data-state=open]]:opacity-100 group-data-[collapsible=icon]:hidden">
+        {latestSession && (
+          <button type="button" className={resumeBtnCls} onClick={handleResume} title={resumeTitle}>
+            <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-3.5" />
+          </button>
+        )}
+        <FavoriteRowMenu
+          projectId={id}
+          projectName={name}
+          repoPath={repoPath}
+          recentSessions={recentSessions}
+          triggerClassName={moreBtnCls}
+        />
+      </div>
     </li>
   );
 }
@@ -163,13 +140,8 @@ export function AppSidebar() {
   const reorderPin = useBoardStore((s) => s.reorderPin);
   const pinned = useMemo(() => selectPinnedProjects(projects), [projects]);
 
-  // 会话缓存：供收藏行「继续」定位每个项目的最近会话
+  // 会话缓存：供收藏行「接续最近」与 ⋯ 菜单「继续会话」定位每个项目的最近会话
   const sessions = useSessionsStore((s) => s.sessions);
-  const latestSessionOf = (repoPath?: string): Session | undefined => {
-    if (!repoPath) return undefined;
-    const list = sessions.filter((s) => s.project_path === repoPath);
-    return list.length ? list.reduce((a, b) => (a.updated_at > b.updated_at ? a : b)) : undefined;
-  };
 
   // 「更多」组折叠态（默认收起，记住选择）——降级的功能收进这里，日常不占前排
   const [moreOpen, setMoreOpen] = useState<boolean>(
@@ -260,7 +232,7 @@ export function AppSidebar() {
                         id={p.id}
                         name={p.name}
                         repoPath={p.repo_path}
-                        latestSession={latestSessionOf(p.repo_path)}
+                        recentSessions={recentSessionsOf(sessions, p.repo_path, 5)}
                       />
                     ))}
                   </SortableContext>

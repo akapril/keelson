@@ -163,13 +163,20 @@
       "pinError": "收藏失败：{{msg}}",
       "archiveError": "操作失败：{{msg}}",
       "copySuccess": "已复制{{label}}",
-      "resumeError": "续接失败：{{msg}}"
+      "resumeError": "续接失败：{{msg}}",
+      "openDirError": "打开目录失败：{{msg}}"
     },
     "list": {
       "allArchived": "当前无进行中的项目",
       "empty": "暂无项目",
       "allArchivedHint": "已有项目均已归档，点右上「显示归档」查看",
       "emptyHint": "点击「新建项目」创建第一个看板"
+    },
+    "favMenu": {
+      "moreTitle": "更多操作",
+      "recentLabel": "继续会话",
+      "newTerminalLabel": "新建终端",
+      "openDir": "打开目录"
     }
   },
   "createProject": {
