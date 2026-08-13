@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.0](https://github.com/akapril/keelson/compare/v0.5.1...v0.6.0) (2026-08-13)
+
+
+### Features
+
+* **sessions:** 接入 OpenCode/Gemini/Hermes/Antigravity 四个 CLI + 工具调用显示 + provider 徽标/筛选/新建下拉 ([cbe4f0c](https://github.com/akapril/keelson/commit/cbe4f0c2828f25707faeb8bef341e3b26324e946))
+* **ui:** macOS 原生标题栏 overlay(修圆角/红绿灯) ([d4b0bb3](https://github.com/akapril/keelson/commit/d4b0bb33c031887b17c8151968a28717d334e802))
+* **usage:** 用量页——成本控制塔 + 额度燃烧(暂隐藏) ([bc2d519](https://github.com/akapril/keelson/commit/bc2d51956185716ff19f88dced8497d5c2eaeff7))
+
 ## [0.5.1](https://github.com/akapril/keelson/compare/v0.5.0...v0.5.1) (2026-08-13)
 
 
