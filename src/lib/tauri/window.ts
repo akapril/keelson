@@ -19,6 +19,11 @@ export async function openDocWindow(id: string, title?: string): Promise<void> {
     await existing.setFocus();
     return;
   }
+  // macOS 走原生红绿灯 overlay，与主窗口一致；Windows/Linux 用自建 TitleBar。
+  const isMac = typeof navigator !== "undefined" && /mac/i.test(navigator.userAgent);
+  const platformDecoration = isMac
+    ? { decorations: true, titleBarStyle: "overlay" as const, hiddenTitle: true }
+    : { decorations: false };
   const win = new WebviewWindow(label, {
     url: `index.html#/doc-window/${id}`,
     title: title ? `${title} — Keelson` : i18n.t("app.docWindowTitle", { ns: "shell" }),
@@ -26,8 +31,7 @@ export async function openDocWindow(id: string, title?: string): Promise<void> {
     height: 720,
     minWidth: 480,
     minHeight: 400,
-    // 无原生标题栏，与主窗口一致用自建 TitleBar（拖拽 + 最小化/最大化/关闭）
-    decorations: false,
+    ...platformDecoration,
   });
   win.once("tauri://error", (e) => {
     console.error("打开文档窗口失败", e);

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Keelson",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 920,
+        "minHeight": 640,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      },
+      {
+        "label": "spotlight",
+        "title": "Keelson Spotlight",
+        "visible": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "center": true,
+        "skipTaskbar": true,
+        "width": 640,
+        "height": 420,
+        "resizable": false,
+        "transparent": true
+      }
+    ]
+  }
+}

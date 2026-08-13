@@ -1,10 +1,16 @@
-// 自建标题栏（decorations:false 后替代原生标题栏）。
+// 自建标题栏（Windows/Linux：decorations:false 后替代原生标题栏）。
 // 顶部细条：可拖拽区（data-tauri-drag-region，双击最大化/还原）+ 窗口控制按钮。
 // 控件用内联 SVG，零图标依赖。主窗口与文档独立窗口渲染（spotlight 无标题栏）。
+//
+// macOS 例外：走原生红绿灯 overlay（tauri.macos.conf.json 里 titleBarStyle:"Overlay"），
+// 系统在左上角浮出红绿灯，这里只留拖拽条并在左侧内缩避让，不自绘控制按钮。
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "react-i18next";
 
 const win = getCurrentWindow();
+
+// 平台探测：沿用项目既有的 userAgent 模式（零依赖、无需额外权限）。
+const IS_MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.userAgent);
 
 function MinimizeIcon() {
   return (
@@ -31,6 +37,18 @@ function CloseIcon() {
 
 export function TitleBar() {
   const { t } = useTranslation("shell");
+
+  // macOS：原生红绿灯浮在左上角，这里只提供拖拽条并左侧内缩避让，不画控制按钮。
+  if (IS_MAC) {
+    return (
+      <div
+        data-tauri-drag-region
+        className="flex h-8 shrink-0 select-none items-center border-b border-border bg-background pl-[72px] text-xs font-medium text-muted-foreground"
+      >
+        Keelson
+      </div>
+    );
+  }
 
   return (
     <div
