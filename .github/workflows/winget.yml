@@ -27,7 +27,14 @@ jobs:
     steps:
       - name: 提交/更新 winget 清单
         shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
         run: |
+          # 守卫：未配置 WINGET_TOKEN 时静默跳过（顶部一次性前置未完成前，避免每次发版报红）。
+          if ([string]::IsNullOrWhiteSpace($env:WINGET_TOKEN)) {
+            Write-Host "WINGET_TOKEN 未配置，跳过 winget 发布（见本文件顶部一次性前置说明）"
+            exit 0
+          }
           $tag = "${{ github.event.release.tag_name }}"
           if (-not $tag) { $tag = "${{ github.event.inputs.tag }}" }
           $ver = $tag.TrimStart('v')
@@ -39,4 +46,4 @@ jobs:
             --version $ver `
             --urls "$installer" `
             --submit `
-            --token "${{ secrets.WINGET_TOKEN }}"
+            --token "$env:WINGET_TOKEN"
