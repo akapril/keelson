@@ -1,0 +1,36 @@
+{
+  "title": "用量",
+  "description": "谁在烧你的额度：按滚动 5 小时 / 本周窗口聚合本地会话，估算消耗、成本与套餐占用。",
+  "tabs": {
+    "cost": "成本",
+    "quota": "额度燃烧"
+  },
+  "emptyState": "还没有会话数据。开始用 Claude / Codex / Gemini 后，这里会显示额度燃烧情况。",
+  "window5hTitle": "近 5 小时（滚动）",
+  "window5hSubtitle": "覆盖 Claude / Codex 的 5 小时滚动额度窗口",
+  "windowWeekTitle": "本周（近 7 天）",
+  "windowWeekSubtitle": "周额度窗口的整体消耗",
+  "windowEmpty": "该窗口内暂无消耗",
+  "messagesValue": "{{count}} 条消息",
+  "codexNoTokenHint": "Codex 通常不记录 token，故按消息数展示，成本标为「—」。",
+  "planEstimateLabel": "套餐额度估算",
+  "plan": {
+    "pro": "Claude Pro",
+    "max5x": "Claude Max 5×",
+    "max20x": "Claude Max 20×"
+  },
+  "estimatedUsed": "估算已用 ~{{percent}}%",
+  "estimateDisclaimer": "估算 · 官方不公布确切额度 · 仅供参考",
+  "burnTitle": "谁在烧",
+  "tab5h": "近 5 小时",
+  "tabWeek": "本周",
+  "topSessionsTitle": "Top 会话",
+  "topSessionsDesc": "消耗最高的单个会话",
+  "topProjectsTitle": "Top 项目",
+  "topProjectsDesc": "按项目聚合的总消耗",
+  "colProject": "项目",
+  "colModel": "模型",
+  "colUsage": "消耗",
+  "colCost": "成本",
+  "colSessions": "会话数"
+}

@@ -29,6 +29,33 @@ export const DEFAULT_COST_CONFIG: CostConfig = {
   currency: "$",
 };
 
+/**
+ * 由成本配置构造「模型名 → 每百万 token 单价」查询函数（单价的唯一来源）。
+ * 匹配顺序：
+ *   1) modelRates 精确命中模型名；
+ *   2) modelRates 前缀匹配（会话里模型名常带日期后缀，如 claude-opus-4-8-20260101，
+ *      而配置键为 claude-opus-4-8）——取「最长匹配前缀」，避免短键误命中；
+ *   3) 回退 provider 单价（额度燃烧无 by_model 时会把 provider 名当模型名传入）；
+ *   4) 仍未命中回退 0（未知模型不臆造价格，成本显示为「—」）。
+ */
+export function makeRateForModel(cfg: CostConfig): (model: string) => number {
+  const modelKeys = Object.keys(cfg.modelRates);
+  return (model: string): number => {
+    // 1) 精确命中
+    if (cfg.modelRates[model] != null) return cfg.modelRates[model];
+    // 2) 前缀匹配：取最长匹配键（更具体优先）
+    let best = "";
+    for (const key of modelKeys) {
+      if (model.startsWith(key) && key.length > best.length) best = key;
+    }
+    if (best) return cfg.modelRates[best];
+    // 3) 回退 provider 单价（model 此时可能就是 provider 名）
+    if (cfg.rates[model] != null) return cfg.rates[model];
+    // 4) 未知：0（不臆造）
+    return 0;
+  };
+}
+
 function load(): CostConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

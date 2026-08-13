@@ -63,6 +63,7 @@ export const navGroups: NavGroup[] = [
         icon: BookOpen01Icon,
         descriptionKey: "nav.reading.description",
       },
+      // 用量/成本页不进侧栏：入口在顶部 header 的「成本」按钮（→ /usage 双 tab）。
     ],
   },
   {

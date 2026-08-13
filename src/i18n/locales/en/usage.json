@@ -1,0 +1,36 @@
+{
+  "title": "Usage",
+  "description": "Who's burning your quota: aggregates local sessions by rolling 5-hour / weekly windows, estimating consumption, cost and plan usage.",
+  "tabs": {
+    "cost": "Cost",
+    "quota": "Quota burn"
+  },
+  "emptyState": "No session data yet. Once you start using Claude / Codex / Gemini, quota burn will show up here.",
+  "window5hTitle": "Last 5 hours (rolling)",
+  "window5hSubtitle": "Covers the 5-hour rolling quota window for Claude / Codex",
+  "windowWeekTitle": "This week (last 7 days)",
+  "windowWeekSubtitle": "Overall consumption for the weekly quota window",
+  "windowEmpty": "No consumption in this window",
+  "messagesValue": "{{count}} messages",
+  "codexNoTokenHint": "Codex usually has no token accounting, so messages are shown instead and cost is marked \"—\".",
+  "planEstimateLabel": "Plan quota estimate",
+  "plan": {
+    "pro": "Claude Pro",
+    "max5x": "Claude Max 5×",
+    "max20x": "Claude Max 20×"
+  },
+  "estimatedUsed": "Est. used ~{{percent}}%",
+  "estimateDisclaimer": "Estimate · exact quota not published by vendor · reference only",
+  "burnTitle": "Who's burning",
+  "tab5h": "Last 5h",
+  "tabWeek": "This week",
+  "topSessionsTitle": "Top sessions",
+  "topSessionsDesc": "Highest-consuming individual sessions",
+  "topProjectsTitle": "Top projects",
+  "topProjectsDesc": "Total consumption aggregated by project",
+  "colProject": "Project",
+  "colModel": "Model",
+  "colUsage": "Usage",
+  "colCost": "Cost",
+  "colSessions": "Sessions"
+}

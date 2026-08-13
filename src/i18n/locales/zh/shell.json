@@ -114,6 +114,7 @@
     "board": { "title": "项目", "description": "项目工作台：会话 · 看板 · 文档 · git" },
     "docs": { "title": "文档", "description": "跨项目文档汇总与搜索" },
     "reading": { "title": "阅读", "description": "个人书签 / 稍后读" },
+    "usage": { "title": "用量", "description": "额度燃烧：消耗 · 成本 · 套餐占用估算" },
     "calendar": { "title": "日历", "description": "个人日程 / 事件" },
     "memory": { "title": "记忆账本", "description": "跨厂商提炼的可复用记忆" },
     "prompts": { "title": "指令库", "description": "可复用 prompt / 片段，支持变量与一键插入" },
