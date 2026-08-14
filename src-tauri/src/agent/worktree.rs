@@ -42,6 +42,14 @@ fn default_branch(repo: &Path) -> String {
         .unwrap_or_else(|_| "main".into())
 }
 
+/// 判断路径是否为 git 仓库工作区（用 rev-parse 而非仅检查 .git 是否存在）。
+/// 非 git 目录或 git 命令失败均返回 false。
+pub fn is_git_repo(repo: &Path) -> bool {
+    git(repo, &["rev-parse", "--is-inside-work-tree"])
+        .map(|s| s.trim() == "true")
+        .unwrap_or(false)
+}
+
 /// 建隔离 worktree + 新分支：<repo>/.worktrees/task-<id> ← agent/task-<id>（基于默认分支）。
 /// 若同名分支/路径残留，先尽力清理再建。
 /// 返回 (worktree路径, 实际使用的 base 分支名)，调用方应持久化 base 分支名防止漂移。
@@ -391,6 +399,27 @@ mod tests {
         assert!(
             !branch_exists(&repo, "agent/task-t2"),
             "merge 后 agent/task-t2 分支应已删除"
+        );
+    }
+
+    /// 用例5：is_git_repo 对普通目录返回 false，对真实 git 仓库返回 true。
+    #[test]
+    fn is_git_repo_detects_git_vs_plain() {
+        // 普通目录（非 git）→ false
+        let plain = tmp_repo("plain_dir");
+        std::fs::create_dir_all(&plain).expect("创建普通目录失败");
+        let _guard_plain = TmpGuard(plain.clone());
+        assert!(
+            !is_git_repo(&plain),
+            "普通目录不应被识别为 git 仓库"
+        );
+
+        // 真实 git 仓库（setup_repo 已 git init + 初始 commit）→ true
+        let repo = setup_repo("is_git");
+        let _guard_repo = TmpGuard(repo.clone());
+        assert!(
+            is_git_repo(&repo),
+            "git 仓库应被 is_git_repo 正确识别"
         );
     }
 

@@ -100,6 +100,15 @@ pub async fn execute_task_with_agent(
         return Err("项目未设置 repo_path，无法派 agent".into());
     }
     let repo_path = Path::new(&repo);
+    // 校验目录存在且是 git 仓库（agent 需要在 git 仓库里建隔离工作树）
+    if !repo_path.exists() {
+        return Err(format!("项目目录不存在：{repo}。请检查该项目的 repo_path。"));
+    }
+    if !worktree::is_git_repo(repo_path) {
+        return Err(format!(
+            "项目目录不是 git 仓库：{repo}。agent 需要 git 仓库来建隔离工作树——请先在该目录执行 `git init` 并提交一次，或把项目的 repo_path 指向一个 git 仓库。"
+        ));
+    }
     let title  = task["title"].as_str().unwrap_or_default().to_string();
     let desc   = task["description"].as_str().unwrap_or_default().to_string();
     let pname  = project["name"].as_str().unwrap_or_default().to_string();
