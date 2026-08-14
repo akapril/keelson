@@ -322,6 +322,78 @@ mod tests {
         );
     }
 
+    /// 用例4（C1 核心路径）：用户在非 base 分支时，merge_branch 合并完必须切回原分支而非留在 base。
+    ///
+    /// 覆盖 `merge_branch` 里 `if o != base_branch { git checkout o }` 这条分支——
+    /// 即用户当前 HEAD ≠ base_branch 时，合并后必须切回用户原分支。
+    #[test]
+    fn full_lifecycle_restores_original_non_base_branch() {
+        let repo = setup_repo("restore_branch");
+        let _guard = TmpGuard(repo.clone()); // 测试结束（含 panic）自动清理临时目录
+
+        // ① 建 worktree：此时主仓库 HEAD = main，base = "main"
+        let (wt, base) = add_worktree(&repo, "t2").expect("add_worktree 失败");
+        assert_eq!(base, "main", "base 分支应为 main");
+        assert!(wt.exists(), "worktree 目录应存在");
+
+        // ② 在主仓库新建并切到 "other" 分支（≠ base）
+        // add_worktree 之后主工作区是干净的，可以安全切分支
+        let o = g(&repo, &["checkout", "-b", "other"]);
+        assert!(
+            o.status.success(),
+            "git checkout -b other 失败: {}",
+            String::from_utf8_lossy(&o.stderr)
+        );
+        // 确认主仓库 HEAD 现在指向 other
+        let head_before = {
+            let o = g(&repo, &["symbolic-ref", "--short", "HEAD"]);
+            String::from_utf8_lossy(&o.stdout).trim().to_string()
+        };
+        assert_eq!(head_before, "other", "切换后 HEAD 应为 other");
+
+        // ③ 在 worktree 里写入新文件（让 agent 分支有可合并改动）
+        std::fs::write(wt.join("agent_work.txt"), "from agent t2").expect("写 agent_work.txt 失败");
+
+        // ④ 合并 agent/task-t2 → base(main)；此时主仓库 HEAD = other ≠ base
+        merge_branch(&repo, "t2", &base).expect("merge_branch 失败");
+
+        // ⑤ 核心断言（C1 修复）：主仓库 HEAD 应切回 "other"，而非停在 "main"
+        let head_after_out = g(&repo, &["symbolic-ref", "--short", "HEAD"]);
+        assert!(
+            head_after_out.status.success(),
+            "合并后 symbolic-ref 应成功"
+        );
+        let head_after = String::from_utf8_lossy(&head_after_out.stdout)
+            .trim()
+            .to_string();
+        assert_eq!(
+            head_after, "other",
+            "C1 断言：合并后主仓库 HEAD 应切回原分支 other，而非停在 base(main)"
+        );
+
+        // ⑥ base(main) 上确实有 agent_work.txt（证明文件合入了 main 而非 other）
+        let show_out = g(&repo, &["show", "main:agent_work.txt"]);
+        assert!(
+            show_out.status.success(),
+            "main 分支上应能看到 agent_work.txt，git show 失败: {}",
+            String::from_utf8_lossy(&show_out.stderr)
+        );
+        let content = String::from_utf8_lossy(&show_out.stdout);
+        assert_eq!(
+            content.trim(),
+            "from agent t2",
+            "main 分支上 agent_work.txt 内容应正确"
+        );
+
+        // ⑦ worktree 目录已删
+        assert!(!wt.exists(), "merge 后 worktree 目录应已删除");
+        // ⑧ agent/task-t2 分支已删
+        assert!(
+            !branch_exists(&repo, "agent/task-t2"),
+            "merge 后 agent/task-t2 分支应已删除"
+        );
+    }
+
     /// 用例3：remove_worktree 清理目录和分支。
     #[test]
     fn remove_worktree_cleans_branch_and_dir() {
