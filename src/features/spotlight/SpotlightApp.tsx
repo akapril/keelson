@@ -12,6 +12,7 @@ import type { BoardTask, BoardProject } from "../../types/board";
 import type { BoardDoc } from "../../types/docs";
 import type { Memory } from "../../types/memory";
 import { SpotlightInput } from "./SpotlightInput";
+import { SpotlightCategoryChips } from "./SpotlightCategoryChips";
 import { SpotlightList } from "./SpotlightList";
 import { useSpotlightKeys } from "./useSpotlightKeys";
 
@@ -70,6 +71,8 @@ export function SpotlightApp() {
     >
       {/* 搜索输入框（自动聚焦） */}
       <SpotlightInput />
+      {/* 类别切换 chips */}
+      <SpotlightCategoryChips />
       {/* 候选项列表（键盘导航高亮，flex-1 撑满剩余空间） */}
       <SpotlightList />
       {/* 底部状态栏：结果数 + 快捷键提示 + 恢复模式 */}

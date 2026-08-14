@@ -131,7 +131,15 @@
     "tabPrefix": "Tab：",
     "empty": "没有匹配项",
     "kindTask": "任务",
-    "kindDoc": "文档"
+    "kindDoc": "文档",
+    "catAll": "全部",
+    "catSession": "会话",
+    "catProject": "项目",
+    "catDoc": "文档",
+    "catTask": "任务",
+    "catMemory": "记忆",
+    "kindProject": "项目",
+    "kindMemory": "记忆"
   },
   "dashboard": {
     "title": "总览",

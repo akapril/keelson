@@ -131,7 +131,15 @@
     "tabPrefix": "Tab: ",
     "empty": "No matches",
     "kindTask": "Task",
-    "kindDoc": "Doc"
+    "kindDoc": "Doc",
+    "catAll": "All",
+    "catSession": "Sessions",
+    "catProject": "Projects",
+    "catDoc": "Docs",
+    "catTask": "Tasks",
+    "catMemory": "Memories",
+    "kindProject": "Project",
+    "kindMemory": "Memory"
   },
   "dashboard": {
     "title": "Overview",
