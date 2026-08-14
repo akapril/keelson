@@ -351,7 +351,7 @@ export const ipc = {
 
   // ── Agent 自主执行（看板任务 P1）────────────────────────────
   /** 在独立 worktree 运行 Agent；事件经 Channel 实时回调（桌面专属，web 环境会抛）。
-   *  onEvent.kind: "log" | "done" | "blocked"；done/blocked 时携带 run_id。*/
+   *  onEvent.kind: "delta" | "done"；done 时携带 run_id。*/
   agentRunTask: (
     taskId: string,
     provider: string,

@@ -68,10 +68,15 @@ pub async fn agent_merge_run(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let (client, _) = make_client(&state)?;
-    let (task_id, repo) =
+    // executor_get_run 返回 (task_id, repo_path, base_branch)，base_branch 为建时持久化的值
+    let (task_id, repo, base_branch) =
         crate::agent::executor::executor_get_run(&client, &run_id).await?;
-    // 合并 worktree 分支到主分支
-    crate::agent::worktree::merge_branch(Path::new(&repo), &task_id)
+    // base_branch 不能为空（旧记录兼容检查）
+    if base_branch.trim().is_empty() {
+        return Err("agent_run 缺少 base_branch，无法安全合并（请重新派发 agent）".into());
+    }
+    // 合并 worktree 分支到持久化的 base 分支，合并后切回用户原分支
+    crate::agent::worktree::merge_branch(Path::new(&repo), &task_id, &base_branch)
         .map_err(|e| e.to_string())?;
     // 更新 run 状态为 merged
     client
@@ -88,7 +93,8 @@ pub async fn agent_discard_run(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let (client, _) = make_client(&state)?;
-    let (task_id, repo) =
+    // 忽略第三个返回值 base_branch（discard 不需要合并，无需 base 分支信息）
+    let (task_id, repo, _base) =
         crate::agent::executor::executor_get_run(&client, &run_id).await?;
     // 清理 worktree（失败不中断，继续将状态置为 discarded）
     let _ = crate::agent::worktree::remove_worktree(Path::new(&repo), &task_id);

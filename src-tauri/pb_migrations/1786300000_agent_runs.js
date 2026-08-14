@@ -32,6 +32,8 @@ migrate((app) => {
   runs.fields.add(new Field({ name: "status", type: "select", required: true, maxSelect: 1,
     values: ["running", "review", "blocked", "merged", "discarded"] }));
   runs.fields.add(new Field({ name: "branch", type: "text", max: 200 }));
+  // 建 worktree 时实际使用的 base 分支名（持久化防漂移）
+  runs.fields.add(new Field({ name: "base_branch", type: "text", max: 200 }));
   runs.fields.add(new Field({ name: "worktree_path", type: "text", max: 500 }));
   runs.fields.add(new Field({ name: "exit_code", type: "number" }));
   runs.fields.add(new Field({ name: "blocker", type: "text", max: 2000 }));

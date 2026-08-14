@@ -44,7 +44,8 @@ fn default_branch(repo: &Path) -> String {
 
 /// 建隔离 worktree + 新分支：<repo>/.worktrees/task-<id> ← agent/task-<id>（基于默认分支）。
 /// 若同名分支/路径残留，先尽力清理再建。
-pub fn add_worktree(repo: &Path, task_id: &str) -> Result<PathBuf> {
+/// 返回 (worktree路径, 实际使用的 base 分支名)，调用方应持久化 base 分支名防止漂移。
+pub fn add_worktree(repo: &Path, task_id: &str) -> Result<(PathBuf, String)> {
     let wt = worktree_path(repo, task_id);
     let branch = branch_name(task_id);
     let base = default_branch(repo);
@@ -55,7 +56,8 @@ pub fn add_worktree(repo: &Path, task_id: &str) -> Result<PathBuf> {
         repo,
         &["worktree", "add", "-b", &branch, &wt.to_string_lossy(), &base],
     )?;
-    Ok(wt)
+    // 同时返回 base 分支名，供调用方持久化到 agent_runs.base_branch
+    Ok((wt, base))
 }
 
 /// 工作树是否有改动（未提交 or 相对基线）。P1 用 status --porcelain 判未提交改动。
@@ -63,7 +65,7 @@ pub fn has_diff(worktree: &Path) -> Result<bool> {
     Ok(!git(worktree, &["status", "--porcelain"])?.trim().is_empty())
 }
 
-/// diff 概要（--stat 末行摘要）；无改动返回空串。
+/// diff 概要（status --porcelain 计数行数）；无改动返回空串。
 pub fn diff_stat(worktree: &Path) -> Result<String> {
     let s = git(worktree, &["status", "--porcelain"])?;
     let files = s.lines().count();
@@ -74,20 +76,28 @@ pub fn diff_stat(worktree: &Path) -> Result<String> {
     })
 }
 
-/// 把 agent 分支合并回默认分支：commit 工作树改动 → 切默认分支 → merge → 清理。
+/// 把 agent 分支合并回指定 base 分支：commit 工作树改动 → 切 base → merge → 切回用户原分支 → 清理。
 /// 仅在人点「合并」时调用。绝不自动调用。
-pub fn merge_branch(repo: &Path, task_id: &str) -> Result<()> {
+/// base_branch 必须传入建 worktree 时持久化的值，禁止在此处再次求值（防止漂移）。
+pub fn merge_branch(repo: &Path, task_id: &str, base_branch: &str) -> Result<()> {
     let wt = worktree_path(repo, task_id);
     let branch = branch_name(task_id);
-    let base = default_branch(repo);
+    // 主工作区必须干净，否则 checkout 会失败或丢失改动
+    if !git(repo, &["status", "--porcelain"])?.trim().is_empty() {
+        return Err(anyhow!("主工作区有未提交改动，请先提交或暂存后再合并"));
+    }
+    // 记住用户当前所在分支，合并后切回（分离头状态则为 None）
+    let orig = git(repo, &["symbolic-ref", "--short", "HEAD"])
+        .map(|s| s.trim().to_string())
+        .ok();
     // 在工作树里把改动提交到 agent 分支
     git(&wt, &["add", "-A"])?;
     // 允许"无改动"时不报错：仅当有暂存内容才 commit
-    if !git(&wt, &["diff", "--cached", "--quiet"]).is_ok() {
+    if git(&wt, &["diff", "--cached", "--quiet"]).is_err() {
         git(&wt, &["commit", "-m", &format!("agent: task {task_id}")])?;
     }
-    // 回主仓库合并 agent 分支
-    git(repo, &["checkout", &base])?;
+    // 切到 base 分支合并 agent 分支
+    git(repo, &["checkout", base_branch])?;
     git(
         repo,
         &[
@@ -98,6 +108,12 @@ pub fn merge_branch(repo: &Path, task_id: &str) -> Result<()> {
             &branch,
         ],
     )?;
+    // 切回用户原分支（仅当原分支与 base 不同时才切，避免多余操作）
+    if let Some(o) = orig {
+        if o != base_branch {
+            git(repo, &["checkout", &o])?;
+        }
+    }
     remove_worktree(repo, task_id)?;
     Ok(())
 }

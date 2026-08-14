@@ -45,14 +45,15 @@ fn tail(s: &str) -> String {
     format!("…(截断)\n{}", &s[start..])
 }
 
-/// 读取某 run 记录的 task + project.repo_path，供命令层 merge/discard 使用。
-/// 返回 (task_id, repo_path)。
+/// 读取某 run 记录的 task + project.repo_path + base_branch，供命令层 merge/discard 使用。
+/// 返回 (task_id, repo_path, base_branch)。
+/// base_branch 为建 worktree 时持久化的值，merge 时必须用此值，禁止重新求值（防漂移）。
 pub async fn executor_get_run(
     client: &PbClient,
     run_id: &str,
-) -> Result<(String, String), String> {
-    // 读 agent_runs 取 task + project 字段
-    let run = get_one(client, "agent_runs", run_id, "id,task,project").await?;
+) -> Result<(String, String, String), String> {
+    // 读 agent_runs 取 task + project + base_branch 字段
+    let run = get_one(client, "agent_runs", run_id, "id,task,project,base_branch").await?;
     let task_id = run["task"]
         .as_str()
         .filter(|s| !s.is_empty())
@@ -63,6 +64,11 @@ pub async fn executor_get_run(
         .filter(|s| !s.is_empty())
         .ok_or_else(|| format!("agent_run {run_id} 缺少 project 字段"))?
         .to_string();
+    // base_branch 可能为空（旧记录兼容：回退到空串，调用层自行处理）
+    let base_branch = run["base_branch"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
     // 读 board_projects 取 repo_path
     let project = get_one(client, "board_projects", &project_id, "id,repo_path").await?;
     let repo_path = project["repo_path"]
@@ -70,7 +76,7 @@ pub async fn executor_get_run(
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| format!("board_projects {project_id} 缺少 repo_path"))?
         .to_string();
-    Ok((task_id, repo_path))
+    Ok((task_id, repo_path, base_branch))
 }
 
 /// 执行内核：见模块文档。返回 agent_run id。on_line 用于把日志实时推给前端。
@@ -114,8 +120,9 @@ pub async fn execute_task_with_agent(
     let run_id = run["id"].as_str().unwrap_or_default().to_string();
 
     // 3) 建 worktree（失败 → run=blocked，仍返 run_id）
-    let wt = match worktree::add_worktree(repo_path, task_id) {
-        Ok(p) => p,
+    // add_worktree 返回 (worktree路径, 实际 base 分支名)，base 须持久化防止漂移
+    let (wt, base_branch) = match worktree::add_worktree(repo_path, task_id) {
+        Ok(pair) => pair,
         Err(e) => {
             let _ = client
                 .patch("agent_runs", &run_id, &json!({
@@ -126,9 +133,12 @@ pub async fn execute_task_with_agent(
             return Ok(run_id);
         }
     };
-    // 记录 worktree 路径（方便 UI 展示/后续清理）
+    // 记录 worktree 路径 + base_branch（base_branch 在合并时必须用此值，禁止重新求值）
     let _ = client
-        .patch("agent_runs", &run_id, &json!({ "worktree_path": wt.to_string_lossy() }))
+        .patch("agent_runs", &run_id, &json!({
+            "worktree_path": wt.to_string_lossy(),
+            "base_branch":   base_branch,
+        }))
         .await;
 
     // 4) 组 prompt + 跑 CLI（30min 超时，流式累日志）
