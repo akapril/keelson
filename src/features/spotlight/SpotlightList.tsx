@@ -7,6 +7,14 @@ import { useSpotlightStore } from "../../store/spotlight";
 import { activateItem } from "./activate";
 import { cn } from "../../lib/utils";
 
+// 非会话候选（任务/文档/项目/记忆）的徽标样式与 i18n key
+const KIND_BADGE: Record<"task" | "doc" | "project" | "memory", { cls: string; key: string }> = {
+  task: { cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400", key: "spotlight.kindTask" },
+  doc: { cls: "bg-violet-500/15 text-violet-600 dark:text-violet-400", key: "spotlight.kindDoc" },
+  project: { cls: "bg-blue-500/15 text-blue-600 dark:text-blue-400", key: "spotlight.kindProject" },
+  memory: { cls: "bg-rose-500/15 text-rose-600 dark:text-rose-400", key: "spotlight.kindMemory" },
+};
+
 export function SpotlightList() {
   const { t } = useTranslation("shell");
   const items = useSpotlightStore((s) => s.items);
@@ -74,16 +82,14 @@ export function SpotlightList() {
               </>
             ) : (
               <>
-                {/* 任务/文档 类型徽章 */}
+                {/* 任务/文档/项目/记忆 类型徽标 */}
                 <span
                   className={cn(
                     "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-                    item.kind === "task"
-                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                      : "bg-violet-500/15 text-violet-600 dark:text-violet-400",
+                    KIND_BADGE[item.kind].cls,
                   )}
                 >
-                  {item.kind === "task" ? t("spotlight.kindTask") : t("spotlight.kindDoc")}
+                  {t(KIND_BADGE[item.kind].key)}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-medium text-foreground">{item.label}</div>
