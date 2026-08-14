@@ -137,23 +137,61 @@ export function filterByTitle<T extends { title: string }>(items: T[], query: st
   return items.filter((it) => (it.title || "").toLowerCase().includes(q));
 }
 
+/** Spotlight 候选数据源集合（挂载时预取，客户端过滤）。 */
+export interface SpotlightData {
+  sessions: Session[];
+  projects: BoardProject[];
+  docs: BoardDoc[];
+  tasks: BoardTask[];
+  memories: Memory[];
+}
+
+/** 类别内空查询时最多列出的条数（防极端刷屏）。 */
+const CATEGORY_CAP = 200;
+
 /**
- * 由查询构建候选项列表：
- * - query 为空 → 最近会话（沿用原行为，不混入任务/文档，保持"最近会话"心智）。
- * - query 非空 → 会话 + 任务 + 文档 各自过滤后合并（每类截断 PER_KIND_LIMIT，会话在前）。
+ * 由查询与类别构建候选项：
+ * - all + 空 query → 最近会话（沿用现状，不混他类）。
+ * - all + query → 会话+项目+文档+任务+记忆 各截断 PER_KIND_LIMIT（会话在前）。
+ * - 具体类别 + 空 query → 该类全部（CATEGORY_CAP 上限）。
+ * - 具体类别 + query → 该类过滤。
  */
 export function buildItems(
   query: string,
-  sessions: Session[],
-  tasks: BoardTask[],
-  docs: BoardDoc[],
-  recentN: number,
+  category: SpotlightCategory,
+  data: SpotlightData,
 ): SpotlightItem[] {
-  if (!query.trim()) {
-    return recentSessions(sessions, recentN).map(sessionToItem);
+  const q = query.trim();
+  if (category === "all") {
+    if (!q) return recentSessions(data.sessions, 20).map(sessionToItem);
+    return [
+      ...filterSessions(data.sessions, q).slice(0, PER_KIND_LIMIT).map(sessionToItem),
+      ...filterProjects(data.projects, q).slice(0, PER_KIND_LIMIT).map(projectToItem),
+      ...filterByTitle(data.docs, q).slice(0, PER_KIND_LIMIT).map(docToItem),
+      ...filterByTitle(data.tasks, q).slice(0, PER_KIND_LIMIT).map(taskToItem),
+      ...filterMemories(data.memories, q).slice(0, PER_KIND_LIMIT).map(memoryToItem),
+    ];
   }
-  const sItems = filterSessions(sessions, query).slice(0, PER_KIND_LIMIT).map(sessionToItem);
-  const tItems = filterByTitle(tasks, query).slice(0, PER_KIND_LIMIT).map(taskToItem);
-  const dItems = filterByTitle(docs, query).slice(0, PER_KIND_LIMIT).map(docToItem);
-  return [...sItems, ...tItems, ...dItems];
+  switch (category) {
+    case "session":
+      return (q ? filterSessions(data.sessions, q) : recentSessions(data.sessions, CATEGORY_CAP))
+        .slice(0, CATEGORY_CAP)
+        .map(sessionToItem);
+    case "project":
+      return (q ? filterProjects(data.projects, q) : data.projects.slice(0, CATEGORY_CAP))
+        .slice(0, CATEGORY_CAP)
+        .map(projectToItem);
+    case "doc":
+      return (q ? filterByTitle(data.docs, q) : data.docs.slice(0, CATEGORY_CAP))
+        .slice(0, CATEGORY_CAP)
+        .map(docToItem);
+    case "task":
+      return (q ? filterByTitle(data.tasks, q) : data.tasks.slice(0, CATEGORY_CAP))
+        .slice(0, CATEGORY_CAP)
+        .map(taskToItem);
+    case "memory":
+      return (q ? filterMemories(data.memories, q) : data.memories.slice(0, CATEGORY_CAP))
+        .slice(0, CATEGORY_CAP)
+        .map(memoryToItem);
+  }
 }

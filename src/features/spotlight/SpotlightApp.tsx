@@ -5,10 +5,12 @@ import { useTranslation } from "react-i18next";
 import { useSpotlightStore } from "../../store/spotlight";
 import { useSessionsStore } from "../../store/sessions";
 import { buildItems } from "./utils";
-import { listAllTasks } from "../../lib/pb/board";
+import { listAllTasks, listProjects } from "../../lib/pb/board";
 import { listAllDocs } from "../../lib/pb/docs";
-import type { BoardTask } from "../../types/board";
+import { listMemories } from "../../lib/pb/memory";
+import type { BoardTask, BoardProject } from "../../types/board";
 import type { BoardDoc } from "../../types/docs";
+import type { Memory } from "../../types/memory";
 import { SpotlightInput } from "./SpotlightInput";
 import { SpotlightList } from "./SpotlightList";
 import { useSpotlightKeys } from "./useSpotlightKeys";
@@ -20,24 +22,29 @@ export function SpotlightApp() {
   const sessions = useSessionsStore((s) => s.sessions);
   const loadSessions = useSessionsStore((s) => s.load);
   const query = useSpotlightStore((s) => s.query);
+  const category = useSpotlightStore((s) => s.category);
   const setItems = useSpotlightStore((s) => s.setItems);
   const itemCount = useSpotlightStore((s) => s.items.length);
   const asTab = useSpotlightStore((s) => s.asTab);
-  // 全量任务/文档（挂载时一次性拉取，客户端过滤；失败静默留空）
+  // 全量任务/文档/项目/记忆（挂载一次性拉取，客户端过滤；失败静默留空）
   const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [docs, setDocs] = useState<BoardDoc[]>([]);
+  const [projects, setProjects] = useState<BoardProject[]>([]);
+  const [memories, setMemories] = useState<Memory[]>([]);
 
-  // 挂载时拉取会话列表 + 全量任务/文档
+  // 挂载时拉取会话 + 全量任务/文档/项目/记忆
   useEffect(() => {
     loadSessions();
     void listAllTasks().then(setTasks).catch(() => {});
     void listAllDocs().then(setDocs).catch(() => {});
+    void listProjects().then(setProjects).catch(() => {});
+    void listMemories().then(setMemories).catch(() => {});
   }, [loadSessions]);
 
-  // query / 数据变化时重算候选项：空 query = 最近会话；有 query = 会话+任务+文档
+  // query / category / 数据变化时重算候选项
   useEffect(() => {
-    setItems(buildItems(query, sessions, tasks, docs, 20));
-  }, [query, sessions, tasks, docs, setItems]);
+    setItems(buildItems(query, category, { sessions, projects, docs, tasks, memories }));
+  }, [query, category, sessions, projects, docs, tasks, memories, setItems]);
 
   // 注册键盘事件（↑/↓/Enter/Esc/Tab）
   useSpotlightKeys();

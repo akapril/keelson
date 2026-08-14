@@ -15,6 +15,7 @@ import {
   filterProjects,
   filterMemories,
 } from "../utils";
+import type { SpotlightData } from "../utils";
 import type { Session } from "../../../types/session";
 import type { BoardTask } from "../../../types/board";
 import type { BoardDoc } from "../../../types/docs";
@@ -154,23 +155,42 @@ describe("buildItems", () => {
   ];
   const tasks = [task("t1", "fix pipeline"), task("t2", "unrelated")];
   const docs = [doc("d1", "fix notes")];
+  const projects = [proj("p1", "fixtures-proj"), proj("p2", "other")];
+  const memories = [mem("m1", "fix 记忆"), mem("m2", "无关")];
+  const data: SpotlightData = { sessions, projects, docs, tasks, memories };
 
-  it("空 query → 仅最近会话（kind 全为 session）", () => {
-    const items = buildItems("", sessions, tasks, docs, 20);
+  it("all + 空 query → 仅最近会话", () => {
+    const items = buildItems("", "all", data);
     expect(items).toHaveLength(2);
     expect(items.every((i) => i.kind === "session")).toBe(true);
   });
 
-  it("有 query → 会话 + 任务 + 文档 混合（按标题匹配）", () => {
-    const items = buildItems("fix", sessions, tasks, docs, 20);
+  it("all + query → 五类混合，会话在前", () => {
+    const items = buildItems("fix", "all", data);
     const kinds = items.map((i) => i.kind);
-    expect(kinds).toContain("session"); // "fix login" 命中
-    expect(kinds).toContain("task"); // "fix pipeline" 命中
-    expect(kinds).toContain("doc"); // "fix notes" 命中
-    // 会话在前
+    expect(kinds).toContain("session");
+    expect(kinds).toContain("task");
+    expect(kinds).toContain("doc");
+    expect(kinds).toContain("project");
+    expect(kinds).toContain("memory");
     expect(items[0].kind).toBe("session");
-    // "unrelated" 任务不应命中
-    expect(items.some((i) => i.kind === "task" && i.label === "unrelated")).toBe(false);
+  });
+
+  it("project + 空 query → 列全部项目", () => {
+    const items = buildItems("", "project", data);
+    expect(items).toHaveLength(2);
+    expect(items.every((i) => i.kind === "project")).toBe(true);
+  });
+
+  it("memory + query → 仅命中记忆", () => {
+    const items = buildItems("fix", "memory", data);
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe("memory");
+  });
+
+  it("session + 空 query → 按最近排序的全部会话", () => {
+    const items = buildItems("", "session", data);
+    expect(items.map((i) => (i.kind === "session" ? i.session.session_id : ""))).toEqual(["a", "b"]);
   });
 });
 
