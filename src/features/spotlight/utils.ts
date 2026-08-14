@@ -2,6 +2,8 @@
 import type { Session } from "../../types/session";
 import type { BoardTask } from "../../types/board";
 import type { BoardDoc } from "../../types/docs";
+import type { BoardProject } from "../../types/board";
+import type { Memory } from "../../types/memory";
 import type {
   SpotlightItem,
   SessionSpotlightItem,
@@ -92,6 +94,40 @@ export function docToItem(doc: BoardDoc): NavSpotlightItem {
     label: doc.title || i18n.t("commandPalette.unnamedDoc", { ns: "shell" }),
     path: workspaceRecordUrl("board", doc.projects[0] ?? "", { tab: "docs", doc: doc.id }),
   };
+}
+
+/** 项目 → 导航候选：Enter 打开该项目工作台总览。 */
+export function projectToItem(project: BoardProject): NavSpotlightItem {
+  return {
+    kind: "project",
+    label: project.name,
+    path: workspaceRecordUrl("board", project.id, { tab: "overview" }),
+  };
+}
+
+/** 记忆正文首行摘要（最多 60 字符）作候选 label。 */
+export function memoryLabel(memory: Memory): string {
+  const firstLine = (memory.content || "").split("\n")[0].trim();
+  return firstLine.slice(0, 60) + (firstLine.length > 60 ? "…" : "");
+}
+
+/** 记忆 → 导航候选：Enter 打开记忆账本页并定位该条（?open=<id>）。 */
+export function memoryToItem(memory: Memory): NavSpotlightItem {
+  return { kind: "memory", label: memoryLabel(memory), path: `/memory?open=${memory.id}` };
+}
+
+/** 按项目名过滤（忽略大小写）；空查询返回空（空态由 buildItems 决定）。 */
+export function filterProjects(projects: BoardProject[], query: string): BoardProject[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  return projects.filter((p) => (p.name || "").toLowerCase().includes(q));
+}
+
+/** 按记忆正文过滤（忽略大小写）；空查询返回空。 */
+export function filterMemories(memories: Memory[], query: string): Memory[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  return memories.filter((m) => (m.content || "").toLowerCase().includes(q));
 }
 
 /** 按标题关键词过滤（忽略大小写）；空查询返回空。 */

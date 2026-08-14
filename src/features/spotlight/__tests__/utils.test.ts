@@ -9,10 +9,17 @@ import {
   buildItems,
   parsePrefix,
   formatInput,
+  projectToItem,
+  memoryToItem,
+  memoryLabel,
+  filterProjects,
+  filterMemories,
 } from "../utils";
 import type { Session } from "../../../types/session";
 import type { BoardTask } from "../../../types/board";
 import type { BoardDoc } from "../../../types/docs";
+import type { BoardProject } from "../../../types/board";
+import type { Memory } from "../../../types/memory";
 
 /** 构造最小化测试用 Session */
 function makeSession(
@@ -218,5 +225,44 @@ describe("formatInput", () => {
   });
   it("parsePrefix ∘ formatInput 往返一致", () => {
     expect(parsePrefix(formatInput("task", "urgent"))).toEqual({ category: "task", query: "urgent" });
+  });
+});
+
+const proj = (id: string, name: string): BoardProject =>
+  ({ id, name }) as unknown as BoardProject;
+const mem = (id: string, content: string): Memory =>
+  ({ id, content }) as unknown as Memory;
+
+describe("projectToItem", () => {
+  it("kind=project，path 指向项目工作台总览", () => {
+    const it0 = projectToItem(proj("p1", "看板"));
+    expect(it0.kind).toBe("project");
+    expect(it0.label).toBe("看板");
+    expect(it0.path).toContain("open=p1");
+    expect(it0.path).toContain("tab=overview");
+  });
+});
+
+describe("memoryLabel / memoryToItem", () => {
+  it("label 取正文首行，超 60 截断加省略号", () => {
+    expect(memoryLabel(mem("m1", "第一行\n第二行"))).toBe("第一行");
+    expect(memoryLabel(mem("m2", "x".repeat(80)))).toBe("x".repeat(60) + "…");
+  });
+  it("kind=memory，path 为 /memory?open=<id>", () => {
+    const it0 = memoryToItem(mem("m3", "偏好：深色主题"));
+    expect(it0.kind).toBe("memory");
+    expect(it0.path).toBe("/memory?open=m3");
+    expect(it0.label).toBe("偏好：深色主题");
+  });
+});
+
+describe("filterProjects / filterMemories", () => {
+  it("按名称/正文忽略大小写过滤；空查询返回空", () => {
+    const projects = [proj("p1", "Alpha"), proj("p2", "beta")];
+    expect(filterProjects(projects, "alp").map((p) => p.id)).toEqual(["p1"]);
+    expect(filterProjects(projects, "")).toEqual([]);
+    const memories = [mem("m1", "深色主题"), mem("m2", "浅色")];
+    expect(filterMemories(memories, "深色").map((m) => m.id)).toEqual(["m1"]);
+    expect(filterMemories(memories, "  ")).toEqual([]);
   });
 });
