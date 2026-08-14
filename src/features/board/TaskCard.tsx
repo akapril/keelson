@@ -46,6 +46,7 @@ import type { AgentRun } from "@/types/agent";
 import { useStartableProvidersStore } from "@/store/startable-providers";
 import { providerLabel } from "@/lib/providers";
 import { AgentRunPanel } from "./AgentRunPanel";
+import { useAgentLogStore } from "@/store/agent-run-logs";
 
 // P1 阶段支持 Agent 自主执行的 provider 集合（如需扩展修改此处即可）。
 const AGENT_P1_PROVIDERS = new Set(["claude", "codex"]);
@@ -158,17 +159,21 @@ function TaskCardInner({
   /** 发起 Agent 执行：选中 provider 后调用 IPC，done 后刷新徽标，错误重抛并 toast */
   const runWithAgent = async (providerId: string) => {
     if (agentRunning) return;
+    // 发起前清空旧日志，避免上次执行的内容残留
+    useAgentLogStore.getState().reset(task.id);
     setAgentRunning(true);
     try {
       await ipc.agentRunTask(task.id, providerId, (e) => {
-        if (e.kind === "done") {
+        if (e.kind === "delta" && e.text) {
+          // 增量文本：写入实时日志 store，面板会订阅并实时渲染
+          useAgentLogStore.getState().append(task.id, e.text);
+        } else if (e.kind === "done") {
           // 执行完毕：toast 成功 + 刷新徽标
           toast.success(`${providerLabel(providerId)} 已完成任务「${task.title}」`);
           listAgentRuns(taskIdRef.current)
             .then((runs) => setLatestRun(runs[0] ?? null))
             .catch(() => undefined);
         }
-        // "log"/"blocked" 等 delta 事件：暂存/忽略，Task 10 面板会展示完整日志
       });
     } catch (err) {
       toast.error(`Agent 执行失败：${String(err)}`);

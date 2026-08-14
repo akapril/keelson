@@ -1,11 +1,12 @@
 // AgentRunPanel —— Agent 运行详情面板（Sheet 形式；显示日志/diff/状态操作）。
 // 打开时拉最新 run → 按状态渲染操作按钮；操作成功 toast + 刷新；失败重抛 + toast。
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { providerLabel } from "@/lib/providers";
 import { listAgentRuns } from "@/lib/pb/agent-runs";
 import { ipc } from "@/lib/tauri/ipc";
 import type { AgentRun, AgentRunStatus } from "@/types/agent";
+import { useAgentLogStore } from "@/store/agent-run-logs";
 import {
   Sheet,
   SheetContent,
@@ -58,6 +59,16 @@ export function AgentRunPanel({
   const [loading, setLoading] = useState(false);
   // 操作按钮禁用态（防止重复点击）
   const [acting, setActing] = useState(false);
+  // 实时日志：订阅 agent-run-logs store，执行中边跑边渲染
+  const liveLog = useAgentLogStore((s) => s.logs[taskId] ?? "");
+  // 日志区 ref，用于 liveLog 变化时自动滚到底部
+  const liveLogRef = useRef<HTMLPreElement>(null);
+
+  // liveLog 变化时自动将日志区滚到底部
+  useEffect(() => {
+    const el = liveLogRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [liveLog]);
 
   /** 拉取最新一条 run（打开时 + 操作成功后调用） */
   const refresh = useCallback(() => {
@@ -123,9 +134,14 @@ export function AgentRunPanel({
     try {
       // 先打回当前 blocked run（清理 worktree），再重新执行
       await ipc.agentDiscardRun(run.id);
-      // agentRunTask 是流式：通过 onEvent 回调感知完成；这里仅触发，不 await 完整流
+      // 发起前清空旧日志，让实时日志区从头开始
+      useAgentLogStore.getState().reset(taskId);
+      // agentRunTask 是流式：通过 onEvent 回调感知增量和完成；这里仅触发，不 await 完整流
       void ipc.agentRunTask(taskId, provider, (e) => {
-        if (e.kind === "done") {
+        if (e.kind === "delta" && e.text) {
+          // 增量文本写入 store，面板实时渲染（面板此时可能已关闭，写入无副作用）
+          useAgentLogStore.getState().append(taskId, e.text);
+        } else if (e.kind === "done") {
           toast.success(`${providerLabel(provider)} 重派完成`);
           onRefresh?.();
           refresh();
@@ -193,9 +209,16 @@ export function AgentRunPanel({
           </div>
         );
       case "running":
-        // 执行中：仅显示状态，无操作按钮（P1 不支持取消）
-        return (
-          <span className="text-xs text-muted-foreground">执行中，请等待完成后刷新…</span>
+        // 执行中：实时渲染 liveLog；liveLog 为空时显示等待提示
+        return liveLog ? (
+          <pre
+            ref={liveLogRef}
+            className="min-h-0 max-h-64 flex-1 overflow-y-auto rounded-lg bg-muted px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-all"
+          >
+            {liveLog}
+          </pre>
+        ) : (
+          <span className="text-xs text-muted-foreground">执行中，等待输出…</span>
         );
       default:
         // merged / discarded：终态，无额外操作
