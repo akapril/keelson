@@ -47,7 +47,8 @@ export const navGroups: NavGroup[] = [
       },
       {
         titleKey: "nav.board.title",
-        url: "/board",
+        // ?tab=board 使 ProjectWorkspace 深链直落看板 tab（useEffect 监听 paramTab）
+        url: "/board?tab=board",
         icon: DashboardSquare02Icon,
         descriptionKey: "nav.board.description",
       },

@@ -519,5 +519,9 @@
     "pick": "选择项目",
     "searchPlaceholder": "搜索项目…",
     "noMatch": "无匹配项目"
+  },
+  "view": {
+    "kanban": "看板",
+    "list": "列表"
   }
 }

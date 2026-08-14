@@ -519,5 +519,9 @@
     "pick": "Pick project",
     "searchPlaceholder": "Search projects…",
     "noMatch": "No matching project"
+  },
+  "view": {
+    "kanban": "Board",
+    "list": "List"
   }
 }

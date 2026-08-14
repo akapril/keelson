@@ -23,7 +23,8 @@ import { useSessionsStore } from "@/store/sessions";
 import { listEventsByProject } from "@/lib/pb/calendar";
 import { listDocs } from "@/lib/pb/docs";
 import type { CalendarEvent } from "@/types/calendar";
-import { KanbanBoard } from "./KanbanBoard";
+// KanbanBoard 已移至 BoardSurface 内部使用，ProjectWorkspace 不再直接引用
+import { BoardSurface } from "./BoardSurface";
 import { ProjectSheet } from "./ProjectSheet";
 import { GitStatusBar } from "./GitStatusBar";
 import { WorkspaceSessions } from "./WorkspaceSessions";
@@ -397,9 +398,9 @@ export function ProjectWorkspace() {
           )}
         </TabsContent>
 
-        {/* 看板 */}
+        {/* 看板（由 BoardSurface 统一包装：顶部项目切换器 + 视图切换 + KanbanBoard/BoardListView 分发） */}
         <TabsContent value="board" className="mt-3 flex min-h-0 flex-1 flex-col">
-          <KanbanBoard />
+          <BoardSurface />
         </TabsContent>
 
         {/* 文档 */}
