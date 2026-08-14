@@ -27,6 +27,8 @@ export function SpotlightApp() {
   const setItems = useSpotlightStore((s) => s.setItems);
   const itemCount = useSpotlightStore((s) => s.items.length);
   const asTab = useSpotlightStore((s) => s.asTab);
+  // 恢复模式切换（原 Tab 键行为，现迁移至底栏徽标点击）
+  const toggleAsTab = useSpotlightStore((s) => s.toggleAsTab);
   // 全量任务/文档/项目/记忆（挂载一次性拉取，客户端过滤；失败静默留空）
   const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [docs, setDocs] = useState<BoardDoc[]>([]);
@@ -83,9 +85,15 @@ export function SpotlightApp() {
         <span>{t("spotlight.itemCount", { count: itemCount })}</span>
         <div className="flex items-center gap-3">
           <span>{t("spotlight.hint")}</span>
-          <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground/80">
-            {t("spotlight.tabPrefix")}{asTab ? t("spotlight.modeTab") : t("spotlight.modeTerminal")}
-          </span>
+          {/* 恢复模式徽标：可点击切换（新终端窗 / 标签页），原 Tab 键功能迁移至此 */}
+          <button
+            type="button"
+            onClick={toggleAsTab}
+            title={t("spotlight.modeToggleTitle")}
+            className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground/80 transition-colors hover:bg-muted/80"
+          >
+            {asTab ? t("spotlight.modeTab") : t("spotlight.modeTerminal")}
+          </button>
         </div>
       </div>
     </div>
