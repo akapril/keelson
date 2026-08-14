@@ -16,6 +16,11 @@ import { SpotlightCategoryChips } from "./SpotlightCategoryChips";
 import { SpotlightList } from "./SpotlightList";
 import { useSpotlightKeys } from "./useSpotlightKeys";
 
+// mac 透明窗方角问题：给窗一圈透明留白，让 12px 圆角面板悬浮内嵌，方角落在透明区不可见。
+// Windows/Linux 保持满窗（透明未必生效，留白会显成厚边框）——沿用既有注释结论。
+const IS_MAC =
+  typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
+
 /** Spotlight 主容器：玻璃面板 + 输入框 + 候选项列表 */
 export function SpotlightApp() {
   const { t } = useTranslation("shell");
@@ -53,47 +58,57 @@ export function SpotlightApp() {
   useSpotlightKeys();
 
   return (
-    // 玻璃面板直接铺满整个窗口（窗口本身 transparent:true / decorations:false）。
-    // 之前面板固定 600px + 60px 顶部留白，在透明未完全生效的 Windows 上会显成一圈厚边框，
-    // 故去掉外层留白，让面板占满窗口，从根上消除"边框太宽"。
+    // 外层：mac 下留 10px 透明边（方角落在透明区不可见），非 mac 满窗（padding 0）。
     <div
-      role="dialog"
-      aria-label={t("spotlight.ariaLabel")}
       style={{
         width: "100vw",
         height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        background: "var(--glass-surface)",
-        backdropFilter: `blur(var(--glass-blur))`,
-        WebkitBackdropFilter: `blur(var(--glass-blur))`,
-        borderRadius: "12px",
-        overflow: "hidden",
+        padding: IS_MAC ? 10 : 0,
+        background: "transparent",
+        boxSizing: "border-box",
       }}
     >
-      {/* 搜索输入框（自动聚焦） */}
-      <SpotlightInput />
-      {/* 类别切换 chips */}
-      <SpotlightCategoryChips />
-      {/* 候选项列表（键盘导航高亮，flex-1 撑满剩余空间） */}
-      <SpotlightList />
-      {/* 底部状态栏：结果数 + 快捷键提示 + 恢复模式 */}
+      {/* 内层：玻璃圆角面板（mac 有投影，Windows/Linux 保持现状不加投影）*/}
       <div
-        className="flex items-center justify-between px-4 py-2 text-[11px] text-muted-foreground"
-        style={{ borderTop: "1px solid var(--glass-border)" }}
+        role="dialog"
+        aria-label={t("spotlight.ariaLabel")}
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          background: "var(--glass-surface)",
+          backdropFilter: `blur(var(--glass-blur))`,
+          WebkitBackdropFilter: `blur(var(--glass-blur))`,
+          borderRadius: "12px",
+          overflow: "hidden",
+          boxShadow: IS_MAC ? "0 12px 40px rgba(0,0,0,0.25)" : undefined,
+        }}
       >
-        <span>{t("spotlight.itemCount", { count: itemCount })}</span>
-        <div className="flex items-center gap-3">
-          <span>{t("spotlight.hint")}</span>
-          {/* 恢复模式徽标：可点击切换（新终端窗 / 标签页），原 Tab 键功能迁移至此 */}
-          <button
-            type="button"
-            onClick={toggleAsTab}
-            title={t("spotlight.modeToggleTitle")}
-            className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground/80 transition-colors hover:bg-muted/80"
-          >
-            {asTab ? t("spotlight.modeTab") : t("spotlight.modeTerminal")}
-          </button>
+        {/* 搜索输入框（自动聚焦） */}
+        <SpotlightInput />
+        {/* 类别切换 chips */}
+        <SpotlightCategoryChips />
+        {/* 候选项列表（键盘导航高亮，flex-1 撑满剩余空间） */}
+        <SpotlightList />
+        {/* 底部状态栏：结果数 + 快捷键提示 + 恢复模式 */}
+        <div
+          className="flex items-center justify-between px-4 py-2 text-[11px] text-muted-foreground"
+          style={{ borderTop: "1px solid var(--glass-border)" }}
+        >
+          <span>{t("spotlight.itemCount", { count: itemCount })}</span>
+          <div className="flex items-center gap-3">
+            <span>{t("spotlight.hint")}</span>
+            {/* 恢复模式徽标：可点击切换（新终端窗 / 标签页），原 Tab 键功能迁移至此 */}
+            <button
+              type="button"
+              onClick={toggleAsTab}
+              title={t("spotlight.modeToggleTitle")}
+              className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground/80 transition-colors hover:bg-muted/80"
+            >
+              {asTab ? t("spotlight.modeTab") : t("spotlight.modeTerminal")}
+            </button>
+          </div>
         </div>
       </div>
     </div>
