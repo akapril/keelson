@@ -123,9 +123,9 @@
   },
   "spotlight": {
     "ariaLabel": "Spotlight search",
-    "inputPlaceholder": "Search (prefix s/p/d/t/m to switch) · ↵ open · Tab switch",
+    "inputPlaceholder": "Search (prefix s/p/d/t/m or ⌘1-6 to switch) · ↵ open · Tab restore mode",
     "itemCount": "{{count}} items",
-    "hint": "↑↓ select · ↵ open · Tab switch · esc close",
+    "hint": "↑↓ select · ↵ open · Tab restore mode · esc close",
     "modeToggleTitle": "Click to switch session restore (new window / tab)",
     "modeTab": "new tab",
     "modeTerminal": "new terminal",

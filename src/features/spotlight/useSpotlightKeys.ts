@@ -1,6 +1,7 @@
 // useSpotlightKeys.ts — Spotlight 键盘导航钩子
 // ↑/↓ 移动选中项、Enter 恢复会话、Esc 隐藏窗口
-// Tab/Shift+Tab 循环切类别、⌘1..6/Ctrl1..6 直达类别
+// Tab/Shift+Tab 切会话恢复方式(新终端窗/标签页)、⌘1..6/Ctrl1..6 直达类别
+// 说明：类别切换用 chips 点选 + ⌘1-6，Tab 保留给会话恢复方式(尊重原肌肉记忆)
 import { useEffect } from "react";
 import { useSpotlightStore, CATEGORIES } from "../../store/spotlight";
 import { hideThisWindow } from "../../lib/tauri/window";
@@ -11,7 +12,7 @@ export function useSpotlightKeys() {
   const items = useSpotlightStore((s) => s.items);
   const selectedIndex = useSpotlightStore((s) => s.selectedIndex);
   const asTab = useSpotlightStore((s) => s.asTab);
-  const cycleCategory = useSpotlightStore((s) => s.cycleCategory);
+  const toggleAsTab = useSpotlightStore((s) => s.toggleAsTab);
   const setCategory = useSpotlightStore((s) => s.setCategory);
 
   useEffect(() => {
@@ -36,9 +37,9 @@ export function useSpotlightKeys() {
           hideThisWindow();
           break;
         case "Tab":
-          // Tab / Shift+Tab → 循环切换类别（原恢复模式切换迁移至底栏徽标点击）
+          // Tab / Shift+Tab → 切会话恢复方式（新终端窗 / 标签页）；类别切换走 chips + ⌘1-6
           e.preventDefault();
-          cycleCategory(e.shiftKey ? "prev" : "next");
+          toggleAsTab();
           break;
         default:
           // ⌘1..6 / Ctrl1..6 → 直达第 1..6 个类别
@@ -52,5 +53,5 @@ export function useSpotlightKeys() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [move, items, selectedIndex, asTab, cycleCategory, setCategory]);
+  }, [move, items, selectedIndex, asTab, toggleAsTab, setCategory]);
 }
