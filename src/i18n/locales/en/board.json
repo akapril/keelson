@@ -511,5 +511,8 @@
       "createTaskSuccess": "Task created from document",
       "createTaskError": "Failed to create task: {{msg}}"
     }
+  },
+  "list": {
+    "emptyGroup": "(empty)"
   }
 }

@@ -511,5 +511,8 @@
       "createTaskSuccess": "已从文档创建任务",
       "createTaskError": "创建任务失败：{{msg}}"
     }
+  },
+  "list": {
+    "emptyGroup": "（空）"
   }
 }
