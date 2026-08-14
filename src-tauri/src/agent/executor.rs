@@ -45,6 +45,34 @@ fn tail(s: &str) -> String {
     format!("…(截断)\n{}", &s[start..])
 }
 
+/// 读取某 run 记录的 task + project.repo_path，供命令层 merge/discard 使用。
+/// 返回 (task_id, repo_path)。
+pub async fn executor_get_run(
+    client: &PbClient,
+    run_id: &str,
+) -> Result<(String, String), String> {
+    // 读 agent_runs 取 task + project 字段
+    let run = get_one(client, "agent_runs", run_id, "id,task,project").await?;
+    let task_id = run["task"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| format!("agent_run {run_id} 缺少 task 字段"))?
+        .to_string();
+    let project_id = run["project"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| format!("agent_run {run_id} 缺少 project 字段"))?
+        .to_string();
+    // 读 board_projects 取 repo_path
+    let project = get_one(client, "board_projects", &project_id, "id,repo_path").await?;
+    let repo_path = project["repo_path"]
+        .as_str()
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| format!("board_projects {project_id} 缺少 repo_path"))?
+        .to_string();
+    Ok((task_id, repo_path))
+}
+
 /// 执行内核：见模块文档。返回 agent_run id。on_line 用于把日志实时推给前端。
 pub async fn execute_task_with_agent(
     client: &PbClient,

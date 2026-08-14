@@ -40,6 +40,8 @@ pub mod runtime;
 pub mod runtime_pty;
 // 系统与维护命令（开机自启 / PB 存储信息 / 日志保留天数 / 清空日志）
 pub mod system;
+// agent 任务执行命令（run/merge/discard/list；Task 7）
+pub mod agent;
 
 // 注意：generate_handler! 宏需要使用函数定义所在的原始路径（含辅助符号），
 // 故不做 re-export；lib.rs 中直接使用 commands::sessions::sessions_list 等完整路径。
