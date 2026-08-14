@@ -43,7 +43,7 @@ interface AgentRunPanelProps {
  * - 打开时自动 `listAgentRuns(taskId)` 取最新一条 run；
  * - review  → 「合并」`agentMergeRun` / 「打回」`agentDiscardRun`；
  * - blocked → 「打回」+ 「重派」（再次调 `agentRunTask`）；
- * - running → 显示已落 log_tail（P1 不实时订阅）；
+ * - running → 「执行日志」区实时渲染 liveLog（订阅 agent-run-logs store）；
  * - no_change 时合并按钮附带提示；
  * - 操作成功 toast + 刷新 run / 关闭面板；失败 toast 并重抛（不吞）。
  */
@@ -64,11 +64,11 @@ export function AgentRunPanel({
   // 日志区 ref，用于 liveLog 变化时自动滚到底部
   const liveLogRef = useRef<HTMLPreElement>(null);
 
-  // liveLog 变化时自动将日志区滚到底部
+  // 日志变化时自动将日志区滚到底部（实时 liveLog 与完成后的 log_tail 都触发）
   useEffect(() => {
     const el = liveLogRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [liveLog]);
+  }, [liveLog, run?.log_tail]);
 
   /** 拉取最新一条 run（打开时 + 操作成功后调用） */
   const refresh = useCallback(() => {
@@ -209,17 +209,8 @@ export function AgentRunPanel({
           </div>
         );
       case "running":
-        // 执行中：实时渲染 liveLog；liveLog 为空时显示等待提示
-        return liveLog ? (
-          <pre
-            ref={liveLogRef}
-            className="min-h-0 max-h-64 flex-1 overflow-y-auto rounded-lg bg-muted px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-all"
-          >
-            {liveLog}
-          </pre>
-        ) : (
-          <span className="text-xs text-muted-foreground">执行中，等待输出…</span>
-        );
+        // 执行中无操作按钮；日志由下方统一「执行日志」区实时展示
+        return null;
       default:
         // merged / discarded：终态，无额外操作
         return null;
@@ -298,22 +289,50 @@ export function AgentRunPanel({
                 </section>
               )}
 
-              {/* log_tail（执行日志尾段） */}
-              {run.log_tail && (
-                <section className="flex min-h-0 flex-1 flex-col">
-                  <p className="mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    执行日志
-                  </p>
-                  <pre className="min-h-0 flex-1 overflow-y-auto rounded-lg bg-muted px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-all">
-                    {run.log_tail}
-                  </pre>
-                </section>
-              )}
+              {/* 执行日志（running=实时 liveLog；其它状态=已落 log_tail），终端风格 */}
+              {(() => {
+                const isLive = run.status === "running";
+                const logText = isLive ? liveLog : run.log_tail;
+                if (!logText && !isLive) return null;
+                return (
+                  <section className="flex min-h-0 flex-1 flex-col">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        执行日志
+                        {isLive && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium normal-case text-blue-600 dark:text-blue-400">
+                            <span className="size-1.5 animate-pulse rounded-full bg-blue-500" />
+                            实时
+                          </span>
+                        )}
+                      </p>
+                      {logText && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(logText);
+                            toast.success("日志已复制");
+                          }}
+                          className="text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          复制
+                        </button>
+                      )}
+                    </div>
+                    <pre
+                      ref={liveLogRef}
+                      className="min-h-[9rem] flex-1 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-zinc-950 px-3 py-2.5 font-mono text-xs leading-relaxed text-zinc-100 dark:bg-black"
+                    >
+                      {logText || "执行中，等待输出…"}
+                    </pre>
+                  </section>
+                );
+              })()}
 
-              {/* 操作区 */}
-              <div className="shrink-0 border-t pt-4">
-                {renderActions(run)}
-              </div>
+              {/* 操作区（终态/执行中无按钮时不渲染空框） */}
+              {renderActions(run) && (
+                <div className="shrink-0 border-t pt-4">{renderActions(run)}</div>
+              )}
             </>
           )}
         </div>
