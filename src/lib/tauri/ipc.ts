@@ -348,4 +348,24 @@ export const ipc = {
   /** 停止交互 PTY 会话（interactive 进程 pid=0，不能走 PID kill） */
   runtimePtyKill: (id: string) =>
     invoke<void>("runtime_pty_kill", { id }),
+
+  // ── Agent 自主执行（看板任务 P1）────────────────────────────
+  /** 在独立 worktree 运行 Agent；事件经 Channel 实时回调（桌面专属，web 环境会抛）。
+   *  onEvent.kind: "log" | "done" | "blocked"；done/blocked 时携带 run_id。*/
+  agentRunTask: (
+    taskId: string,
+    provider: string,
+    onEvent: (e: { kind: string; text?: string; run_id?: string }) => void,
+  ) => {
+    // Channel 是 Tauri 原生对象，不走 call() 双通道；与 aiChatStream 保持同一范式。
+    const ch = new Channel<{ kind: string; text?: string; run_id?: string }>();
+    ch.onmessage = onEvent;
+    return call<string>("agent_run_task", { taskId, provider, onEvent: ch });
+  },
+
+  /** 将指定 Agent 运行结果合并进主分支（审核通过后调用）。 */
+  agentMergeRun: (runId: string) => call<void>("agent_merge_run", { runId }),
+
+  /** 丢弃指定 Agent 运行（保留 worktree 日志，状态置 discarded）。 */
+  agentDiscardRun: (runId: string) => call<void>("agent_discard_run", { runId }),
 };
