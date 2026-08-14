@@ -139,4 +139,209 @@ mod tests {
         let p = worktree_path(Path::new("/repo"), "abc");
         assert!(p.ends_with(".worktrees/task-abc") || p.ends_with(".worktrees\\task-abc"));
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // 集成测试：用真实临时 git 仓库验证 worktree 生命周期
+    // 这些测试在 CI(ubuntu, `cargo test --lib`) 中真跑；
+    // Windows 本机因 Tauri GUI DLL 限制(0xc0000139)只验编译。
+    // ──────────────────────────────────────────────────────────────
+
+    /// 构造唯一临时目录路径（<系统tmp>/<前缀>_pid_<进程id>）。
+    /// 并行测试中每个用例都有独立路径，避免竞争。
+    fn tmp_repo(test_name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "keelson_wt_{}_{}_{}",
+            test_name,
+            std::process::id(),
+            // 再加个纳秒时间戳以防同 pid 多次运行
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        ))
+    }
+
+    /// 在目录 dir 下执行 git 命令（直接用 std::process::Command，测试不依赖 hidden_command）。
+    fn g(dir: &Path, args: &[&str]) -> std::process::Output {
+        std::process::Command::new("git")
+            .current_dir(dir)
+            .args(args)
+            .output()
+            .expect("git 命令启动失败")
+    }
+
+    /// 初始化一个带初始提交的临时 git 仓库，返回仓库根路径。
+    /// - 分支名固定为 main（`git init -b main` 或 init 后 rename）
+    /// - 设置 user.email / user.name（CI 无全局身份时必须）
+    /// - 建一个初始文件并 commit，确保 HEAD 有真实提交
+    fn setup_repo(test_name: &str) -> std::path::PathBuf {
+        let repo = tmp_repo(test_name);
+        std::fs::create_dir_all(&repo).expect("创建临时目录失败");
+
+        // 尝试 git init -b main（Git >= 2.28）；若不支持则 init 后 rename
+        let init_out = g(&repo, &["init", "-b", "main"]);
+        if !init_out.status.success() {
+            // 旧版 git：先 init，再把默认分支改名为 main
+            let o = g(&repo, &["init"]);
+            assert!(o.status.success(), "git init 失败");
+            let o = g(&repo, &["checkout", "-b", "main"]);
+            // checkout -b 在空仓库可能失败；忽略，后续 commit 会建分支
+            let _ = o;
+        }
+
+        // 设置 CI 需要的本地 git 身份（不影响全局配置）
+        let o = g(&repo, &["config", "user.email", "t@t"]);
+        assert!(o.status.success(), "git config email 失败");
+        let o = g(&repo, &["config", "user.name", "t"]);
+        assert!(o.status.success(), "git config name 失败");
+
+        // 建初始文件并提交，产生第一个 commit（无此 commit worktree 无法建分支）
+        let init_file = repo.join("init.txt");
+        std::fs::write(&init_file, "initial").expect("写初始文件失败");
+        let o = g(&repo, &["add", "init.txt"]);
+        assert!(o.status.success(), "git add 失败");
+        let o = g(&repo, &["commit", "-m", "init"]);
+        assert!(o.status.success(), "初始 commit 失败");
+
+        // 确保 HEAD 在 main 分支上
+        let o = g(&repo, &["symbolic-ref", "--short", "HEAD"]);
+        if o.status.success() {
+            let branch = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if branch != "main" {
+                // 有些旧版 git 默认分支是 master，rename 到 main
+                let _rename = g(&repo, &["branch", "-m", &branch, "main"]);
+            }
+        }
+
+        repo
+    }
+
+    /// 检查 git 仓库中某分支是否存在。
+    fn branch_exists(repo: &Path, branch: &str) -> bool {
+        let o = g(repo, &["branch", "--list", branch]);
+        o.status.success() && !String::from_utf8_lossy(&o.stdout).trim().is_empty()
+    }
+
+    /// RAII 清理守卫：测试结束（含 panic）时自动删临时目录。
+    struct TmpGuard(std::path::PathBuf);
+    impl Drop for TmpGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// 用例1：完整生命周期——add_worktree → has_diff/diff_stat → merge_branch → 断言清理。
+    #[test]
+    fn full_lifecycle_merges_and_cleans_up() {
+        let repo = setup_repo("lifecycle");
+        let _guard = TmpGuard(repo.clone()); // 测试结束自动清理
+
+        // ① 建 worktree
+        let (wt, base) = add_worktree(&repo, "t1").expect("add_worktree 失败");
+        assert!(wt.exists(), "worktree 目录应存在");
+        // base 分支应为 main（或当前分支名）
+        assert!(!base.is_empty(), "base 分支名不应为空");
+        // agent/task-t1 分支应已建立
+        assert!(
+            branch_exists(&repo, "agent/task-t1"),
+            "agent/task-t1 分支应存在"
+        );
+
+        // ② 在 worktree 里写一个新文件，制造改动
+        let new_file = wt.join("feature.txt");
+        std::fs::write(&new_file, "hello from agent").expect("写 feature.txt 失败");
+
+        // has_diff 应返回 true
+        assert!(has_diff(&wt).expect("has_diff 失败"), "worktree 应检测到改动");
+        // diff_stat 应非空
+        let stat = diff_stat(&wt).expect("diff_stat 失败");
+        assert!(!stat.is_empty(), "diff_stat 应返回非空概要");
+
+        // ③ 合并回 base 分支
+        merge_branch(&repo, "t1", &base).expect("merge_branch 失败");
+
+        // 断言：base 分支上有新文件（git show <base>:feature.txt）
+        let show_out = g(
+            &repo,
+            &["show", &format!("{}:feature.txt", base)],
+        );
+        assert!(
+            show_out.status.success(),
+            "base 分支上应能看到 feature.txt，git show 失败: {}",
+            String::from_utf8_lossy(&show_out.stderr)
+        );
+        let content = String::from_utf8_lossy(&show_out.stdout);
+        assert_eq!(content.trim(), "hello from agent", "feature.txt 内容应一致");
+
+        // 断言：worktree 目录已删除
+        assert!(!wt.exists(), "merge 后 worktree 目录应已删除");
+        // 断言：agent/task-t1 分支已删
+        assert!(
+            !branch_exists(&repo, "agent/task-t1"),
+            "merge 后 agent/task-t1 分支应已删除"
+        );
+        // 断言：主仓库 HEAD 仍在原分支（base）
+        let head_out = g(&repo, &["symbolic-ref", "--short", "HEAD"]);
+        assert!(head_out.status.success(), "symbolic-ref 应成功");
+        let head = String::from_utf8_lossy(&head_out.stdout).trim().to_string();
+        assert_eq!(head, base, "合并后主仓库 HEAD 应仍在原分支 {base}");
+    }
+
+    /// 用例2（C1 修复验证）：主工作区有未提交改动时，merge_branch 必须返回 Err。
+    #[test]
+    fn merge_refuses_when_main_worktree_dirty() {
+        let repo = setup_repo("dirty");
+        let _guard = TmpGuard(repo.clone());
+
+        // 建 worktree 并在 worktree 里制造改动
+        let (wt, base) = add_worktree(&repo, "t1").expect("add_worktree 失败");
+        std::fs::write(wt.join("feature.txt"), "agent work").expect("写 feature.txt 失败");
+
+        // 在**主仓库**工作区制造未提交改动（不 stage，不 commit）
+        let dirty_file = repo.join("dirty.txt");
+        std::fs::write(&dirty_file, "dirty main workspace").expect("写 dirty.txt 失败");
+
+        // merge_branch 应因主工作区脏而返回 Err
+        let result = merge_branch(&repo, "t1", &base);
+        assert!(
+            result.is_err(),
+            "主工作区脏时 merge_branch 应返回 Err，实际返回 Ok"
+        );
+
+        // 验证：失败后主仓库的未提交改动应仍然存在（merge 没有破坏工作区）
+        assert!(
+            dirty_file.exists(),
+            "merge 失败后，主仓库 dirty.txt 应仍存在"
+        );
+        // 验证：dirty.txt 仍未提交（在 status 中可见）
+        let status_out = g(&repo, &["status", "--porcelain"]);
+        let status_str = String::from_utf8_lossy(&status_out.stdout).to_string();
+        assert!(
+            status_str.contains("dirty.txt"),
+            "merge 失败后 dirty.txt 应仍在未提交状态"
+        );
+    }
+
+    /// 用例3：remove_worktree 清理目录和分支。
+    #[test]
+    fn remove_worktree_cleans_branch_and_dir() {
+        let repo = setup_repo("remove");
+        let _guard = TmpGuard(repo.clone());
+
+        // 建 worktree
+        let (wt, _base) = add_worktree(&repo, "t1").expect("add_worktree 失败");
+        assert!(wt.exists(), "worktree 目录应存在");
+        assert!(branch_exists(&repo, "agent/task-t1"), "分支应存在");
+
+        // 执行清理
+        remove_worktree(&repo, "t1").expect("remove_worktree 失败");
+
+        // 断言：目录已删
+        assert!(!wt.exists(), "remove_worktree 后目录应已删除");
+        // 断言：分支已删
+        assert!(
+            !branch_exists(&repo, "agent/task-t1"),
+            "remove_worktree 后 agent/task-t1 分支应已删除"
+        );
+    }
 }
