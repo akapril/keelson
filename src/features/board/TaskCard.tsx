@@ -1,5 +1,5 @@
 // TaskCard —— 看板单任务卡片（视觉移植自 workavera todo-card，绑定我们的 store/类型）。
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "react-router-dom";
@@ -26,12 +26,28 @@ import {
   ContextMenuSubTrigger,
   ContextMenuSubContent,
 } from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { stripMarkdown } from "@/lib/markdown-preview";
 import { useBoardStore } from "@/store/board";
 import type { BoardTask, BoardLabel, BoardState } from "@/types/board";
 import { PRIORITY_META, PRIORITY_ORDER } from "./board-meta";
 import { isCliSynced, toggleInject, getInjectSet } from "./cli-task-source";
+import { ipc } from "@/lib/tauri/ipc";
+import { listAgentRuns } from "@/lib/pb/agent-runs";
+import type { AgentRun } from "@/types/agent";
+import { useStartableProvidersStore } from "@/store/startable-providers";
+import { providerLabel } from "@/lib/providers";
+
+// P1 阶段支持 Agent 自主执行的 provider 集合（如需扩展修改此处即可）。
+const AGENT_P1_PROVIDERS = new Set(["claude", "codex"]);
 
 // ── 日期格式化 ────────────────────────────────────────────────
 function formatDate(dateStr: string, locale: string): string {
@@ -63,6 +79,8 @@ interface TaskCardProps {
   onToggleSelect?: (taskId: string) => void;
   /** 进入多选模式（右键菜单"选择"项触发）。 */
   onEnterSelect?: (taskId: string) => void;
+  /** 点击运行状态徽标（Task 10 实现 run 面板时传入；本 Task 仅留占位，不强制）。 */
+  onRunClick?: (run: AgentRun) => void;
 }
 
 /**
@@ -79,6 +97,7 @@ function TaskCardInner({
   selected = false,
   onToggleSelect,
   onEnterSelect,
+  onRunClick,
 }: TaskCardProps) {
   // labels/states 改由父列传入（不再每卡各订阅整个数组）；
   // 仅保留下面几个稳定函数 selector（返回同一引用，求值代价可忽略）。
@@ -87,6 +106,76 @@ function TaskCardInner({
   const moveTask = useBoardStore((s) => s.moveTask);
   const navigate = useNavigate();
   const { t, i18n } = useTranslation("board");
+
+  // ── Agent 执行：已装 provider 列表（全局 store 懒加载一次）────────────────
+  const { providers, ensureLoaded } = useStartableProvidersStore();
+  // 过滤出 P1 支持集与已装的交集，用于「派 agent」下拉项。
+  const agentProviders = useMemo(
+    () => providers.filter((p) => AGENT_P1_PROVIDERS.has(p.id)),
+    [providers],
+  );
+  // 是否正在执行（防重复点击）
+  const [agentRunning, setAgentRunning] = useState(false);
+
+  // ── 运行状态徽标：挂载时拉最新一条 run ──────────────────────────────────
+  const [latestRun, setLatestRun] = useState<AgentRun | null>(null);
+  // 用 ref 存 taskId 防止闭包过时（task prop 引用会变）
+  const taskIdRef = useRef(task.id);
+  taskIdRef.current = task.id;
+
+  useEffect(() => {
+    let cancelled = false;
+    listAgentRuns(task.id)
+      .then((runs) => {
+        if (!cancelled) {
+          // 取最新一条（sort=-started，首项最新）
+          setLatestRun(runs[0] ?? null);
+        }
+      })
+      .catch(() => {
+        // 拉取失败不影响卡片主体展示，静默忽略
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [task.id]);
+
+  // 确保 provider 列表已加载（全局幂等，不会重复发 IPC）
+  useEffect(() => {
+    void ensureLoaded();
+  }, [ensureLoaded]);
+
+  /** 发起 Agent 执行：选中 provider 后调用 IPC，done 后刷新徽标，错误重抛并 toast */
+  const runWithAgent = async (providerId: string) => {
+    if (agentRunning) return;
+    setAgentRunning(true);
+    try {
+      await ipc.agentRunTask(task.id, providerId, (e) => {
+        if (e.kind === "done") {
+          // 执行完毕：toast 成功 + 刷新徽标
+          toast.success(`${providerLabel(providerId)} 已完成任务「${task.title}」`);
+          listAgentRuns(taskIdRef.current)
+            .then((runs) => setLatestRun(runs[0] ?? null))
+            .catch(() => undefined);
+        }
+        // "log"/"blocked" 等 delta 事件：暂存/忽略，Task 10 面板会展示完整日志
+      });
+    } catch (err) {
+      toast.error(`Agent 执行失败：${String(err)}`);
+      // 重抛，确保调用方 catch 能感知错误（不吞）
+      throw err;
+    } finally {
+      setAgentRunning(false);
+    }
+  };
+
+  // 运行状态徽标的样式映射（running/review/blocked 显示，其余不显示）
+  const RUN_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+    running: { label: "执行中", cls: "bg-blue-500/15 text-blue-700 dark:text-blue-400" },
+    review: { label: "待审", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+    blocked: { label: "受阻", cls: "bg-red-500/15 text-red-700 dark:text-red-400" },
+  };
+  const runBadge = latestRun ? RUN_STATUS_BADGE[latestRun.status] : null;
 
   // 右键菜单：改优先级（同优先级不重复写）
   const setPriority = (p: BoardTask["priority"]) => {
@@ -279,6 +368,25 @@ function TaskCardInner({
           </span>
         )}
 
+        {/* 运行状态徽标（running/review/blocked 时显示；点击占位留给 Task 10）*/}
+        {runBadge && latestRun && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRunClick?.(latestRun);
+            }}
+            className={cn(
+              "flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring",
+              runBadge.cls,
+              onRunClick && "cursor-pointer hover:opacity-80",
+              !onRunClick && "cursor-default",
+            )}
+          >
+            {runBadge.label}
+          </button>
+        )}
+
         {/* 来源会话徽章（点击跳转会话中枢）。CLI 同步来的额外标「↻会话」以区分自建任务。 */}
         {task.source_session_id && (
           <button
@@ -300,6 +408,40 @@ function TaskCardInner({
             <HugeiconsIcon icon={Message01Icon} strokeWidth={2} className="size-3" />
             {cliSynced ? t("task.sourceSessionCli") : t("task.sourceSession")}
           </button>
+        )}
+
+        {/* 「派 agent 执行」下拉（有可用 P1 provider 时显示；多选模式隐藏防误触）*/}
+        {!selectMode && agentProviders.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => e.stopPropagation()}
+                disabled={agentRunning}
+                title="派 agent 执行此任务"
+                className={cn(
+                  "ml-auto flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] transition-colors focus:outline-none focus:ring-2 focus:ring-ring",
+                  agentRunning
+                    ? "cursor-not-allowed opacity-50 bg-muted text-muted-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary",
+                )}
+              >
+                {agentRunning ? "执行中…" : "派 agent ▶"}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuLabel>选择执行 provider</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {agentProviders.map((p) => (
+                <DropdownMenuItem
+                  key={p.id}
+                  onSelect={() => void runWithAgent(p.id)}
+                >
+                  {providerLabel(p.id)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
     </div>
