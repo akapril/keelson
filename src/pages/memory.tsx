@@ -1,7 +1,8 @@
 // 记忆账本 —— 查看/筛选/编辑/删除跨厂商提炼的记忆；每条可溯源回跳原会话。
-import { useEffect, useMemo, useState } from "react";
-import { Virtualizer } from "virtua";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Virtualizer, type VirtualizerHandle } from "virtua";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { indexOfMemory } from "@/features/memory/deep-link";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { listMemories, updateMemoryRecord, deleteMemoryRecord } from "@/lib/pb/memory";
@@ -27,6 +28,11 @@ const KINDS: (MemoryKind | "all")[] = ["all", "fact", "preference", "decision", 
 export default function MemoryPage() {
   const navigate = useNavigate();
   const { t } = useTranslation(["memory", "common"]);
+  const [searchParams] = useSearchParams();
+  const openId = searchParams.get("open");
+  const vref = useRef<VirtualizerHandle>(null);
+  // 深链高亮的记忆 id（几秒后自动消退）
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [projects, setProjects] = useState<BoardProject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,6 +115,18 @@ export default function MemoryPage() {
         (!q || m.content.toLowerCase().includes(q)),
     );
   }, [memories, kind, scope, query]);
+
+  // ?open=<id>：数据就绪后滚动定位并短暂高亮该条记忆
+  useEffect(() => {
+    if (loading) return;
+    const idx = indexOfMemory(visible, openId);
+    if (idx < 0) return;
+    setHighlightId(openId);
+    vref.current?.scrollToIndex(idx, { align: "center" });
+    // 2500ms 后消退高亮环
+    const timer = setTimeout(() => setHighlightId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [openId, loading, visible]);
 
   // 待审记忆（外部 AI 经 MCP create_memory 写入，需采纳后才入账）
   const pending = useMemo(
@@ -295,7 +313,7 @@ export default function MemoryPage() {
             {t("page.emptyHint")}
           </p>
         ) : (
-          <Virtualizer>
+          <Virtualizer ref={vref}>
             {visible.map((m) => {
               const isSel = selected.has(m.id);
               return (
@@ -306,7 +324,7 @@ export default function MemoryPage() {
                     selectMode ? "cursor-pointer" : ""
                   } ${
                     isSel ? "border-primary/60 bg-primary/5" : "border-border bg-card"
-                  }`}
+                  } ${highlightId === m.id ? "ring-2 ring-primary" : ""}`}
                 >
                   {selectMode && (
                     <Checkbox
