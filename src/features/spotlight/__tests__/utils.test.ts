@@ -7,6 +7,8 @@ import {
   taskToItem,
   docToItem,
   buildItems,
+  parsePrefix,
+  formatInput,
 } from "../utils";
 import type { Session } from "../../../types/session";
 import type { BoardTask } from "../../../types/board";
@@ -190,5 +192,31 @@ describe("sessionToItem", () => {
     const s = makeSession("z", "proj", prompt, "2024-01-01T00:00:00Z");
     const item = sessionToItem(s);
     expect(item.label).not.toContain("…");
+  });
+});
+
+describe("parsePrefix", () => {
+  it("无前缀 → all，query 为原文", () => {
+    expect(parsePrefix("hello")).toEqual({ category: "all", query: "hello" });
+    expect(parsePrefix("")).toEqual({ category: "all", query: "" });
+  });
+  it("识别 s /p /d /t /m 前缀并剥离", () => {
+    expect(parsePrefix("p board")).toEqual({ category: "project", query: "board" });
+    expect(parsePrefix("m 偏好")).toEqual({ category: "memory", query: "偏好" });
+    expect(parsePrefix("s ")).toEqual({ category: "session", query: "" });
+  });
+  it("单字母无空格不算前缀", () => {
+    expect(parsePrefix("s")).toEqual({ category: "all", query: "s" });
+  });
+});
+
+describe("formatInput", () => {
+  it("all 无前缀，其它类别拼前缀", () => {
+    expect(formatInput("all", "hi")).toBe("hi");
+    expect(formatInput("project", "board")).toBe("p board");
+    expect(formatInput("memory", "")).toBe("m ");
+  });
+  it("parsePrefix ∘ formatInput 往返一致", () => {
+    expect(parsePrefix(formatInput("task", "urgent"))).toEqual({ category: "task", query: "urgent" });
   });
 });

@@ -7,11 +7,37 @@ import type {
   SessionSpotlightItem,
   NavSpotlightItem,
 } from "../../store/spotlight";
+import type { SpotlightCategory } from "../../store/spotlight";
 import { workspaceRecordUrl } from "../../lib/workspace-navigation";
 import i18n from "../../i18n";
 
 /** 每类候选在搜索结果里的上限（避免某类刷屏）。 */
 const PER_KIND_LIMIT = 8;
+
+/** 各类别的输入前缀（all 无前缀）。改前缀只改此表。 */
+export const PREFIX_BY_CATEGORY: Record<SpotlightCategory, string> = {
+  all: "",
+  session: "s ",
+  project: "p ",
+  doc: "d ",
+  task: "t ",
+  memory: "m ",
+};
+
+/** 解析输入框原始文本 → { 类别, 纯过滤词 }。命中 s/p/d/t/m 前缀则归对应类别，否则 all。 */
+export function parsePrefix(raw: string): { category: SpotlightCategory; query: string } {
+  const prefixed: SpotlightCategory[] = ["session", "project", "doc", "task", "memory"];
+  for (const cat of prefixed) {
+    const p = PREFIX_BY_CATEGORY[cat];
+    if (raw.startsWith(p)) return { category: cat, query: raw.slice(p.length) };
+  }
+  return { category: "all", query: raw };
+}
+
+/** 由类别 + 纯过滤词拼回输入框显示值（受控 input 用）。 */
+export function formatInput(category: SpotlightCategory, query: string): string {
+  return PREFIX_BY_CATEGORY[category] + query;
+}
 
 /**
  * 将会话列表按 updated_at 降序排列，取前 N 条（最近会话）
