@@ -38,6 +38,8 @@ mod web;
 pub mod runtime;
 // Rust 侧用户可见文案的中英映射（托盘菜单 / MCP 通知）
 mod i18n;
+// agent 任务自主执行模块（组 prompt / 判结果 / worktree / 执行内核）
+mod agent;
 
 use std::sync::Arc;
 use parking_lot::Mutex;
