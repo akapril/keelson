@@ -514,5 +514,10 @@
   },
   "list": {
     "emptyGroup": "（空）"
+  },
+  "switcher": {
+    "pick": "选择项目",
+    "searchPlaceholder": "搜索项目…",
+    "noMatch": "无匹配项目"
   }
 }

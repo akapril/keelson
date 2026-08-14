@@ -514,5 +514,10 @@
   },
   "list": {
     "emptyGroup": "(empty)"
+  },
+  "switcher": {
+    "pick": "Pick project",
+    "searchPlaceholder": "Search projects…",
+    "noMatch": "No matching project"
   }
 }
