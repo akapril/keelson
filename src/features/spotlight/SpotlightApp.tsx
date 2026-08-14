@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSpotlightStore } from "../../store/spotlight";
 import { useSessionsStore } from "../../store/sessions";
+import { useAuthStore } from "../../store/auth";
 import { buildItems } from "./utils";
 import { listAllTasks, listProjects } from "../../lib/pb/board";
 import { listAllDocs } from "../../lib/pb/docs";
@@ -34,20 +35,29 @@ export function SpotlightApp() {
   const asTab = useSpotlightStore((s) => s.asTab);
   // 恢复模式切换（原 Tab 键行为，现迁移至底栏徽标点击）
   const toggleAsTab = useSpotlightStore((s) => s.toggleAsTab);
-  // 全量任务/文档/项目/记忆（挂载一次性拉取，客户端过滤；失败静默留空）
+  // pb 认证是否就绪（决定何时预取 pb 数据，见下）
+  const authed = useAuthStore((s) => s.authed);
+  // 全量任务/文档/项目/记忆（预取，客户端过滤；失败静默留空）
   const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [docs, setDocs] = useState<BoardDoc[]>([]);
   const [projects, setProjects] = useState<BoardProject[]>([]);
   const [memories, setMemories] = useState<Memory[]>([]);
 
-  // 挂载时拉取会话 + 全量任务/文档/项目/记忆
+  // 会话走 Rust 读本地文件、无需 pb 认证，挂载即拉
   useEffect(() => {
     loadSessions();
+  }, [loadSessions]);
+
+  // 任务/文档/项目/记忆走 PocketBase：必须等 pb 认证就绪（initPbAuth 异步落 token）后再拉。
+  // 否则挂载时的预取会赶在认证完成前发出、拿到空结果且不重试，导致这些 tab 永远为空
+  // （会话 tab 不受影响，故此前不易发现）。authed 由 false→true 时本 effect 重跑，完成预取。
+  useEffect(() => {
+    if (!authed) return;
     void listAllTasks().then(setTasks).catch(() => {});
     void listAllDocs().then(setDocs).catch(() => {});
     void listProjects().then(setProjects).catch(() => {});
     void listMemories().then(setMemories).catch(() => {});
-  }, [loadSessions]);
+  }, [authed]);
 
   // query / category / 数据变化时重算候选项
   useEffect(() => {
