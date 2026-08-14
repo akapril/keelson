@@ -123,7 +123,7 @@
   },
   "spotlight": {
     "ariaLabel": "Spotlight search",
-    "inputPlaceholder": "Search sessions, ↵ to restore · Tab to switch mode",
+    "inputPlaceholder": "Search (prefix s/p/d/t/m to switch) · ↵ open · Tab switch",
     "itemCount": "{{count}} items",
     "hint": "↑↓ select · ↵ restore · esc close",
     "modeTab": "new tab",
