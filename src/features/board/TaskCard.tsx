@@ -45,9 +45,17 @@ import { listAgentRuns } from "@/lib/pb/agent-runs";
 import type { AgentRun } from "@/types/agent";
 import { useStartableProvidersStore } from "@/store/startable-providers";
 import { providerLabel } from "@/lib/providers";
+import { AgentRunPanel } from "./AgentRunPanel";
 
 // P1 阶段支持 Agent 自主执行的 provider 集合（如需扩展修改此处即可）。
 const AGENT_P1_PROVIDERS = new Set(["claude", "codex"]);
+
+// 运行状态徽标的样式映射（提升到模块顶层，避免每次组件渲染重建对象）。
+const RUN_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  running: { label: "执行中", cls: "bg-blue-500/15 text-blue-700 dark:text-blue-400" },
+  review:  { label: "待审",   cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+  blocked: { label: "受阻",   cls: "bg-red-500/15 text-red-700 dark:text-red-400" },
+};
 
 // ── 日期格式化 ────────────────────────────────────────────────
 function formatDate(dateStr: string, locale: string): string {
@@ -116,6 +124,8 @@ function TaskCardInner({
   );
   // 是否正在执行（防重复点击）
   const [agentRunning, setAgentRunning] = useState(false);
+  // Agent Run 面板受控开关（点击运行徽标打开）
+  const [runPanelOpen, setRunPanelOpen] = useState(false);
 
   // ── 运行状态徽标：挂载时拉最新一条 run ──────────────────────────────────
   const [latestRun, setLatestRun] = useState<AgentRun | null>(null);
@@ -169,12 +179,7 @@ function TaskCardInner({
     }
   };
 
-  // 运行状态徽标的样式映射（running/review/blocked 显示，其余不显示）
-  const RUN_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-    running: { label: "执行中", cls: "bg-blue-500/15 text-blue-700 dark:text-blue-400" },
-    review: { label: "待审", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
-    blocked: { label: "受阻", cls: "bg-red-500/15 text-red-700 dark:text-red-400" },
-  };
+  // 运行状态徽标（running/review/blocked 时显示；其余终态不显示）
   const runBadge = latestRun ? RUN_STATUS_BADGE[latestRun.status] : null;
 
   // 右键菜单：改优先级（同优先级不重复写）
@@ -368,19 +373,22 @@ function TaskCardInner({
           </span>
         )}
 
-        {/* 运行状态徽标（running/review/blocked 时显示；点击占位留给 Task 10）*/}
+        {/* 运行状态徽标（running/review/blocked 时显示；点击打开 AgentRunPanel）*/}
         {runBadge && latestRun && (
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onRunClick?.(latestRun);
+              // 优先调用外部回调（向后兼容），否则自行打开面板
+              if (onRunClick) {
+                onRunClick(latestRun);
+              } else {
+                setRunPanelOpen(true);
+              }
             }}
             className={cn(
-              "flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring",
+              "flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer hover:opacity-80",
               runBadge.cls,
-              onRunClick && "cursor-pointer hover:opacity-80",
-              !onRunClick && "cursor-default",
             )}
           >
             {runBadge.label}
@@ -446,6 +454,18 @@ function TaskCardInner({
       </div>
     </div>
       </ContextMenuTrigger>
+
+      {/* Agent Run 面板：点击运行徽标打开，操作成功后刷新徽标 */}
+      <AgentRunPanel
+        taskId={task.id}
+        open={runPanelOpen}
+        onClose={() => setRunPanelOpen(false)}
+        onRefresh={() => {
+          listAgentRuns(taskIdRef.current)
+            .then((runs) => setLatestRun(runs[0] ?? null))
+            .catch(() => undefined);
+        }}
+      />
 
       {/* 右键菜单：选择（进入多选）/ 编辑 / 优先级 / 移动 / 来源会话 / 删除 */}
       <ContextMenuContent>
