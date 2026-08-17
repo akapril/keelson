@@ -119,7 +119,8 @@
     "memory": { "title": "Memory", "description": "Reusable memories extracted from AI sessions" },
     "prompts": { "title": "Prompts", "description": "Reusable prompts / snippets with variable support" },
     "processes": { "title": "Processes", "description": "Cross-project managed processes: logs · stop · delete · clean" },
-    "settings": { "title": "Settings", "description": "Preferences and account settings" }
+    "settings": { "title": "Settings", "description": "Preferences and account settings" },
+    "agents": { "title": "Agents", "description": "Named AI teammates" }
   },
   "spotlight": {
     "ariaLabel": "Spotlight search",

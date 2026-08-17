@@ -119,7 +119,8 @@
     "memory": { "title": "记忆账本", "description": "跨厂商提炼的可复用记忆" },
     "prompts": { "title": "指令库", "description": "可复用 prompt / 片段，支持变量与一键插入" },
     "processes": { "title": "进程", "description": "跨项目托管进程一览：日志 · 停止 · 删除 · 清理" },
-    "settings": { "title": "设置", "description": "偏好与账户设置" }
+    "settings": { "title": "设置", "description": "偏好与账户设置" },
+    "agents": { "title": "Agents", "description": "命名 AI 队友" }
   },
   "spotlight": {
     "ariaLabel": "Spotlight 搜索",

@@ -12,6 +12,7 @@ import {
   CommandIcon,
   Settings02Icon,
   TerminalIcon,
+  BotIcon,
 } from "@hugeicons/core-free-icons";
 
 export type NavItem = {
@@ -88,6 +89,13 @@ export const navGroups: NavGroup[] = [
         url: "/prompts",
         icon: CommandIcon,
         descriptionKey: "nav.prompts.description",
+      },
+      // Agents 管理入口（MVP 放 groupMore；S5 再归到专属分组）
+      {
+        titleKey: "nav.agents.title",
+        url: "/agents",
+        icon: BotIcon,
+        descriptionKey: "nav.agents.description",
       },
     ],
   },
