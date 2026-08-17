@@ -56,6 +56,10 @@ export interface BoardTask {
   source_session_id?: string;
   source_provider?: string;
   source_anchor?: string;
+  /** agent 负责人 provider（claude/codex）；非空即已指派 agent（S1）。 */
+  agent_provider?: string;
+  /** 已入队待后台 worker 领取执行（S1）。worker 领取后清此标记。 */
+  agent_enqueued?: boolean;
   created: string;
   updated: string;
   /** 软删除时间戳（非空即已删）；多机同步用。 */
