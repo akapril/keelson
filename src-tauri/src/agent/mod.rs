@@ -3,3 +3,4 @@ pub mod prompt;
 pub mod outcome;
 pub mod worktree;
 pub mod executor;
+pub mod worker;
