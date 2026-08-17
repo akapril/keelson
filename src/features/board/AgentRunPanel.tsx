@@ -4,10 +4,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { providerLabel } from "@/lib/providers";
 import { listAgentRuns } from "@/lib/pb/agent-runs";
-import { ipc } from "@/lib/tauri/ipc";
 import type { AgentRun, AgentRunStatus } from "@/types/agent";
 import { useAgentLogStore } from "@/store/agent-run-logs";
 import { useAgentStore } from "@/store/agents";
+import { useAgentRunActions } from "./useAgentRunActions";
 import {
   Sheet,
   SheetContent,
@@ -58,14 +58,18 @@ export function AgentRunPanel({
   const [run, setRun] = useState<AgentRun | null>(null);
   // 是否正在加载 run 列表
   const [loading, setLoading] = useState(false);
-  // 操作按钮禁用态（防止重复点击）
-  const [acting, setActing] = useState(false);
   // 实时日志：订阅 agent-run-logs store，执行中边跑边渲染
   const liveLog = useAgentLogStore((s) => s.logs[taskId] ?? "");
   // S2：从 run.agent 反查命名队友（找不到则回退 providerLabel）
   const agents = useAgentStore((s) => s.agents);
   // 日志区 ref，用于 liveLog 变化时自动滚到底部
   const liveLogRef = useRef<HTMLPreElement>(null);
+
+  // 决策动作 hook（合并/打回/重派）：成功后刷新徽标并关闭面板
+  const { busy, merge, discard, redispatch } = useAgentRunActions(() => {
+    onRefresh?.();
+    onClose();
+  });
 
   // 日志变化时自动将日志区滚到底部（实时 liveLog 与完成后的 log_tail 都触发）
   useEffect(() => {
@@ -89,85 +93,8 @@ export function AgentRunPanel({
     else {
       // 关闭时重置状态，避免下次打开闪旧数据
       setRun(null);
-      setActing(false);
     }
   }, [open, refresh]);
-
-  /** 合并 run（review 态）*/
-  const handleMerge = async () => {
-    if (!run || acting) return;
-    setActing(true);
-    try {
-      await ipc.agentMergeRun(run.id);
-      toast.success("已将 Agent 结果合并进主分支");
-      onRefresh?.();
-      // 刷新后关闭面板（run 状态已变 merged，无需继续操作）
-      onClose();
-    } catch (e) {
-      toast.error(`合并失败：${String(e)}`);
-      // 重抛，确保调用方 catch 能感知（不吞）
-      throw e;
-    } finally {
-      setActing(false);
-    }
-  };
-
-  /** 打回 run（review / blocked 态）*/
-  const handleDiscard = async () => {
-    if (!run || acting) return;
-    setActing(true);
-    try {
-      await ipc.agentDiscardRun(run.id);
-      toast.success("已打回此次 Agent 运行");
-      onRefresh?.();
-      onClose();
-    } catch (e) {
-      toast.error(`打回失败：${String(e)}`);
-      throw e;
-    } finally {
-      setActing(false);
-    }
-  };
-
-  /** 重派（blocked 态）：再次用同 agent（优先 run.agent id，回退 provider）发起执行 */
-  const handleRedispatch = async () => {
-    if (!run || acting) return;
-    // S2：优先用 run.agent（命名队友 id）作 agentRef；无或空字符串则回退原 provider
-    // 用 || 而非 ??：provider-fallback run 的 run.agent 为空字符串（非 null/undefined），
-    // ?? 会保留空字符串导致 resolve 失败；|| 能正确回退
-    const agentRef = run.agent || run.provider;
-    const agentProfile = run.agent
-      ? agents.find((a) => a.id === run.agent) ?? null
-      : null;
-    const displayName = agentProfile
-      ? `${agentProfile.emoji ? `${agentProfile.emoji} ` : ""}${agentProfile.name}`
-      : providerLabel(run.provider);
-    setActing(true);
-    try {
-      // 先打回当前 blocked run（清理 worktree），再重新执行
-      await ipc.agentDiscardRun(run.id);
-      // 发起前清空旧日志，让实时日志区从头开始
-      useAgentLogStore.getState().reset(taskId);
-      // agentRunTask 是流式：通过 onEvent 回调感知增量和完成；这里仅触发，不 await 完整流
-      void ipc.agentRunTask(taskId, agentRef, (e) => {
-        if (e.kind === "delta" && e.text) {
-          // 增量文本写入 store，面板实时渲染（面板此时可能已关闭，写入无副作用）
-          useAgentLogStore.getState().append(taskId, e.text);
-        } else if (e.kind === "done") {
-          toast.success(`${displayName} 重派完成`);
-          onRefresh?.();
-          refresh();
-        }
-      });
-      toast.message(`已重派给 ${displayName}，执行中…`);
-      onClose();
-    } catch (e) {
-      toast.error(`重派失败：${String(e)}`);
-      throw e;
-    } finally {
-      setActing(false);
-    }
-  };
 
   // ── 根据 run 状态决定渲染的操作区 ──────────────────────────────────────
   const renderActions = (r: AgentRun) => {
@@ -178,8 +105,8 @@ export function AgentRunPanel({
             {/* no_change 时禁用合并并加提示 */}
             <Button
               size="sm"
-              onClick={() => void handleMerge()}
-              disabled={acting || r.no_change}
+              onClick={() => void merge(r)}
+              disabled={busy || r.no_change}
               title={r.no_change ? "Agent 未产生任何文件变更，无需合并" : "将 Agent 结果合并进主分支"}
             >
               合并
@@ -187,8 +114,8 @@ export function AgentRunPanel({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => void handleDiscard()}
-              disabled={acting}
+              onClick={() => void discard(r)}
+              disabled={busy}
             >
               打回
             </Button>
@@ -200,26 +127,43 @@ export function AgentRunPanel({
             )}
           </div>
         );
-      case "blocked":
+      case "blocked": {
+        // S2：计算命名队友显示名（emoji+name 或 providerLabel），传给 hook 的 redispatch
+        const agentProfile = r.agent
+          ? agents.find((a) => a.id === r.agent) ?? null
+          : null;
+        const displayName = agentProfile
+          ? `${agentProfile.emoji ? `${agentProfile.emoji} ` : ""}${agentProfile.name}`
+          : providerLabel(r.provider);
         return (
           <div className="flex gap-2">
             <Button
               size="sm"
               variant="outline"
-              onClick={() => void handleDiscard()}
-              disabled={acting}
+              onClick={() => void discard(r)}
+              disabled={busy}
             >
               打回
             </Button>
             <Button
               size="sm"
-              onClick={() => void handleRedispatch()}
-              disabled={acting}
+              onClick={() =>
+                void redispatch(r, {
+                  // 发起前清空旧日志，让实时日志区从头开始
+                  onReset: () => useAgentLogStore.getState().reset(taskId),
+                  // 增量文本写入 store，面板实时渲染（面板关闭后写入无副作用）
+                  onDelta: (text) => useAgentLogStore.getState().append(taskId, text),
+                  // 优先使用命名队友 emoji+name，确保 toast 显示与面板标题一致
+                  displayName,
+                })
+              }
+              disabled={busy}
             >
               重派
             </Button>
           </div>
         );
+      }
       case "running":
         // 执行中无操作按钮；日志由下方统一「执行日志」区实时展示
         return null;
