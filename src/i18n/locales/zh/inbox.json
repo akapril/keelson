@@ -3,6 +3,10 @@
     "title": "收件箱",
     "subtitle": "截止提醒、新会话、外部动作、更新等汇聚一处，可批量处理。"
   },
+  "tab": {
+    "notifications": "通知",
+    "agentTodo": "Agent 待办"
+  },
   "filter": {
     "unreadOnly": "只看未读",
     "allSources": "全部来源"

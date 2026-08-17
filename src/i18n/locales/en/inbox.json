@@ -3,6 +3,10 @@
     "title": "Inbox",
     "subtitle": "Deadlines, new sessions, external actions, updates — all in one place for batch processing."
   },
+  "tab": {
+    "notifications": "Notifications",
+    "agentTodo": "Agent to-dos"
+  },
   "filter": {
     "unreadOnly": "Unread only",
     "allSources": "All sources"

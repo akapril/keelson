@@ -1,8 +1,9 @@
 // 收件箱 —— 把所有通知聚成可批处理的一页：按来源/未读过滤、多选、批量已读/删除、点击跳转。
+// 顶层分「通知」和「Agent 待办」两个标签，支持 ?tab=agent 深链直达。
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Virtualizer } from "virtua";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useNotificationsStore } from "@/store/notifications";
 import { useNotifPrefsStore } from "@/store/notification-prefs";
@@ -16,6 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs";
+import { AgentTodoList } from "@/features/inbox/AgentTodoList";
 
 const KIND_DOT: Record<NotificationKind, string> = {
   info: "bg-sky-500",
@@ -43,6 +51,26 @@ function whenLabel(
 export default function InboxPage() {
   const { t } = useTranslation(["inbox", "common"]);
   const navigate = useNavigate();
+
+  // ── ?tab 深链：tab=agent 直达 Agent 待办，否则默认通知标签 ──────────────────
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") === "agent" ? "agent" : "notif";
+
+  /** 切换标签时同步 ?tab 参数（notif 时清除，保持 URL 整洁） */
+  const handleTabChange = (value: string) => {
+    if (value === "agent") {
+      // 保留其他 params，只更新 tab
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", "agent");
+      setSearchParams(next, { replace: true });
+    } else {
+      // 通知标签：移除 tab 参数（URL 更整洁）
+      const next = new URLSearchParams(searchParams);
+      next.delete("tab");
+      setSearchParams(next, { replace: true });
+    }
+  };
+
   const allItems = useNotificationsStore((s) => s.items);
   const load = useNotificationsStore((s) => s.load);
   // 按通知类型偏好过滤（覆盖 MCP/Loop 等外部写入的类型）
@@ -100,6 +128,7 @@ export default function InboxPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
+      {/* 页面标题（始终可见，标签上方） */}
       <header className="mb-4 shrink-0">
         <h1 className="font-heading text-xl font-semibold text-foreground">{t("inbox:page.title")}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
@@ -107,111 +136,137 @@ export default function InboxPage() {
         </p>
       </header>
 
-      {/* 过滤 + 批量工具栏 */}
-      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2 text-sm">
-        <button
-          type="button"
-          onClick={() => setUnreadOnly((v) => !v)}
-          className={`rounded-lg border border-border px-2.5 py-1.5 text-xs transition-colors ${
-            unreadOnly ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
-          }`}
-        >
-          {t("inbox:filter.unreadOnly")}{unreadOnly ? " ✓" : ""}
-        </button>
-        <Select value={sourceFilter} onValueChange={setSourceFilter}>
-          <SelectTrigger size="sm" className="w-36">
-            <SelectValue placeholder={t("inbox:filter.allSources")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("inbox:filter.allSources")}</SelectItem>
-            {sources.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* ── 双标签切换：通知 / Agent 待办 ──────────────────────────────────────── */}
+      <Tabs
+        value={activeTab}
+        onValueChange={handleTabChange}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <TabsList className="mb-3 shrink-0 self-start">
+          {/* 通知标签 */}
+          <TabsTrigger value="notif">
+            {t("inbox:tab.notifications")}
+          </TabsTrigger>
+          {/* Agent 待办标签 */}
+          <TabsTrigger value="agent">
+            {t("inbox:tab.agentTodo")}
+          </TabsTrigger>
+        </TabsList>
 
-        <div className="ml-auto flex items-center gap-1.5">
-          <label htmlFor="inbox-select-all" className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-            <Checkbox id="inbox-select-all" checked={allChecked} onCheckedChange={toggleAll} className="size-3.5" />
-            {t("inbox:bulk.selectAll")}
-          </label>
-          <Button
-            variant="ghost"
-            size="xs"
-            disabled={selectedIds.length === 0}
-            onClick={() =>
-              void markManyRead(selectedIds).catch((e) =>
-                toast.error(t("inbox:bulk.markReadError", { msg: String(e) })),
-              )
-            }
-          >
-            {t("inbox:bulk.markRead")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="xs"
-            disabled={selectedIds.length === 0}
-            onClick={() => {
-              void removeMany(selectedIds).catch((e) =>
-                toast.error(t("inbox:bulk.deleteError", { msg: String(e) })),
-              );
-              setChecked(new Set());
-            }}
-          >
-            {t("common:action.delete")}
-          </Button>
-        </div>
-      </div>
+        {/* ── 通知标签内容：原有过滤/批量工具栏 + 虚拟化列表（行为完全不变） ── */}
+        <TabsContent value="notif" className="flex min-h-0 flex-1 flex-col">
+          {/* 过滤 + 批量工具栏 */}
+          <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2 text-sm">
+            <button
+              type="button"
+              onClick={() => setUnreadOnly((v) => !v)}
+              className={`rounded-lg border border-border px-2.5 py-1.5 text-xs transition-colors ${
+                unreadOnly ? "bg-accent text-primary" : "text-muted-foreground hover:bg-accent/50"
+              }`}
+            >
+              {t("inbox:filter.unreadOnly")}{unreadOnly ? " ✓" : ""}
+            </button>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger size="sm" className="w-36">
+                <SelectValue placeholder={t("inbox:filter.allSources")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("inbox:filter.allSources")}</SelectItem>
+                {sources.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-      {/* 列表 */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {visible.length === 0 ? (
-          <p className="py-16 text-center text-sm text-muted-foreground">
-            {unreadOnly ? t("inbox:empty.unread") : t("inbox:empty.all")}
-          </p>
-        ) : (
-          <Virtualizer>
-            {visible.map((n) => (
-              <div
-                key={n.id}
-                className={`mb-1.5 flex items-start gap-2.5 rounded-lg border border-border p-2.5 ${
-                  n.read ? "bg-card" : "bg-primary/5"
-                }`}
+            <div className="ml-auto flex items-center gap-1.5">
+              <label htmlFor="inbox-select-all" className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                <Checkbox id="inbox-select-all" checked={allChecked} onCheckedChange={toggleAll} className="size-3.5" />
+                {t("inbox:bulk.selectAll")}
+              </label>
+              <Button
+                variant="ghost"
+                size="xs"
+                disabled={selectedIds.length === 0}
+                onClick={() =>
+                  void markManyRead(selectedIds).catch((e) =>
+                    toast.error(t("inbox:bulk.markReadError", { msg: String(e) })),
+                  )
+                }
               >
-                <Checkbox
-                  checked={checked.has(n.id)}
-                  onCheckedChange={() => toggleOne(n.id)}
-                  className="mt-1 size-3.5 shrink-0"
-                  aria-label={t("inbox:item.selectAriaLabel")}
-                />
-                <span className={`mt-1.5 size-2 shrink-0 rounded-full ${KIND_DOT[n.kind] ?? "bg-muted-foreground"}`} />
-                <button
-                  type="button"
-                  onClick={() => openItem(n)}
-                  className="min-w-0 flex-1 text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`truncate text-sm ${n.read ? "text-foreground" : "font-medium text-foreground"}`}>
-                      {n.title}
-                    </span>
-                    {n.source && (
-                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        {n.source}
-                      </span>
-                    )}
-                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/70">
-                      {whenLabel(n.created, (key, opts) => t(`inbox:${key}`, opts))}
-                    </span>
+                {t("inbox:bulk.markRead")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="xs"
+                disabled={selectedIds.length === 0}
+                onClick={() => {
+                  void removeMany(selectedIds).catch((e) =>
+                    toast.error(t("inbox:bulk.deleteError", { msg: String(e) })),
+                  );
+                  setChecked(new Set());
+                }}
+              >
+                {t("common:action.delete")}
+              </Button>
+            </div>
+          </div>
+
+          {/* 列表 */}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {visible.length === 0 ? (
+              <p className="py-16 text-center text-sm text-muted-foreground">
+                {unreadOnly ? t("inbox:empty.unread") : t("inbox:empty.all")}
+              </p>
+            ) : (
+              <Virtualizer>
+                {visible.map((n) => (
+                  <div
+                    key={n.id}
+                    className={`mb-1.5 flex items-start gap-2.5 rounded-lg border border-border p-2.5 ${
+                      n.read ? "bg-card" : "bg-primary/5"
+                    }`}
+                  >
+                    <Checkbox
+                      checked={checked.has(n.id)}
+                      onCheckedChange={() => toggleOne(n.id)}
+                      className="mt-1 size-3.5 shrink-0"
+                      aria-label={t("inbox:item.selectAriaLabel")}
+                    />
+                    <span className={`mt-1.5 size-2 shrink-0 rounded-full ${KIND_DOT[n.kind] ?? "bg-muted-foreground"}`} />
+                    <button
+                      type="button"
+                      onClick={() => openItem(n)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`truncate text-sm ${n.read ? "text-foreground" : "font-medium text-foreground"}`}>
+                          {n.title}
+                        </span>
+                        {n.source && (
+                          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                            {n.source}
+                          </span>
+                        )}
+                        <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/70">
+                          {whenLabel(n.created, (key, opts) => t(`inbox:${key}`, opts))}
+                        </span>
+                      </div>
+                      {n.body && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.body}</p>}
+                    </button>
                   </div>
-                  {n.body && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{n.body}</p>}
-                </button>
-              </div>
-            ))}
-          </Virtualizer>
-        )}
-      </div>
+                ))}
+              </Virtualizer>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* ── Agent 待办标签内容：AgentTodoList 自管数据/订阅/过滤 ─────────────── */}
+        <TabsContent value="agent" className="min-h-0 flex-1">
+          <AgentTodoList />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -14,10 +14,34 @@ vi.mock("@tauri-apps/api/window", () => ({
     close: vi.fn(),
   })),
 }));
+// Mock Tauri event（AgentTodoList 用 listen 订阅 agent-run-changed）
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn().mockResolvedValue(() => undefined),
+}));
 
-// Mock react-router-dom（InboxPage 调用 useNavigate）
+// Mock agent-runs lib（AgentTodoList 调用 listPendingAgentRuns）
+vi.mock("../../lib/pb/agent-runs", () => ({
+  listPendingAgentRuns: vi.fn().mockResolvedValue([]),
+}));
+
+// Mock agents store（AgentTodoList 依赖）
+vi.mock("../../store/agents", () => ({
+  useAgentStore: vi.fn((selector: (s: unknown) => unknown) =>
+    selector({ load: vi.fn().mockResolvedValue(undefined), loaded: true }),
+  ),
+}));
+
+// Mock board store（AgentTodoList 依赖）
+vi.mock("../../store/board", () => ({
+  useBoardStore: vi.fn((selector: (s: unknown) => unknown) =>
+    selector({ projects: [], loadProjects: vi.fn().mockResolvedValue(undefined) }),
+  ),
+}));
+
+// Mock react-router-dom（InboxPage 调用 useNavigate + useSearchParams）
 vi.mock("react-router-dom", () => ({
   useNavigate: vi.fn(() => vi.fn()),
+  useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
 }));
 
 // Mock notifications store（避免 PocketBase 副作用）
