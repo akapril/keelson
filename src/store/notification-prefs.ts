@@ -18,6 +18,7 @@ export const NOTIF_TYPES: { source: string; label: string }[] = [
   { source: "更新",     label: "更新（应用新版本）" },
   { source: "MCP",      label: "MCP（外部 Agent 动作）" },
   { source: "Loop",     label: "Loop（收件箱循环任务）" },
+  { source: "Agent",    label: "Agent（受阻/待审需决策）" },
 ];
 
 // 默认值：全部启用
