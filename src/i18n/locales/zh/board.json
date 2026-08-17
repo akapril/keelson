@@ -582,6 +582,11 @@
     "confirmDeleteCancel": "取消",
     "confirmDeleteAction": "确认删除",
     "errorNameRequired": "名称不能为空",
-    "errorProviderRequired": "请选择 provider"
+    "errorProviderRequired": "请选择 provider",
+    "noPromptsHint": "指令库暂无内容，可到「指令」页添加后再绑定",
+    "cardSkills": "技能 {{count}}",
+    "cardConcurrency": "并发 {{count}}",
+    "cardNoTools": "无工具",
+    "cardAutoCommit": "自动提交"
   }
 }

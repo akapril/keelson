@@ -238,10 +238,11 @@ export function AgentEditSheet({ editing, open, onClose }: Props) {
             />
           </div>
 
-          {/* 绑定技能（指令库多选） */}
-          {prompts.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <Label>{t("agentsPage.fieldSkillPrompts")}</Label>
+          {/* 绑定技能（指令库多选）：无论指令库是否为空都显示该区块 */}
+          <div className="flex flex-col gap-1.5">
+            <Label>{t("agentsPage.fieldSkillPrompts")}</Label>
+            {prompts.length > 0 ? (
+              // 有指令时展示复选框列表
               <div className="max-h-40 overflow-y-auto rounded-md border border-border p-2 space-y-1.5">
                 {prompts.map((p) => (
                   <div key={p.id} className="flex items-center gap-2">
@@ -259,8 +260,13 @@ export function AgentEditSheet({ editing, open, onClose }: Props) {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              // 指令库为空时展示占位提示，引导用户前往指令页添加
+              <p className="text-xs text-muted-foreground">
+                {t("agentsPage.noPromptsHint")}
+              </p>
+            )}
+          </div>
 
           {/* 自由文本技能 */}
           <div className="flex flex-col gap-1.5">

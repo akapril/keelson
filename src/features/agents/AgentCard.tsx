@@ -1,5 +1,6 @@
 // 队友卡片：展示单个命名 agent 的摘要信息（emoji / 名称 / provider 徽标 / 技能数 / 运行时摘要）。
 // hover 显示归档和删除按钮（stopPropagation 防触发卡片编辑）；点击卡片触发 onEdit。
+import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Archive02Icon, Delete02Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function AgentCard({ agent, onEdit, onArchive, onDelete }: Props) {
+  const { t } = useTranslation("board");
   const meta = PROVIDER_META[agent.provider];
   // 技能数 = 绑定指令库技能数 + 自由文本技能（有内容算 1 条）
   const skillCount = (agent.skill_prompts?.length ?? 0) + (agent.skill_text?.trim() ? 1 : 0);
@@ -34,11 +36,18 @@ export function AgentCard({ agent, onEdit, onArchive, onDelete }: Props) {
         </div>
       </div>
 
-      {/* 运行时摘要：技能数 / 并发上限 / 工具 / 自动提交 */}
+      {/* 运行时摘要：技能数 / 并发上限 / 工具 / 自动提交，全部走 i18n */}
       <p className="mt-2 text-xs text-muted-foreground">
-        技能 {skillCount} · 并发 {agent.max_concurrent || 1}
-        {agent.with_tools === false ? " · 无工具" : ""}
-        {agent.auto_commit ? " · 自动提交" : ""}
+        {[
+          t("agentsPage.cardSkills", { count: skillCount }),
+          t("agentsPage.cardConcurrency", { count: agent.max_concurrent || 1 }),
+          // with_tools 默认 true；仅在明确关闭时显示"无工具"
+          agent.with_tools === false ? t("agentsPage.cardNoTools") : null,
+          // auto_commit 默认 false；启用时显示"自动提交"
+          agent.auto_commit ? t("agentsPage.cardAutoCommit") : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
       </p>
 
       {/* 操作按钮：hover 才显现，stopPropagation 防触发卡片编辑 */}
