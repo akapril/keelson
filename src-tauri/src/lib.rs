@@ -705,6 +705,9 @@ async fn setup_pocketbase(
         });
     }
 
+    // 预置默认队友 + 首次回填（幂等）：auth 已就绪、local-user 已建，此刻才可引用 owner。
+    crate::agent::ensure::ensure_default_agents(&pb_client, &user_id).await;
+
     // 启动 agent 队列 worker（auth 已就绪）：先做启动恢复（遗留 running → blocked），
     // 再起后台轮询循环，自动领取「已入队」任务执行。失败不阻断应用启动。
     {
