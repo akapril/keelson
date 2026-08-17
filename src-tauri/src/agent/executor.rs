@@ -159,9 +159,8 @@ pub async fn execute_task_with_agent(
     let mut log = String::new();
     let wt_str = wt.to_string_lossy().to_string();
 
-    // ⚠ P2 deferred：run_cli_stream 内部 build_process 未设 kill_on_drop(true)；
-    //   timeout 超时 drop future 后子进程句柄随之 drop，但实际 kill 是否触发视平台而定。
-    //   若子进程未被杀死，将在后台持续跑至自然退出。P2 应对 timeout 场景补显式 kill。
+    // build_process 已设 kill_on_drop(true)：超时 timeout drop 掉 run_fut 后，
+    // 其栈内持有的子进程 Child 随之 drop 并被 kill，不留后台孤儿。
     let run_fut = crate::commands::cli::run_cli_stream(
         cli_provider,
         None,

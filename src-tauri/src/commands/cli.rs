@@ -225,6 +225,10 @@ fn build_process(cand: &str, args: &[String], cwd: Option<&str>) -> Command {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    // kill_on_drop：future 被 drop（如 execute_task_with_agent 的 30min 超时）时
+    // 真正终止子进程，避免 agent 超时后 CLI 仍在后台跑（补 agent P1 缺口）。
+    // 对所有调用方安全：正常路径都 await 到子进程自然结束后才 drop。
+    c.kill_on_drop(true);
     if let Some(d) = cwd {
         if !d.trim().is_empty() {
             c.current_dir(d);
