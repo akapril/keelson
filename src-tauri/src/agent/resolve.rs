@@ -15,12 +15,14 @@ pub struct ResolvedAgent {
     pub auto_commit: bool,
     /// 命中队友时为 Some(agent_id)，回退 provider 时为 None（run.agent 据此写）。
     pub agent_id: Option<String>,
+    /// 队友展示名，命中队友=name，回退=provider。
+    pub display_name: String,
 }
 
 /// agent_ref 命中 agent_profiles.id → 取其属性；否则把 agent_ref 当原始 provider（S1 兼容），其余取默认。
 pub async fn resolve_agent(client: &PbClient, agent_ref: &str) -> ResolvedAgent {
     let filter = format!("id = \"{}\"", agent_ref.replace('"', ""));
-    let fields = "id,provider,instructions,skill_prompts,skill_text,timeout_secs,with_tools,auto_commit";
+    let fields = "id,name,provider,instructions,skill_prompts,skill_text,timeout_secs,with_tools,auto_commit";
     let hit = client
         .list("agent_profiles", &filter, fields)
         .await
@@ -38,6 +40,7 @@ pub async fn resolve_agent(client: &PbClient, agent_ref: &str) -> ResolvedAgent 
             with_tools: true,
             auto_commit: false,
             agent_id: None,
+            display_name: agent_ref.to_string(),
         };
     };
 
@@ -68,8 +71,15 @@ pub async fn resolve_agent(client: &PbClient, agent_ref: &str) -> ResolvedAgent 
     let with_tools = rec["with_tools"].as_bool().unwrap_or(true);
     let auto_commit = rec["auto_commit"].as_bool().unwrap_or(false);
 
+    let resolved_provider = rec["provider"].as_str().unwrap_or_default().to_string();
+    let display_name = rec["name"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&resolved_provider)
+        .to_string();
+
     ResolvedAgent {
-        provider: rec["provider"].as_str().unwrap_or_default().to_string(),
+        provider: resolved_provider,
         instructions: rec["instructions"].as_str().unwrap_or_default().to_string(),
         skills,
         skill_text: rec["skill_text"].as_str().unwrap_or_default().to_string(),
@@ -77,5 +87,6 @@ pub async fn resolve_agent(client: &PbClient, agent_ref: &str) -> ResolvedAgent 
         with_tools,
         auto_commit,
         agent_id: Some(agent_ref.to_string()),
+        display_name,
     }
 }

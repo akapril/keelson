@@ -6,3 +6,4 @@ pub mod executor;
 pub mod worker;
 pub mod ensure;
 pub mod resolve;
+pub mod notify;
