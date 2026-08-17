@@ -13,6 +13,8 @@ export interface AgentRun {
   no_change: boolean;
   diff_stat: string;
   log_tail: string;
+  /** 派活时的队友 id（溯源；回退 provider 时为空）。 */
+  agent?: string;
   started: string;
   ended: string;
 }

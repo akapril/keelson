@@ -58,6 +58,8 @@ export interface BoardTask {
   source_anchor?: string;
   /** agent 负责人 provider（claude/codex）；非空即已指派 agent（S1）。 */
   agent_provider?: string;
+  /** 指派的命名队友 id（空则回退 agent_provider）。 */
+  agent_id?: string;
   /** 已入队待后台 worker 领取执行（S1）。worker 领取后清此标记。 */
   agent_enqueued?: boolean;
   created: string;
