@@ -132,6 +132,18 @@
       "injectError": "Inject failed: {{msg}}"
     }
   },
+  "agent": {
+    "assignBtn": "Assign agent ▸",
+    "running": "Running…",
+    "assignTitle": "Assign an agent to own this task (auto-queued)",
+    "assignMenuLabel": "Assign to",
+    "assignTo": "Assign to {{name}} (auto-run)",
+    "runNowWith": "Run once now with {{name}}",
+    "assigned": "Assigned {{name}}, queued to run",
+    "assignError": "Assign failed: {{msg}}",
+    "enqueued": "Queued",
+    "enqueuedTitle": "Agent assigned, waiting to be picked up"
+  },
   "project": {
     "archived": "Archived",
     "active": "Active",

@@ -132,6 +132,18 @@
       "injectError": "注入失败：{{msg}}"
     }
   },
+  "agent": {
+    "assignBtn": "指派 agent ▸",
+    "running": "执行中…",
+    "assignTitle": "指派 agent 负责此任务（自动入队执行）",
+    "assignMenuLabel": "指派给",
+    "assignTo": "指派给 {{name}}（自动开跑）",
+    "runNowWith": "用 {{name}} 立即跑一次",
+    "assigned": "已指派 {{name}}，排队执行中",
+    "assignError": "指派失败：{{msg}}",
+    "enqueued": "已入队",
+    "enqueuedTitle": "已指派 agent，等待后台领取执行"
+  },
   "project": {
     "archived": "已归档",
     "active": "活跃",

@@ -47,9 +47,8 @@ import { useStartableProvidersStore } from "@/store/startable-providers";
 import { providerLabel } from "@/lib/providers";
 import { AgentRunPanel } from "./AgentRunPanel";
 import { useAgentLogStore } from "@/store/agent-run-logs";
-
-// P1 阶段支持 Agent 自主执行的 provider 集合（如需扩展修改此处即可）。
-const AGENT_P1_PROVIDERS = new Set(["claude", "codex"]);
+import { AGENT_FILTER_PROVIDERS } from "./agent-filter";
+import { listen } from "@tauri-apps/api/event";
 
 // 运行状态徽标的样式映射（提升到模块顶层，避免每次组件渲染重建对象）。
 const RUN_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
@@ -57,6 +56,9 @@ const RUN_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   review:  { label: "待审",   cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
   blocked: { label: "受阻",   cls: "bg-red-500/15 text-red-700 dark:text-red-400" },
 };
+
+// 「已入队」徽标（任务已指派 agent 但 worker 尚未开跑时显示）。
+const ENQUEUED_BADGE = { label: "已入队", cls: "bg-slate-500/15 text-slate-700 dark:text-slate-400" };
 
 // ── 日期格式化 ────────────────────────────────────────────────
 function formatDate(dateStr: string, locale: string): string {
@@ -118,9 +120,9 @@ function TaskCardInner({
 
   // ── Agent 执行：已装 provider 列表（全局 store 懒加载一次）────────────────
   const { providers, ensureLoaded } = useStartableProvidersStore();
-  // 过滤出 P1 支持集与已装的交集，用于「派 agent」下拉项。
+  // 过滤出支持集与已装的交集，用于「指派 agent」下拉项（复用 agent-filter.ts 定义）。
   const agentProviders = useMemo(
-    () => providers.filter((p) => AGENT_P1_PROVIDERS.has(p.id)),
+    () => providers.filter((p) => AGENT_FILTER_PROVIDERS.has(p.id)),
     [providers],
   );
   // 是否正在执行（防重复点击）
@@ -148,6 +150,23 @@ function TaskCardInner({
       });
     return () => {
       cancelled = true;
+    };
+  }, [task.id]);
+
+  // 订阅后台 worker 的 run 变更事件：仅当事件负载是本任务 id 时重新拉最新 run 刷新徽标。
+  useEffect(() => {
+    let cancelled = false;
+    const un = listen<string>("agent-run-changed", (e) => {
+      if (cancelled || e.payload !== task.id) return;
+      listAgentRuns(task.id)
+        .then((runs) => {
+          if (!cancelled) setLatestRun(runs[0] ?? null);
+        })
+        .catch(() => undefined);
+    });
+    return () => {
+      cancelled = true;
+      void un.then((f) => f());
     };
   }, [task.id]);
 
@@ -184,8 +203,24 @@ function TaskCardInner({
     }
   };
 
+  /** 指派 agent 负责人：写 agent_provider + agent_enqueued=true，交由后台 worker 领取执行。 */
+  const assignAgent = async (providerId: string) => {
+    try {
+      await updateTask(task.id, { agent_provider: providerId, agent_enqueued: true });
+      toast.success(t("agent.assigned", { name: providerLabel(providerId) }));
+    } catch (e) {
+      // updateTask 失败已回滚，这里 toast 让用户知情（不吞错）
+      toast.error(t("agent.assignError", { msg: String(e) }));
+    }
+  };
+
   // 运行状态徽标（running/review/blocked 时显示；其余终态不显示）
   const runBadge = latestRun ? RUN_STATUS_BADGE[latestRun.status] : null;
+
+  // 已入队但还没有非终态 run 时，显示「已入队」徽标（worker 领取后会转为「执行中」）。
+  const showEnqueued =
+    !!task.agent_enqueued &&
+    !(latestRun && ["running", "review", "blocked"].includes(latestRun.status));
 
   // 右键菜单：改优先级（同优先级不重复写）
   const setPriority = (p: BoardTask["priority"]) => {
@@ -378,6 +413,19 @@ function TaskCardInner({
           </span>
         )}
 
+        {/* 已入队徽标（指派后、worker 领取前的过渡态；不可点） */}
+        {showEnqueued && (
+          <span
+            className={cn(
+              "flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+              ENQUEUED_BADGE.cls,
+            )}
+            title={t("agent.enqueuedTitle")}
+          >
+            {t("agent.enqueued")}
+          </span>
+        )}
+
         {/* 运行状态徽标（running/review/blocked 时显示；点击打开 AgentRunPanel）*/}
         {runBadge && latestRun && (
           <button
@@ -423,7 +471,8 @@ function TaskCardInner({
           </button>
         )}
 
-        {/* 「派 agent 执行」下拉（有可用 P1 provider 时显示；多选模式隐藏防误触）*/}
+        {/* 「指派 agent」下拉（有可用 provider 时显示；多选模式隐藏防误触）。
+            指派 = 写负责人并入队，由后台 worker 自动领取执行（Multica 式指派即派发）。*/}
         {!selectMode && agentProviders.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -431,7 +480,7 @@ function TaskCardInner({
                 type="button"
                 onClick={(e) => e.stopPropagation()}
                 disabled={agentRunning}
-                title="派 agent 执行此任务"
+                title={t("agent.assignTitle")}
                 className={cn(
                   "ml-auto flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] transition-colors focus:outline-none focus:ring-2 focus:ring-ring",
                   agentRunning
@@ -439,18 +488,25 @@ function TaskCardInner({
                     : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary",
                 )}
               >
-                {agentRunning ? "执行中…" : "派 agent ▶"}
+                {agentRunning ? t("agent.running") : t("agent.assignBtn")}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-              <DropdownMenuLabel>选择执行 provider</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("agent.assignMenuLabel")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {agentProviders.map((p) => (
+                <DropdownMenuItem key={p.id} onSelect={() => void assignAgent(p.id)}>
+                  {t("agent.assignTo", { name: providerLabel(p.id) })}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              {/* 次要动作：绕过队列立即跑一次（调试/急用）。*/}
+              {agentProviders.map((p) => (
                 <DropdownMenuItem
-                  key={p.id}
+                  key={`run-${p.id}`}
                   onSelect={() => void runWithAgent(p.id)}
                 >
-                  {providerLabel(p.id)}
+                  {t("agent.runNowWith", { name: providerLabel(p.id) })}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
