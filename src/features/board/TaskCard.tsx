@@ -222,6 +222,13 @@ function TaskCardInner({
     !!task.agent_enqueued &&
     !(latestRun && ["running", "review", "blocked"].includes(latestRun.status));
 
+  // 已有活动 run（执行中/待审/受阻）或已入队时，禁止再次「指派」，
+  // 避免自动重派覆盖未审结果（spec §防手滑）。
+  // 「立即跑一次」（runNowWith）是刻意的逃生门，始终保持可用。
+  const assignLocked =
+    !!task.agent_enqueued ||
+    (!!latestRun && ["running", "review", "blocked"].includes(latestRun.status));
+
   // 右键菜单：改优先级（同优先级不重复写）
   const setPriority = (p: BoardTask["priority"]) => {
     if (p === task.priority) return;
@@ -494,8 +501,18 @@ function TaskCardInner({
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuLabel>{t("agent.assignMenuLabel")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {/* 已有活动 run 或已入队时，显示提示并禁用指派项（spec §防手滑） */}
+              {assignLocked && (
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground px-2 py-1">
+                  {t("agent.assignLockedHint")}
+                </DropdownMenuLabel>
+              )}
               {agentProviders.map((p) => (
-                <DropdownMenuItem key={p.id} onSelect={() => void assignAgent(p.id)}>
+                <DropdownMenuItem
+                  key={p.id}
+                  disabled={assignLocked}
+                  onSelect={() => void assignAgent(p.id)}
+                >
                   {t("agent.assignTo", { name: providerLabel(p.id) })}
                 </DropdownMenuItem>
               ))}

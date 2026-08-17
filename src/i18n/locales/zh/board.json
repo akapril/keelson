@@ -144,7 +144,8 @@
     "assigned": "已指派 {{name}}，排队执行中",
     "assignError": "指派失败：{{msg}}",
     "enqueued": "已入队",
-    "enqueuedTitle": "已指派 agent，等待后台领取执行"
+    "enqueuedTitle": "已指派 agent，等待后台领取执行",
+    "assignLockedHint": "已有 agent 在处理，先合并/打回再重指派"
   },
   "project": {
     "archived": "已归档",

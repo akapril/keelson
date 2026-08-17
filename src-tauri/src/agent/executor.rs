@@ -95,25 +95,14 @@ pub async fn execute_task_with_agent(
     let task = get_one(client, "board_tasks", task_id, "id,title,description,project").await?;
     let project_id = task["project"].as_str().unwrap_or_default().to_string();
     let project = get_one(client, "board_projects", &project_id, "id,name,repo_path").await?;
-    let repo = project["repo_path"].as_str().unwrap_or_default().to_string();
-    if repo.trim().is_empty() {
-        return Err("项目未设置 repo_path，无法派 agent".into());
-    }
-    let repo_path = Path::new(&repo);
-    // 校验目录存在且是 git 仓库（agent 需要在 git 仓库里建隔离工作树）
-    if !repo_path.exists() {
-        return Err(format!("项目目录不存在：{repo}。请检查该项目的 repo_path。"));
-    }
-    if !worktree::is_git_repo(repo_path) {
-        return Err(format!(
-            "项目目录不是 git 仓库：{repo}。agent 需要 git 仓库来建隔离工作树——请先在该目录执行 `git init` 并提交一次，或把项目的 repo_path 指向一个 git 仓库。"
-        ));
-    }
+    // 提前提取名称字段，供 run 记录和后续使用
     let title  = task["title"].as_str().unwrap_or_default().to_string();
     let desc   = task["description"].as_str().unwrap_or_default().to_string();
     let pname  = project["name"].as_str().unwrap_or_default().to_string();
+    let repo = project["repo_path"].as_str().unwrap_or_default().to_string();
 
-    // 2) 建 running run 记录（先持久化，保证即便后续失败也有记录可查）
+    // 2) 建 running run 记录（先持久化，保证 repo 校验失败时也有可见的受阻记录，
+    //    避免 worker 路径静默丢失——无 run 记录则徽标不显示）
     let branch = worktree::branch_name(task_id);
     let run = client
         .create("agent_runs", &json!({
@@ -128,7 +117,41 @@ pub async fn execute_task_with_agent(
         .map_err(|e| e.to_string())?;
     let run_id = run["id"].as_str().unwrap_or_default().to_string();
 
-    // 3) 建 worktree（失败 → run=blocked，仍返 run_id）
+    // 3a) repo_path 校验：空路径 / 目录不存在 / 非 git 仓库均转为 blocked run，
+    //     而非 Err 返回（Err 在 worker 路径会被吞、不留记录）。
+    if repo.trim().is_empty() {
+        let _ = client
+            .patch("agent_runs", &run_id, &json!({
+                "status":  "blocked",
+                "blocker": "项目未设置 repo_path，无法派 agent",
+            }))
+            .await;
+        return Ok(run_id);
+    }
+    let repo_path = Path::new(&repo);
+    // 校验目录存在且是 git 仓库（agent 需要在 git 仓库里建隔离工作树）
+    if !repo_path.exists() {
+        let _ = client
+            .patch("agent_runs", &run_id, &json!({
+                "status":  "blocked",
+                "blocker": format!("项目目录不存在：{repo}。请检查该项目的 repo_path。"),
+            }))
+            .await;
+        return Ok(run_id);
+    }
+    if !worktree::is_git_repo(repo_path) {
+        let _ = client
+            .patch("agent_runs", &run_id, &json!({
+                "status":  "blocked",
+                "blocker": format!(
+                    "项目目录不是 git 仓库：{repo}。agent 需要 git 仓库来建隔离工作树——请先在该目录执行 `git init` 并提交一次，或把项目的 repo_path 指向一个 git 仓库。"
+                ),
+            }))
+            .await;
+        return Ok(run_id);
+    }
+
+    // 3b) 建 worktree（失败 → run=blocked，仍返 run_id）
     // add_worktree 返回 (worktree路径, 实际 base 分支名)，base 须持久化防止漂移
     let (wt, base_branch) = match worktree::add_worktree(repo_path, task_id) {
         Ok(pair) => pair,
@@ -150,7 +173,7 @@ pub async fn execute_task_with_agent(
         }))
         .await;
 
-    // 4) 组 prompt + 跑 CLI（30min 超时，流式累日志）
+    // 4) 组 prompt + 跑 CLI（30 min 超时，流式累日志）
     let prompt = build_task_prompt(&title, &desc, &pname, task_id);
     let msgs = vec![crate::commands::ai::ChatMessage {
         role:    "user".into(),

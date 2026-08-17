@@ -125,18 +125,37 @@ async fn poll_once(app: &tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    // 2) 拉当前 running 的任务 id 集
+    // 2) 拉当前「非终态」run，同时计算并发槽和「忙碌」集合：
+    //    - running_ids：仅 status=running 的任务 id，用于占用并发槽位；
+    //    - busy_ids：running/review/blocked 全部任务 id，用于排除候选——
+    //      review/blocked 的任务正等待人工决策，不应自动重派覆盖结果（spec 防手滑）。
     let run_rows = client
-        .list("agent_runs", "status = \"running\" && deleted_at = \"\"", "id,task")
+        .list(
+            "agent_runs",
+            "(status = \"running\" || status = \"review\" || status = \"blocked\") && deleted_at = \"\"",
+            "id,task,status",
+        )
         .await
         .map_err(|e| e.to_string())?;
-    let running: HashSet<String> = run_rows
-        .into_iter()
-        .filter_map(|r| r["task"].as_str().map(|s| s.to_string()))
-        .collect();
+    let mut running_ids: HashSet<String> = HashSet::new(); // 仅 running（占槽位）
+    let mut busy_ids: HashSet<String> = HashSet::new();    // running/review/blocked（排候选）
+    for r in run_rows {
+        if let Some(task_id) = r["task"].as_str() {
+            busy_ids.insert(task_id.to_string());
+            if r["status"].as_str() == Some("running") {
+                running_ids.insert(task_id.to_string());
+            }
+        }
+    }
 
-    // 3) 决策本轮派发
-    let picked = pick_eligible(&candidates, &running, AGENT_CONCURRENCY);
+    // 3) 过滤掉忙碌任务后再决策本轮派发
+    //    （busy 过滤在 pick_eligible 外做，避免修改纯函数签名/单测）
+    let filtered_candidates: Vec<EnqueuedTask> = candidates
+        .iter()
+        .filter(|c| !busy_ids.contains(&c.task_id))
+        .cloned()
+        .collect();
+    let picked = pick_eligible(&filtered_candidates, &running_ids, AGENT_CONCURRENCY);
 
     // 4) 处理 provider 不受支持的候选（清 enqueued，避免死循环领取）
     for c in &candidates {

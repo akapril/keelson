@@ -144,7 +144,8 @@
     "assigned": "Assigned {{name}}, queued to run",
     "assignError": "Assign failed: {{msg}}",
     "enqueued": "Queued",
-    "enqueuedTitle": "Agent assigned, waiting to be picked up"
+    "enqueuedTitle": "Agent assigned, waiting to be picked up",
+    "assignLockedHint": "An agent is handling this — resolve it before re-assigning"
   },
   "project": {
     "archived": "Archived",
