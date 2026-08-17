@@ -1,8 +1,9 @@
-// BoardSurface —— 看板一等工作面：顶部 strip（项目切换器 + 看板/列表切换）+ 按视图分发渲染。
+// BoardSurface —— 看板工作面：顶部 strip（看板/列表视图切换）+ 按视图分发渲染。
 // 包住现有 KanbanBoard（不改其内部）；列表视图走 BoardListView。视图切换只切 board-view store，零重取数。
+// 注：项目切换器不放这里（切项目属工作台容器层，放板 tab 工具条上心智不一致）；
+// 待 B 期把看板抽成顶层独立页时，项目切换器移到该页头部（BoardProjectSwitcher 组件已备好复用）。
 import { useTranslation } from "react-i18next";
 import { useBoardViewStore, type BoardView } from "@/store/board-view";
-import { BoardProjectSwitcher } from "./BoardProjectSwitcher";
 import { KanbanBoard } from "./KanbanBoard";
 import { BoardListView } from "./BoardListView";
 import { cn } from "@/lib/utils";
@@ -19,9 +20,8 @@ export function BoardSurface() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* 顶部 strip：项目切换器 + 视图分段控件 */}
+      {/* 顶部 strip：视图分段控件（靠右） */}
       <div className="flex shrink-0 items-center gap-2 pb-2">
-        <BoardProjectSwitcher />
         <div className="ml-auto inline-flex rounded-lg border border-border p-0.5">
           {VIEWS.map((v) => (
             <button
