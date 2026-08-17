@@ -225,8 +225,10 @@ function TaskCardInner({
     !(latestRun && ["running", "review", "blocked"].includes(latestRun.status));
 
   // S2：已指派命名队友时显示队友徽标；否则回退旧 provider 显示逻辑
+  // 徽标查询用完整列表（含归档/软删），避免队友归档后徽标消失
+  // 注意：指派下拉仍用 activeAgents（只允许指派活跃队友）
   const assignedAgent = task.agent_id
-    ? activeAgents.find((a) => a.id === task.agent_id) ?? null
+    ? allAgents.find((a) => a.id === task.agent_id) ?? null
     : null;
 
   // 已有活动 run（执行中/待审/受阻）或已入队时，禁止再次「指派」，

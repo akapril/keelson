@@ -36,6 +36,9 @@ import {
 // provider 下拉固定为 S1 支持的两个（claude / codex）
 const SUPPORTED_PROVIDERS = ["claude", "codex"] as const;
 
+// 颜色下拉的「无色」哨兵值：Radix Select 禁止 value=""，用此占位映射空字符串
+const NO_COLOR = "__none__";
+
 interface Props {
   /** 编辑时传入，新建时 undefined */
   editing?: AgentProfile;
@@ -191,12 +194,22 @@ export function AgentEditSheet({ editing, open, onClose }: Props) {
           {/* 主题色（来自 PROVIDER_META 键） */}
           <div className="flex flex-col gap-1.5">
             <Label>{t("agentsPage.fieldColor")}</Label>
-            <Select value={color} onValueChange={setColor}>
+            {/*
+              Radix Select 不允许 SelectItem value=""，否则运行时抛错导致崩溃。
+              用哨兵 NO_COLOR 代替空字符串：
+                - value 绑定：空色→哨兵，让「无色」项高亮
+                - onValueChange：哨兵→还原为空字符串写入 state
+            */}
+            <Select
+              value={color || NO_COLOR}
+              onValueChange={(v) => setColor(v === NO_COLOR ? "" : v)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder={t("agentsPage.colorPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">{t("agentsPage.colorNone")}</SelectItem>
+                {/* 用哨兵值而非空字符串，避免 Radix 抛出空 value 错误 */}
+                <SelectItem value={NO_COLOR}>{t("agentsPage.colorNone")}</SelectItem>
                 {Object.keys(PROVIDER_META).map((key) => (
                   <SelectItem key={key} value={key}>
                     {key}

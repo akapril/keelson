@@ -132,8 +132,10 @@ export function AgentRunPanel({
   /** 重派（blocked 态）：再次用同 agent（优先 run.agent id，回退 provider）发起执行 */
   const handleRedispatch = async () => {
     if (!run || acting) return;
-    // S2：优先用 run.agent（命名队友 id）作 agentRef；无则回退原 provider
-    const agentRef = run.agent ?? run.provider;
+    // S2：优先用 run.agent（命名队友 id）作 agentRef；无或空字符串则回退原 provider
+    // 用 || 而非 ??：provider-fallback run 的 run.agent 为空字符串（非 null/undefined），
+    // ?? 会保留空字符串导致 resolve 失败；|| 能正确回退
+    const agentRef = run.agent || run.provider;
     const agentProfile = run.agent
       ? agents.find((a) => a.id === run.agent) ?? null
       : null;
