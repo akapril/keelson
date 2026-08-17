@@ -48,6 +48,7 @@ import {
   EMPTY_FILTER,
   type TaskFilter,
 } from "./task-filter";
+import { taskHasAgent } from "./agent-filter";
 
 // TaskSheet 的受控状态：新建（预填 state）或编辑（携带 task）。
 interface SheetState {
@@ -80,6 +81,8 @@ export function KanbanBoard() {
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
   // 是否显示已归档任务（默认隐藏，保持看板清爽）
   const [showArchived, setShowArchived] = useState(false);
+  // 「有 agent 参与」过滤：开启后只显示已指派/入队/在跑的任务（看板级按任务字段判定）。
+  const [agentOnly, setAgentOnly] = useState(false);
   // 任务筛选：文本 + 标签 + 优先级
   const [filter, setFilter] = useState<TaskFilter>(EMPTY_FILTER);
   // CLI 注入状态（常驻显示"注了没/几条"）；null=未查/无仓库
@@ -110,11 +113,14 @@ export function KanbanBoard() {
     const map: Record<string, BoardTask[]> = {};
     for (const st of sortedStates) {
       map[st.id] = (grouped[st.id] ?? []).filter(
-        (t) => (showArchived || !t.archived) && taskMatchesFilter(t, deferredFilter),
+        (t) =>
+          (showArchived || !t.archived) &&
+          (!agentOnly || taskHasAgent(t, null)) &&
+          taskMatchesFilter(t, deferredFilter),
       );
     }
     return map;
-  }, [sortedStates, grouped, showArchived, deferredFilter]);
+  }, [sortedStates, grouped, showArchived, agentOnly, deferredFilter]);
 
   // 自动归档：进入项目、任务加载后，把「完成超过 N 天」的任务自动归档（阈值可在设置改，0=关）。
   useEffect(() => {
@@ -578,6 +584,19 @@ export function KanbanBoard() {
               {showArchived ? t("board.hideArchived") : t("board.showArchived", { count: archivedCount })}
             </button>
           )}
+          {/* 「有 agent 参与」过滤：只看已指派/入队/在跑的任务 */}
+          <button
+            type="button"
+            onClick={() => setAgentOnly((v) => !v)}
+            className={cn(
+              "flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors",
+              agentOnly
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-muted",
+            )}
+          >
+            {agentOnly ? t("board.agentOnlyOn") : t("board.agentOnlyOff")}
+          </button>
         </div>
       </div>
       <DndContext

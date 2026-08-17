@@ -112,6 +112,8 @@
     "clearFilter": "清除",
     "showArchived": "显示归档（{{count}}）",
     "hideArchived": "隐藏归档",
+    "agentOnlyOff": "有 agent 参与",
+    "agentOnlyOn": "✓ 有 agent 参与",
     "noStates": "此项目暂无状态列 —— 打开「项目设置」添加",
     "autoArchiveToast": "已自动归档 {{count}} 个完成超过 {{days}} 天的任务",
     "archiveColumnOk": "已归档 {{count}} 个任务",

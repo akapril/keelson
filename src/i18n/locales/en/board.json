@@ -112,6 +112,8 @@
     "clearFilter": "Clear",
     "showArchived": "Show archived ({{count}})",
     "hideArchived": "Hide archived",
+    "agentOnlyOff": "Has agent",
+    "agentOnlyOn": "✓ Has agent",
     "noStates": "This project has no state columns — open \"Project Settings\" to add one",
     "autoArchiveToast": "Auto-archived {{count}} tasks completed more than {{days}} days ago",
     "archiveColumnOk": "Archived {{count}} tasks",
