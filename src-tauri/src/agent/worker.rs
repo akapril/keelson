@@ -1,49 +1,61 @@
 //! agent 队列 worker：轮询「已入队」任务 → 受并发约束派发 → 复用执行内核。
-//! 本文件的 pick_eligible 是纯函数（CI 单测）；轮询/wiring 见 start_worker/poll_once。
-use std::collections::HashSet;
+//! pick_eligible 是纯函数（CI 单测）；轮询/wiring 见 start_worker/poll_once。
+use std::collections::{HashMap, HashSet};
 use crate::pb::client::PbClient;
 use crate::AppState;
 use serde_json::json;
 use std::time::Duration;
 use tauri::{Emitter, Manager};
 
-/// 同时最多并发执行的 agent 数（S1 默认 1；后续可提为配置）。
-pub const AGENT_CONCURRENCY: usize = 1;
+/// 全局并发兜底上限（防失控；真正限流靠 per-agent max_concurrent）。
+pub const AGENT_CONCURRENCY_GLOBAL_CAP: usize = 8;
 /// worker 轮询间隔（秒）。
 pub const WORKER_POLL_SECS: u64 = 5;
 
-/// 一条候选入队任务的精简视图（纯函数输入，便于单测）。
+/// 一条候选入队任务（含分组维度，供按 agent 并发计算）。
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnqueuedTask {
     pub task_id: String,
-    pub provider: String,
+    /// 传给 executor 的 agent_ref（agent_id 优先，否则 provider）。
+    pub agent_ref: String,
+    /// 并发分组键：agent_id 非空则用之，否则用 "provider:<name>"（回退任务各自成组）。
+    pub group_key: String,
+    /// 该组并发上限（agent 的 max_concurrent，或默认 DEFAULT_MAX_CONCURRENT）。
+    pub max_concurrent: u64,
 }
 
-/// 从候选入队任务中挑出本轮可派发的任务：
-/// - 跳过已有 running run 的任务（running_task_ids）；
-/// - 跳过 provider 不受支持的任务（agent_run_provider_id 返 None）；
-/// - 至多派发 (concurrency - 当前 running 数) 个，且不为负；
-/// 返回应立即派发的任务（保持输入顺序）。
+/// 按 agent 分组计槽挑本轮可派任务：
+/// - 每个 group 已跑数（running_by_group）+ 本轮已挑数 < 该 group 的 max_concurrent；
+/// - 且总数（global_running + 本轮已挑）< global_cap（兜底防失控）；
+/// 保持输入顺序。
 pub fn pick_eligible(
     candidates: &[EnqueuedTask],
-    running_task_ids: &HashSet<String>,
-    concurrency: usize,
+    running_by_group: &HashMap<String, usize>,
+    global_running: usize,
+    global_cap: usize,
 ) -> Vec<EnqueuedTask> {
-    // 剩余可用并发槽位（running 数已占用；不足则为 0）
-    let slots = concurrency.saturating_sub(running_task_ids.len());
-    let mut out = Vec::new();
+    let mut out: Vec<EnqueuedTask> = Vec::new();
+    // 本轮各组已挑计数（叠加到 running_by_group 之上）
+    let mut picked_by_group: HashMap<String, usize> = HashMap::new();
     for t in candidates {
-        if out.len() >= slots {
+        // 全局兜底：总在跑 + 本轮已派 >= 上限则停止
+        if global_running + out.len() >= global_cap {
             break;
         }
-        // 已在跑的任务不重复派发
-        if running_task_ids.contains(&t.task_id) {
+        // 该组已跑数（running）+ 本轮已挑数
+        let already = running_by_group.get(&t.group_key).copied().unwrap_or(0)
+            + picked_by_group.get(&t.group_key).copied().unwrap_or(0);
+        // max_concurrent == 0 视为未设，用默认值
+        let cap = if t.max_concurrent == 0 {
+            crate::agent::resolve::DEFAULT_MAX_CONCURRENT
+        } else {
+            t.max_concurrent
+        };
+        if (already as u64) >= cap {
+            // 该 group 槽位已满，跳过（继续看其他 group 的候选）
             continue;
         }
-        // provider 不受支持则跳过（由调用方清 enqueued，避免死循环领取）
-        if crate::agent::executor::agent_run_provider_id(&t.provider).is_none() {
-            continue;
-        }
+        *picked_by_group.entry(t.group_key.clone()).or_insert(0) += 1;
         out.push(t.clone());
     }
     out
@@ -96,7 +108,7 @@ pub fn start_worker(app: tauri::AppHandle) {
     });
 }
 
-/// 单轮轮询：拉候选入队任务 + 当前 running → pick_eligible → 清 enqueued → 后台执行。
+/// 单轮轮询：拉候选入队任务 + 当前 running → pick_eligible(按 agent 分组) → 清 enqueued → 后台执行。
 async fn poll_once(app: &tauri::AppHandle) -> Result<(), String> {
     // auth 未就绪则跳过本轮
     let (client, owner_id) = match worker_client(app) {
@@ -104,69 +116,125 @@ async fn poll_once(app: &tauri::AppHandle) -> Result<(), String> {
         None => return Ok(()),
     };
 
-    // 1) 拉候选：已入队 + 有负责人 + 未软删
+    // 1) 拉候选：已入队 + (有 agent_id 或有 provider) + 未软删
+    //    同时取 agent_id 字段——Task 1 已加，S2 起用于分组和执行路由
     let cand_rows = client
         .list(
             "board_tasks",
-            "agent_enqueued = true && agent_provider != \"\" && deleted_at = \"\"",
-            "id,agent_provider",
+            "agent_enqueued = true && (agent_id != \"\" || agent_provider != \"\") && deleted_at = \"\"",
+            "id,agent_id,agent_provider",
         )
         .await
         .map_err(|e| e.to_string())?;
+
+    if cand_rows.is_empty() {
+        return Ok(());
+    }
+
+    // 2) 拉活跃 agent_profiles 的 id→max_concurrent 映射
+    let profiles = client
+        .list("agent_profiles", "deleted_at = \"\"", "id,max_concurrent")
+        .await
+        .map_err(|e| e.to_string())?;
+    let cap_of: HashMap<String, u64> = profiles
+        .into_iter()
+        .filter_map(|p| {
+            let id = p["id"].as_str()?.to_string();
+            let cap = p["max_concurrent"]
+                .as_f64()
+                .map(|n| n as u64)
+                .filter(|&n| n > 0)
+                .unwrap_or(crate::agent::resolve::DEFAULT_MAX_CONCURRENT);
+            Some((id, cap))
+        })
+        .collect();
+
+    // 3) 组装候选列表（含分组键和上限）
+    //    agent_id 非空 → group_key=agent_id，agent_ref=agent_id；
+    //    否则 → group_key="provider:<name>"，agent_ref=provider（回退兼容）。
     let candidates: Vec<EnqueuedTask> = cand_rows
         .into_iter()
         .filter_map(|r| {
             let id = r["id"].as_str()?.to_string();
-            let provider = r["agent_provider"].as_str().unwrap_or_default().to_string();
-            Some(EnqueuedTask { task_id: id, provider })
+            let aid = r["agent_id"].as_str().unwrap_or_default().to_string();
+            let prov = r["agent_provider"].as_str().unwrap_or_default().to_string();
+            let (agent_ref, group_key, cap) = if !aid.is_empty() {
+                // agent_id 路径：cap 从 profiles 取，未命中则用默认
+                let cap = cap_of
+                    .get(&aid)
+                    .copied()
+                    .unwrap_or(crate::agent::resolve::DEFAULT_MAX_CONCURRENT);
+                (aid.clone(), aid, cap)
+            } else {
+                // provider 回退路径：各 provider 各成一组
+                (prov.clone(), format!("provider:{prov}"), crate::agent::resolve::DEFAULT_MAX_CONCURRENT)
+            };
+            Some(EnqueuedTask { task_id: id, agent_ref, group_key, max_concurrent: cap })
         })
         .collect();
-    if candidates.is_empty() {
-        return Ok(());
-    }
 
-    // 2) 拉当前「非终态」run，同时计算并发槽和「忙碌」集合：
-    //    - running_ids：仅 status=running 的任务 id，用于占用并发槽位；
-    //    - busy_ids：running/review/blocked 全部任务 id，用于排除候选——
-    //      review/blocked 的任务正等待人工决策，不应自动重派覆盖结果（spec 防手滑）。
+    // 4) 拉当前「非终态」run，构造：
+    //    - busy_ids：running/review/blocked 全部任务 id（防自动重派，S1 逻辑保留）；
+    //    - running_by_group：仅 status=running 的 run，按 agent/provider 分组计数（占槽位）；
+    //    - global_running：status=running 的 run 总数。
+    //    注意 running vs busy 的区分：
+    //      busy = 任何非终态（含 review/blocked）→ 排除候选，避免覆盖人工决策；
+    //      running = 真正运行中 → 占用并发槽位，用于 pick_eligible 计算。
     let run_rows = client
         .list(
             "agent_runs",
             "(status = \"running\" || status = \"review\" || status = \"blocked\") && deleted_at = \"\"",
-            "id,task,status",
+            "id,task,status,agent,provider",
         )
         .await
         .map_err(|e| e.to_string())?;
-    let mut running_ids: HashSet<String> = HashSet::new(); // 仅 running（占槽位）
-    let mut busy_ids: HashSet<String> = HashSet::new();    // running/review/blocked（排候选）
+
+    let mut busy_ids: HashSet<String> = HashSet::new();   // 非终态任务 id（排候选）
+    let mut running_by_group: HashMap<String, usize> = HashMap::new(); // 仅 running，按组计数
+    let mut global_running: usize = 0;
+
     for r in run_rows {
         if let Some(task_id) = r["task"].as_str() {
             busy_ids.insert(task_id.to_string());
             if r["status"].as_str() == Some("running") {
-                running_ids.insert(task_id.to_string());
+                global_running += 1;
+                // group 优先用 run.agent（agent_id），否则回退 "provider:<run.provider>"
+                let run_agent = r["agent"].as_str().unwrap_or_default();
+                let run_prov = r["provider"].as_str().unwrap_or_default();
+                let group = if !run_agent.is_empty() {
+                    run_agent.to_string()
+                } else {
+                    format!("provider:{run_prov}")
+                };
+                *running_by_group.entry(group).or_insert(0) += 1;
             }
         }
     }
 
-    // 3) 过滤掉忙碌任务后再决策本轮派发
-    //    （busy 过滤在 pick_eligible 外做，避免修改纯函数签名/单测）
-    let filtered_candidates: Vec<EnqueuedTask> = candidates
-        .iter()
-        .filter(|c| !busy_ids.contains(&c.task_id))
-        .cloned()
-        .collect();
-    let picked = pick_eligible(&filtered_candidates, &running_ids, AGENT_CONCURRENCY);
+    // 5) 先剔除 busy 候选（S1 防自动重派），再按 agent 分组计槽选本轮任务
+    let mut filtered_candidates = candidates.clone();
+    filtered_candidates.retain(|c| !busy_ids.contains(&c.task_id));
+    let picked = pick_eligible(
+        &filtered_candidates,
+        &running_by_group,
+        global_running,
+        AGENT_CONCURRENCY_GLOBAL_CAP,
+    );
 
-    // 4) 处理 provider 不受支持的候选（清 enqueued，避免死循环领取）
+    // 6) 处理 provider 回退路径中 provider 不受支持的候选（清 enqueued，避免死循环领取）
+    //    仅针对 group_key 以 "provider:" 开头的候选（agent_id 路径由 resolve 统一处理）。
     for c in &candidates {
-        if crate::agent::executor::agent_run_provider_id(&c.provider).is_none() {
-            let _ = client
-                .patch("board_tasks", &c.task_id, &json!({ "agent_enqueued": false }))
-                .await;
+        if c.group_key.starts_with("provider:") {
+            let provider_name = &c.agent_ref; // 回退路径 agent_ref == provider name
+            if crate::agent::executor::agent_run_provider_id(provider_name).is_none() {
+                let _ = client
+                    .patch("board_tasks", &c.task_id, &json!({ "agent_enqueued": false }))
+                    .await;
+            }
         }
     }
 
-    // 5) 派发：先清 enqueued（防重领），再后台执行；执行内核会同步建 running run
+    // 7) 派发：先清 enqueued（防重领），再后台执行；执行内核会同步建 running run
     for t in picked {
         let _ = client
             .patch("board_tasks", &t.task_id, &json!({ "agent_enqueued": false }))
@@ -176,12 +244,11 @@ async fn poll_once(app: &tauri::AppHandle) -> Result<(), String> {
         let owner2 = owner_id.clone();
         let app2 = app.clone();
         let task_id = t.task_id.clone();
-        let provider = t.provider.clone();
+        let agent_ref = t.agent_ref.clone();
         tauri::async_runtime::spawn(async move {
-            // 复用执行内核；S1 徽标只需状态变化，不逐字广播日志（面板打开时另有实时流）
-            // agent_ref 语义：Task 4 会切为真正的 agent_id；暂用 provider 字段回退兼容
+            // 复用执行内核；传 agent_ref（agent_id 优先，否则 provider 回退）
             let _ = crate::agent::executor::execute_task_with_agent(
-                &client2, &owner2, &task_id, &provider, |_piece| {},
+                &client2, &owner2, &task_id, &agent_ref, |_piece| {},
             )
             .await;
             // 完成（review/blocked）后通知前端刷新该任务徽标
@@ -198,48 +265,57 @@ async fn poll_once(app: &tauri::AppHandle) -> Result<(), String> {
 mod tests {
     use super::*;
 
-    fn task(id: &str, provider: &str) -> EnqueuedTask {
-        EnqueuedTask { task_id: id.into(), provider: provider.into() }
+    fn task(id: &str, group: &str, cap: u64) -> EnqueuedTask {
+        EnqueuedTask {
+            task_id: id.into(),
+            agent_ref: "claude".into(),
+            group_key: group.into(),
+            max_concurrent: cap,
+        }
     }
 
     #[test]
     fn empty_candidates_yields_empty() {
-        let running = HashSet::new();
-        assert!(pick_eligible(&[], &running, 1).is_empty());
+        let running = std::collections::HashMap::new();
+        assert!(pick_eligible(&[], &running, 0, 1).is_empty());
     }
 
     #[test]
-    fn concurrency_one_no_running_picks_first_only() {
-        let running = HashSet::new();
-        let cands = vec![task("a", "claude"), task("b", "codex")];
-        let picked = pick_eligible(&cands, &running, 1);
-        assert_eq!(picked, vec![task("a", "claude")]);
+    fn per_agent_cap_limits_same_group() {
+        // 同一 agent(group=A) cap=1，两个候选 → 只派 1 个
+        let running = std::collections::HashMap::new();
+        let cands = vec![task("t1", "A", 1), task("t2", "A", 1)];
+        let picked = pick_eligible(&cands, &running, 0, 8);
+        assert_eq!(picked.len(), 1);
+        assert_eq!(picked[0].task_id, "t1");
     }
 
     #[test]
-    fn skips_already_running_task() {
-        let mut running = HashSet::new();
-        running.insert("a".to_string());
-        let cands = vec![task("a", "claude"), task("b", "codex")];
-        // a 在跑 → running 占 1 槽，concurrency=2 → 只剩 1 槽给 b
-        let picked = pick_eligible(&cands, &running, 2);
-        assert_eq!(picked, vec![task("b", "codex")]);
+    fn different_agents_run_in_parallel() {
+        // 两个不同 agent 各 cap=1，全局兜底 8 → 都派
+        let running = std::collections::HashMap::new();
+        let cands = vec![task("t1", "A", 1), task("t2", "B", 1)];
+        let picked = pick_eligible(&cands, &running, 0, 8);
+        assert_eq!(picked.len(), 2);
     }
 
     #[test]
-    fn full_concurrency_picks_nothing() {
-        let mut running = HashSet::new();
-        running.insert("x".to_string());
-        let cands = vec![task("a", "claude")];
-        assert!(pick_eligible(&cands, &running, 1).is_empty());
+    fn respects_existing_running_in_group() {
+        // group A 已有 1 个在跑，cap=1 → 不再派 A；B 可派
+        let mut running = std::collections::HashMap::new();
+        running.insert("A".to_string(), 1usize);
+        let cands = vec![task("t1", "A", 1), task("t2", "B", 1)];
+        let picked = pick_eligible(&cands, &running, 1, 8);
+        assert_eq!(picked.len(), 1);
+        assert_eq!(picked[0].group_key, "B");
     }
 
     #[test]
-    fn skips_unsupported_provider() {
-        let running = HashSet::new();
-        let cands = vec![task("a", "gemini"), task("b", "claude")];
-        // gemini 不受支持被跳过，claude 入选
-        let picked = pick_eligible(&cands, &running, 1);
-        assert_eq!(picked, vec![task("b", "claude")]);
+    fn global_cap_bounds_total() {
+        // 全局兜底 1：即便两个不同 agent 也只派 1
+        let running = std::collections::HashMap::new();
+        let cands = vec![task("t1", "A", 5), task("t2", "B", 5)];
+        let picked = pick_eligible(&cands, &running, 0, 1);
+        assert_eq!(picked.len(), 1);
     }
 }
