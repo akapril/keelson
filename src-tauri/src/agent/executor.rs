@@ -88,9 +88,8 @@ pub async fn execute_task_with_agent(
     mut on_line: impl FnMut(String),
 ) -> Result<String, String> {
     // 0) 解析队友：agent_id 优先，回退把 agent_ref 当 provider（S1 兼容）
+    // 注意：provider 合法性校验推迟到 run 记录建立之后，确保不支持的 provider 也留可见 blocked run。
     let resolved = crate::agent::resolve::resolve_agent(client, agent_ref).await;
-    let cli_provider = agent_run_provider_id(&resolved.provider)
-        .ok_or_else(|| format!("P1 暂不支持 provider：{}（仅 claude/codex）", resolved.provider))?;
 
     // 1) 读任务 + 项目（repo_path/name/title/description）
     let task = get_one(client, "board_tasks", task_id, "id,title,description,project").await?;
@@ -118,6 +117,22 @@ pub async fn execute_task_with_agent(
         .await
         .map_err(|e| e.to_string())?;
     let run_id = run["id"].as_str().unwrap_or_default().to_string();
+
+    // 2b) provider 合法性校验：在 run 记录建立后再检查，
+    //     不支持的 provider（含 agent profile 的 provider 为空/未知）落可见 blocked run，
+    //     与 repo 校验一致，避免 worker 路径吞掉 Err 导致分配静默消失。
+    let cli_provider = match agent_run_provider_id(&resolved.provider) {
+        Some(p) => p,
+        None => {
+            let _ = client
+                .patch("agent_runs", &run_id, &json!({
+                    "status":  "blocked",
+                    "blocker": format!("不支持的 provider：{}（仅 claude/codex）", resolved.provider),
+                }))
+                .await;
+            return Ok(run_id);
+        }
+    };
 
     // 3a) repo_path 校验：空路径 / 目录不存在 / 非 git 仓库均转为 blocked run，
     //     而非 Err 返回（Err 在 worker 路径会被吞、不留记录）。

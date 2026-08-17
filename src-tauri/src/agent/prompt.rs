@@ -42,7 +42,7 @@ pub fn build_task_prompt(
          - 在当前工作目录直接完成此任务（改代码/加文件）。完成即停，不要开始新任务。\n\
          - 若被阻塞无法完成，用工具 update_task 说明 blocker，task_id = {task_id}。\n\
          - 不要执行 git commit/push，改动留在工作区即可（由人 review 后合并）。\n\
-         {skill_block}",
+{skill_block}",
         head = head, project_name = project_name.trim(), title = title.trim(),
         desc = desc, task_id = task_id, skill_block = skill_block,
     )
