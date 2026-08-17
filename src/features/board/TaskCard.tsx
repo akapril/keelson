@@ -43,11 +43,10 @@ import { isCliSynced, toggleInject, getInjectSet } from "./cli-task-source";
 import { ipc } from "@/lib/tauri/ipc";
 import { listAgentRuns } from "@/lib/pb/agent-runs";
 import type { AgentRun } from "@/types/agent";
-import { useStartableProvidersStore } from "@/store/startable-providers";
 import { providerLabel } from "@/lib/providers";
 import { AgentRunPanel } from "./AgentRunPanel";
 import { useAgentLogStore } from "@/store/agent-run-logs";
-import { AGENT_FILTER_PROVIDERS } from "./agent-filter";
+import { useAgentStore } from "@/store/agents";
 import { listen } from "@tauri-apps/api/event";
 
 // 运行状态徽标的样式映射（提升到模块顶层，避免每次组件渲染重建对象）。
@@ -118,13 +117,15 @@ function TaskCardInner({
   const navigate = useNavigate();
   const { t, i18n } = useTranslation("board");
 
-  // ── Agent 执行：已装 provider 列表（全局 store 懒加载一次）────────────────
-  const { providers, ensureLoaded } = useStartableProvidersStore();
-  // 过滤出支持集与已装的交集，用于「指派 agent」下拉项（复用 agent-filter.ts 定义）。
-  const agentProviders = useMemo(
-    () => providers.filter((p) => AGENT_FILTER_PROVIDERS.has(p.id)),
-    [providers],
+  // ── S2：命名队友列表（全局 store 懒加载一次）──────────────────────────────
+  const agentStoreLoad = useAgentStore((s) => s.load);
+  const allAgents = useAgentStore((s) => s.agents);
+  // 过滤出活跃队友（未归档、未软删）用于指派下拉
+  const activeAgents = useMemo(
+    () => allAgents.filter((a) => !a.archived && !a.deleted_at),
+    [allAgents],
   );
+
   // 是否正在执行（防重复点击）
   const [agentRunning, setAgentRunning] = useState(false);
   // Agent Run 面板受控开关（点击运行徽标打开）
@@ -170,25 +171,26 @@ function TaskCardInner({
     };
   }, [task.id]);
 
-  // 确保 provider 列表已加载（全局幂等，不会重复发 IPC）
+  // 确保队友列表已加载（全局幂等，load 函数内部若已 loaded 可由 store 层自行处理）
   useEffect(() => {
-    void ensureLoaded();
-  }, [ensureLoaded]);
+    void agentStoreLoad();
+  }, [agentStoreLoad]);
 
-  /** 发起 Agent 执行：选中 provider 后调用 IPC，done 后刷新徽标，错误重抛并 toast */
-  const runWithAgent = async (providerId: string) => {
+  /** 发起 Agent 执行（S2）：传队友 id 作 agentRef 调用 IPC，done 后刷新徽标，错误重抛并 toast */
+  const runWithAgent = async (agentId: string, agentName: string) => {
     if (agentRunning) return;
     // 发起前清空旧日志，避免上次执行的内容残留
     useAgentLogStore.getState().reset(task.id);
     setAgentRunning(true);
     try {
-      await ipc.agentRunTask(task.id, providerId, (e) => {
+      // S2：agentRef 传队友 id（Rust 侧 resolve_agent 按 id 查队友，再取 provider）
+      await ipc.agentRunTask(task.id, agentId, (e) => {
         if (e.kind === "delta" && e.text) {
           // 增量文本：写入实时日志 store，面板会订阅并实时渲染
           useAgentLogStore.getState().append(task.id, e.text);
         } else if (e.kind === "done") {
           // 执行完毕：toast 成功 + 刷新徽标
-          toast.success(`${providerLabel(providerId)} 已完成任务「${task.title}」`);
+          toast.success(`${agentName} 已完成任务「${task.title}」`);
           listAgentRuns(taskIdRef.current)
             .then((runs) => setLatestRun(runs[0] ?? null))
             .catch(() => undefined);
@@ -203,11 +205,11 @@ function TaskCardInner({
     }
   };
 
-  /** 指派 agent 负责人：写 agent_provider + agent_enqueued=true，交由后台 worker 领取执行。 */
-  const assignAgent = async (providerId: string) => {
+  /** 指派命名队友（S2）：写 agent_id + agent_enqueued=true，交由后台 worker 领取执行。 */
+  const assignAgent = async (agentId: string, agentName: string) => {
     try {
-      await updateTask(task.id, { agent_provider: providerId, agent_enqueued: true });
-      toast.success(t("agent.assigned", { name: providerLabel(providerId) }));
+      await updateTask(task.id, { agent_id: agentId, agent_enqueued: true });
+      toast.success(t("agent.assigned", { name: agentName }));
     } catch (e) {
       // updateTask 失败已回滚，这里 toast 让用户知情（不吞错）
       toast.error(t("agent.assignError", { msg: String(e) }));
@@ -221,6 +223,11 @@ function TaskCardInner({
   const showEnqueued =
     !!task.agent_enqueued &&
     !(latestRun && ["running", "review", "blocked"].includes(latestRun.status));
+
+  // S2：已指派命名队友时显示队友徽标；否则回退旧 provider 显示逻辑
+  const assignedAgent = task.agent_id
+    ? activeAgents.find((a) => a.id === task.agent_id) ?? null
+    : null;
 
   // 已有活动 run（执行中/待审/受阻）或已入队时，禁止再次「指派」，
   // 避免自动重派覆盖未审结果（spec §防手滑）。
@@ -478,9 +485,24 @@ function TaskCardInner({
           </button>
         )}
 
-        {/* 「指派 agent」下拉（有可用 provider 时显示；多选模式隐藏防误触）。
-            指派 = 写负责人并入队，由后台 worker 自动领取执行（Multica 式指派即派发）。*/}
-        {!selectMode && agentProviders.length > 0 && (
+        {/* S2：已指派命名队友时显示队友徽标（{emoji} {name}）；否则回退 provider 文字 */}
+        {assignedAgent && (
+          <span
+            className="ml-auto flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+            title={assignedAgent.name}
+          >
+            {assignedAgent.emoji ? `${assignedAgent.emoji} ` : ""}{assignedAgent.name}
+          </span>
+        )}
+        {!assignedAgent && task.agent_provider && (
+          <span className="ml-auto flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            {providerLabel(task.agent_provider)}
+          </span>
+        )}
+
+        {/* 「指派 agent」下拉（S2：列命名队友；多选模式隐藏防误触）。
+            指派 = 写 agent_id 并入队，由后台 worker 自动领取执行（Multica 式指派即派发）。*/}
+        {!selectMode && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -507,25 +529,36 @@ function TaskCardInner({
                   {t("agent.assignLockedHint")}
                 </DropdownMenuLabel>
               )}
-              {agentProviders.map((p) => (
-                <DropdownMenuItem
-                  key={p.id}
-                  disabled={assignLocked}
-                  onSelect={() => void assignAgent(p.id)}
-                >
-                  {t("agent.assignTo", { name: providerLabel(p.id) })}
+              {/* S2：无活跃队友时引导去 Agents 页建队友 */}
+              {activeAgents.length === 0 ? (
+                <DropdownMenuItem onSelect={() => navigate("/agents")}>
+                  {t("agent.noAgents")}
                 </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              {/* 次要动作：绕过队列立即跑一次（调试/急用）。*/}
-              {agentProviders.map((p) => (
-                <DropdownMenuItem
-                  key={`run-${p.id}`}
-                  onSelect={() => void runWithAgent(p.id)}
-                >
-                  {t("agent.runNowWith", { name: providerLabel(p.id) })}
-                </DropdownMenuItem>
-              ))}
+              ) : (
+                activeAgents.map((a) => (
+                  <DropdownMenuItem
+                    key={a.id}
+                    disabled={assignLocked}
+                    onSelect={() => void assignAgent(a.id, a.name)}
+                  >
+                    {t("agent.assignTo", { emoji: a.emoji ?? "", name: a.name })}
+                  </DropdownMenuItem>
+                ))
+              )}
+              {/* 次要动作：绕过队列立即跑一次（调试/急用）；只有有队友时才显示 */}
+              {activeAgents.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  {activeAgents.map((a) => (
+                    <DropdownMenuItem
+                      key={`run-${a.id}`}
+                      onSelect={() => void runWithAgent(a.id, a.name)}
+                    >
+                      {t("agent.runNowWith", { name: a.name })}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}

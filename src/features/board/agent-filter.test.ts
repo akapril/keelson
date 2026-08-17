@@ -65,4 +65,8 @@ describe("taskHasAgent", () => {
   it("空字符串负责人不算有 agent → false", () => {
     expect(taskHasAgent(mkTask({ agent_provider: "" }), null)).toBe(false);
   });
+
+  it("有 agent_id → true", () => {
+    expect(taskHasAgent(mkTask({ agent_id: "ag1" }), null)).toBe(true);
+  });
 });

@@ -7,6 +7,7 @@ import { listAgentRuns } from "@/lib/pb/agent-runs";
 import { ipc } from "@/lib/tauri/ipc";
 import type { AgentRun, AgentRunStatus } from "@/types/agent";
 import { useAgentLogStore } from "@/store/agent-run-logs";
+import { useAgentStore } from "@/store/agents";
 import {
   Sheet,
   SheetContent,
@@ -61,6 +62,8 @@ export function AgentRunPanel({
   const [acting, setActing] = useState(false);
   // 实时日志：订阅 agent-run-logs store，执行中边跑边渲染
   const liveLog = useAgentLogStore((s) => s.logs[taskId] ?? "");
+  // S2：从 run.agent 反查命名队友（找不到则回退 providerLabel）
+  const agents = useAgentStore((s) => s.agents);
   // 日志区 ref，用于 liveLog 变化时自动滚到底部
   const liveLogRef = useRef<HTMLPreElement>(null);
 
@@ -126,10 +129,17 @@ export function AgentRunPanel({
     }
   };
 
-  /** 重派（blocked 态）：再次用同 provider 发起执行 */
+  /** 重派（blocked 态）：再次用同 agent（优先 run.agent id，回退 provider）发起执行 */
   const handleRedispatch = async () => {
     if (!run || acting) return;
-    const provider = run.provider;
+    // S2：优先用 run.agent（命名队友 id）作 agentRef；无则回退原 provider
+    const agentRef = run.agent ?? run.provider;
+    const agentProfile = run.agent
+      ? agents.find((a) => a.id === run.agent) ?? null
+      : null;
+    const displayName = agentProfile
+      ? `${agentProfile.emoji ? `${agentProfile.emoji} ` : ""}${agentProfile.name}`
+      : providerLabel(run.provider);
     setActing(true);
     try {
       // 先打回当前 blocked run（清理 worktree），再重新执行
@@ -137,17 +147,17 @@ export function AgentRunPanel({
       // 发起前清空旧日志，让实时日志区从头开始
       useAgentLogStore.getState().reset(taskId);
       // agentRunTask 是流式：通过 onEvent 回调感知增量和完成；这里仅触发，不 await 完整流
-      void ipc.agentRunTask(taskId, provider, (e) => {
+      void ipc.agentRunTask(taskId, agentRef, (e) => {
         if (e.kind === "delta" && e.text) {
           // 增量文本写入 store，面板实时渲染（面板此时可能已关闭，写入无副作用）
           useAgentLogStore.getState().append(taskId, e.text);
         } else if (e.kind === "done") {
-          toast.success(`${providerLabel(provider)} 重派完成`);
+          toast.success(`${displayName} 重派完成`);
           onRefresh?.();
           refresh();
         }
       });
-      toast.message(`已重派给 ${providerLabel(provider)}，执行中…`);
+      toast.message(`已重派给 ${displayName}，执行中…`);
       onClose();
     } catch (e) {
       toast.error(`重派失败：${String(e)}`);
@@ -242,8 +252,20 @@ export function AgentRunPanel({
             <>
               {/* 基础信息行 */}
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                {/* Provider */}
-                <span className="font-medium">{providerLabel(run.provider)}</span>
+                {/* S2：优先显示命名队友名称，找不到则回退 providerLabel */}
+                {(() => {
+                  const agentProfile = run.agent
+                    ? agents.find((a) => a.id === run.agent) ?? null
+                    : null;
+                  if (agentProfile) {
+                    return (
+                      <span className="font-medium">
+                        {agentProfile.emoji ? `${agentProfile.emoji} ` : ""}{agentProfile.name}
+                      </span>
+                    );
+                  }
+                  return <span className="font-medium">{providerLabel(run.provider)}</span>;
+                })()}
 
                 {/* 状态徽标 */}
                 {badge && (

@@ -16,6 +16,8 @@ const ACTIVE_RUN_STATUS = new Set(["running", "review", "blocked"]);
  * 仅有终态 run（merged/discarded）且无负责人/未入队 → 视为不再参与。
  */
 export function taskHasAgent(task: BoardTask, latestRun: AgentRun | null): boolean {
+  // S2：命名队友 id 非空即有 agent 参与（优先于 provider 判断）
+  if (task.agent_id && task.agent_id.trim() !== "") return true;
   if (task.agent_provider && task.agent_provider.trim() !== "") return true;
   if (task.agent_enqueued) return true;
   if (latestRun && ACTIVE_RUN_STATUS.has(latestRun.status)) return true;

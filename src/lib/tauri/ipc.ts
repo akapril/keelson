@@ -354,13 +354,14 @@ export const ipc = {
    *  onEvent.kind: "delta" | "done"；done 时携带 run_id。*/
   agentRunTask: (
     taskId: string,
-    provider: string,
+    agentRef: string,
     onEvent: (e: { kind: string; text?: string; run_id?: string }) => void,
   ) => {
     // Channel 是 Tauri 原生对象，不走 call() 双通道；与 aiChatStream 保持同一范式。
+    // S2：参数键由 provider 改为 agentRef，对齐 Rust 命令形参 agent_ref（Task 3）。
     const ch = new Channel<{ kind: string; text?: string; run_id?: string }>();
     ch.onmessage = onEvent;
-    return call<string>("agent_run_task", { taskId, provider, onEvent: ch });
+    return call<string>("agent_run_task", { taskId, agentRef, onEvent: ch });
   },
 
   /** 将指定 Agent 运行结果合并进主分支（审核通过后调用）。 */
