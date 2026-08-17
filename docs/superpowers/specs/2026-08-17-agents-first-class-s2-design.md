@@ -132,6 +132,12 @@ run 记录写入：`provider`=解析出的 provider，`agent`=agent_id（回退�
 
 worker/executor：`agent_id` 优先解析；为空回退 `agent_provider`。S1 直跑入口（`agent_run_task` 命令）与旧数据均不破。
 
+## 协同模型（钉死边界）
+
+S2 的协同是 **人 ↔ AI agent，全本地**：你派活（看板写 `task.agent_id`）→ agent 在你机器的隔离 worktree 里跑 → 产物回 review/受阻由你审 → 你点合并落主干。数据本地、agent 本地跑、你本地审，**不需要同步**。"队友"是 AI agent 的隐喻（对标 Multica agent-as-assignee），不是真人。
+
+**明确不是**：①真人多人协同（多人共享看板、互见彼此 agent）——需托管 PB + 多用户 auth + 实时同步，属独立大轨道（软删地基已合、P2 sync worker 未做），不在 S2；②agent↔agent 接力编排（一个规划一个实现）——属更后的编排能力，不在 S2（S2 = 一任务一 agent + 并发上限）。
+
 ## E. 明确不做（YAGNI / 边界）
 
 - 头像**图片上传**（MVP emoji）。
