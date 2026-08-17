@@ -72,9 +72,11 @@ fn worker_client(app: &tauri::AppHandle) -> Option<(PbClient, String)> {
 
 /// 启动恢复：应用重启会中断进行中的 run，把遗留 status=running 的记录标 blocked，
 /// worktree 保留待人处理，避免「卡在 running」的僵尸占用并发槽。
+/// 每条恢复记录同时写一条决策通知（bell），与 executor 各终态点保持一致。
 pub async fn recover_interrupted_runs(client: &PbClient) {
+    // 同时取 owner/task/provider/agent，用于后续写决策通知
     let rows = match client
-        .list("agent_runs", "status = \"running\" && deleted_at = \"\"", "id")
+        .list("agent_runs", "status = \"running\" && deleted_at = \"\"", "id,owner,task,provider,agent")
         .await
     {
         Ok(r) => r,
@@ -83,15 +85,55 @@ pub async fn recover_interrupted_runs(client: &PbClient) {
             return;
         }
     };
+    const RESTART_BLOCKER: &str = "应用重启中断——请重新派发或打回";
     for row in rows {
-        if let Some(id) = row["id"].as_str() {
-            let _ = client
-                .patch("agent_runs", id, &json!({
-                    "status":  "blocked",
-                    "blocker": "应用重启中断——请重新派发或打回",
-                }))
-                .await;
+        let Some(id) = row["id"].as_str() else { continue };
+        // 标 blocked
+        let _ = client
+            .patch("agent_runs", id, &json!({
+                "status":  "blocked",
+                "blocker": RESTART_BLOCKER,
+            }))
+            .await;
+
+        // 受阻 → 写决策通知（bell），与 executor 各终态点一致
+        let owner = row["owner"].as_str().unwrap_or_default().to_string();
+        if owner.is_empty() {
+            // owner 是通知必填字段，缺失时跳过通知但保留 patch
+            continue;
         }
+        let task = row["task"].as_str().unwrap_or_default().to_string();
+        let provider = row["provider"].as_str().unwrap_or_default().to_string();
+        let agent = row["agent"].as_str().unwrap_or_default().to_string();
+
+        // agent_id 非空则用 agent_id 解析展示名，否则回退 provider
+        let agent_ref = if !agent.is_empty() { &agent } else { &provider };
+        let resolved = crate::agent::resolve::resolve_agent(client, agent_ref).await;
+
+        // 尽量取任务标题；查询失败则用 task id（非致命）
+        let task_title = if task.is_empty() {
+            task.clone()
+        } else {
+            let filter = format!("id = \"{}\"", task.replace('"', ""));
+            match client.list("board_tasks", &filter, "id,title").await {
+                Ok(rows) => rows
+                    .into_iter()
+                    .next()
+                    .and_then(|r| r["title"].as_str().map(|s| s.to_string()))
+                    .unwrap_or_else(|| task.clone()),
+                Err(_) => task.clone(),
+            }
+        };
+
+        crate::agent::notify::notify_decision(
+            client,
+            &owner,
+            "blocked",
+            &resolved.display_name,
+            &task_title,
+            RESTART_BLOCKER,
+        )
+        .await;
     }
 }
 
