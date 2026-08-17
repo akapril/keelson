@@ -124,12 +124,15 @@ pub async fn execute_task_with_agent(
     let cli_provider = match agent_run_provider_id(&resolved.provider) {
         Some(p) => p,
         None => {
+            let blk = format!("不支持的 provider：{}（仅 claude/codex）", resolved.provider);
             let _ = client
                 .patch("agent_runs", &run_id, &json!({
                     "status":  "blocked",
-                    "blocker": format!("不支持的 provider：{}（仅 claude/codex）", resolved.provider),
+                    "blocker": &blk,
                 }))
                 .await;
+            // 受阻 → 写决策通知
+            crate::agent::notify::notify_decision(client, owner_id, "blocked", &resolved.display_name, &title, &blk).await;
             return Ok(run_id);
         }
     };
@@ -137,34 +140,43 @@ pub async fn execute_task_with_agent(
     // 3a) repo_path 校验：空路径 / 目录不存在 / 非 git 仓库均转为 blocked run，
     //     而非 Err 返回（Err 在 worker 路径会被吞、不留记录）。
     if repo.trim().is_empty() {
+        let blk = "项目未设置 repo_path，无法派 agent";
         let _ = client
             .patch("agent_runs", &run_id, &json!({
                 "status":  "blocked",
-                "blocker": "项目未设置 repo_path，无法派 agent",
+                "blocker": blk,
             }))
             .await;
+        // 受阻 → 写决策通知
+        crate::agent::notify::notify_decision(client, owner_id, "blocked", &resolved.display_name, &title, blk).await;
         return Ok(run_id);
     }
     let repo_path = Path::new(&repo);
     // 校验目录存在且是 git 仓库（agent 需要在 git 仓库里建隔离工作树）
     if !repo_path.exists() {
+        let blk = format!("项目目录不存在：{repo}。请检查该项目的 repo_path。");
         let _ = client
             .patch("agent_runs", &run_id, &json!({
                 "status":  "blocked",
-                "blocker": format!("项目目录不存在：{repo}。请检查该项目的 repo_path。"),
+                "blocker": &blk,
             }))
             .await;
+        // 受阻 → 写决策通知
+        crate::agent::notify::notify_decision(client, owner_id, "blocked", &resolved.display_name, &title, &blk).await;
         return Ok(run_id);
     }
     if !worktree::is_git_repo(repo_path) {
+        let blk = format!(
+            "项目目录不是 git 仓库：{repo}。agent 需要 git 仓库来建隔离工作树——请先在该目录执行 `git init` 并提交一次，或把项目的 repo_path 指向一个 git 仓库。"
+        );
         let _ = client
             .patch("agent_runs", &run_id, &json!({
                 "status":  "blocked",
-                "blocker": format!(
-                    "项目目录不是 git 仓库：{repo}。agent 需要 git 仓库来建隔离工作树——请先在该目录执行 `git init` 并提交一次，或把项目的 repo_path 指向一个 git 仓库。"
-                ),
+                "blocker": &blk,
             }))
             .await;
+        // 受阻 → 写决策通知
+        crate::agent::notify::notify_decision(client, owner_id, "blocked", &resolved.display_name, &title, &blk).await;
         return Ok(run_id);
     }
 
@@ -173,12 +185,15 @@ pub async fn execute_task_with_agent(
     let (wt, base_branch) = match worktree::add_worktree(repo_path, task_id) {
         Ok(pair) => pair,
         Err(e) => {
+            let blk = format!("worktree 建立失败：{e}");
             let _ = client
                 .patch("agent_runs", &run_id, &json!({
                     "status":  "blocked",
-                    "blocker": format!("worktree 建立失败：{e}"),
+                    "blocker": &blk,
                 }))
                 .await;
+            // 受阻 → 写决策通知
+            crate::agent::notify::notify_decision(client, owner_id, "blocked", &resolved.display_name, &title, &blk).await;
             return Ok(run_id);
         }
     };
@@ -244,7 +259,7 @@ pub async fn execute_task_with_agent(
     }
 
     // 7) 写回 run（状态 + 产物摘要）
-    let patch = match oc {
+    let patch = match &oc {
         Outcome::Review { no_change } => json!({
             "status":    "review",
             "no_change": no_change,
@@ -259,6 +274,13 @@ pub async fn execute_task_with_agent(
         }),
     };
     let _ = client.patch("agent_runs", &run_id, &patch).await;
+    // 待审/受阻终态 → 写决策通知（worker 路径与 run-now 路径均经此处）
+    match &oc {
+        Outcome::Review { .. } =>
+            crate::agent::notify::notify_decision(client, owner_id, "review", &resolved.display_name, &title, "").await,
+        Outcome::Blocked { reason } =>
+            crate::agent::notify::notify_decision(client, owner_id, "blocked", &resolved.display_name, &title, reason).await,
+    }
     Ok(run_id)
 }
 
