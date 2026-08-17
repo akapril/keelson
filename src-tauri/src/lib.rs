@@ -705,6 +705,13 @@ async fn setup_pocketbase(
         });
     }
 
+    // 启动 agent 队列 worker（auth 已就绪）：先做启动恢复（遗留 running → blocked），
+    // 再起后台轮询循环，自动领取「已入队」任务执行。失败不阻断应用启动。
+    {
+        crate::agent::worker::recover_interrupted_runs(&pb_client).await;
+        crate::agent::worker::start_worker(handle.clone());
+    }
+
     // 步骤 6：扫描会话（缓存秒加载 + 增量）+ 重建 Tantivy 索引 + 同步到 PB
     let reg = Arc::new(providers::ProviderRegistry::new());
     let cache_path = data_dir.join("scan_cache.json");
