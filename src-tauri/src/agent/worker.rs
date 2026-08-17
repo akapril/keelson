@@ -179,6 +179,7 @@ async fn poll_once(app: &tauri::AppHandle) -> Result<(), String> {
         let provider = t.provider.clone();
         tauri::async_runtime::spawn(async move {
             // 复用执行内核；S1 徽标只需状态变化，不逐字广播日志（面板打开时另有实时流）
+            // agent_ref 语义：Task 4 会切为真正的 agent_id；暂用 provider 字段回退兼容
             let _ = crate::agent::executor::execute_task_with_agent(
                 &client2, &owner2, &task_id, &provider, |_piece| {},
             )

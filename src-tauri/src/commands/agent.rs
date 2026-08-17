@@ -27,10 +27,11 @@ fn make_client(state: &State<'_, AppState>) -> Result<(PbClient, String), String
 
 /// 派 agent 执行某任务：流式回日志；完成时 run 已落 review/blocked。
 /// on_event 为 Tauri Channel，前端监听实时日志与最终 run_id。
+/// agent_ref：可传 agent_profiles.id（优先）或原始 provider 名（回退兼容）。
 #[tauri::command]
 pub async fn agent_run_task(
     task_id: String,
-    provider: String,
+    agent_ref: String,
     on_event: tauri::ipc::Channel<AgentRunEvent>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
@@ -41,7 +42,7 @@ pub async fn agent_run_task(
         &client,
         &uid,
         &task_id,
-        &provider,
+        &agent_ref,
         move |piece| {
             // 忽略发送失败（前端可能已关闭监听）
             let _ = ev.send(AgentRunEvent {
@@ -122,7 +123,7 @@ pub async fn list_agent_runs(
         .list(
             "agent_runs",
             &filter,
-            "id,task,project,provider,status,branch,worktree_path,exit_code,\
+            "id,task,project,provider,agent,status,branch,worktree_path,exit_code,\
              blocker,no_change,diff_stat,log_tail,started,ended",
         )
         .await

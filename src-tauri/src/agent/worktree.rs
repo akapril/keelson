@@ -84,6 +84,17 @@ pub fn diff_stat(worktree: &Path) -> Result<String> {
     })
 }
 
+/// auto_commit：在隔离 worktree 内把改动提交到 agent 分支（不 push、不 merge）。
+/// 仅当队友 auto_commit=true 且有改动时由 executor 调用。
+pub fn commit_worktree(worktree: &Path, task_id: &str) -> Result<()> {
+    git(worktree, &["add", "-A"])?;
+    // 有暂存内容才 commit（避免"无改动"报错）
+    if git(worktree, &["diff", "--cached", "--quiet"]).is_err() {
+        git(worktree, &["commit", "-m", &format!("agent: task {task_id}")])?;
+    }
+    Ok(())
+}
+
 /// 把 agent 分支合并回指定 base 分支：commit 工作树改动 → 切 base → merge → 切回用户原分支 → 清理。
 /// 仅在人点「合并」时调用。绝不自动调用。
 /// base_branch 必须传入建 worktree 时持久化的值，禁止在此处再次求值（防止漂移）。

@@ -84,12 +84,13 @@ pub async fn execute_task_with_agent(
     client: &PbClient,
     owner_id: &str,
     task_id: &str,
-    provider: &str,
+    agent_ref: &str,
     mut on_line: impl FnMut(String),
 ) -> Result<String, String> {
-    // 0) provider 支持校验
-    let cli_provider = agent_run_provider_id(provider)
-        .ok_or_else(|| format!("P1 暂不支持 provider：{provider}（仅 claude/codex）"))?;
+    // 0) 解析队友：agent_id 优先，回退把 agent_ref 当 provider（S1 兼容）
+    let resolved = crate::agent::resolve::resolve_agent(client, agent_ref).await;
+    let cli_provider = agent_run_provider_id(&resolved.provider)
+        .ok_or_else(|| format!("P1 暂不支持 provider：{}（仅 claude/codex）", resolved.provider))?;
 
     // 1) 读任务 + 项目（repo_path/name/title/description）
     let task = get_one(client, "board_tasks", task_id, "id,title,description,project").await?;
@@ -109,7 +110,8 @@ pub async fn execute_task_with_agent(
             "owner":    owner_id,
             "task":     task_id,
             "project":  project_id,
-            "provider": provider,
+            "provider": resolved.provider,
+            "agent":    resolved.agent_id.clone().unwrap_or_default(),
             "status":   "running",
             "branch":   branch,
         }))
@@ -173,8 +175,11 @@ pub async fn execute_task_with_agent(
         }))
         .await;
 
-    // 4) 组 prompt + 跑 CLI（30 min 超时，流式累日志）
-    let prompt = build_task_prompt(&title, &desc, &pname, task_id);
+    // 4) 组 prompt + 跑 CLI（超时由队友属性覆盖，默认 AGENT_TIMEOUT_SECS，流式累日志）
+    let prompt = build_task_prompt(
+        &title, &desc, &pname, task_id,
+        &resolved.instructions, &resolved.skills, &resolved.skill_text,
+    );
     let msgs = vec![crate::commands::ai::ChatMessage {
         role:    "user".into(),
         content: prompt,
@@ -189,13 +194,15 @@ pub async fn execute_task_with_agent(
         None,
         Some(&wt_str),
         &msgs,
-        true,
+        resolved.with_tools,
         |piece| {
             log.push_str(&piece);
             on_line(piece);
         },
     );
-    let result = tokio::time::timeout(Duration::from_secs(AGENT_TIMEOUT_SECS), run_fut).await;
+    // 队友可覆盖超时（>0 才生效，否则用全局默认）
+    let timeout = resolved.timeout_secs.unwrap_or(AGENT_TIMEOUT_SECS);
+    let result = tokio::time::timeout(Duration::from_secs(timeout), run_fut).await;
 
     // 5) 判定结果
     let timed_out = result.is_err();
@@ -204,14 +211,24 @@ pub async fn execute_task_with_agent(
     let stat      = worktree::diff_stat(&wt).unwrap_or_default();
 
     let oc = if timed_out {
-        Outcome::Blocked { reason: format!("超时（>{AGENT_TIMEOUT_SECS}s）已终止") }
+        Outcome::Blocked { reason: format!("超时（>{timeout}s）已终止") }
     } else if let Ok(Err(e)) = &result {
         Outcome::Blocked { reason: format!("CLI 执行失败：{e}") }
     } else {
         decide_outcome(if exit_ok { Some(0) } else { None }, has_diff, None)
     };
 
-    // 6) 写回 run（状态 + 产物摘要）
+    // 6) 自动提交（仅 auto_commit=true 且有改动时在隔离 worktree 内 commit，绝不 push/merge）
+    if let Outcome::Review { .. } = &oc {
+        if resolved.auto_commit && has_diff {
+            // 在隔离 worktree 内 commit（绝不 push、不 merge；主干仍由人合并）
+            if let Err(e) = crate::agent::worktree::commit_worktree(&wt, task_id) {
+                eprintln!("[keelson] auto_commit 失败（非致命，改动仍在工作区）: {e}");
+            }
+        }
+    }
+
+    // 7) 写回 run（状态 + 产物摘要）
     let patch = match oc {
         Outcome::Review { no_change } => json!({
             "status":    "review",

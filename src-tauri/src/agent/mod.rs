@@ -5,3 +5,4 @@ pub mod worktree;
 pub mod executor;
 pub mod worker;
 pub mod ensure;
+pub mod resolve;
