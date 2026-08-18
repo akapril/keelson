@@ -16,7 +16,9 @@ migrate((app) => {
     // owner-only：经 project.owner 判定（与其它 board 表一致）
     listRule: `@request.auth.id != "" && project.owner = @request.auth.id`,
     viewRule: `@request.auth.id != "" && project.owner = @request.auth.id`,
-    createRule: `@request.auth.id != "" && @request.body.project.owner = @request.auth.id`,
+    // createRule 用记录关联解析 project.owner（与 1720000100_board.js 子表一致、已验证可用），
+    // 而非 @request.body.project.owner 的 body 遍历式（该式在本 PB 设置未验证，可能致创建 403）
+    createRule: `@request.auth.id != "" && project.owner = @request.auth.id`,
     updateRule: `project.owner = @request.auth.id`,
     deleteRule: `project.owner = @request.auth.id`,
   });
