@@ -33,8 +33,8 @@ pub fn get_usage(pid: u32) -> ResourceUsage {
 
 // ─────────────────────────── 格式化辅助 ────────────────────────────
 
-/// 将字节数转换为人类可读的字符串
-fn format_bytes(bytes: u64) -> String {
+/// 将字节数转换为人类可读的字符串（供 runtime_status 命令复用）
+pub(crate) fn format_bytes(bytes: u64) -> String {
     if bytes == 0 {
         return "—".to_string();
     }

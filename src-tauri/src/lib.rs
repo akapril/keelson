@@ -137,6 +137,8 @@ pub struct AppState {
     pub web_pty: Arc<web::terminal::PtyRegistry>,
     /// 交互式 PTY 进程注册表（sudo 等）：桌面进程管理的交互启动路径。
     pub runtime_pty: Arc<runtime::pty::InteractivePtyRegistry>,
+    /// 应用启动时刻，供「运行时」页计算 uptime。
+    pub started_at: std::time::Instant,
 }
 
 impl Default for AppState {
@@ -163,6 +165,7 @@ impl Default for AppState {
             web_api_state: Arc::new(Mutex::new(None)),
             web_pty: Arc::new(web::terminal::PtyRegistry::new()),
             runtime_pty: Arc::new(runtime::pty::InteractivePtyRegistry::new()),
+            started_at: std::time::Instant::now(),
         }
     }
 }
@@ -522,6 +525,8 @@ pub fn run() {
             commands::memory::tasks_project_files_status,
             // 进程管理（进程内模块，命令直调）
             commands::runtime::runtime_command,
+            // 「本地运行时」聚合状态面板（S4）
+            commands::runtime::runtime_status,
             // 交互式 PTY 进程命令（start/input/resize/kill）
             commands::runtime_pty::runtime_pty_start,
             commands::runtime_pty::runtime_pty_input,
