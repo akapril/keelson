@@ -5,7 +5,7 @@ import type { Session, SessionHit, TimelineMessage, PlannedTask } from "../../ty
 import type { EmbedConfig, RagHit } from "@/types/rag";
 import type { CommitInfo, CorrelatedCommit, HookStatus } from "@/types/git";
 import type { MemFilesStatus, FileMemory } from "@/types/memory";
-import type { RuntimeProcess, RuntimeLog } from "@/types/runtime";
+import type { RuntimeProcess, RuntimeLog, RuntimeStatus } from "@/types/runtime";
 import type { FileChange } from "@/types/file-change";
 import type {
   AiConfig,
@@ -334,6 +334,8 @@ export const ipc = {
   /** 清理：移除所有已停止/退出的进程记录 + 删除超过 days 天的日志文件 */
   runtimeClean: (days: number) =>
     runtimeCmd<{ processes_removed: number; log_files_deleted: number }>("clean", { days }),
+  /** 拉取本地运行时聚合状态（运行时卡轮询）。 */
+  runtimeStatus: () => call<RuntimeStatus>("runtime_status"),
 
   // ── 交互式 PTY（桌面专属；直接 invoke，不走双通道） ──────────
   /** 交互式启动：跑 PTY，返回创建的进程条目（桌面专属） */

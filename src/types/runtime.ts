@@ -31,3 +31,18 @@ export interface RuntimeLog {
   raw?: string;
   message?: string;
 }
+
+/** 「本地运行时」聚合状态（对齐 Rust RuntimeStatus）。 */
+export interface RuntimeStatus {
+  cpu_percent: number;
+  mem_used: number;
+  mem_total: number;
+  mem_display: string;
+  agent_running: number;
+  agent_cap: number;
+  uptime_secs: number;
+  disk_bytes: number;
+  disk_display: string;
+  pb_ok: boolean;
+  proc_count: number;
+}
