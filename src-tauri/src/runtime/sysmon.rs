@@ -52,3 +52,25 @@ pub fn process_name(pid: u32) -> Option<String> {
     s.refresh_processes(ProcessesToUpdate::Some(&[p]), false);
     s.process(p).map(|process| process.name().to_string_lossy().into_owned())
 }
+
+/// 机器级 CPU% 与内存（used/total 字节）。
+/// CPU% 需两次 refresh 差值：先刷一次→不持锁睡最小采样间隔→再刷并读，
+/// 避免持锁跨睡眠阻塞其它 sysmon 调用方（进程轮询）。
+/// 应在 spawn_blocking 里调用（含 ~200ms 睡眠）。
+pub fn system_usage() -> (f32, u64, u64) {
+    // 第一次 CPU 采样（锁内刷完即释放）
+    {
+        let mut s = sys().lock();
+        s.refresh_cpu_all();
+    }
+    // 不持锁睡最小采样间隔（sysinfo 语义：CPU% 靠两次采样差值）
+    std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
+    // 第二次采样：同时刷内存，读取最终值
+    let mut s = sys().lock();
+    s.refresh_cpu_all();
+    s.refresh_memory();
+    let cpu = s.global_cpu_usage();
+    let used = s.used_memory();
+    let total = s.total_memory();
+    (cpu, used, total)
+}

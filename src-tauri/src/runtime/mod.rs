@@ -16,6 +16,7 @@ pub mod process;
 pub mod pty;
 pub mod resources;
 pub mod store;
+pub mod disk;
 pub mod sysmon;
 
 /// 启动进程管理的后台任务（health 检查 / 旧日志清理）。
