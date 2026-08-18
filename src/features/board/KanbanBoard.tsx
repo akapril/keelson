@@ -435,8 +435,11 @@ export function KanbanBoard() {
     }
   };
 
-  // 泳道分组上下文：labelName 用 labels store，agentName 用 agent_id 或 provider 显示
-  // noAgentLabel 用 i18n 翻译，避免在 useMemo 闭包内直接调用 t（依赖不稳定）
+  // 泳道分组上下文：labelName 用 labels store，agentName 用 agent_id 或 provider 显示。
+  // noAgentLabel 先在 memo 外算好并放进依赖数组——切换语言时它会变，从而驱动 swimlaneCtx
+  // 重算，注入到 groupBySwimlane 的「无 agent」文案随之更新。
+  // ⚠ 勿把 noAgentLabel 从依赖移除或改成 memo 闭包内直接 t()：前者会造成语言切换后文案陈旧，
+  //   后者 t 引用不稳定会让 memo 每次重算失去意义。
   const noAgentLabel = t("swimlane.noAgent");
   const swimlaneCtx = useMemo(
     () => ({
