@@ -2,12 +2,13 @@
 // 字段：name / emoji / color / provider / instructions / skill_prompts(多选) /
 //       skill_text / timeout_secs / max_concurrent / with_tools / auto_commit。
 // 保存调 useAgentStore.createAgent/updateAgent，失败重抛并 toast.error。
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 import { useAgentStore } from "@/store/agents";
 import { listPrompts } from "@/lib/pb/prompts";
+import { promptType } from "@/features/prompts/prompt-utils";
 import { PROVIDER_META } from "@/lib/providers";
 import type { AgentProfile } from "@/types/agent-profile";
 import type { Prompt } from "@/types/prompt";
@@ -65,6 +66,9 @@ export function AgentEditSheet({ editing, open, onClose }: Props) {
   // 指令库列表（用于技能多选）
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // 只把技能类型(skill)的指令作为可绑定技能（片段/报告模板不列）
+  const skills = useMemo(() => prompts.filter((p) => promptType(p) === "skill"), [prompts]);
 
   // 打开时加载指令库 + 回填编辑态字段
   useEffect(() => {
@@ -254,10 +258,10 @@ export function AgentEditSheet({ editing, open, onClose }: Props) {
           {/* 绑定技能（指令库多选）：无论指令库是否为空都显示该区块 */}
           <div className="flex flex-col gap-1.5">
             <Label>{t("agentsPage.fieldSkillPrompts")}</Label>
-            {prompts.length > 0 ? (
-              // 有指令时展示复选框列表
+            {skills.length > 0 ? (
+              // 有技能时展示复选框列表
               <div className="max-h-40 overflow-y-auto rounded-md border border-border p-2 space-y-1.5">
-                {prompts.map((p) => (
+                {skills.map((p) => (
                   <div key={p.id} className="flex items-center gap-2">
                     <Checkbox
                       id={`skill-${p.id}`}
@@ -274,9 +278,9 @@ export function AgentEditSheet({ editing, open, onClose }: Props) {
                 ))}
               </div>
             ) : (
-              // 指令库为空时展示占位提示，引导用户前往指令页添加
+              // 无技能时引导去指令库新建技能类型指令
               <p className="text-xs text-muted-foreground">
-                {t("agentsPage.noPromptsHint")}
+                {t("agentsPage.noSkillsHint")}
               </p>
             )}
           </div>
