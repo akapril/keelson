@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useBoardStore } from "@/store/board";
+import { useBoardViewStore } from "@/store/board-view";
+import { taskMatchesFilter } from "./task-filter";
 import type { BoardTask } from "@/types/board";
 import { orderedTaskGroups } from "./list-grouping";
 import { PRIORITY_META } from "./board-meta";
@@ -17,7 +19,10 @@ export function BoardListView() {
   // 编辑面板受控态
   const [editing, setEditing] = useState<BoardTask | null>(null);
 
-  const groups = useMemo(() => orderedTaskGroups(tasks, states), [tasks, states]);
+  // 读 store filter（EMPTY filter 时 taskMatchesFilter 恒真，显示全部，零可见回归）
+  const filter = useBoardViewStore((s) => s.filter);
+  const filtered = useMemo(() => tasks.filter((t) => taskMatchesFilter(t, filter)), [tasks, filter]);
+  const groups = useMemo(() => orderedTaskGroups(filtered, states), [filtered, states]);
   const labelById = useMemo(() => new Map(labels.map((l) => [l.id, l])), [labels]);
 
   return (

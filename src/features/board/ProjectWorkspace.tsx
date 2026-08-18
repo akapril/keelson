@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/store/board";
+import { useBoardViewStore } from "@/store/board-view";
 import { useSessionsStore } from "@/store/sessions";
 import { listEventsByProject } from "@/lib/pb/calendar";
 import { listDocs } from "@/lib/pb/docs";
@@ -48,6 +49,7 @@ export function ProjectWorkspace() {
   const tasks = useBoardStore((s) => s.tasks);
   const labels = useBoardStore((s) => s.labels);
   const sessions = useSessionsStore((s) => s.sessions);
+  const resetForProject = useBoardViewStore((s) => s.resetForProject);
 
   const [searchParams] = useSearchParams();
   // 深链接：?tab=<页> 决定初始标签页；?doc=<id> 定位文档标签内的具体文档
@@ -65,6 +67,11 @@ export function ProjectWorkspace() {
   useEffect(() => {
     if (paramTab) setTab(paramTab);
   }, [paramTab]);
+
+  // 切项目重置临时视图态（filter/swimlane 引用项目级 label/state，跨项目无意义）
+  useEffect(() => {
+    resetForProject();
+  }, [openedProjectId, resetForProject]);
 
   // 加载关联到本项目的日历事件（概览「近期事件」）+ 文档数（概览「项目信息」）
   useEffect(() => {

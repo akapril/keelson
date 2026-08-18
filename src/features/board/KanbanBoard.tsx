@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, FilterIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { useBoardStore, groupTasksByState } from "@/store/board";
+import { useBoardViewStore } from "@/store/board-view";
 import { ipc } from "@/lib/tauri/ipc";
 import { isCliSynced, getInjectSet } from "./cli-task-source";
 import type { BoardTask, TaskPriority } from "@/types/board";
@@ -46,7 +47,6 @@ import {
   taskMatchesFilter,
   isFilterActive,
   EMPTY_FILTER,
-  type TaskFilter,
 } from "./task-filter";
 import { taskHasAgent } from "./agent-filter";
 
@@ -83,8 +83,9 @@ export function KanbanBoard() {
   const [showArchived, setShowArchived] = useState(false);
   // 「有 agent 参与」过滤：开启后只显示已指派/入队/在跑的任务（看板级按任务字段判定）。
   const [agentOnly, setAgentOnly] = useState(false);
-  // 任务筛选：文本 + 标签 + 优先级
-  const [filter, setFilter] = useState<TaskFilter>(EMPTY_FILTER);
+  // filter 提升到 board-view store（单一真源，供保存视图/其它视图共读）；deferred 仍本地派生保击键跟手
+  const filter = useBoardViewStore((s) => s.filter);
+  const setFilter = useBoardViewStore((s) => s.setFilter);
   // CLI 注入状态（常驻显示"注了没/几条"）；null=未查/无仓库
   const [injectStatus, setInjectStatus] = useState<{ count: number } | null>(null);
   // 自动归档只对每个项目跑一次（避免重复写库）
@@ -444,7 +445,7 @@ export function KanbanBoard() {
           />
           <Input
             value={filter.query}
-            onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
+            onChange={(e) => setFilter({ ...filter, query: e.target.value })}
             placeholder={t("board.searchPlaceholder")}
             className="h-8 pl-8 text-sm"
           />
@@ -477,12 +478,12 @@ export function KanbanBoard() {
                   checked={filter.labels.includes(l.id)}
                   onSelect={(e) => e.preventDefault()}
                   onCheckedChange={() =>
-                    setFilter((f) => ({
-                      ...f,
-                      labels: f.labels.includes(l.id)
-                        ? f.labels.filter((x) => x !== l.id)
-                        : [...f.labels, l.id],
-                    }))
+                    setFilter({
+                      ...filter,
+                      labels: filter.labels.includes(l.id)
+                        ? filter.labels.filter((x) => x !== l.id)
+                        : [...filter.labels, l.id],
+                    })
                   }
                 >
                   <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: l.color }} />
@@ -512,7 +513,7 @@ export function KanbanBoard() {
             <DropdownMenuRadioGroup
               value={filter.priority ?? "__all"}
               onValueChange={(v) =>
-                setFilter((f) => ({ ...f, priority: v === "__all" ? null : (v as TaskPriority) }))
+                setFilter({ ...filter, priority: v === "__all" ? null : (v as TaskPriority) })
               }
             >
               <DropdownMenuRadioItem value="__all">{t("board.filterAllPriority")}</DropdownMenuRadioItem>

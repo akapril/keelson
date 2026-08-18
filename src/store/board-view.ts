@@ -37,20 +37,14 @@ interface BoardViewState {
   applyConfig: (cfg: SavedViewConfig) => void;
   /** 切项目：清空 filter/swimlane（引用项目级数据），保留 viewType。 */
   resetForProject: () => void;
-  /** @deprecated Task 2 删除——保持 BoardSurface 当前不改也可编译。 */
-  view: BoardView;
-  /** @deprecated Task 2 删除——保持 BoardSurface 当前不改也可编译。 */
-  setView: (v: BoardView) => void;
 }
 
-export const useBoardViewStore = create<BoardViewState>((set, get) => {
+export const useBoardViewStore = create<BoardViewState>((set) => {
   const _initial = initialViewType();
   return {
     viewType: _initial,
     filter: EMPTY_FILTER,
     swimlane: "none",
-    // —— 向后兼容冗余字段（与 viewType 同步；Task 2 消费方迁完后删除）——
-    view: _initial,
 
     setViewType: (viewType) => {
       try {
@@ -58,8 +52,7 @@ export const useBoardViewStore = create<BoardViewState>((set, get) => {
       } catch {
         /* 隐私模式写入失败忽略 */
       }
-      // 同步更新 view 别名，保持 BoardSurface 读到的值一致
-      set({ viewType, view: viewType });
+      set({ viewType });
     },
 
     setFilter: (filter) => set({ filter }),
@@ -72,13 +65,9 @@ export const useBoardViewStore = create<BoardViewState>((set, get) => {
       } catch {
         /* 忽略 */
       }
-      // 同步更新 view 别名
-      set({ viewType: cfg.viewType, view: cfg.viewType, filter: cfg.filter, swimlane: cfg.swimlane });
+      set({ viewType: cfg.viewType, filter: cfg.filter, swimlane: cfg.swimlane });
     },
 
     resetForProject: () => set({ filter: EMPTY_FILTER, swimlane: "none" }),
-
-    /** @deprecated 委托给 setViewType */
-    setView: (v: BoardView) => get().setViewType(v),
   };
 });
