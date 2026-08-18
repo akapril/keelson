@@ -584,7 +584,6 @@
     "confirmDeleteAction": "Delete",
     "errorNameRequired": "Name cannot be empty",
     "errorProviderRequired": "Please select a provider",
-    "noPromptsHint": "No prompts in library yet — add some in Prompts, then bind here",
     "noSkillsHint": "No skills yet. Create a skill-type prompt in the Prompt Library, then bind it here.",
     "cardSkills": "{{count}} skills",
     "cardConcurrency": "concurrency {{count}}",

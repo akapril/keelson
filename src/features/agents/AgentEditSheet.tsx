@@ -73,7 +73,7 @@ export function AgentEditSheet({ editing, open, onClose }: Props) {
   // 打开时加载指令库 + 回填编辑态字段
   useEffect(() => {
     if (!open) return;
-    // 拉取指令库列表（类型=snippet 的；若拉取失败则展示空列表）
+    // 拉取全部指令库列表（下方 useMemo 过滤出 skill 类型；若拉取失败则展示空列表）
     listPrompts()
       .then(setPrompts)
       .catch(() => setPrompts([]));
