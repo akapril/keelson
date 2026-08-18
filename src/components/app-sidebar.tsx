@@ -55,6 +55,7 @@ function FavoriteRow({
   name,
   repoPath,
   recentSessions,
+  activeId,
 }: {
   id: string;
   name: string;
@@ -62,6 +63,8 @@ function FavoriteRow({
   repoPath?: string;
   /** 该项目最近若干会话：[0] 供行上「接续最近」一键，全部供 ⋯ 菜单逐条接续 */
   recentSessions: Session[];
+  /** 当前打开的项目 id（父组件读 board store 传入）：== id 时本行高亮 */
+  activeId?: string;
 }) {
   const { t } = useTranslation("board");
   const restore = useRestoreStore((s) => s.restore);
@@ -106,8 +109,9 @@ function FavoriteRow({
       data-sidebar="menu-item"
       className="group/menu-item relative"
     >
-      <SidebarMenuButton asChild tooltip={name}>
-        <NavLink to={`/board?open=${id}`} {...attributes} {...listeners}>
+      <SidebarMenuButton asChild tooltip={name} isActive={activeId === id}>
+        {/* from=fav：标记"侧栏收藏浏览进入"，ProjectWorkspace 返回时据此回项目列表而非后退 */}
+        <NavLink to={`/board?open=${id}&from=fav`} {...attributes} {...listeners}>
           <HugeiconsIcon icon={StarIcon} strokeWidth={2} />
           <span className="truncate">{name}</span>
         </NavLink>
@@ -139,6 +143,8 @@ export function AppSidebar() {
   const projects = useBoardStore((s) => s.projects);
   const reorderPin = useBoardStore((s) => s.reorderPin);
   const pinned = useMemo(() => selectPinnedProjects(projects), [projects]);
+  // 当前打开的项目 id：供收藏行精确高亮（仅当前打开的收藏项亮，避免所有收藏行都因 pathname=/board 命中）
+  const openedProjectId = useBoardStore((s) => s.openedProjectId);
 
   // 会话缓存：供收藏行「接续最近」与 ⋯ 菜单「继续会话」定位每个项目的最近会话
   const sessions = useSessionsStore((s) => s.sessions);
@@ -233,6 +239,7 @@ export function AppSidebar() {
                         name={p.name}
                         repoPath={p.repo_path}
                         recentSessions={recentSessionsOf(sessions, p.repo_path, 5)}
+                        activeId={openedProjectId ?? undefined}
                       />
                     ))}
                   </SortableContext>
@@ -242,8 +249,8 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
         {navGroups.map((group) => {
-          // 「更多」组可折叠（默认收起）；其余组照常展开
-          const isMore = group.labelKey === "nav.groupMore";
+          // 「知识 · 更多」组可折叠（默认收起）；其余组照常展开
+          const isMore = group.labelKey === "nav.groupKnowledge";
           const showItems = !isMore || moreOpen;
           return (
             <SidebarGroup key={group.labelKey}>
