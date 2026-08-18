@@ -15,11 +15,29 @@ migrate((app) => {
     const ids = new Set();
     const agents = app.findAllRecords("agent_profiles");
     for (const a of agents) {
-      const bound = a.get("skill_prompts"); // 关联字段：prompt id 数组
-      if (Array.isArray(bound)) {
-        for (const id of bound) {
-          if (id) ids.add(id);
+      // 归一取关联字段的 id 数组：不同 PB 版本 get() 可能返回数组 / JSON 串，
+      // 优先 getStringSlice（多值字段专用，稳返 []string），再兜底 get() 的数组/JSON 串。
+      let bound = [];
+      try {
+        bound = a.getStringSlice("skill_prompts");
+      } catch (_) {
+        /* 老版本无 getStringSlice */
+      }
+      if (!Array.isArray(bound) || bound.length === 0) {
+        const raw = a.get("skill_prompts");
+        if (Array.isArray(raw)) {
+          bound = raw;
+        } else if (typeof raw === "string" && raw.trim()) {
+          try {
+            const parsed = JSON.parse(raw);
+            bound = Array.isArray(parsed) ? parsed : [raw];
+          } catch (_) {
+            bound = [raw]; // 单 id 串
+          }
         }
+      }
+      for (const id of bound) {
+        if (id) ids.add(id);
       }
     }
     for (const id of ids) {
