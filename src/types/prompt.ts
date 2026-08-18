@@ -3,10 +3,11 @@
 /**
  * 指令类型：
  * - snippet 会话/AI 面板插入片段（支持 {{变量}} 替换）
- * - report  工作报告模板（作系统提示，不做变量替换）
+ * - report  工作报告模板（作系统提示，不替换变量）
+ * - skill   绑给 agent 作系统提示注入的可复用能力（不替换变量）
  * 旧数据可能缺省 → 用 promptType() 归一为 snippet。
  */
-export type PromptType = "snippet" | "report";
+export type PromptType = "snippet" | "report" | "skill";
 
 export interface Prompt {
   id: string;
