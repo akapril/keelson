@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useBoardViewStore, type BoardView, type SwimlaneKey } from "@/store/board-view";
 import { KanbanBoard } from "./KanbanBoard";
 import { BoardListView } from "./BoardListView";
+import { TimelineView } from "./TimelineView";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -26,6 +27,7 @@ export function BoardSurface() {
   const VIEWS: { key: BoardView; label: string }[] = [
     { key: "kanban", label: t("view.kanban") },
     { key: "list", label: t("view.list") },
+    { key: "timeline", label: t("view.timeline") },
   ];
 
   // 泳道选项：无/优先级/负责人/标签/agent
@@ -93,9 +95,9 @@ export function BoardSurface() {
           ))}
         </div>
       </div>
-      {/* 视图区（二选一；KanbanBoard 自带其搜索/筛选工具条） */}
+      {/* 视图区（三态分发；KanbanBoard 自带其搜索/筛选工具条） */}
       <div className="flex min-h-0 flex-1 flex-col">
-        {viewType === "kanban" ? <KanbanBoard /> : <BoardListView />}
+        {viewType === "kanban" ? <KanbanBoard /> : viewType === "list" ? <BoardListView /> : <TimelineView />}
       </div>
     </div>
   );

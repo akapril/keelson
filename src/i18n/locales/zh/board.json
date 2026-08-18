@@ -538,7 +538,15 @@
   },
   "view": {
     "kanban": "看板",
-    "list": "列表"
+    "list": "列表",
+    "timeline": "时间线"
+  },
+  "timeline": {
+    "unscheduled": "未排期",
+    "week": "周",
+    "month": "月",
+    "empty": "暂无任务",
+    "dropError": "改截止失败：{{msg}}"
   },
   "swimlane": {
     "label": "泳道",

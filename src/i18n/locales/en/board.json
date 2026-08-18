@@ -538,7 +538,15 @@
   },
   "view": {
     "kanban": "Board",
-    "list": "List"
+    "list": "List",
+    "timeline": "Timeline"
+  },
+  "timeline": {
+    "unscheduled": "Unscheduled",
+    "week": "Week",
+    "month": "Month",
+    "empty": "No tasks",
+    "dropError": "Failed to reschedule: {{msg}}"
   },
   "swimlane": {
     "label": "Swimlane",
