@@ -540,6 +540,16 @@
     "kanban": "Board",
     "list": "List"
   },
+  "swimlane": {
+    "label": "Swimlane",
+    "none": "None",
+    "priority": "Priority",
+    "assignee": "Assignee",
+    "byLabel": "Label",
+    "agent": "Agent",
+    "noneLane": "None",
+    "noAgent": "No agent"
+  },
   "agentsPage": {
     "title": "Agents",
     "description": "Manage named AI teammates and assign them to tasks.",

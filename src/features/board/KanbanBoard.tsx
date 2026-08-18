@@ -21,6 +21,7 @@ import { ipc } from "@/lib/tauri/ipc";
 import { isCliSynced, getInjectSet } from "./cli-task-source";
 import type { BoardTask, TaskPriority } from "@/types/board";
 import { Input } from "@/components/ui/input";
+import { groupBySwimlane } from "./swimlane";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -76,6 +77,9 @@ export function KanbanBoard() {
   const updateTask = useBoardStore((s) => s.updateTask);
   const deleteTask = useBoardStore((s) => s.deleteTask);
   const openedProjectId = useBoardStore((s) => s.openedProjectId);
+
+  // 泳道维度（来自 board-view store，BoardSurface 工具条可切换）
+  const swimlane = useBoardViewStore((s) => s.swimlane);
 
   // 当前正在拖拽的任务（用于 DragOverlay）
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
@@ -431,6 +435,32 @@ export function KanbanBoard() {
     }
   };
 
+  // 泳道分组上下文：labelName 用 labels store，agentName 用 agent_id 或 provider 显示
+  // noAgentLabel 用 i18n 翻译，避免在 useMemo 闭包内直接调用 t（依赖不稳定）
+  const noAgentLabel = t("swimlane.noAgent");
+  const swimlaneCtx = useMemo(
+    () => ({
+      labelName: (id: string) => labels.find((l) => l.id === id)?.name ?? id,
+      agentName: (task: BoardTask) =>
+        task.agent_id ?? task.agent_provider ?? noAgentLabel,
+    }),
+    [labels, noAgentLabel],
+  );
+
+  // 泳道分组：仅在 swimlane !== "none" 时计算；"none" 路径不触发
+  // allVisibleTasks = 当前可见任务（跨所有状态列），作为泳道分组的输入
+  const allVisibleTasks = useMemo(
+    () => sortedStates.flatMap((st) => visibleByState[st.id] ?? []),
+    [sortedStates, visibleByState],
+  );
+  const lanes = useMemo(
+    () =>
+      swimlane !== "none"
+        ? groupBySwimlane(allVisibleTasks, swimlane, swimlaneCtx)
+        : null,
+    [allVisibleTasks, swimlane, swimlaneCtx],
+  );
+
   if (!openedProjectId) return null;
 
   return (
@@ -600,47 +630,110 @@ export function KanbanBoard() {
           </button>
         </div>
       </div>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        onDragCancel={() => setActiveTask(null)}
-      >
-        {/* 横向滚动的看板列容器 */}
-        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto pb-4">
-          {sortedStates.map((state) => (
-            <StatusColumn
-              key={state.id}
-              state={state}
-              tasks={visibleByState[state.id] ?? []}
-              onAddTask={openCreate}
-              onEditTask={openEdit}
-              selectMode={selectMode}
-              selected={selected}
-              onToggleSelect={handleToggleSelect}
-              onEnterSelect={handleEnterSelect}
-              onArchiveColumn={archiveColumn}
-            />
-          ))}
+      {/* swimlane==="none"：原有单层渲染路径，零回归 —— DndContext 完整保留 */}
+      {!lanes && (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => setActiveTask(null)}
+        >
+          <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto pb-4">
+            {sortedStates.map((state) => (
+              <StatusColumn
+                key={state.id}
+                state={state}
+                tasks={visibleByState[state.id] ?? []}
+                onAddTask={openCreate}
+                onEditTask={openEdit}
+                selectMode={selectMode}
+                selected={selected}
+                onToggleSelect={handleToggleSelect}
+                onEnterSelect={handleEnterSelect}
+                onArchiveColumn={archiveColumn}
+              />
+            ))}
 
-          {sortedStates.length === 0 && (
-            <div className="flex min-h-48 flex-1 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-              {t("board.noStates")}
-            </div>
-          )}
+            {sortedStates.length === 0 && (
+              <div className="flex min-h-48 flex-1 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
+                {t("board.noStates")}
+              </div>
+            )}
+          </div>
+
+          {/* 拖拽幽灵：跟随光标，旋转 3° 半透明显示 */}
+          <DragOverlay>
+            {activeTask ? (
+              <div className="w-72 rotate-3 opacity-80">
+                <TaskCard task={activeTask} labels={labels} states={states} />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
+
+      {/* swimlane!=="none"：按泳道带纵向堆叠，每带内横向排状态列。
+          DnD 说明：泳道模式下 StatusColumn 的 droppable id 在多带中会重复（每带都有同一列），
+          dnd-kit 不支持重复 droppable id，因此泳道模式下拖拽禁用（无 DndContext 包裹）。
+          任务编辑/新建/优先级/右键等操作完全正常；拖拽排序请切回「无」泳道后使用。
+          跨泳道维度值变更（如把卡片从高优拖到低优带）YAGNI，不实现。 */}
+      {lanes && (
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-4">
+          {lanes.map((lane) => {
+            // 该泳道带的任务 id 集合（O(1) 查询）
+            const laneIdSet = new Set(lane.taskIds);
+            // 带标题：__none__ 用 i18n "无"，其它用 laneLabel
+            const bandTitle =
+              lane.laneId === "__none__"
+                ? t("swimlane.noneLane")
+                : lane.laneLabel;
+            return (
+              <div key={lane.laneId} className="mb-6">
+                {/* 泳道带标题行 */}
+                <div className="mb-2 flex items-center gap-2 px-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {bandTitle}
+                  </span>
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
+                    {lane.taskIds.length}
+                  </span>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+                {/* 带内横向状态列（复用 StatusColumn，但无 DndContext，卡片不可拖拽） */}
+                <div className="flex gap-4 overflow-x-auto pb-2">
+                  {sortedStates.map((state) => {
+                    // 先取该列可见任务，再按本泳道 id 集合过滤
+                    const filteredTasks = (visibleByState[state.id] ?? []).filter(
+                      (tk) => laneIdSet.has(tk.id),
+                    );
+                    return (
+                      <StatusColumn
+                        key={`${lane.laneId}:${state.id}`}
+                        state={state}
+                        tasks={filteredTasks}
+                        onAddTask={openCreate}
+                        onEditTask={openEdit}
+                        selectMode={selectMode}
+                        selected={selected}
+                        onToggleSelect={handleToggleSelect}
+                        onEnterSelect={handleEnterSelect}
+                        onArchiveColumn={archiveColumn}
+                      />
+                    );
+                  })}
+                  {sortedStates.length === 0 && (
+                    <div className="flex min-h-24 flex-1 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
+                      {t("board.noStates")}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-
-        {/* 拖拽幽灵：跟随光标，旋转 3° 半透明显示 */}
-        <DragOverlay>
-          {activeTask ? (
-            <div className="w-72 rotate-3 opacity-80">
-              <TaskCard task={activeTask} labels={labels} states={states} />
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      )}
 
       {/* 批量操作栏：多选模式且已选 >0 时浮现于底部 */}
       {selectMode && selected.size > 0 && (

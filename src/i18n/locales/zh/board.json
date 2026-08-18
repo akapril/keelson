@@ -540,6 +540,16 @@
     "kanban": "看板",
     "list": "列表"
   },
+  "swimlane": {
+    "label": "泳道",
+    "none": "无",
+    "priority": "优先级",
+    "assignee": "负责人",
+    "byLabel": "标签",
+    "agent": "agent",
+    "noneLane": "无",
+    "noAgent": "无 agent"
+  },
   "agentsPage": {
     "title": "Agents",
     "description": "管理命名 AI 队友，指派任务时直接选队友。",
