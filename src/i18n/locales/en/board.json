@@ -558,6 +558,16 @@
     "noneLane": "None",
     "noAgent": "No agent"
   },
+  "savedView": {
+    "menu": "Views",
+    "saveCurrent": "Save current as view",
+    "namePlaceholder": "View name",
+    "rename": "Rename",
+    "delete": "Delete",
+    "confirmDelete": "Delete this view?",
+    "empty": "No saved views",
+    "error": "Failed: {{msg}}"
+  },
   "agentsPage": {
     "title": "Agents",
     "description": "Manage named AI teammates and assign them to tasks.",
