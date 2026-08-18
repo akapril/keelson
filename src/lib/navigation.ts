@@ -13,6 +13,8 @@ import {
   Settings02Icon,
   TerminalIcon,
   BotIcon,
+  InboxIcon,
+  Coins01Icon,
 } from "@hugeicons/core-free-icons";
 
 export type NavItem = {
@@ -32,7 +34,8 @@ export type NavGroup = {
 
 export const navGroups: NavGroup[] = [
   {
-    labelKey: "nav.groupWorkspace",
+    // 工作：日常主线——总览 / 看板 / 会话（降级为平级项）/ 文档
+    labelKey: "nav.groupWork",
     items: [
       {
         titleKey: "nav.dashboard.title",
@@ -41,17 +44,18 @@ export const navGroups: NavGroup[] = [
         descriptionKey: "nav.dashboard.description",
       },
       {
+        titleKey: "nav.board.title",
+        // ?tab=board 使 ProjectWorkspace 深链直落看板 tab；仅移位，标题键不改名
+        url: "/board?tab=board",
+        icon: DashboardSquare02Icon,
+        descriptionKey: "nav.board.description",
+      },
+      {
+        // 会话中枢降级：从主入口降为「工作」组一员（页本身不改）
         titleKey: "nav.sessions.title",
         url: "/sessions",
         icon: Chat01Icon,
         descriptionKey: "nav.sessions.description",
-      },
-      {
-        titleKey: "nav.board.title",
-        // ?tab=board 使 ProjectWorkspace 深链直落看板 tab（useEffect 监听 paramTab）
-        url: "/board?tab=board",
-        icon: DashboardSquare02Icon,
-        descriptionKey: "nav.board.description",
       },
       {
         titleKey: "nav.docs.title",
@@ -59,25 +63,38 @@ export const navGroups: NavGroup[] = [
         icon: File01Icon,
         descriptionKey: "nav.docs.description",
       },
-      {
-        titleKey: "nav.reading.title",
-        url: "/reading",
-        icon: BookOpen01Icon,
-        descriptionKey: "nav.reading.description",
-      },
-      // 用量/成本页不进侧栏：入口在顶部 header 的「成本」按钮（→ /usage 双 tab）。
     ],
   },
   {
-    // 「更多」：非日常主线的功能收进此组，保持主工作区清爽（仍可访问/搜索）
-    labelKey: "nav.groupMore",
+    // Agent 团队：命名队友 / 运行时 / 收件箱（需人决策的 agent 待办）
+    labelKey: "nav.groupAgentTeam",
     items: [
       {
-        titleKey: "nav.calendar.title",
-        url: "/calendar",
-        icon: Calendar03Icon,
-        descriptionKey: "nav.calendar.description",
+        titleKey: "nav.agents.title",
+        url: "/agents",
+        icon: BotIcon,
+        descriptionKey: "nav.agents.description",
       },
+      {
+        // 正名「运行时」，路由保持 /processes（不破深链）
+        titleKey: "nav.runtime.title",
+        url: "/processes",
+        icon: TerminalIcon,
+        descriptionKey: "nav.runtime.description",
+      },
+      {
+        // Inbox 首次进侧栏；原铃铛入口保留
+        titleKey: "nav.inbox.title",
+        url: "/inbox",
+        icon: InboxIcon,
+        descriptionKey: "nav.inbox.description",
+      },
+    ],
+  },
+  {
+    // 知识 · 更多：低频/参考类收进此组（可折叠，默认收起）
+    labelKey: "nav.groupKnowledge",
+    items: [
       {
         titleKey: "nav.memory.title",
         url: "/memory",
@@ -85,29 +102,29 @@ export const navGroups: NavGroup[] = [
         descriptionKey: "nav.memory.description",
       },
       {
+        titleKey: "nav.reading.title",
+        url: "/reading",
+        icon: BookOpen01Icon,
+        descriptionKey: "nav.reading.description",
+      },
+      {
+        titleKey: "nav.calendar.title",
+        url: "/calendar",
+        icon: Calendar03Icon,
+        descriptionKey: "nav.calendar.description",
+      },
+      {
         titleKey: "nav.prompts.title",
         url: "/prompts",
         icon: CommandIcon,
         descriptionKey: "nav.prompts.description",
       },
-      // Agents 管理入口（MVP 放 groupMore；S5 再归到专属分组）
       {
-        titleKey: "nav.agents.title",
-        url: "/agents",
-        icon: BotIcon,
-        descriptionKey: "nav.agents.description",
-      },
-    ],
-  },
-  {
-    labelKey: "nav.groupSystem",
-    items: [
-      {
-        // 正名「运行时」：titleKey/descriptionKey 改用 runtime 键，路由保持 /processes
-        titleKey: "nav.runtime.title",
-        url: "/processes",
-        icon: TerminalIcon,
-        descriptionKey: "nav.runtime.description",
+        // 成本页进侧栏；顶部 header「成本」按钮仍在（双入口）
+        titleKey: "nav.usage.title",
+        url: "/usage",
+        icon: Coins01Icon,
+        descriptionKey: "nav.usage.description",
       },
       {
         titleKey: "nav.settings.title",
