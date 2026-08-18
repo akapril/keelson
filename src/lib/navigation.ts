@@ -27,7 +27,7 @@ export type NavItem = {
 };
 
 export type NavGroup = {
-  /** shell ns i18n key（如 "nav.groupWorkspace"） */
+  /** shell ns i18n key（如 "nav.groupWork"） */
   labelKey: string;
   items: NavItem[];
 };

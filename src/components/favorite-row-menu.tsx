@@ -129,7 +129,8 @@ export function FavoriteRowMenu({
 
         {/* 项目级操作（固定项目以接续为主；要新起自己在纯终端敲 CLI） */}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate(`/board?open=${projectId}`)} className="gap-2">
+        {/* from=fav：与收藏行点击保持一致——浏览进入，返回回项目列表而非浏览器后退 */}
+        <DropdownMenuItem onClick={() => navigate(`/board?open=${projectId}&from=fav`)} className="gap-2">
           <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-3.5 shrink-0" />
           <span>{t("project.ctxMenu.open")}</span>
         </DropdownMenuItem>
