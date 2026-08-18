@@ -195,7 +195,7 @@ export function TimelineView() {
 
   // 可见任务 = 全量任务 × 当前筛选条件
   const visible = useMemo(
-    () => tasks.filter((t) => taskMatchesFilter(t, filter)),
+    () => tasks.filter((task) => taskMatchesFilter(task, filter)),
     [tasks, filter],
   );
 
