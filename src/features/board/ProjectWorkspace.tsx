@@ -37,6 +37,7 @@ import { AiChatPanel } from "@/features/ai/AiChatPanel";
 // STATE_CATEGORY_META 已删除，改用 t("meta.stateCategory.*") 翻译
 import { MemoryFilesBar } from "@/features/memory/MemoryFilesBar";
 import { resolveInitialTab, rememberProjectTab } from "./project-tab-pref";
+import { backTarget } from "./back-target";
 
 export function ProjectWorkspace() {
   const { t, i18n } = useTranslation("board");
@@ -142,11 +143,12 @@ export function ProjectWorkspace() {
           variant="ghost"
           size="icon-sm"
           onClick={() => {
-            // 深链进入（URL 带 ?open，来自文档/总览/命令面板/会话跳转）→ 回到来源页；
-            // 项目列表点开的（无 ?open）→ 关闭项目回列表。
-            const deep = !!searchParams.get("open");
+            // 区分来源：上下文跳转(?open 无 from=fav)→后退回来源；侧栏收藏/列表进入→清 ?open 回项目列表
+            const openId = searchParams.get("open");
+            const fromFav = searchParams.get("from") === "fav";
             closeProject();
-            if (deep) navigate(-1);
+            if (backTarget(openId, fromFav) === "back") navigate(-1);
+            else navigate("/board");
           }}
           aria-label={t("workspace.backAriaLabel")}
         >
