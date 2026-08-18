@@ -103,10 +103,11 @@ export const navGroups: NavGroup[] = [
     labelKey: "nav.groupSystem",
     items: [
       {
-        titleKey: "nav.processes.title",
+        // 正名「运行时」：titleKey/descriptionKey 改用 runtime 键，路由保持 /processes
+        titleKey: "nav.runtime.title",
         url: "/processes",
         icon: TerminalIcon,
-        descriptionKey: "nav.processes.description",
+        descriptionKey: "nav.runtime.description",
       },
       {
         titleKey: "nav.settings.title",

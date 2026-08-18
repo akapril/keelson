@@ -119,6 +119,7 @@
     "memory": { "title": "Memory", "description": "Reusable memories extracted from AI sessions" },
     "prompts": { "title": "Prompts", "description": "Reusable prompts / snippets with variable support" },
     "processes": { "title": "Processes", "description": "Cross-project managed processes: logs · stop · delete · clean" },
+    "runtime": { "title": "Runtime", "description": "Local runtime & managed processes" },
     "settings": { "title": "Settings", "description": "Preferences and account settings" },
     "agents": { "title": "Agents", "description": "Named AI teammates" }
   },
@@ -219,6 +220,20 @@
   "processes": {
     "title": "Processes",
     "description": "All processes managed by Keelson (cross-project), including long-running processes auto-managed via Claude Code interception."
+  },
+  "runtime": {
+    "title": "Runtime",
+    "description": "Local machine resources, agent capacity & managed processes",
+    "managedProcesses": "Managed processes",
+    "card": {
+      "health": "Status",
+      "running": "Running",
+      "resources": "Resources",
+      "agentCapacity": "Agent capacity",
+      "capFull": "At capacity — new assignments will queue",
+      "disk": "Disk usage",
+      "diskHint": "Runtime data"
+    }
   },
   "prompts": {
     "title": "Prompts",

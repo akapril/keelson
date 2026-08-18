@@ -119,6 +119,7 @@
     "memory": { "title": "记忆账本", "description": "跨厂商提炼的可复用记忆" },
     "prompts": { "title": "指令库", "description": "可复用 prompt / 片段，支持变量与一键插入" },
     "processes": { "title": "进程", "description": "跨项目托管进程一览：日志 · 停止 · 删除 · 清理" },
+    "runtime": { "title": "运行时", "description": "本地运行时与托管进程" },
     "settings": { "title": "设置", "description": "偏好与账户设置" },
     "agents": { "title": "Agents", "description": "命名 AI 队友" }
   },
@@ -219,6 +220,20 @@
   "processes": {
     "title": "进程",
     "description": "Keelson 托管的全部进程（跨项目），含 Claude Code 拦截后自动托管的长驻进程。"
+  },
+  "runtime": {
+    "title": "运行时",
+    "description": "本地机器资源、agent 容量与托管进程",
+    "managedProcesses": "托管进程",
+    "card": {
+      "health": "状态",
+      "running": "运行中",
+      "resources": "机器资源",
+      "agentCapacity": "Agent 容量",
+      "capFull": "已达上限，新指派将排队",
+      "disk": "磁盘占用",
+      "diskHint": "运行时数据"
+    }
   },
   "prompts": {
     "title": "指令库",
