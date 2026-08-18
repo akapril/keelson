@@ -17,6 +17,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, FilterIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { useBoardStore, groupTasksByState } from "@/store/board";
 import { useBoardViewStore } from "@/store/board-view";
+import { useAgentStore } from "@/store/agents";
 import { ipc } from "@/lib/tauri/ipc";
 import { isCliSynced, getInjectSet } from "./cli-task-source";
 import type { BoardTask, TaskPriority } from "@/types/board";
@@ -80,6 +81,8 @@ export function KanbanBoard() {
 
   // 泳道维度（来自 board-view store，BoardSurface 工具条可切换）
   const swimlane = useBoardViewStore((s) => s.swimlane);
+  // 泳道带标题按维度本地化：优先级走 meta.priority i18n，agent 解析队友名（避免显示原始 id）
+  const allAgents = useAgentStore((s) => s.agents);
 
   // 当前正在拖拽的任务（用于 DragOverlay）
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
@@ -687,11 +690,16 @@ export function KanbanBoard() {
           {lanes.map((lane) => {
             // 该泳道带的任务 id 集合（O(1) 查询）
             const laneIdSet = new Set(lane.taskIds);
-            // 带标题：__none__ 用 i18n "无"，其它用 laneLabel
+            // 带标题：__none__ 用 i18n "无"；优先级走 meta.priority 本地化；
+            // agent 用队友名（laneId=agent_id 时查 store，回退 laneLabel）；其它(标签/负责人)用 laneLabel
             const bandTitle =
               lane.laneId === "__none__"
                 ? t("swimlane.noneLane")
-                : lane.laneLabel;
+                : swimlane === "priority"
+                  ? t(`meta.priority.${lane.laneId}`)
+                  : swimlane === "agent"
+                    ? (allAgents.find((a) => a.id === lane.laneId)?.name ?? lane.laneLabel)
+                    : lane.laneLabel;
             return (
               <div key={lane.laneId} className="mb-6">
                 {/* 泳道带标题行 */}
