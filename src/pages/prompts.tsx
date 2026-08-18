@@ -137,9 +137,9 @@ export default function PromptsPage() {
         className="shrink-0"
       />
 
-      {/* 类型筛选：全部 / 片段 / 报告模板 */}
+      {/* 类型筛选：全部 / 片段 / 报告模板 / 技能 */}
       <div className="flex shrink-0 gap-1.5">
-        {([["all", t("prompts.filterAll")], ["snippet", t("prompts.typeSnippet")], ["report", t("prompts.typeReport")]] as const).map(
+        {([["all", t("prompts.filterAll")], ["snippet", t("prompts.typeSnippet")], ["report", t("prompts.typeReport")], ["skill", t("prompts.typeSkill")]] as const).map(
           ([k, label]) => (
             <button
               key={k}
@@ -197,16 +197,22 @@ export default function PromptsPage() {
             <div key={p.id} className="group rounded-xl border border-border bg-card p-3">
               <div className="flex items-start justify-between gap-2">
                 <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                  {/* 类型徽标：报告模板高亮，片段淡色 */}
+                  {/* 类型徽标：技能=主色边、报告模板=主色底、片段=淡色 */}
                   <span
                     className={cn(
                       "shrink-0 rounded-full px-1.5 py-0.5 text-[10px]",
                       promptType(p) === "report"
                         ? "bg-primary/10 text-primary"
-                        : "bg-muted text-muted-foreground",
+                        : promptType(p) === "skill"
+                          ? "border border-primary/40 text-primary"
+                          : "bg-muted text-muted-foreground",
                     )}
                   >
-                    {promptType(p) === "snippet" ? t("prompts.typeSnippet") : t("prompts.typeReport")}
+                    {promptType(p) === "skill"
+                      ? t("prompts.typeSkill")
+                      : promptType(p) === "snippet"
+                        ? t("prompts.typeSnippet")
+                        : t("prompts.typeReport")}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                     {p.title}

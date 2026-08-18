@@ -84,6 +84,8 @@ export function PromptEditDialog({
                 ))}
                 插入时按当前项目/时间替换。
               </>
+            ) : type === "skill" ? (
+              t("prompts.edit.typeSkill")
             ) : (
               t("prompts.edit.typeReport")
             )}
@@ -91,9 +93,9 @@ export function PromptEditDialog({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto py-1">
-          {/* 类型选择：片段 / 报告模板 */}
+          {/* 类型选择：片段 / 报告模板 / 技能 */}
           <div className="flex gap-1.5">
-            {(["snippet", "report"] as PromptType[]).map((tp) => (
+            {(["snippet", "report", "skill"] as PromptType[]).map((tp) => (
               <button
                 key={tp}
                 type="button"
@@ -105,7 +107,11 @@ export function PromptEditDialog({
                     : "border-border text-muted-foreground hover:bg-accent",
                 )}
               >
-                {tp === "snippet" ? t("prompts.typeSnippet") : t("prompts.typeReport")}
+                {tp === "snippet"
+                  ? t("prompts.typeSnippet")
+                  : tp === "skill"
+                    ? t("prompts.typeSkill")
+                    : t("prompts.typeReport")}
               </button>
             ))}
           </div>
