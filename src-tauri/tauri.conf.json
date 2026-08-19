@@ -19,7 +19,8 @@
         "height": 800,
         "minWidth": 920,
         "minHeight": 640,
-        "decorations": false
+        "decorations": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --no-proxy-server"
       },
       {
         "label": "spotlight",
@@ -32,7 +33,8 @@
         "width": 640,
         "height": 420,
         "resizable": false,
-        "transparent": true
+        "transparent": true,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --no-proxy-server"
       }
     ],
     "security": {
@@ -62,6 +64,11 @@
     "resources": {
       "pb_migrations/*": "pb_migrations/",
       "../dist/": "dist/"
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "./nsis-hooks.nsh"
+      }
     },
     "macOS": {
       "signingIdentity": "-"

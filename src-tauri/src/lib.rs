@@ -393,6 +393,21 @@ pub fn run() {
         .manage(AppState::default())
         .setup(|app| {
             let handle = app.handle().clone();
+
+            // 开机自启「自愈」（仅 release）：若自启已开，用当前 exe 路径重新注册一次。
+            // 修正历史遗留的错误路径——例如曾用 dev 构建注册、或安装目录变更（Program Files→AppData）——
+            // 保证开机拉起的永远是「当前这个安装」，而非某个陈旧/已删的路径。
+            // dev 构建(debug)不做，避免开发时用调试版把自启项劫持成 target/debug 路径。
+            #[cfg(not(debug_assertions))]
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let al = handle.autolaunch();
+                if al.is_enabled().unwrap_or(false) {
+                    if let Err(e) = al.enable() {
+                        eprintln!("[keelson] 开机自启自愈失败（非致命）: {e}");
+                    }
+                }
+            }
             let state: tauri::State<AppState> = app.state();
             let auth_slot = state.auth.clone();
             let sessions_slot = state.sessions.clone();
