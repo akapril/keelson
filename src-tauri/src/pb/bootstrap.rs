@@ -183,7 +183,8 @@ fn get_or_make_secret_file_in(dir: &std::path::Path, account: &str) -> String {
 /// - 如果 local-user 已存在则直接登录；否则先创建再登录。
 /// - token 同时写入 keychain（account: `local-user-token`）。
 pub async fn bootstrap(base_url: &str, super_pw: &str, user_pw: &str) -> anyhow::Result<BootstrapAuth> {
-    let http = reqwest::Client::new();
+    // 绕过代理：连本机 PB，防代理拦截 localhost 致 os error 10053（见 pb::local_http_client）
+    let http = crate::pb::local_http_client();
 
     // 1) 以 superuser 身份登录，获取管理员 token
     let admin_token = admin_login(&http, base_url, SUPERUSER_EMAIL, super_pw).await?;
@@ -208,7 +209,8 @@ pub async fn bootstrap(base_url: &str, super_pw: &str, user_pw: &str) -> anyhow:
 /// 应用 PocketBase 日志保留天数（写入 `logs.maxDays`）。PB 据此自动裁剪旧请求日志，
 /// 控制 auxiliary.db（日志库）增长。幂等；失败不致命（调用方仅记日志）。
 pub async fn apply_log_retention(base: &str, super_pw: &str, days: u32) -> anyhow::Result<()> {
-    let http = reqwest::Client::new();
+    // 绕过代理：连本机 PB（见 pb::local_http_client）
+    let http = crate::pb::local_http_client();
     let admin_token = admin_login(&http, base, SUPERUSER_EMAIL, super_pw).await?;
     http.patch(format!("{base}/api/settings"))
         .bearer_auth(admin_token)

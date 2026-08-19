@@ -37,6 +37,9 @@ impl PbProxyState {
     /// reqwest::Client 在此构建并复用——连接池、超时等统一在此配置。
     pub fn new(pb_base: String) -> Self {
         let client = reqwest::Client::builder()
+            // 绕过代理：反代目标是本机 PB(127.0.0.1)，禁走系统/环境代理，
+            // 否则代理已就绪时会拦截 localhost 请求致连接中止（os error 10053）。
+            .no_proxy()
             // 禁止 reqwest 自动跟随 302/301 跳转到其他主机（防 SSRF 升级路径）。
             // PB 本身不做跨域重定向，保险起见显式禁用。
             .redirect(reqwest::redirect::Policy::none())

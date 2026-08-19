@@ -32,9 +32,9 @@ impl PbClient {
         }
     }
 
-    /// 内部：构建带 bearer auth 的 reqwest 客户端。
+    /// 内部：构建 reqwest 客户端。连本机 PB 必须绕过代理（见 pb::local_http_client）。
     fn http(&self) -> reqwest::Client {
-        reqwest::Client::new()
+        crate::pb::local_http_client()
     }
 
     /// 按 filter 取一条记录（用于 upsert 前查存在）。

@@ -52,7 +52,8 @@ pub fn pick_free_port() -> u16 {
 
 /// 轮询 /api/health，直到 200 或超时。
 pub async fn wait_healthy(base_url: &str, timeout_ms: u64) -> anyhow::Result<()> {
-    let client = reqwest::Client::new();
+    // 绕过代理：健康检查连本机 PB（见 pb::local_http_client）
+    let client = crate::pb::local_http_client();
     let url = format!("{base_url}/api/health");
     let deadline = std::time::Instant::now() + Duration::from_millis(timeout_ms);
     loop {
