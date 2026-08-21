@@ -197,13 +197,18 @@ pub async fn execute_task_with_agent(
             return Ok(run_id);
         }
     };
-    // 记录 worktree 路径 + base_branch（base_branch 在合并时必须用此值，禁止重新求值）
-    let _ = client
+    // 记录 worktree 路径 + base_branch（base_branch 在合并时必须用此值，禁止重新求值）。
+    // 不吞错：此写入若失败（如集合缺 base_branch 字段被 PB 丢弃），合并阶段会因空值报错，
+    // 却难以回溯根因；故失败时记录日志，便于排查「静默丢字段」这类隐蔽问题。
+    if let Err(e) = client
         .patch("agent_runs", &run_id, &json!({
             "worktree_path": wt.to_string_lossy(),
             "base_branch":   base_branch,
         }))
-        .await;
+        .await
+    {
+        eprintln!("[agent] 写入 worktree_path/base_branch 失败 run={run_id}: {e}");
+    }
 
     // 4) 组 prompt + 跑 CLI（超时由队友属性覆盖，默认 AGENT_TIMEOUT_SECS，流式累日志）
     let prompt = build_task_prompt(
