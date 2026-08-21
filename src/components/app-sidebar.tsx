@@ -160,6 +160,18 @@ export function AppSidebar() {
       return next;
     });
 
+  // 「收藏」组折叠态（默认展开，记住选择）——固定项目常用，故与「更多」相反默认展开：
+  // 仅当显式存过 "0" 才收起，未设/其它值均视为展开。
+  const [favOpen, setFavOpen] = useState<boolean>(
+    () => localStorage.getItem("keelson-nav-fav-open") !== "0",
+  );
+  const toggleFav = () =>
+    setFavOpen((o) => {
+      const next = !o;
+      localStorage.setItem("keelson-nav-fav-open", next ? "1" : "0");
+      return next;
+    });
+
   // 兜底：侧栏在任意页都可见，若项目尚未加载（用户没进过「项目」页）则拉一次，
   // 使收藏组启动即可用。loadProjects 仅做列表拉取（无实时订阅副作用），重复调用安全。
   useEffect(() => {
@@ -214,38 +226,52 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* 收藏组：置顶，空收藏不渲染；dnd-kit 拖拽排序，点击走 ?open 深链 */}
+        {/* 收藏组：置顶，空收藏不渲染；标题可折叠（默认展开）；dnd-kit 拖拽排序，点击走 ?open 深链 */}
         {pinned.length > 0 && (
           <SidebarGroup>
-            {/* 分组标题滚动时钉顶：栏目多/收藏多时不丢失分组上下文 */}
-            <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
-              {t("sidebar.favorites")}
+            {/* 分组标题滚动时钉顶 + 可点折叠：点标题收起/展开固定项目，chevron 指示状态 */}
+            <SidebarGroupLabel asChild className="sticky top-0 z-10 bg-sidebar">
+              <button
+                type="button"
+                onClick={toggleFav}
+                aria-expanded={favOpen}
+                className="flex w-full items-center gap-1"
+              >
+                <HugeiconsIcon
+                  icon={favOpen ? ArrowDown01Icon : ArrowRight01Icon}
+                  strokeWidth={2}
+                  className="size-3.5 shrink-0"
+                />
+                {t("sidebar.favorites")}
+              </button>
             </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={pinned.map((p) => p.id)}
-                    strategy={verticalListSortingStrategy}
+            {favOpen && (
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
                   >
-                    {pinned.map((p) => (
-                      <FavoriteRow
-                        key={p.id}
-                        id={p.id}
-                        name={p.name}
-                        repoPath={p.repo_path}
-                        recentSessions={recentSessionsOf(sessions, p.repo_path, 5)}
-                        activeId={openedProjectId ?? undefined}
-                      />
-                    ))}
-                  </SortableContext>
-                </DndContext>
-              </SidebarMenu>
-            </SidebarGroupContent>
+                    <SortableContext
+                      items={pinned.map((p) => p.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {pinned.map((p) => (
+                        <FavoriteRow
+                          key={p.id}
+                          id={p.id}
+                          name={p.name}
+                          repoPath={p.repo_path}
+                          recentSessions={recentSessionsOf(sessions, p.repo_path, 5)}
+                          activeId={openedProjectId ?? undefined}
+                        />
+                      ))}
+                    </SortableContext>
+                  </DndContext>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            )}
           </SidebarGroup>
         )}
         {navGroups.map((group) => {
