@@ -38,6 +38,17 @@ export default function Sessions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantSessionId, sessions]);
 
+  // 无深链且尚未选择时，自动预选最近一条（updated_at 最新），免去进来右栏空白 + 手动点一次。
+  // 深链存在时不覆盖；已有选择不打断；空库不选（空态交给预览面板的接入 CTA）。
+  useEffect(() => {
+    if (wantSessionId || selectedSession || sessions.length === 0) return;
+    const latest = sessions.reduce((a, b) =>
+      Date.parse(b.updated_at) > Date.parse(a.updated_at) ? b : a,
+    );
+    setSelectedSession(latest);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, wantSessionId]);
+
   return (
     <div className="flex h-full min-h-0 gap-0 overflow-hidden">
       {/* 左侧：会话列表（固定宽度，可滚动） */}

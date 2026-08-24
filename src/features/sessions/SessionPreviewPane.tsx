@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
+import { useSessionsStore } from "../../store/sessions";
 import { useRestoreStore } from "../../store/restore";
 import { listProjects } from "../../lib/pb/board";
 import { syncSessionTasks } from "../board/sync-session-tasks";
@@ -62,6 +64,9 @@ interface SessionPreviewPaneProps {
  */
 export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   const { t } = useTranslation("sessions");
+  const navigate = useNavigate();
+  // 全空库判定：会话来自 CLI 落盘，新用户否则右栏一片空白不知从何来 → 给接入 CTA
+  const sessionCount = useSessionsStore((s) => s.sessions.length);
   // 一键接续：读全局「新窗/标签」偏好直接恢复，不再弹 RestoreDialog。busy 为局部防双击态。
   const resume = useRestoreStore((s) => s.resume);
   const [busy, setBusy] = useState(false);
@@ -118,6 +123,21 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   };
 
   if (!session) {
+    // 全空库：一句人话 + 接入 CTA（复用仪表盘 mcpHint 的跳转，去 MCP 接入）。
+    // 非空只是「未选中」——理论上 sessions 页已自动预选最近一条，这里仅作兜底提示。
+    if (sessionCount === 0) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+          <p className="max-w-xs text-sm text-muted-foreground">{t("preview.noSessionsHint")}</p>
+          <button
+            onClick={() => navigate("/settings?section=mcp")}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            {t("preview.noSessionsCta")}
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="flex h-full items-center justify-center">
         <p className="text-sm text-muted-foreground">{t("preview.selectHint")}</p>

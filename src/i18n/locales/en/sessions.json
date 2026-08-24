@@ -84,6 +84,8 @@
   },
   "preview": {
     "selectHint": "Select a session to preview",
+    "noSessionsHint": "No sessions yet. Run Claude or Codex once in a terminal, or connect MCP so Keelson can read them.",
+    "noSessionsCta": "Connect MCP",
     "aiDistill": "AI Distill",
     "distillTitle": "Use AI to distill tasks and docs from this session, then write to the project",
     "distillMemory": "Distill memory",
