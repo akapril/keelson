@@ -43,9 +43,6 @@ vi.mock("../../features/board/CreateTaskFromSessionDialog", () => ({
 vi.mock("../../features/memory/MemoryReviewDialog", () => ({
   MemoryReviewDialog: () => null,
 }));
-vi.mock("../../features/sessions/RestoreDialog", () => ({
-  RestoreDialog: () => null,
-}));
 vi.mock("@/components/prompt-dialog", () => ({
   PromptDialog: () => null,
 }));

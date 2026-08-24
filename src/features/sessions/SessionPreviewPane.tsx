@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
+import { useRestoreStore } from "../../store/restore";
 import { listProjects } from "../../lib/pb/board";
 import { syncSessionTasks } from "../board/sync-session-tasks";
 import { Textarea } from "@/components/ui/textarea";
-import { RestoreDialog } from "./RestoreDialog";
 import { SessionProvenance } from "./SessionProvenance";
 import { SessionChat } from "./SessionChat";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
@@ -62,7 +62,9 @@ interface SessionPreviewPaneProps {
  */
 export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   const { t } = useTranslation("sessions");
-  const [restoreTarget, setRestoreTarget] = useState<Session | null>(null);
+  // 一键接续：读全局「新窗/标签」偏好直接恢复，不再弹 RestoreDialog。busy 为局部防双击态。
+  const resume = useRestoreStore((s) => s.resume);
+  const [busy, setBusy] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [linkedRefresh, setLinkedRefresh] = useState(0);
   const [distillOpen, setDistillOpen] = useState(false);
@@ -99,6 +101,19 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
       toast.error(t("preview.toast.syncError", { msg: String(e instanceof Error ? e.message : e) }));
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // 一键接续：按记住的「新窗/标签」偏好恢复；busy 防双击，失败 toast。切换模式在会话卡右键菜单。
+  const doResume = async (s: Session) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await resume(s);
+      const err = useRestoreStore.getState().error;
+      if (err) toast.error(t("preview.toast.restoreError", { msg: err }));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -153,8 +168,9 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
                 {syncing ? t("preview.syncingTasks") : t("preview.syncTasks")}
               </button>
               <button
-                onClick={() => setRestoreTarget(session)}
+                onClick={() => void doResume(session)}
                 className={action}
+                disabled={busy}
                 title={t("preview.restoreTitle")}
               >
                 {t("preview.restore")}
@@ -183,8 +199,6 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
         <SessionChat key={`chat-${session.session_id}`} session={session} className="flex-1" />
       </div>
 
-      {/* 恢复对话框 */}
-      <RestoreDialog session={restoreTarget} onClose={() => setRestoreTarget(null)} />
 
       {/* AI 提炼沉淀对话框 */}
       <DistillDialog

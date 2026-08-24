@@ -5,7 +5,8 @@ import { ipc } from "@/lib/tauri/ipc";
 import { providerMeta } from "@/lib/providers";
 import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
-import { RestoreDialog } from "./RestoreDialog";
+import { useRestoreStore } from "../../store/restore";
+import { setResumeAsTab } from "./resume-pref";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 import { MemoryReviewDialog } from "../memory/MemoryReviewDialog";
 import { PromptDialog } from "@/components/prompt-dialog";
@@ -99,8 +100,10 @@ function SessionCardImpl({
   const toggleHidden = useSessionMetaStore((s) => s.toggleHidden);
   const setCustomName = useSessionMetaStore((s) => s.setCustomName);
 
-  // 控制恢复对话框的显示状态
-  const [restoreTarget, setRestoreTarget] = useState<Session | null>(null);
+  // 一键接续：读全局「新窗/标签」偏好直接恢复，不再弹 RestoreDialog。
+  // busy 为本卡局部态（防双击），不共用 store.loading 以免一张卡接续时禁用全列表。
+  const resume = useRestoreStore((s) => s.resume);
+  const [busy, setBusy] = useState(false);
   // 控制"从会话建任务"对话框的显示状态
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   // 重命名对话框
@@ -139,10 +142,24 @@ function SessionCardImpl({
     );
   }
 
+  // 一键接续：asTab 省略=用记住的偏好；显式传入=接续并把该模式记为新默认。
+  async function doResume(asTab?: boolean) {
+    if (busy) return;
+    if (asTab !== undefined) setResumeAsTab(asTab);
+    setBusy(true);
+    try {
+      await resume(session);
+      const err = useRestoreStore.getState().error;
+      if (err) toast.error(t("card.toast.restoreError", { msg: err }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleRestoreClick(e: React.MouseEvent) {
     // 阻止冒泡，避免触发卡片选中
     e.stopPropagation();
-    setRestoreTarget(session);
+    void doResume();
   }
 
   function handleCreateTaskClick(e: React.MouseEvent) {
@@ -203,11 +220,12 @@ function SessionCardImpl({
             >
               {t("card.createTask")}
             </button>
-            {/* 恢复按钮：打开恢复对话框 */}
+            {/* 恢复按钮：一键接续（用记住的偏好）；busy 时禁用防双击。换模式走右键菜单 */}
             <button
               aria-label={t("card.restore")}
               onClick={handleRestoreClick}
-              className="rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+              disabled={busy}
+              className="rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t("card.restore")}
             </button>
@@ -254,8 +272,15 @@ function SessionCardImpl({
       </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={() => setRestoreTarget(session)}>
+        {/* 一键接续（用记住的偏好）+ 两项显式模式（接续并记为新默认） */}
+        <ContextMenuItem onSelect={() => void doResume()}>
           {t("card.ctx.restoreSession")}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void doResume(false)}>
+          {t("card.ctx.restoreNewWindow")}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void doResume(true)}>
+          {t("card.ctx.restoreAsTab")}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => setTaskDialogOpen(true)}>{t("card.ctx.createTask")}</ContextMenuItem>
         <ContextMenuItem onSelect={() => setMemoryOpen(true)}>{t("card.ctx.distillMemory")}</ContextMenuItem>
@@ -311,12 +336,8 @@ function SessionCardImpl({
       </ContextMenuContent>
       </ContextMenu>
 
-      {/* 对话框一律「懒挂载」——仅在触发时才渲染，避免每张卡片常驻 3 个 Radix 对话框树
-          （会话多时挂载成本叠加导致卡顿/卡死）。 */}
-      {restoreTarget && (
-        <RestoreDialog session={restoreTarget} onClose={() => setRestoreTarget(null)} />
-      )}
-
+      {/* 对话框一律「懒挂载」——仅在触发时才渲染，避免每张卡片常驻 Radix 对话框树
+          （会话多时挂载成本叠加导致卡顿/卡死）。接续已改一键，不再挂 RestoreDialog。 */}
       {taskDialogOpen && (
         <CreateTaskFromSessionDialog
           session={session}

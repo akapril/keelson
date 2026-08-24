@@ -12,6 +12,8 @@
     "timeDaysAgo": "{{n}} d ago",
     "ctx": {
       "restoreSession": "Restore session",
+      "restoreNewWindow": "Restore in new window",
+      "restoreAsTab": "Restore as tab",
       "createTask": "Create task",
       "distillMemory": "Distill memory",
       "unfavorite": "Unfavorite",
@@ -26,6 +28,7 @@
     },
     "toast": {
       "saveNameError": "Failed to save name: {{msg}}",
+      "restoreError": "Failed to resume session: {{msg}}",
       "favoriteError": "Failed to favorite: {{msg}}",
       "hideError": "Hide operation failed: {{msg}}",
       "openLocationError": "Failed to open location: {{msg}}",
@@ -99,7 +102,8 @@
       "noTasks": "This session has no planned tasks (no Task tool used)",
       "syncSuccess": "Synced to \"{{proj}}\": created {{created}}, updated {{updated}} (total {{total}})",
       "syncError": "Sync failed: {{msg}}",
-      "saveNoteError": "Failed to save note: {{msg}}"
+      "saveNoteError": "Failed to save note: {{msg}}",
+      "restoreError": "Failed to resume session: {{msg}}"
     }
   },
   "chat": {

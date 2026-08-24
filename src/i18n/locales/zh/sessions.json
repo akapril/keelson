@@ -12,6 +12,8 @@
     "timeDaysAgo": "{{n}} 天前",
     "ctx": {
       "restoreSession": "恢复会话",
+      "restoreNewWindow": "恢复到新窗口",
+      "restoreAsTab": "恢复为标签页",
       "createTask": "建任务",
       "distillMemory": "提炼记忆",
       "unfavorite": "取消收藏",
@@ -26,6 +28,7 @@
     },
     "toast": {
       "saveNameError": "保存名称失败：{{msg}}",
+      "restoreError": "接续会话失败：{{msg}}",
       "favoriteError": "收藏失败：{{msg}}",
       "hideError": "隐藏操作失败：{{msg}}",
       "openLocationError": "打开位置失败：{{msg}}",
@@ -99,7 +102,8 @@
       "noTasks": "该会话没有规划任务（未用 Task 工具）",
       "syncSuccess": "已同步到「{{proj}}」：新建 {{created}}，更新进度 {{updated}}（共 {{total}}）",
       "syncError": "同步失败：{{msg}}",
-      "saveNoteError": "保存备注失败：{{msg}}"
+      "saveNoteError": "保存备注失败：{{msg}}",
+      "restoreError": "接续会话失败：{{msg}}"
     }
   },
   "chat": {
