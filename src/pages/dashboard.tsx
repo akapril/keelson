@@ -3,10 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Analytics01Icon } from "@hugeicons/core-free-icons";
+import { Analytics01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useSessionsStore } from "@/store/sessions";
+import { useRestoreStore } from "@/store/restore";
 import { useBoardStore } from "@/store/board";
 import { listDueTasks } from "@/lib/pb/board";
 import { listEvents } from "@/lib/pb/calendar";
@@ -36,6 +38,16 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const sessions = useSessionsStore((s) => s.sessions);
   const projects = useBoardStore((s) => s.projects);
+  const resume = useRestoreStore((s) => s.resume);
+
+  // 近期会话行 hover 一键接续（走全局新窗/标签偏好），与侧栏收藏行交互对齐
+  const resumeSession = async (sessionId: string) => {
+    const s = sessions.find((x) => x.session_id === sessionId);
+    if (!s) return;
+    await resume(s);
+    const err = useRestoreStore.getState().error;
+    if (err) toast.error(t("sessions:card.toast.restoreError", { msg: err }));
+  };
 
   const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -160,6 +172,16 @@ export default function Dashboard() {
                 title={s.project_name}
                 sub={s.last_prompt || s.first_prompt || s.session_id}
                 meta={s.provider}
+                action={
+                  <button
+                    type="button"
+                    title={t("sessions:card.restore")}
+                    onClick={() => void resumeSession(s.session_id)}
+                    className="flex size-5 items-center justify-center rounded text-primary/80 transition-colors hover:bg-accent hover:text-primary"
+                  >
+                    <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-3.5" />
+                  </button>
+                }
               />
             ))
           )}
@@ -274,32 +296,42 @@ function Row({
   meta,
   dot,
   onClick,
+  action,
 }: {
   title: string;
   sub?: string;
   meta?: string;
   dot?: string;
   onClick?: () => void;
+  /** 悬停时右侧浮现的动作（如「接续」箭头）；为 button 兄弟节点，避免按钮嵌套 */
+  action?: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-left hover:bg-muted"
-    >
-      {dot && (
-        <span className="size-2 shrink-0 rounded-full" style={{ background: dot }} />
-      )}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm text-foreground">{title}</span>
-        {sub && (
-          <span className="block truncate text-xs text-muted-foreground">{sub}</span>
+    <div className="group/row relative">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 pr-8 text-left hover:bg-muted"
+      >
+        {dot && (
+          <span className="size-2 shrink-0 rounded-full" style={{ background: dot }} />
         )}
-      </span>
-      {meta && (
-        <span className="shrink-0 text-xs text-muted-foreground">{meta}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm text-foreground">{title}</span>
+          {sub && (
+            <span className="block truncate text-xs text-muted-foreground">{sub}</span>
+          )}
+        </span>
+        {meta && (
+          <span className="shrink-0 text-xs text-muted-foreground">{meta}</span>
+        )}
+      </button>
+      {action && (
+        <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center opacity-0 transition-opacity group-hover/row:opacity-100">
+          {action}
+        </div>
       )}
-    </button>
+    </div>
   );
 }
 
