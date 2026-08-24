@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useBoardStore } from "../../store/board";
 import { useSessionsStore } from "../../store/sessions";
 import { useRestoreStore } from "../../store/restore";
@@ -343,9 +344,12 @@ export function ProjectList({ showArchived = false }: { showArchived?: boolean }
   }, {});
 
   if (loading) {
+    // 骨架占位（与真实项目卡同网格），避免「一行灰字→数据到达布局跳变」
     return (
-      <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-        {t("common:state.loading")}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-28" />
+        ))}
       </div>
     );
   }

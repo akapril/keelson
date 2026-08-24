@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { StarIcon } from "@hugeicons/core-free-icons";
+import i18n from "@/i18n";
 import { ipc } from "@/lib/tauri/ipc";
 import { providerMeta } from "@/lib/providers";
 import type { Session } from "../../types/session";
@@ -266,7 +267,10 @@ function SessionCardImpl({
           })()}
           <span>{t("card.messageCount", { n: session.message_count })}</span>
           {relTime && (
-            <span className="ml-auto shrink-0" title={session.updated_at}>
+            <span
+              className="ml-auto shrink-0"
+              title={new Date(session.updated_at).toLocaleString(i18n.language)}
+            >
               {relTime}
             </span>
           )}

@@ -37,6 +37,7 @@ import {
 import { cn } from "@/lib/utils";
 import { stripMarkdown } from "@/lib/markdown-preview";
 import { statusTone } from "@/lib/status-tone";
+import { humanizeDueDate } from "@/lib/humanize-date";
 import { useBoardStore } from "@/store/board";
 import type { BoardTask, BoardLabel, BoardState } from "@/types/board";
 import { PRIORITY_META, PRIORITY_ORDER } from "./board-meta";
@@ -60,19 +61,6 @@ const RUN_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 // 「已入队」徽标（任务已指派 agent 但 worker 尚未开跑时显示）。
 const ENQUEUED_BADGE = { label: "已入队", cls: statusTone("neutral").chip };
 
-// ── 日期格式化 ────────────────────────────────────────────────
-function formatDate(dateStr: string, locale: string): string {
-  return new Date(dateStr).toLocaleDateString(locale, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function isOverdue(dateStr: string): boolean {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(dateStr) < today;
-}
 
 interface TaskCardProps {
   task: BoardTask;
@@ -337,7 +325,10 @@ function TaskCardInner({
     [labels, task.labels],
   );
   const priority = PRIORITY_META[task.priority];
-  const overdue = task.due_date ? isOverdue(task.due_date) : false;
+  // 截止日期人性化：逾期Nd/今天/明天/绝对短日期 + overdue 标志（destructive 色）
+  const dueInfo = task.due_date
+    ? humanizeDueDate(task.due_date, Date.now(), i18n.language, t)
+    : null;
 
   return (
     <ContextMenu>
@@ -426,12 +417,12 @@ function TaskCardInner({
           </Badge>
         )}
 
-        {/* 截止日期 */}
-        {task.due_date && (
+        {/* 截止日期（人性化：逾期/今天/明天/绝对） */}
+        {dueInfo && (
           <span
             className={cn(
-              "flex items-center gap-0.5 text-[10px]",
-              overdue ? "font-medium text-destructive" : "text-muted-foreground",
+              "flex items-center gap-0.5 text-2xs",
+              dueInfo.overdue ? "font-medium text-destructive" : "text-muted-foreground",
             )}
           >
             <HugeiconsIcon
@@ -439,7 +430,7 @@ function TaskCardInner({
               strokeWidth={2}
               className="size-3"
             />
-            {formatDate(task.due_date, i18n.language)}
+            {dueInfo.text}
           </span>
         )}
 

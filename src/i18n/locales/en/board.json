@@ -1,4 +1,9 @@
 {
+  "due": {
+    "overdue": "{{n}}d overdue",
+    "today": "Today",
+    "tomorrow": "Tomorrow"
+  },
   "meta": {
     "priority": {
       "none": "None",

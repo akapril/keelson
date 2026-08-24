@@ -1,4 +1,9 @@
 {
+  "due": {
+    "overdue": "逾期 {{n}} 天",
+    "today": "今天",
+    "tomorrow": "明天"
+  },
   "meta": {
     "priority": {
       "none": "无",

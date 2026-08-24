@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Virtualizer, type VirtualizerHandle } from "virtua";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSessionsStore } from "../../store/sessions";
 import { useSessionMetaStore } from "../../store/session-meta";
 import { useSessionSearchStore } from "../../store/session-search";
@@ -351,7 +352,12 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
       {/* 内容区：可滚动 + virtua 虚拟化（只渲染可视区行，会话极多也不卡死） */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">{t("list.loading")}</p>
+          // 骨架占位（与会话卡同高），避免加载态一行灰字到数据到达的布局跳变
+          <div className="flex flex-col gap-2 p-1">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-[4.5rem]" />
+            ))}
+          </div>
         ) : isSearching && searchLoading && results.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">{t("list.searching")}</p>
         ) : rows.length === 0 ? (
