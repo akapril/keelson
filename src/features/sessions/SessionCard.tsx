@@ -188,8 +188,9 @@ function SessionCardImpl({
           (selectMode ? onToggleCheck?.(session.session_id) : onSelect(session))
         }
         className={[
-          // 基础卡片样式（统一卡片配方 rounded-xl + border；focusRing 键盘焦点提示）
-          "flex cursor-pointer flex-col gap-1 rounded-xl border p-3 text-left transition-colors",
+          // 基础卡片样式（统一卡片配方 rounded-xl + border；focusRing 键盘焦点提示；
+          // group/session 供动作按钮 hover 揭示）
+          "group/session flex cursor-pointer flex-col gap-1 rounded-xl border p-3 text-left transition-colors",
           focusRing,
           // 勾选(批量) / 选中(预览) / 默认。选中态用更强的 --item-selected token(与聚光灯一致)，
           // 原 bg-accent 与卡片仅差 3% 亮度，双栏里看不出当前打开的是哪张。
@@ -218,24 +219,27 @@ function SessionCardImpl({
             {displayName}
           </span>
           <div className="flex shrink-0 items-center gap-1.5">
-            {/* 建任务按钮：打开"从会话建任务"对话框（阻止冒泡避免选中卡片） */}
-            <button
-              aria-label={t("card.createTask")}
-              onClick={handleCreateTaskClick}
-              className={`rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary ${focusRing}`}
-            >
-              {t("card.createTask")}
-            </button>
-            {/* 恢复按钮：一键接续（用记住的偏好）；busy 时禁用防双击。换模式走右键菜单 */}
-            <button
-              aria-label={t("card.restore")}
-              onClick={handleRestoreClick}
-              disabled={busy}
-              className={`rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
-            >
-              {t("card.restore")}
-            </button>
-            {/* 收藏星标 */}
+            {/* 建任务 + 恢复：hover/focus 时揭示，静息态还原扫读锚点（右键菜单含等价项兜底） */}
+            <span className="flex items-center gap-1.5 opacity-0 transition-opacity group-hover/session:opacity-100 focus-within:opacity-100">
+              {/* 建任务按钮：打开"从会话建任务"对话框（阻止冒泡避免选中卡片） */}
+              <button
+                aria-label={t("card.createTask")}
+                onClick={handleCreateTaskClick}
+                className={`rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary ${focusRing}`}
+              >
+                {t("card.createTask")}
+              </button>
+              {/* 恢复按钮：一键接续（用记住的偏好）；busy 时禁用防双击。换模式走右键菜单 */}
+              <button
+                aria-label={t("card.restore")}
+                onClick={handleRestoreClick}
+                disabled={busy}
+                className={`rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
+              >
+                {t("card.restore")}
+              </button>
+            </span>
+            {/* 收藏星标（常驻，是识别锚点之一） */}
             <button
               aria-label={isFav ? t("card.unfavorite") : t("card.favorite")}
               onClick={handleStarClick}

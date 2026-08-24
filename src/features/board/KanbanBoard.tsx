@@ -599,10 +599,10 @@ export function KanbanBoard() {
                 type="button"
                 title={t("board.inject.btnTitle")}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
+                  "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors",
                   injectStatus
-                    ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
-                    : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground",
+                    ? "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20"
+                    : "border-border text-muted-foreground hover:bg-accent",
                 )}
               >
                 {t("board.inject.btn")}
@@ -632,7 +632,7 @@ export function KanbanBoard() {
             <button
               type="button"
               onClick={() => setShowArchived((v) => !v)}
-              className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-accent"
             >
               {showArchived ? t("board.hideArchived") : t("board.showArchived", { count: archivedCount })}
             </button>
@@ -642,10 +642,10 @@ export function KanbanBoard() {
             type="button"
             onClick={() => setAgentOnly((v) => !v)}
             className={cn(
-              "flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors",
+              "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors",
               agentOnly
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-muted",
+                ? "border-primary/50 bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:bg-accent",
             )}
           >
             {agentOnly ? t("board.agentOnlyOn") : t("board.agentOnlyOff")}

@@ -350,7 +350,7 @@ function TaskCardInner({
     >
       {/* 已归档角标 */}
       {task.archived && (
-        <span className="absolute right-2 top-2 z-10 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+        <span className="absolute right-2 top-2 z-10 rounded-full bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground">
           {t("task.archived")}
         </span>
       )}
@@ -374,7 +374,7 @@ function TaskCardInner({
           {taskLabels.map((label) => (
             <span
               key={label.id}
-              className="inline-flex h-4.5 items-center rounded-md px-1.5 text-[10px] font-medium text-white"
+              className="inline-flex h-4.5 items-center rounded-md px-1.5 text-2xs font-medium text-white"
               style={{ backgroundColor: label.color }}
             >
               {label.name}
@@ -404,13 +404,16 @@ function TaskCardInner({
         </div>
       )}
 
-      {/* 页脚：优先级 + 截止日期 + 来源会话 */}
-      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+      {/* 页脚：左簇=元数据(优先级/截止) · 右簇=agent状态/来源/指派。
+          justify-between 两簇分居左右，取代原先 4 个 ml-auto 在 flex-wrap 里的不可预测抢位。 */}
+      <div className="mt-2.5 flex items-center justify-between gap-1.5">
+        {/* 左簇：优先级 + 截止日期 */}
+        <div className="flex flex-wrap items-center gap-1.5">
         {/* 优先级徽章（none 不显示） */}
         {task.priority !== "none" && (
           <Badge
             variant="secondary"
-            className={cn("h-4.5 gap-1 px-1.5 text-[10px]", priority.badge)}
+            className={cn("h-4.5 gap-1 px-1.5 text-2xs", priority.badge)}
           >
             <span className={cn("size-1.5 rounded-full", priority.dot)} />
             {t(`meta.priority.${task.priority}`)}
@@ -433,12 +436,15 @@ function TaskCardInner({
             {dueInfo.text}
           </span>
         )}
+        </div>
 
+        {/* 右簇：agent 状态 / 来源会话 / 指派（原序保持，删各自 ml-auto） */}
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
         {/* 已入队徽标（指派后、worker 领取前的过渡态；不可点） */}
         {showEnqueued && (
           <span
             className={cn(
-              "flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+              "flex items-center rounded-full px-1.5 py-0.5 text-2xs font-medium",
               ENQUEUED_BADGE.cls,
             )}
             title={t("agent.enqueuedTitle")}
@@ -461,7 +467,7 @@ function TaskCardInner({
               }
             }}
             className={cn(
-              "flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 cursor-pointer hover:opacity-80",
+              "flex items-center rounded-full px-1.5 py-0.5 text-2xs font-medium transition-colors focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 cursor-pointer hover:opacity-80",
               runBadge.cls,
             )}
           >
@@ -481,7 +487,7 @@ function TaskCardInner({
                 : t("task.sourceSessionTitle", { id: task.source_session_id })
             }
             className={cn(
-              "ml-auto flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] transition-colors focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+              "flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-2xs transition-colors focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
               cliSynced
                 ? "bg-primary/10 text-primary hover:bg-primary/20"
                 : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary",
@@ -495,14 +501,14 @@ function TaskCardInner({
         {/* S2：已指派命名队友时显示队友徽标（{emoji} {name}）；否则回退 provider 文字 */}
         {assignedAgent && (
           <span
-            className="ml-auto flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+            className="flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground"
             title={assignedAgent.name}
           >
             {assignedAgent.emoji ? `${assignedAgent.emoji} ` : ""}{assignedAgent.name}
           </span>
         )}
         {!assignedAgent && task.agent_provider && (
-          <span className="ml-auto flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground">
             {providerLabel(task.agent_provider)}
           </span>
         )}
@@ -518,7 +524,7 @@ function TaskCardInner({
                 disabled={agentRunning}
                 title={t("agent.assignTitle")}
                 className={cn(
-                  "ml-auto flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] transition-colors focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  "flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-2xs transition-colors focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
                   agentRunning
                     ? "cursor-not-allowed opacity-50 bg-muted text-muted-foreground"
                     : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary",
@@ -569,6 +575,7 @@ function TaskCardInner({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+        </div>
       </div>
     </div>
       </ContextMenuTrigger>
