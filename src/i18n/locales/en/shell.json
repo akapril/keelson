@@ -70,6 +70,19 @@
     "ariaLabel": "Toggle theme",
     "tooltip": "Toggle theme (press {{key}})"
   },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "desc": "Press ? on any page to open this cheatsheet.",
+    "groupGlobal": "Global",
+    "commandPalette": "Command palette (search / jump)",
+    "cheatsheet": "Open this shortcuts cheatsheet",
+    "groupSpotlight": "Spotlight",
+    "spotMove": "Move selection",
+    "spotResume": "Resume session",
+    "spotMode": "Toggle new window / tab",
+    "spotCategory": "Jump to category",
+    "spotClose": "Close"
+  },
   "commandPalette": {
     "placeholder": "Search pages / projects / docs / sessions / reading…",
     "empty": "No results",

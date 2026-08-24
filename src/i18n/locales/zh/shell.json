@@ -70,6 +70,19 @@
     "ariaLabel": "切换主题",
     "tooltip": "切换主题（按 {{key}}）"
   },
+  "shortcuts": {
+    "title": "键盘快捷键",
+    "desc": "任意页面按 ? 打开本速查表。",
+    "groupGlobal": "全局",
+    "commandPalette": "命令面板（搜索 / 跳转）",
+    "cheatsheet": "打开本快捷键速查表",
+    "groupSpotlight": "聚光灯 Spotlight",
+    "spotMove": "移动选中项",
+    "spotResume": "接续会话",
+    "spotMode": "切换 新窗口 / 标签页",
+    "spotCategory": "直达类别",
+    "spotClose": "关闭"
+  },
   "commandPalette": {
     "placeholder": "搜索页面 / 项目 / 文档 / 会话 / 阅读…",
     "empty": "无结果",
