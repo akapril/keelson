@@ -207,6 +207,14 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t("sheet.titlePlaceholder")}
               disabled={saving}
+              // 新建模式自动聚焦标题（编辑模式不打断阅读）；Enter 提交（避开中文输入法组合态）
+              autoFocus={mode !== "edit"}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  void handleSave();
+                }
+              }}
             />
           </div>
 

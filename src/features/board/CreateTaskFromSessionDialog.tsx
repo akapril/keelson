@@ -149,6 +149,7 @@ export function CreateTaskFromSessionDialog({
               id="cts-title"
               type="text"
               required
+              autoFocus
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t("fromSession.titlePlaceholder")}

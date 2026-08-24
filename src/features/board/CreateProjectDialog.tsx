@@ -171,6 +171,7 @@ export function CreateProjectDialog({ onClose }: CreateProjectDialogProps) {
               id="cp-name"
               type="text"
               required
+              autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t("createProject.namePlaceholder")}
