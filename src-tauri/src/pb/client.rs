@@ -77,31 +77,38 @@ impl PbClient {
         json_or_err(resp).await
     }
 
-    /// 拉取集合全部记录（最多 500 条），仅返回指定字段。
-    pub async fn list_all(&self, coll: &str, fields: &str) -> anyhow::Result<Vec<Value>> {
+    /// 翻页拉取集合记录（累积全部页，perPage=500）。读 totalPages 循环到末页，
+    /// 消除原先只取第 1 页导致的「超 500 条静默丢数据」（任务少列、并发计数失真）。
+    async fn list_paged(&self, coll: &str, extra: &[(&str, &str)]) -> anyhow::Result<Vec<Value>> {
         let url = format!("{}/api/collections/{}/records", self.base_url, coll);
-        let resp = self
-            .http()
-            .get(&url)
-            .bearer_auth(&self.token)
-            .query(&[("perPage", "500"), ("fields", fields)])
-            .send()
-            .await?;
-        let body = json_or_err(resp).await?;
-        Ok(body["items"].as_array().cloned().unwrap_or_default())
+        let mut items: Vec<Value> = Vec::new();
+        let mut page: u32 = 1;
+        loop {
+            let page_s = page.to_string();
+            let mut q: Vec<(&str, &str)> = vec![("perPage", "500"), ("page", page_s.as_str())];
+            q.extend_from_slice(extra);
+            let resp = self.http().get(&url).bearer_auth(&self.token).query(&q).send().await?;
+            let body = json_or_err(resp).await?;
+            match body["items"].as_array() {
+                Some(arr) if !arr.is_empty() => items.extend(arr.iter().cloned()),
+                _ => break, // 无更多数据，收尾
+            }
+            let total_pages = body["totalPages"].as_i64().unwrap_or(1);
+            if page as i64 >= total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(items)
     }
 
-    /// 按 filter 拉取记录（最多 500 条），仅返回指定字段。
+    /// 拉取集合全部记录（翻页累积），仅返回指定字段。
+    pub async fn list_all(&self, coll: &str, fields: &str) -> anyhow::Result<Vec<Value>> {
+        self.list_paged(coll, &[("fields", fields)]).await
+    }
+
+    /// 按 filter 拉取记录（翻页累积），仅返回指定字段。
     pub async fn list(&self, coll: &str, filter: &str, fields: &str) -> anyhow::Result<Vec<Value>> {
-        let url = format!("{}/api/collections/{}/records", self.base_url, coll);
-        let resp = self
-            .http()
-            .get(&url)
-            .bearer_auth(&self.token)
-            .query(&[("perPage", "500"), ("filter", filter), ("fields", fields)])
-            .send()
-            .await?;
-        let body = json_or_err(resp).await?;
-        Ok(body["items"].as_array().cloned().unwrap_or_default())
+        self.list_paged(coll, &[("filter", filter), ("fields", fields)]).await
     }
 }

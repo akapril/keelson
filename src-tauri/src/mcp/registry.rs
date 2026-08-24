@@ -45,7 +45,7 @@ pub fn tool_schemas() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "create_task",
-            description: "在指定项目创建任务。state_id 来自 list_states。",
+            description: "在指定项目创建任务。state_id 来自 list_states。可选 enqueue=true 直接派 agent 后台自主执行。",
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -54,14 +54,16 @@ pub fn tool_schemas() -> Vec<ToolDef> {
                     "title": { "type": "string" },
                     "description": { "type": "string" },
                     "priority": { "type": "string", "enum": PRIORITIES },
-                    "due_date": { "type": "string", "description": "截止日期，如 2026-08-01" }
+                    "due_date": { "type": "string", "description": "截止日期，如 2026-08-01" },
+                    "agent_provider": { "type": "string", "description": "配合 enqueue：自主执行的 CLI（claude / codex）" },
+                    "enqueue": { "type": "boolean", "description": "true=建后立即入队派 agent 后台自主执行（会真实起进程、在隔离 worktree 改代码、产出可审阅的分支，供人工合并/打回）" }
                 },
                 "required": ["project_id", "state_id", "title"]
             }),
         },
         ToolDef {
             name: "update_task",
-            description: "更新任务字段（task_id 来自 list_tasks），只传要改的字段。",
+            description: "更新任务字段（task_id 来自 list_tasks），只传要改的字段。可选 enqueue=true 派 agent 后台自主执行。",
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -70,7 +72,9 @@ pub fn tool_schemas() -> Vec<ToolDef> {
                     "description": { "type": "string" },
                     "priority": { "type": "string", "enum": PRIORITIES },
                     "state_id": { "type": "string", "description": "移动到的目标状态列 id" },
-                    "due_date": { "type": "string" }
+                    "due_date": { "type": "string" },
+                    "agent_provider": { "type": "string", "description": "配合 enqueue：自主执行的 CLI（claude / codex）" },
+                    "enqueue": { "type": "boolean", "description": "true=入队派 agent 后台自主执行（会真实起进程、在隔离 worktree 改代码、产出可审阅的分支）" }
                 },
                 "required": ["task_id"]
             }),
@@ -79,6 +83,11 @@ pub fn tool_schemas() -> Vec<ToolDef> {
             name: "list_docs",
             description: "列出指定项目的文档（含 id 与标题）。",
             input_schema: json!({ "type": "object", "properties": { "project_id": project_id }, "required": ["project_id"] }),
+        },
+        ToolDef {
+            name: "get_doc",
+            description: "读取单篇文档全文（doc_id 来自 list_docs）。改文档前先 get_doc 拿到 content，再 update_doc 写回，避免盲覆盖。",
+            input_schema: json!({ "type": "object", "properties": { "doc_id": { "type": "string" } }, "required": ["doc_id"] }),
         },
         ToolDef {
             name: "create_doc",
@@ -146,12 +155,12 @@ mod tests {
         let names: Vec<&str> = tool_schemas().iter().map(|t| t.name).collect();
         for expected in [
             "list_projects", "list_states", "list_tasks", "create_task",
-            "update_task", "list_docs", "create_doc", "update_doc", "search_memory",
-            "create_memory",
+            "update_task", "list_docs", "get_doc", "create_doc", "update_doc",
+            "search_memory", "create_memory",
         ] {
             assert!(names.contains(&expected), "缺少工具 {expected}");
         }
-        assert_eq!(tool_schemas().len(), 10);
+        assert_eq!(tool_schemas().len(), 11);
     }
 
     #[test]

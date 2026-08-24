@@ -415,10 +415,11 @@ async fn resolve_project_id(ctx: &McpCtx, cwd: &str) -> Option<String> {
     if cwd.is_empty() {
         return None;
     }
-    // 拉本用户的项目 (id, repo_path)（≤500 条，单用户量级足够）
+    // 拉本用户的活跃项目 (id, repo_path)。必须排除软删项目——否则软删后同路径重建
+    // 会把活动错挂到已删的墓碑项目上（与其它工具的 NOT_DELETED 语义对齐）。
     let items = ctx
         .client
-        .list_all("board_projects", "id,repo_path")
+        .list("board_projects", "deleted_at = \"\"", "id,repo_path")
         .await
         .ok()?;
     let rows: Vec<(String, String)> = items

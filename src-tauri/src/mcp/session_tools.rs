@@ -39,11 +39,13 @@ pub fn session_tool_schemas() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "get_session",
-            description: "读取指定会话的完整时间线消息（transcript）。provider 为 claude 或 codex，session_id 来自 list_sessions / search_sessions。",
+            description: "读取指定会话的完整时间线消息（transcript）。provider 为会话来源 CLI（claude / codex / opencode / gemini / hermes / antigravity 等，取自 list_sessions 返回的 provider 字段）。session_id 来自 list_sessions / search_sessions。",
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "provider": { "type": "string", "enum": ["claude", "codex"] },
+                    // 不再硬编码 claude/codex——provider 注册表已支持全部 6 家，get_session 也应放开；
+                    // 非法 provider 由 dispatch 的「未知 provider」分支兜底报错。
+                    "provider": { "type": "string", "description": "会话来源 CLI，如 claude / codex / opencode / gemini / hermes / antigravity" },
                     "session_id": { "type": "string" }
                 },
                 "required": ["provider", "session_id"]

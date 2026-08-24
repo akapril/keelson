@@ -22,6 +22,7 @@ pub async fn dispatch(name: &str, args: Value, ctx: &McpCtx) -> Result<Value, St
         "create_task" => create_task(args, ctx).await,
         "update_task" => update_task(args, ctx).await,
         "list_docs" => list_docs(args, ctx).await,
+        "get_doc" => get_doc(args, ctx).await,
         "create_doc" => create_doc(args, ctx).await,
         "update_doc" => update_doc(args, ctx).await,
         "search_memory" => search_memory(args, ctx).await,
@@ -64,6 +65,23 @@ async fn list_tasks(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     Ok(json!(items))
 }
 
+/// 解析「派 agent」入参：enqueue=true 时校验 agent_provider 必须 agent-capable(claude/codex)，
+/// 返回要写入任务的 provider；enqueue 缺省/false 返回 None（不派发，保持原行为）。
+/// 打通「MCP 建/改任务 → 命名队友后台自主执行」这一对外唯一不可达的闭环环节。
+fn enqueue_provider(args: &Value) -> Result<Option<String>, String> {
+    if !args.get("enqueue").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return Ok(None);
+    }
+    let provider = require_str(args, "agent_provider")
+        .map_err(|_| "enqueue=true 时必须提供 agent_provider（claude / codex）".to_string())?;
+    if crate::agent::executor::agent_run_provider_id(&provider).is_none() {
+        return Err(format!(
+            "provider「{provider}」不支持自主执行（仅 claude / codex），无法入队"
+        ));
+    }
+    Ok(Some(provider))
+}
+
 async fn create_task(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     let pid = require_str(&args, "project_id")?;
     let state = require_str(&args, "state_id")?;
@@ -89,8 +107,14 @@ async fn create_task(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     if let Some(d) = opt_str(&args, "description") { data["description"] = json!(d); }
     if let Some(p) = opt_str(&args, "priority") { data["priority"] = json!(p); }
     if let Some(dd) = opt_str(&args, "due_date") { data["due_date"] = json!(dd); }
+    // 派 agent：enqueue=true 则置 agent_provider + agent_enqueued，由后台 worker 领取自主执行
+    let enqueued = enqueue_provider(&args)?;
+    if let Some(provider) = &enqueued {
+        data["agent_provider"] = json!(provider);
+        data["agent_enqueued"] = json!(true);
+    }
     let rec = ctx.client.create("board_tasks", &data).await.or_else(|e| err(e))?;
-    Ok(json!({ "ok": true, "id": rec["id"], "title": title }))
+    Ok(json!({ "ok": true, "id": rec["id"], "title": title, "enqueued": enqueued.is_some() }))
 }
 
 async fn update_task(args: Value, ctx: &McpCtx) -> Result<Value, String> {
@@ -101,8 +125,14 @@ async fn update_task(args: Value, ctx: &McpCtx) -> Result<Value, String> {
     if let Some(v) = opt_str(&args, "priority") { patch["priority"] = json!(v); }
     if let Some(v) = opt_str(&args, "state_id") { patch["state"] = json!(v); }
     if let Some(v) = opt_str(&args, "due_date") { patch["due_date"] = json!(v); }
+    // 派 agent：enqueue=true 则置 agent_provider + agent_enqueued，由后台 worker 领取自主执行
+    let enqueued = enqueue_provider(&args)?;
+    if let Some(provider) = &enqueued {
+        patch["agent_provider"] = json!(provider);
+        patch["agent_enqueued"] = json!(true);
+    }
     ctx.client.patch("board_tasks", &id, &patch).await.or_else(|e| err(e))?;
-    Ok(json!({ "ok": true, "id": id }))
+    Ok(json!({ "ok": true, "id": id, "enqueued": enqueued.is_some() }))
 }
 
 /// docs 多对多过滤：未删 && projects 关系「包含」该项目 id（值做最简转义，禁双引号注入）。
@@ -118,6 +148,22 @@ async fn list_docs(args: Value, ctx: &McpCtx) -> Result<Value, String> {
         .await
         .or_else(|e| err(e))?;
     Ok(json!(items))
+}
+
+/// 只读单篇文档全文（补上 update_doc 的读侧：外部 agent 可 读→改→写，不再盲覆盖）。
+/// 用 list + id filter 复用 NOT_DELETED 语义（软删文档不返回）；content 取全文不截断。
+async fn get_doc(args: Value, ctx: &McpCtx) -> Result<Value, String> {
+    let id = require_str(&args, "doc_id")?;
+    let filter = format!("{} && id = \"{}\"", NOT_DELETED, id.replace('"', ""));
+    let items = ctx
+        .client
+        .list("docs", &filter, "id,title,content")
+        .await
+        .or_else(|e| err(e))?;
+    match items.into_iter().next() {
+        Some(doc) => Ok(doc),
+        None => Err(format!("未找到文档 {id}（可能已删除或无权限）")),
+    }
 }
 
 async fn create_doc(args: Value, ctx: &McpCtx) -> Result<Value, String> {
