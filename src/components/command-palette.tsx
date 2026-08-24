@@ -13,13 +13,21 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Analytics01Icon } from "@hugeicons/core-free-icons";
+import {
+  Analytics01Icon,
+  Sun02Icon,
+  Settings02Icon,
+  TerminalIcon,
+} from "@hugeicons/core-free-icons";
 import { flatNavItems } from "@/lib/navigation";
 import { workspaceRecordUrl } from "@/lib/workspace-navigation";
 import { listProjects } from "@/lib/pb/board";
 import { listAllDocs } from "@/lib/pb/docs";
 import { listReadingItems } from "@/lib/pb/reading";
 import { useSessionsStore } from "@/store/sessions";
+import { useRestoreStore } from "@/store/restore";
+import { useTheme } from "@/components/theme-provider";
+import { getMru, pushMru } from "@/components/command-mru";
 import type { BoardProject } from "@/types/board";
 import type { BoardDoc } from "@/types/docs";
 import type { ReadingItem } from "@/types/reading";
@@ -44,6 +52,37 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const sessions = useSessionsStore((s) => s.sessions);
   const navigate = useNavigate();
+  const resume = useRestoreStore((s) => s.resume);
+  const { theme, setTheme } = useTheme();
+
+  // 最近项 MRU：仅在打开且无输入时展示（快速切换器）。打开时读一次快照，避免每帧读 localStorage。
+  const [mru, setMru] = useState(getMru);
+  useEffect(() => {
+    if (open) setMru(getMru());
+  }, [open]);
+
+  // 「继续上次会话」：接续 updated_at 最新的一条（一键，走全局新窗/标签偏好）
+  const latestSession =
+    sessions.length > 0
+      ? sessions.reduce((a, b) =>
+          Date.parse(b.updated_at) > Date.parse(a.updated_at) ? b : a,
+        )
+      : null;
+  const resumeLast = () => {
+    if (!latestSession) return;
+    setOpen(false);
+    void resume(latestSession);
+  };
+
+  // 切换明暗主题（与头部 ThemeToggle 同逻辑：system 也按当前解析结果翻到对立面）
+  const toggleTheme = () => {
+    const isDark =
+      theme === "dark" ||
+      (theme === "system" &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+    setTheme(isDark ? "light" : "dark");
+    setOpen(false);
+  };
 
   // ⌘K / Ctrl+K 切换面板；也响应头部搜索按钮派发的自定义事件
   useEffect(() => {
@@ -80,8 +119,10 @@ export function CommandPalette() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const go = (url: string) => {
+  // 跳转；传 label 时记入 MRU（对象类跳转——项目/文档/会话/页面——才记，纯动作不记）
+  const go = (url: string, label?: string) => {
     setOpen(false);
+    if (label) pushMru({ url, label });
     navigate(url);
   };
 
@@ -108,12 +149,48 @@ export function CommandPalette() {
         <CommandEmpty>{t("commandPalette.empty")}</CommandEmpty>
 
         <CommandGroup heading={t("commandPalette.groupActions")}>
-          {/* value 随语言对齐可见文本，确保英文模式下关键词可搜到 */}
+          {/* value 随语言对齐可见文本，确保英文模式下关键词可搜到。仅收「无上下文歧义」动作 */}
+          {latestSession && (
+            <CommandItem
+              value={t("commandPalette.actionResumeLast")}
+              onSelect={resumeLast}
+            >
+              <HugeiconsIcon icon={TerminalIcon} strokeWidth={2} className="size-4" />
+              {t("commandPalette.actionResumeLast")}
+            </CommandItem>
+          )}
           <CommandItem value={t("commandPalette.actionReport")} onSelect={() => go("/report")}>
             <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} className="size-4" />
             {t("commandPalette.actionReport")}
           </CommandItem>
+          <CommandItem value={t("commandPalette.actionToggleTheme")} onSelect={toggleTheme}>
+            <HugeiconsIcon icon={Sun02Icon} strokeWidth={2} className="size-4" />
+            {t("commandPalette.actionToggleTheme")}
+          </CommandItem>
+          <CommandItem value={t("commandPalette.actionSettings")} onSelect={() => go("/settings")}>
+            <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} className="size-4" />
+            {t("commandPalette.actionSettings")}
+          </CommandItem>
+          <CommandItem value={t("commandPalette.actionMcp")} onSelect={() => go("/settings?section=mcp")}>
+            <HugeiconsIcon icon={Settings02Icon} strokeWidth={2} className="size-4" />
+            {t("commandPalette.actionMcp")}
+          </CommandItem>
         </CommandGroup>
+
+        {/* 最近项：仅无输入时展示（快速切换器）；有输入时交给各分组模糊搜 */}
+        {!q && mru.length > 0 && (
+          <CommandGroup heading={t("commandPalette.groupRecent")}>
+            {mru.map((e) => (
+              <CommandItem
+                key={e.url}
+                value={`recent ${e.label}`}
+                onSelect={() => go(e.url, e.label)}
+              >
+                <span className="min-w-0 truncate">{e.label}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         <CommandGroup heading={t("commandPalette.groupPages")}>
           {flatNavItems.map((it) => {
@@ -122,7 +199,7 @@ export function CommandPalette() {
               <CommandItem
                 key={it.url}
                 value={`${t("commandPalette.groupPages")} ${title}`}
-                onSelect={() => go(it.url)}
+                onSelect={() => go(it.url, title)}
               >
                 <HugeiconsIcon icon={it.icon} strokeWidth={2} className="size-4" />
                 {title}
@@ -137,7 +214,7 @@ export function CommandPalette() {
               <CommandItem
                 key={p.id}
                 value={`${t("commandPalette.groupProjects")} ${p.name}`}
-                onSelect={() => go(workspaceRecordUrl("board", p.id))}
+                onSelect={() => go(workspaceRecordUrl("board", p.id), p.name)}
               >
                 {p.name}
               </CommandItem>
@@ -153,7 +230,10 @@ export function CommandPalette() {
                 // value 含 query，确保 cmdk 不会按其模糊算法把已匹配项过滤掉
                 value={`${t("commandPalette.groupDocs")} ${query} ${d.title} ${d.id}`}
                 onSelect={() =>
-                  go(workspaceRecordUrl("board", d.projects[0] ?? "", { tab: "docs", doc: d.id }))
+                  go(
+                    workspaceRecordUrl("board", d.projects[0] ?? "", { tab: "docs", doc: d.id }),
+                    d.title || t("commandPalette.unnamedDoc"),
+                  )
                 }
               >
                 <span className="flex min-w-0 flex-col">
@@ -173,7 +253,12 @@ export function CommandPalette() {
               <CommandItem
                 key={s.session_id}
                 value={`${t("commandPalette.groupSessions")} ${s.project_name} ${s.last_prompt} ${s.first_prompt}`}
-                onSelect={() => go(`/sessions?session=${s.session_id}`)}
+                onSelect={() =>
+                  go(
+                    `/sessions?session=${s.session_id}`,
+                    `${s.project_name} · ${s.last_prompt || s.first_prompt || s.session_id}`,
+                  )
+                }
               >
                 <span className="min-w-0 truncate">
                   {s.project_name} · {s.last_prompt || s.first_prompt || s.session_id}
