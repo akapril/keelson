@@ -27,6 +27,7 @@
       "priorityError": "修改优先级失败：{{msg}}",
       "moveError": "移动失败：{{msg}}",
       "deleteSuccess": "已删除任务",
+      "createError": "新建任务失败：{{msg}}",
       "undo": "撤销",
       "restoreError": "撤销失败：{{msg}}",
       "deleteError": "删除失败：{{msg}}",

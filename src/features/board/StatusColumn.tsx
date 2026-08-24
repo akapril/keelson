@@ -1,5 +1,5 @@
 // StatusColumn —— 看板列（视觉移植自 workavera status-column，绑定我们的类型）。
-import { memo } from "react";
+import { memo, useRef, useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useTranslation } from "react-i18next";
@@ -29,6 +29,78 @@ interface StatusColumnProps {
   onEnterSelect?: (taskId: string) => void;
   /** 一键归档本列全部（未归档）任务——仅完成类别列展示入口。 */
   onArchiveColumn?: (stateId: string) => void;
+  /** 内联快速加任务（输入标题即建、连续录入）。仅非泳道、非多选路径传入；不传则不渲染 composer。 */
+  onQuickAdd?: (stateId: string, title: string) => Promise<void>;
+}
+
+/**
+ * 列内联「快速加任务」：折叠态为一个「+ 添加」按钮，点开就地输标题，
+ * Enter 建成并清空续输（保留焦点连续录入），Esc / 失焦空值收起。复杂编辑仍点卡片进 TaskSheet。
+ */
+function QuickAdd({
+  stateId,
+  onAdd,
+}: {
+  stateId: string;
+  onAdd: (stateId: string, title: string) => Promise<void>;
+}) {
+  const { t } = useTranslation("board");
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const submit = async () => {
+    const v = title.trim();
+    if (!v || busy) return;
+    setBusy(true);
+    try {
+      await onAdd(stateId, v);
+      setTitle(""); // 清空续输，保留焦点
+      inputRef.current?.focus();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-1 flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+      >
+        <HugeiconsIcon icon={Add01Icon} strokeWidth={2} className="size-3.5" />
+        {t("task.addTask")}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      autoFocus
+      value={title}
+      disabled={busy}
+      onChange={(e) => setTitle(e.target.value)}
+      onKeyDown={(e) => {
+        // Enter 提交（避开中文输入法组合态）；Esc 收起
+        if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+          e.preventDefault();
+          void submit();
+        } else if (e.key === "Escape") {
+          setTitle("");
+          setOpen(false);
+        }
+      }}
+      // 失焦且无输入才收起（有内容时保留，避免误触丢失）
+      onBlur={() => {
+        if (!title.trim()) setOpen(false);
+      }}
+      placeholder={t("sheet.titlePlaceholder")}
+      className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+    />
+  );
 }
 
 /**
@@ -46,6 +118,7 @@ function StatusColumnInner({
   onToggleSelect,
   onEnterSelect,
   onArchiveColumn,
+  onQuickAdd,
 }: StatusColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `state:${state.id}`,
@@ -130,15 +203,20 @@ function StatusColumnInner({
           ))}
         </SortableContext>
 
-        {/* 空列占位（点击即新建） */}
-        {tasks.length === 0 && (
-          <button
-            type="button"
-            onClick={() => onAddTask(state.id)}
-            className="flex flex-1 items-center justify-center rounded-lg border border-dashed py-4 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            {t("task.addTask")}
-          </button>
+        {/* 内联快速加任务：composer 启用（非泳道、非多选）时渲染，空列也由它承载「添加」入口 */}
+        {onQuickAdd && !selectMode ? (
+          <QuickAdd stateId={state.id} onAdd={onQuickAdd} />
+        ) : (
+          // 无 composer 时保留原空列占位（点击开 TaskSheet）
+          tasks.length === 0 && (
+            <button
+              type="button"
+              onClick={() => onAddTask(state.id)}
+              className="flex flex-1 items-center justify-center rounded-lg border border-dashed py-4 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {t("task.addTask")}
+            </button>
+          )
         )}
       </div>
     </div>

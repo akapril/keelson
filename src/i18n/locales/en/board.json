@@ -27,6 +27,7 @@
       "priorityError": "Failed to change priority: {{msg}}",
       "moveError": "Move failed: {{msg}}",
       "deleteSuccess": "Task deleted",
+      "createError": "Failed to create task: {{msg}}",
       "undo": "Undo",
       "restoreError": "Undo failed: {{msg}}",
       "deleteError": "Delete failed: {{msg}}",

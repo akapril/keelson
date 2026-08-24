@@ -163,6 +163,22 @@ export function KanbanBoard() {
     (task: BoardTask) => setSheet({ open: true, mode: "edit", task }),
     [],
   );
+  // 内联快速加任务：仅需标题，project/rank 由 store 处理；失败 toast。传给非泳道列。
+  const quickAdd = useCallback(
+    async (stateId: string, title: string) => {
+      if (!openedProjectId) return;
+      try {
+        await useBoardStore.getState().createTask({
+          project: openedProjectId,
+          state: stateId,
+          title,
+        });
+      } catch (e) {
+        toast.error(t("task.toast.createError", { msg: String(e) }));
+      }
+    },
+    [openedProjectId, t],
+  );
 
   // ── 多选状态 ─────────────────────────────────────────────────
   const [selectMode, setSelectMode] = useState(false);
@@ -659,6 +675,7 @@ export function KanbanBoard() {
                 onToggleSelect={handleToggleSelect}
                 onEnterSelect={handleEnterSelect}
                 onArchiveColumn={archiveColumn}
+                onQuickAdd={quickAdd}
               />
             ))}
 
