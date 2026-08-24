@@ -1,6 +1,8 @@
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { StarIcon } from "@hugeicons/core-free-icons";
 import { ipc } from "@/lib/tauri/ipc";
 import { providerMeta } from "@/lib/providers";
 import type { Session } from "../../types/session";
@@ -185,8 +187,8 @@ function SessionCardImpl({
           (selectMode ? onToggleCheck?.(session.session_id) : onSelect(session))
         }
         className={[
-          // 基础卡片样式（focusRing：键盘 Tab 到卡片时有可见焦点提示）
-          "flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-left transition-colors",
+          // 基础卡片样式（统一卡片配方 rounded-xl + border；focusRing 键盘焦点提示）
+          "flex cursor-pointer flex-col gap-1 rounded-xl border p-3 text-left transition-colors",
           focusRing,
           // 勾选(批量) / 选中(预览) / 默认。选中态用更强的 --item-selected token(与聚光灯一致)，
           // 原 bg-accent 与卡片仅差 3% 亮度，双栏里看不出当前打开的是哪张。
@@ -236,10 +238,14 @@ function SessionCardImpl({
             <button
               aria-label={isFav ? t("card.unfavorite") : t("card.favorite")}
               onClick={handleStarClick}
-              className={`rounded text-base leading-none text-muted-foreground transition-colors hover:text-primary ${focusRing}`}
+              className={`rounded transition-colors ${isFav ? "text-primary" : "text-muted-foreground hover:text-primary"} ${focusRing}`}
             >
-              {/* 实心星 / 空心星，使用 unicode 避免引入图标库 */}
-              {isFav ? "★" : "☆"}
+              {/* Hugeicons StarIcon：收藏时填充，与全站图标语汇同源（原 unicode ★/☆ 弃用） */}
+              <HugeiconsIcon
+                icon={StarIcon}
+                strokeWidth={2}
+                className={`size-4 ${isFav ? "fill-current" : ""}`}
+              />
             </button>
           </div>
         </div>

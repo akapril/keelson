@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { stripMarkdown } from "@/lib/markdown-preview";
+import { statusTone } from "@/lib/status-tone";
 import { useBoardStore } from "@/store/board";
 import type { BoardTask, BoardLabel, BoardState } from "@/types/board";
 import { PRIORITY_META, PRIORITY_ORDER } from "./board-meta";
@@ -49,15 +50,15 @@ import { useAgentLogStore } from "@/store/agent-run-logs";
 import { useAgentStore } from "@/store/agents";
 import { listen } from "@tauri-apps/api/event";
 
-// 运行状态徽标的样式映射（提升到模块顶层，避免每次组件渲染重建对象）。
+// 运行状态徽标的样式映射（cls 走 statusTone 单一色调映射，不再内联复刻颜色公式）。
 const RUN_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  running: { label: "执行中", cls: "bg-blue-500/15 text-blue-700 dark:text-blue-400" },
-  review:  { label: "待审",   cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
-  blocked: { label: "受阻",   cls: "bg-red-500/15 text-red-700 dark:text-red-400" },
+  running: { label: "执行中", cls: statusTone("info").chip },
+  review:  { label: "待审",   cls: statusTone("warning").chip },
+  blocked: { label: "受阻",   cls: statusTone("danger").chip },
 };
 
 // 「已入队」徽标（任务已指派 agent 但 worker 尚未开跑时显示）。
-const ENQUEUED_BADGE = { label: "已入队", cls: "bg-slate-500/15 text-slate-700 dark:text-slate-400" };
+const ENQUEUED_BADGE = { label: "已入队", cls: statusTone("neutral").chip };
 
 // ── 日期格式化 ────────────────────────────────────────────────
 function formatDate(dateStr: string, locale: string): string {
@@ -348,7 +349,7 @@ function TaskCardInner({
       {...listeners}
       onClick={handleCardClick}
       className={cn(
-        "group/card relative cursor-pointer rounded-xl border border-border/60 bg-card p-3 shadow-sm transition-all hover:border-border hover:shadow-md",
+        "group/card relative cursor-pointer rounded-xl border border-border bg-card p-3 transition-all hover:border-foreground/20",
         isDragging && "opacity-50 shadow-lg ring-2 ring-primary/20",
         // 多选模式选中态：蓝色描边高亮
         selectMode && selected && "border-primary/60 ring-1 ring-primary/30 bg-primary/5",
