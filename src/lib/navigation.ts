@@ -24,6 +24,8 @@ export type NavItem = {
   icon: IconSvgElement;
   /** shell ns i18n key（如 "nav.dashboard.description"） */
   descriptionKey?: string;
+  /** `g` 前缀直达导航的第二个键（唯一，助记）。首字母有碰撞故显式指定。 */
+  goKey?: string;
 };
 
 export type NavGroup = {
@@ -42,6 +44,7 @@ export const navGroups: NavGroup[] = [
         url: "/dashboard",
         icon: Home01Icon,
         descriptionKey: "nav.dashboard.description",
+        goKey: "h",
       },
       {
         titleKey: "nav.board.title",
@@ -49,6 +52,7 @@ export const navGroups: NavGroup[] = [
         url: "/board?tab=board",
         icon: DashboardSquare02Icon,
         descriptionKey: "nav.board.description",
+        goKey: "b",
       },
       {
         // 会话中枢降级：从主入口降为「工作」组一员（页本身不改）
@@ -56,12 +60,14 @@ export const navGroups: NavGroup[] = [
         url: "/sessions",
         icon: Chat01Icon,
         descriptionKey: "nav.sessions.description",
+        goKey: "s",
       },
       {
         titleKey: "nav.docs.title",
         url: "/docs",
         icon: File01Icon,
         descriptionKey: "nav.docs.description",
+        goKey: "d",
       },
     ],
   },
@@ -74,6 +80,7 @@ export const navGroups: NavGroup[] = [
         url: "/agents",
         icon: BotIcon,
         descriptionKey: "nav.agents.description",
+        goKey: "a",
       },
       {
         // 正名「运行时」，路由保持 /processes（不破深链）
@@ -81,6 +88,7 @@ export const navGroups: NavGroup[] = [
         url: "/processes",
         icon: TerminalIcon,
         descriptionKey: "nav.runtime.description",
+        goKey: "t",
       },
       {
         // Inbox 首次进侧栏；原铃铛入口保留
@@ -88,6 +96,7 @@ export const navGroups: NavGroup[] = [
         url: "/inbox",
         icon: InboxIcon,
         descriptionKey: "nav.inbox.description",
+        goKey: "i",
       },
     ],
   },
@@ -100,24 +109,28 @@ export const navGroups: NavGroup[] = [
         url: "/memory",
         icon: BrainIcon,
         descriptionKey: "nav.memory.description",
+        goKey: "m",
       },
       {
         titleKey: "nav.reading.title",
         url: "/reading",
         icon: BookOpen01Icon,
         descriptionKey: "nav.reading.description",
+        goKey: "r",
       },
       {
         titleKey: "nav.calendar.title",
         url: "/calendar",
         icon: Calendar03Icon,
         descriptionKey: "nav.calendar.description",
+        goKey: "c",
       },
       {
         titleKey: "nav.prompts.title",
         url: "/prompts",
         icon: CommandIcon,
         descriptionKey: "nav.prompts.description",
+        goKey: "p",
       },
       {
         // 成本页进侧栏；顶部 header「成本」按钮仍在（双入口）
@@ -125,12 +138,14 @@ export const navGroups: NavGroup[] = [
         url: "/usage",
         icon: Coins01Icon,
         descriptionKey: "nav.usage.description",
+        goKey: "u",
       },
       {
         titleKey: "nav.settings.title",
         url: "/settings",
         icon: Settings02Icon,
         descriptionKey: "nav.settings.description",
+        goKey: ",",
       },
     ],
   },

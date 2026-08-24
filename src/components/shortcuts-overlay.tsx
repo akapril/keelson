@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { flatNavItems } from "@/lib/navigation";
 
 // 分组：全局 + Spotlight。keys 为逐个渲染的键位 token。
 const GROUPS = [
@@ -89,6 +90,31 @@ export function ShortcutsOverlay() {
               ))}
             </div>
           ))}
+
+          {/* 直达导航（g + 页面键）——从 flatNavItems 的 goKey 动态生成 */}
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs font-medium text-muted-foreground">
+              {t("shortcuts.groupGoto")}
+            </p>
+            {flatNavItems
+              .filter((it) => it.goKey)
+              .map((it) => (
+                <div
+                  key={it.url}
+                  className="flex items-center justify-between gap-4 text-sm"
+                >
+                  <span className="text-foreground">{t(it.titleKey)}</span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                      g
+                    </kbd>
+                    <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                      {it.goKey}
+                    </kbd>
+                  </span>
+                </div>
+              ))}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -81,7 +81,8 @@
     "spotResume": "接续会话",
     "spotMode": "切换 新窗口 / 标签页",
     "spotCategory": "直达类别",
-    "spotClose": "关闭"
+    "spotClose": "关闭",
+    "groupGoto": "直达导航（先按 g，再按页面键）"
   },
   "commandPalette": {
     "placeholder": "搜索页面 / 项目 / 文档 / 会话 / 阅读…",

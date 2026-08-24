@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
 import { CommandPalette } from "@/components/command-palette";
 import { ShortcutsOverlay } from "@/components/shortcuts-overlay";
+import { GotoNav } from "@/components/goto-nav";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { UpdateDialog } from "@/components/update-dialog";
 import { ExitConfirmDialog } from "@/components/exit-confirm-dialog";
@@ -85,6 +86,8 @@ export function DashboardLayout() {
       <CommandPalette />
       {/* 全局快捷键速查表（? 唤起） */}
       <ShortcutsOverlay />
+      {/* g 前缀直达导航（g + 页面键） */}
+      <GotoNav />
       {/* 升级弹窗（发现新版本自动弹） */}
       <UpdateDialog />
       {/* 退出确认弹窗（退出行为=每次询问 且有运行进程时弹） */}

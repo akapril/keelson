@@ -81,7 +81,8 @@
     "spotResume": "Resume session",
     "spotMode": "Toggle new window / tab",
     "spotCategory": "Jump to category",
-    "spotClose": "Close"
+    "spotClose": "Close",
+    "groupGoto": "Go to (press g, then a page key)"
   },
   "commandPalette": {
     "placeholder": "Search pages / projects / docs / sessions / reading…",
