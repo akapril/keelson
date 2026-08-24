@@ -20,25 +20,33 @@ export async function uploadDocAsset(file: File): Promise<string> {
   form.append("owner", currentUserId());
   form.append("file", file);
   const rec = await pb.collection(COL.docAssets).create<DocAssetRecord>(form);
-  // 稳定 URL：受保护文件在渲染时由 resolveAssetURL 追加 token
-  return pb.files.getURL(rec, rec.file);
+  // 只存与端口无关的**相对路径**（/api/files/...）进 Markdown：本地 PB 端口在 dev 下随机、
+  // 重启会变，存绝对 URL（含端口）会在重启后端口失效 → 图裂。渲染时由 resolveAssetURL
+  // 拼上当前 baseURL + 新鲜 token。
+  const full = pb.files.getURL(rec, rec.file);
+  const idx = full.indexOf("/api/files/");
+  return idx >= 0 ? full.slice(idx) : full;
 }
 
 /**
- * 渲染钩子（proxyDomURL）：为指向本地 PB 的文件 URL 追加新鲜文件 token。
- * 非本 PB 的图片（外链）原样返回；已带 token 的也原样返回。
+ * 渲染钩子（proxyDomURL）：把文档里的 PB 文件引用归一到**当前** PB 实例并追加新鲜文件 token。
+ * - 提取 `/api/files/...` 路径后用当前 baseURL 重新拼接：既支持新存的相对路径，
+ *   也**自动修复历史正文里烤死的绝对 URL（旧随机端口）**——重启后不再图裂，无需迁移。
+ * - 非 PB 文件（外链图片，不含 /api/files/）原样返回；已带 token 的也原样返回。
  */
 export async function resolveAssetURL(url: string): Promise<string> {
   if (!url || url.includes("token=")) return url;
-  // 仅处理本 PB 实例的受保护文件（doc_assets 是唯一 file 集合）
-  if (!url.startsWith(pb.baseURL) || !url.includes("/api/files/")) return url;
+  const idx = url.indexOf("/api/files/");
+  if (idx < 0) return url; // 外链图片，原样返回
+  const base = pb.baseURL.replace(/\/+$/, "");
+  const rebased = `${base}${url.slice(idx)}`; // 丢弃原 host:port（可能是失效的旧端口），重定位到当前实例
   try {
     const token = await pb.files.getToken();
-    if (!token) return url;
-    const sep = url.includes("?") ? "&" : "?";
-    return `${url}${sep}token=${token}`;
+    if (!token) return rebased;
+    const sep = rebased.includes("?") ? "&" : "?";
+    return `${rebased}${sep}token=${token}`;
   } catch {
-    // 取 token 失败则退回原 URL（可能加载失败，但不阻断渲染）
-    return url;
+    // 取 token 失败则退回重定位后的 URL（可能加载失败，但不阻断渲染）
+    return rebased;
   }
 }
