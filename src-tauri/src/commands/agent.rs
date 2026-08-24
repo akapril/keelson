@@ -87,6 +87,20 @@ pub async fn agent_merge_run(
     Ok(())
 }
 
+/// 只读：取某 run 的完整改动 patch（供审阅步骤展示）。
+/// 无副作用；worktree 已合并/丢弃则返回明确错误。base_branch 空则只给未提交改动。
+#[tauri::command]
+pub async fn agent_run_diff(
+    run_id: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let (client, _) = make_client(&state)?;
+    let (task_id, repo, base_branch) =
+        crate::agent::executor::executor_get_run(&client, &run_id).await?;
+    crate::agent::worktree::run_diff(Path::new(&repo), &task_id, &base_branch)
+        .map_err(|e| e.to_string())
+}
+
 /// 打回某 run：清理 worktree / 分支，run.status = discarded。
 #[tauri::command]
 pub async fn agent_discard_run(

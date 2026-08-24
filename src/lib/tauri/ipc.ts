@@ -369,6 +369,9 @@ export const ipc = {
   /** 将指定 Agent 运行结果合并进主分支（审核通过后调用）。 */
   agentMergeRun: (runId: string) => call<void>("agent_merge_run", { runId }),
 
+  /** 只读取指定 Agent 运行的完整改动 patch（供审阅步骤展示；无副作用）。 */
+  agentRunDiff: (runId: string) => call<string>("agent_run_diff", { runId }),
+
   /** 丢弃指定 Agent 运行（保留 worktree 日志，状态置 discarded）。 */
   agentDiscardRun: (runId: string) => call<void>("agent_discard_run", { runId }),
 };

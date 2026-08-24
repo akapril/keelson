@@ -2,6 +2,7 @@
 // 打开时拉最新 run → 按状态渲染操作按钮；操作成功 toast + 刷新；失败重抛 + toast。
 import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
+import { ipc } from "@/lib/tauri/ipc";
 import { providerLabel } from "@/lib/providers";
 import { listAgentRuns } from "@/lib/pb/agent-runs";
 import type { AgentRun, AgentRunStatus } from "@/types/agent";
@@ -64,6 +65,25 @@ export function AgentRunPanel({
   const agents = useAgentStore((s) => s.agents);
   // 日志区 ref，用于 liveLog 变化时自动滚到底部
   const liveLogRef = useRef<HTMLPreElement>(null);
+  // 审阅材料：按需只读拉取完整改动 patch（合并/打回前先看清改了什么，不再盲签）
+  const [diff, setDiff] = useState<string | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+
+  // 拉取并展开某 run 的改动 patch（切换：已展开则收起）
+  const loadDiff = useCallback(async (runId: string) => {
+    if (diff !== null) {
+      setDiff(null);
+      return;
+    }
+    setDiffLoading(true);
+    try {
+      setDiff(await ipc.agentRunDiff(runId));
+    } catch (e) {
+      toast.error(`读取改动失败：${String(e)}`);
+    } finally {
+      setDiffLoading(false);
+    }
+  }, [diff]);
 
   // 决策动作 hook（合并/打回/重派）：成功后刷新徽标并关闭面板
   const { busy, merge, discard, redispatch } = useAgentRunActions(() => {
@@ -93,6 +113,7 @@ export function AgentRunPanel({
     else {
       // 关闭时重置状态，避免下次打开闪旧数据
       setRun(null);
+      setDiff(null); // 一并清掉已展开的改动，避免下次打开显示上个 run 的 patch
     }
   }, [open, refresh]);
 
@@ -119,6 +140,15 @@ export function AgentRunPanel({
             >
               打回
             </Button>
+            {/* 查看改动：合并/打回前先看清 patch，不再盲签 */}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void loadDiff(r.id)}
+              disabled={diffLoading}
+            >
+              {diffLoading ? "读取中…" : diff !== null ? "隐藏改动" : "查看改动"}
+            </Button>
             {/* no_change 提示行 */}
             {r.no_change && (
               <span className="self-center text-xs text-muted-foreground">
@@ -144,6 +174,15 @@ export function AgentRunPanel({
               disabled={busy}
             >
               打回
+            </Button>
+            {/* 受阻 run 可能有半成品改动，打回/重派前也能看清 */}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void loadDiff(r.id)}
+              disabled={diffLoading}
+            >
+              {diffLoading ? "读取中…" : diff !== null ? "隐藏改动" : "查看改动"}
             </Button>
             <Button
               size="sm"
@@ -241,6 +280,18 @@ export function AgentRunPanel({
                   </p>
                   <pre className="rounded-lg bg-muted px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap break-all">
                     {run.diff_stat}
+                  </pre>
+                </section>
+              )}
+
+              {/* 完整改动 patch（点「查看改动」按需展开；含 agent 自提交 + 未提交 + 未跟踪） */}
+              {diff !== null && (
+                <section>
+                  <p className="mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    完整改动
+                  </p>
+                  <pre className="max-h-96 overflow-auto rounded-lg bg-muted px-3 py-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
+                    {diff}
                   </pre>
                 </section>
               )}

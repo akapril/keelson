@@ -242,8 +242,10 @@ pub async fn execute_task_with_agent(
     // 5) 判定结果
     let timed_out = result.is_err();
     let exit_ok   = matches!(&result, Ok(Ok(())));
-    let has_diff  = worktree::has_diff(&wt).unwrap_or(false);
-    let stat      = worktree::diff_stat(&wt).unwrap_or_default();
+    // 有效改动计入「领先 base 的提交」：agent 自行 commit 后工作区虽干净，成果仍在，
+    // 不能误判 no_change（否则合并按钮被禁、成果搁死）。base_branch 空则回退只看未提交。
+    let has_diff  = worktree::has_effective_diff(&wt, &base_branch).unwrap_or(false);
+    let stat      = worktree::diff_stat(&wt, &base_branch).unwrap_or_default();
 
     let oc = if timed_out {
         Outcome::Blocked { reason: format!("超时（>{timeout}s）已终止") }

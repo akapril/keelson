@@ -588,6 +588,7 @@ pub fn run() {
             // agent 任务执行（Task 7）
             commands::agent::agent_run_task,
             commands::agent::agent_merge_run,
+            commands::agent::agent_run_diff,
             commands::agent::agent_discard_run,
             commands::agent::list_agent_runs,
         ])

@@ -57,6 +57,13 @@ pub fn add_worktree(repo: &Path, task_id: &str) -> Result<(PathBuf, String)> {
     let wt = worktree_path(repo, task_id);
     let branch = branch_name(task_id);
     let base = default_branch(repo);
+    // 重派保命：下面的 force remove 会**永久**丢弃旧 worktree 里的未提交成果(不可逆)。
+    // 清理前若旧 worktree 存在且脏，先 commit 到 agent 分支——即便随后 branch -D，
+    // 该提交仍留在 git 对象库/reflog 中可 `git reflog`/`fsck` 找回(化不可逆为可恢复)。
+    if wt.exists() && has_diff(&wt).unwrap_or(false) {
+        let _ = git(&wt, &["add", "-A"]);
+        let _ = git(&wt, &["commit", "-m", &format!("agent: task {task_id} 重派前保命存档")]);
+    }
     // 清理残留（忽略错误）
     let _ = git(repo, &["worktree", "remove", "--force", &wt.to_string_lossy()]);
     let _ = git(repo, &["branch", "-D", &branch]);
@@ -68,20 +75,96 @@ pub fn add_worktree(repo: &Path, task_id: &str) -> Result<(PathBuf, String)> {
     Ok((wt, base))
 }
 
-/// 工作树是否有改动（未提交 or 相对基线）。P1 用 status --porcelain 判未提交改动。
+/// 工作树是否有未提交改动（status --porcelain）。
 pub fn has_diff(worktree: &Path) -> Result<bool> {
     Ok(!git(worktree, &["status", "--porcelain"])?.trim().is_empty())
 }
 
-/// diff 概要（status --porcelain 计数行数）；无改动返回空串。
-pub fn diff_stat(worktree: &Path) -> Result<String> {
-    let s = git(worktree, &["status", "--porcelain"])?;
-    let files = s.lines().count();
+/// 工作树相对 base 是否有「有效改动」= 未提交改动 OR 领先 base 的提交。
+/// 关键修复：agent 常按自身 CLAUDE.md 习惯**自行 commit**，此时工作区已干净，
+/// 只看 status 会漏判其成果 → 误判 no_change → 合并按钮被禁用、真实成果被静默搁死。
+/// base_branch 为空（旧记录兼容）时回退只看未提交改动。
+pub fn has_effective_diff(worktree: &Path, base_branch: &str) -> Result<bool> {
+    if !git(worktree, &["status", "--porcelain"])?.trim().is_empty() {
+        return Ok(true);
+    }
+    if !base_branch.trim().is_empty() {
+        let count = git(worktree, &["rev-list", "--count", &format!("{base_branch}..HEAD")])?;
+        let n = count.trim();
+        if !n.is_empty() && n != "0" {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// diff 概要（改动文件数）；计未提交 + 领先 base 的提交（取较大者，粗略概要）。无改动返回空串。
+pub fn diff_stat(worktree: &Path, base_branch: &str) -> Result<String> {
+    let uncommitted = git(worktree, &["status", "--porcelain"])?.lines().count();
+    let committed = if base_branch.trim().is_empty() {
+        0
+    } else {
+        git(worktree, &["diff", "--name-only", &format!("{base_branch}..HEAD")])
+            .map(|s| s.lines().count())
+            .unwrap_or(0)
+    };
+    let files = uncommitted.max(committed);
     Ok(if files == 0 {
         String::new()
     } else {
         format!("{files} 个文件改动")
     })
+}
+
+/// 只读：agent worktree 相对 base 的完整改动文本（供审阅步骤展示 patch）。
+/// 含：领先 base 的提交 patch（`base..HEAD`）+ 未提交改动（`diff HEAD`）+ 未跟踪新文件清单。
+/// 超长按字符边界截断保头部。不落库、不缓存、不做语法高亮。base 为空则只给未提交改动。
+pub fn run_diff(repo: &Path, task_id: &str, base_branch: &str) -> Result<String> {
+    let wt = worktree_path(repo, task_id);
+    if !wt.exists() {
+        return Err(anyhow!("worktree 不存在（可能已合并或丢弃），无可审阅的改动"));
+    }
+    let mut out = String::new();
+    // 领先 base 的提交 patch（agent 自行 commit 的成果）
+    if !base_branch.trim().is_empty() {
+        if let Ok(p) = git(&wt, &["diff", &format!("{base_branch}..HEAD")]) {
+            out.push_str(&p);
+        }
+    }
+    // 未提交改动（相对 HEAD，含已跟踪文件的工作区改动）
+    if let Ok(u) = git(&wt, &["diff", "HEAD"]) {
+        if !u.trim().is_empty() {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&u);
+        }
+    }
+    // 未跟踪的新文件（git diff 不含），单列文件名供审阅者知晓
+    if let Ok(st) = git(&wt, &["status", "--porcelain"]) {
+        let untracked: Vec<&str> = st.lines().filter(|l| l.starts_with("??")).collect();
+        if !untracked.is_empty() {
+            out.push_str("\n# 未跟踪的新文件\n");
+            for l in untracked {
+                out.push_str(l.trim_start_matches("?? "));
+                out.push('\n');
+            }
+        }
+    }
+    if out.trim().is_empty() {
+        return Ok("（无改动）".into());
+    }
+    // 超长截断（保头部，按字符边界）
+    const MAX: usize = 80_000;
+    if out.len() > MAX {
+        let mut end = MAX;
+        while !out.is_char_boundary(end) {
+            end -= 1;
+        }
+        out.truncate(end);
+        out.push_str("\n…（diff 过长已截断，完整内容请在 worktree 里执行 git diff 查看）");
+    }
+    Ok(out)
 }
 
 /// auto_commit：在隔离 worktree 内把改动提交到 agent 分支（不 push、不 merge）。
@@ -117,7 +200,7 @@ pub fn merge_branch(repo: &Path, task_id: &str, base_branch: &str) -> Result<()>
     }
     // 切到 base 分支合并 agent 分支
     git(repo, &["checkout", base_branch])?;
-    git(
+    let merge_res = git(
         repo,
         &[
             "merge",
@@ -126,11 +209,22 @@ pub fn merge_branch(repo: &Path, task_id: &str, base_branch: &str) -> Result<()>
             &format!("merge agent/task-{task_id}"),
             &branch,
         ],
-    )?;
+    );
+    // 冲突/失败兜底：绝不把主工作区留在 base 的半合并态。abort 合并 → 切回用户原分支 →
+    // 保留 agent 分支与 worktree 供人工处理，返回明确中文错误。
+    if let Err(e) = merge_res {
+        let _ = git(repo, &["merge", "--abort"]);
+        if let Some(o) = &orig {
+            let _ = git(repo, &["checkout", o]);
+        }
+        return Err(anyhow!(
+            "与 {base_branch} 合并冲突，已回滚、未改动你的工作区；agent 分支 {branch} 与其 worktree 已保留，请手动处理该分支。原始错误：{e}"
+        ));
+    }
     // 切回用户原分支（仅当原分支与 base 不同时才切，避免多余操作）
-    if let Some(o) = orig {
+    if let Some(o) = &orig {
         if o != base_branch {
-            git(repo, &["checkout", &o])?;
+            git(repo, &["checkout", o])?;
         }
     }
     remove_worktree(repo, task_id)?;
@@ -273,7 +367,7 @@ mod tests {
         // has_diff 应返回 true
         assert!(has_diff(&wt).expect("has_diff 失败"), "worktree 应检测到改动");
         // diff_stat 应非空
-        let stat = diff_stat(&wt).expect("diff_stat 失败");
+        let stat = diff_stat(&wt, &base).expect("diff_stat 失败");
         assert!(!stat.is_empty(), "diff_stat 应返回非空概要");
 
         // ③ 合并回 base 分支
@@ -454,6 +548,79 @@ mod tests {
         assert!(
             !branch_exists(&repo, "agent/task-t1"),
             "remove_worktree 后 agent/task-t1 分支应已删除"
+        );
+    }
+
+    /// 用例6（本次修复#1）：agent 自行 commit 后工作区干净，has_diff=false 但 has_effective_diff=true。
+    /// 覆盖「agent 提交成果被误判 no_change 致合并按钮被禁」的核心修复。
+    #[test]
+    fn effective_diff_counts_committed_ahead_of_base() {
+        let repo = setup_repo("effective_diff");
+        let _guard = TmpGuard(repo.clone());
+
+        let (wt, base) = add_worktree(&repo, "t1").expect("add_worktree 失败");
+        // 在 worktree 写文件并**自行提交**到 agent 分支
+        std::fs::write(wt.join("done.txt"), "agent committed").expect("写文件失败");
+        assert!(g(&wt, &["add", "-A"]).status.success(), "add 应成功");
+        assert!(
+            g(&wt, &["commit", "-m", "agent self commit"]).status.success(),
+            "worktree commit 应成功"
+        );
+
+        // 工作区现在干净：has_diff=false
+        assert!(!has_diff(&wt).expect("has_diff 失败"), "自行提交后工作区应干净");
+        // 但相对 base 有领先提交：has_effective_diff=true（关键断言）
+        assert!(
+            has_effective_diff(&wt, &base).expect("has_effective_diff 失败"),
+            "自行提交的成果应被 has_effective_diff 计入（不再误判 no_change）"
+        );
+        // base 为空（旧记录兼容）时回退只看未提交改动（此时工作区干净→false）
+        assert!(
+            !has_effective_diff(&wt, "").expect("has_effective_diff 空 base 失败"),
+            "base 为空时应回退只看未提交改动"
+        );
+    }
+
+    /// 用例7（本次修复#2）：合并冲突时主仓库不被留在 base 的半合并态——已 abort、切回原分支、agent 分支保留。
+    #[test]
+    fn merge_conflict_rolls_back_and_keeps_branch() {
+        let repo = setup_repo("conflict");
+        let _guard = TmpGuard(repo.clone());
+
+        let (wt, base) = add_worktree(&repo, "t1").expect("add_worktree 失败");
+        // agent 分支改 init.txt 并提交
+        std::fs::write(wt.join("init.txt"), "agent version\n").expect("写 agent 版本失败");
+        g(&wt, &["add", "-A"]);
+        assert!(g(&wt, &["commit", "-m", "agent edit"]).status.success(), "agent commit 应成功");
+        // 主仓库(base)也改同文件 → 制造冲突，并提交(保持工作区干净)
+        std::fs::write(repo.join("init.txt"), "main version\n").expect("写 main 版本失败");
+        g(&repo, &["add", "-A"]);
+        assert!(g(&repo, &["commit", "-m", "main edit"]).status.success(), "main commit 应成功");
+
+        let head_before = {
+            let o = g(&repo, &["symbolic-ref", "--short", "HEAD"]);
+            String::from_utf8_lossy(&o.stdout).trim().to_string()
+        };
+
+        // 合并应因冲突返回 Err
+        let r = merge_branch(&repo, "t1", &base);
+        assert!(r.is_err(), "冲突时 merge_branch 应返回 Err");
+
+        // 不应留在半合并态（MERGE_HEAD 已被 abort 清除）
+        assert!(
+            !repo.join(".git/MERGE_HEAD").exists(),
+            "冲突后应已 merge --abort，不留半合并态"
+        );
+        // HEAD 切回原分支
+        let head_after = {
+            let o = g(&repo, &["symbolic-ref", "--short", "HEAD"]);
+            String::from_utf8_lossy(&o.stdout).trim().to_string()
+        };
+        assert_eq!(head_after, head_before, "冲突回滚后 HEAD 应回到原分支");
+        // agent 分支保留待人工处理
+        assert!(
+            branch_exists(&repo, "agent/task-t1"),
+            "冲突后 agent 分支应保留待人工处理"
         );
     }
 }
