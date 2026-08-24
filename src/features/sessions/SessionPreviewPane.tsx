@@ -6,6 +6,7 @@ import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
 import { useSessionsStore } from "../../store/sessions";
 import { useRestoreStore } from "../../store/restore";
+import { focusRing } from "@/lib/focus-ring";
 import { listProjects } from "../../lib/pb/board";
 import { syncSessionTasks } from "../board/sync-session-tasks";
 import { Textarea } from "@/components/ui/textarea";
@@ -145,8 +146,11 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
     );
   }
 
-  const action =
-    "rounded-lg border border-border bg-card px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground";
+  // 三级按钮层级(立主次,不引入新色):恢复=实心主 / 建任务=描边次 / 低频三项=幽灵
+  const disabledCls = "disabled:cursor-not-allowed disabled:opacity-50";
+  const primaryBtn = `rounded-lg bg-primary px-3 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 ${disabledCls} ${focusRing}`;
+  const outlineBtn = `rounded-lg border border-border bg-card px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground ${focusRing}`;
+  const ghostBtn = `rounded-lg px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground ${disabledCls} ${focusRing}`;
 
   return (
     <>
@@ -158,38 +162,39 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
               {session.project_name}
             </h2>
             <div className="flex shrink-0 items-center gap-2">
+              {/* 低频动作降为幽灵，主动作『恢复』实心突出 */}
               <button
                 onClick={() => setDistillOpen(true)}
-                className={action}
+                className={ghostBtn}
                 title={t("preview.distillTitle")}
               >
                 {t("preview.aiDistill")}
               </button>
               <button
                 onClick={() => setMemoryOpen(true)}
-                className={action}
+                className={ghostBtn}
                 title={t("preview.distillMemoryTitle")}
               >
                 {t("preview.distillMemory")}
               </button>
               <button
-                onClick={() => setTaskDialogOpen(true)}
-                className={action}
-                title={t("preview.createTaskTitle")}
-              >
-                {t("preview.createTask")}
-              </button>
-              <button
                 onClick={() => void syncTasks(session)}
-                className={action}
+                className={ghostBtn}
                 disabled={syncing}
                 title={t("preview.syncTasksTitle")}
               >
                 {syncing ? t("preview.syncingTasks") : t("preview.syncTasks")}
               </button>
               <button
+                onClick={() => setTaskDialogOpen(true)}
+                className={outlineBtn}
+                title={t("preview.createTaskTitle")}
+              >
+                {t("preview.createTask")}
+              </button>
+              <button
                 onClick={() => void doResume(session)}
-                className={action}
+                className={primaryBtn}
                 disabled={busy}
                 title={t("preview.restoreTitle")}
               >

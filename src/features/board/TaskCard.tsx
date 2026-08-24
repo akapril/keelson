@@ -469,7 +469,7 @@ function TaskCardInner({
               }
             }}
             className={cn(
-              "flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer hover:opacity-80",
+              "flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 cursor-pointer hover:opacity-80",
               runBadge.cls,
             )}
           >
@@ -489,7 +489,7 @@ function TaskCardInner({
                 : t("task.sourceSessionTitle", { id: task.source_session_id })
             }
             className={cn(
-              "ml-auto flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] transition-colors focus:outline-none focus:ring-2 focus:ring-ring",
+              "ml-auto flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] transition-colors focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
               cliSynced
                 ? "bg-primary/10 text-primary hover:bg-primary/20"
                 : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary",
@@ -526,7 +526,7 @@ function TaskCardInner({
                 disabled={agentRunning}
                 title={t("agent.assignTitle")}
                 className={cn(
-                  "ml-auto flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] transition-colors focus:outline-none focus:ring-2 focus:ring-ring",
+                  "ml-auto flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] transition-colors focus-visible:outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
                   agentRunning
                     ? "cursor-not-allowed opacity-50 bg-muted text-muted-foreground"
                     : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary",

@@ -7,6 +7,7 @@ import type { Session } from "../../types/session";
 import { useSessionMetaStore } from "../../store/session-meta";
 import { useRestoreStore } from "../../store/restore";
 import { setResumeAsTab } from "./resume-pref";
+import { focusRing } from "@/lib/focus-ring";
 import { CreateTaskFromSessionDialog } from "../board/CreateTaskFromSessionDialog";
 import { MemoryReviewDialog } from "../memory/MemoryReviewDialog";
 import { PromptDialog } from "@/components/prompt-dialog";
@@ -184,13 +185,15 @@ function SessionCardImpl({
           (selectMode ? onToggleCheck?.(session.session_id) : onSelect(session))
         }
         className={[
-          // 基础卡片样式
+          // 基础卡片样式（focusRing：键盘 Tab 到卡片时有可见焦点提示）
           "flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-left transition-colors",
-          // 勾选(批量) / 选中(预览) / 默认
+          focusRing,
+          // 勾选(批量) / 选中(预览) / 默认。选中态用更强的 --item-selected token(与聚光灯一致)，
+          // 原 bg-accent 与卡片仅差 3% 亮度，双栏里看不出当前打开的是哪张。
           selectMode && checked
             ? "border-primary bg-primary/10"
             : selected
-              ? "border-border bg-accent text-accent-foreground"
+              ? "border-border bg-[var(--item-selected)] text-accent-foreground"
               : "border-border bg-card text-card-foreground hover:bg-accent/50",
           // 已隐藏（仅在"显示隐藏"时可见）淡化区分
           isHidden ? "opacity-55" : "",
@@ -216,7 +219,7 @@ function SessionCardImpl({
             <button
               aria-label={t("card.createTask")}
               onClick={handleCreateTaskClick}
-              className="rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+              className={`rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary ${focusRing}`}
             >
               {t("card.createTask")}
             </button>
@@ -225,7 +228,7 @@ function SessionCardImpl({
               aria-label={t("card.restore")}
               onClick={handleRestoreClick}
               disabled={busy}
-              className="rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className={`rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
             >
               {t("card.restore")}
             </button>
@@ -233,7 +236,7 @@ function SessionCardImpl({
             <button
               aria-label={isFav ? t("card.unfavorite") : t("card.favorite")}
               onClick={handleStarClick}
-              className="text-base leading-none text-muted-foreground transition-colors hover:text-primary"
+              className={`rounded text-base leading-none text-muted-foreground transition-colors hover:text-primary ${focusRing}`}
             >
               {/* 实心星 / 空心星，使用 unicode 避免引入图标库 */}
               {isFav ? "★" : "☆"}
@@ -263,10 +266,11 @@ function SessionCardImpl({
           )}
         </div>
 
-        {/* 第三行：last_prompt 截断展示 */}
+        {/* 第三行：last_prompt 摘要。摘要是卡片主内容，比 chrome 略强(foreground/80)让眼睛有落点；
+            只用 CSS line-clamp-2 按容器宽自适应 1-2 行，不再叠 JS truncate(80) 致宽预览窗恒显一行。 */}
         {session.last_prompt && (
-          <p className="line-clamp-2 text-xs text-muted-foreground">
-            {truncate(session.last_prompt)}
+          <p className="line-clamp-2 text-xs text-foreground/80">
+            {session.last_prompt}
           </p>
         )}
       </div>

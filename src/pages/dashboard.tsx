@@ -7,6 +7,8 @@ import { Analytics01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { providerMeta } from "@/lib/providers";
+import { focusRing } from "@/lib/focus-ring";
 import { useSessionsStore } from "@/store/sessions";
 import { useRestoreStore } from "@/store/restore";
 import { useBoardStore } from "@/store/board";
@@ -52,6 +54,9 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [reading, setReading] = useState<ReadingItem[]>([]);
+  // 首帧加载标志：区分「未加载」与「加载完确为空」。否则初值空数组会让首帧必命中 length===0，
+  // 先闪『暂无…』+ 统计卡显 0，数据到达再 pop，给「数据丢了」的错觉。载完前一律显骨架。
+  const [loaded, setLoaded] = useState(false);
 
   // 首次引导：提示接入 MCP（核心受众 CLI 用户的杀手级功能，否则埋在设置里易错过）。
   // 可永久关闭；关闭态存 localStorage。
@@ -72,11 +77,14 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    useSessionsStore.getState().load();
-    useBoardStore.getState().loadProjects();
-    void listDueTasks().then(setTasks).catch(() => {});
-    void listEvents().then(setEvents).catch(() => {});
-    void listReadingItems().then(setReading).catch(() => {});
+    // 全部初始加载 settle（成败不论）后置 loaded=true，届时才允许显示空态/真实统计数字
+    void Promise.allSettled([
+      useSessionsStore.getState().load(),
+      useBoardStore.getState().loadProjects(),
+      listDueTasks().then(setTasks),
+      listEvents().then(setEvents),
+      listReadingItems().then(setReading),
+    ]).finally(() => setLoaded(true));
   }, []);
 
   const today = startOfToday();
@@ -140,21 +148,22 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={dismissMcpHint}
-            className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
+            className={`shrink-0 rounded text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
           >
             {t("dashboard.mcpHintDismiss")}
           </button>
         </div>
       )}
 
-      {/* 统计卡片 */}
+      {/* 统计卡片（载入前数字位显骨架条，避免先闪 0 再跳真实值） */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label={t("dashboard.statProjects")} value={projects.length} onClick={() => navigate("/board")} />
-        <StatCard label={t("dashboard.statSessions")} value={sessions.length} onClick={() => navigate("/sessions")} />
-        <StatCard label={t("dashboard.statUnreadReading")} value={unreadCount} onClick={() => navigate("/reading")} />
+        <StatCard label={t("dashboard.statProjects")} value={projects.length} loading={!loaded} onClick={() => navigate("/board")} />
+        <StatCard label={t("dashboard.statSessions")} value={sessions.length} loading={!loaded} onClick={() => navigate("/sessions")} />
+        <StatCard label={t("dashboard.statUnreadReading")} value={unreadCount} loading={!loaded} onClick={() => navigate("/reading")} />
         <StatCard
           label={t("dashboard.statUpcoming")}
           value={upcomingEvents.length}
+          loading={!loaded}
           onClick={() => navigate("/calendar")}
         />
       </div>
@@ -162,7 +171,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 近期会话 */}
         <Panel title={t("dashboard.panelRecentSessions")} onMore={() => navigate("/sessions")}>
-          {recentSessions.length === 0 ? (
+          {!loaded ? (
+            <PanelSkeleton />
+          ) : recentSessions.length === 0 ? (
             <Empty text={t("dashboard.panelEmptySessions")} />
           ) : (
             recentSessions.map((s) => (
@@ -170,14 +181,14 @@ export default function Dashboard() {
                 key={s.session_id}
                 onClick={() => navigate(`/sessions?session=${s.session_id}`)}
                 title={s.project_name}
-                sub={s.last_prompt || s.first_prompt || s.session_id}
-                meta={s.provider}
+                sub={s.last_prompt || s.first_prompt || undefined}
+                meta={providerMeta(s.provider).label}
                 action={
                   <button
                     type="button"
                     title={t("sessions:card.restore")}
                     onClick={() => void resumeSession(s.session_id)}
-                    className="flex size-5 items-center justify-center rounded text-primary/80 transition-colors hover:bg-accent hover:text-primary"
+                    className={`flex size-5 items-center justify-center rounded text-primary/80 transition-colors hover:bg-accent hover:text-primary ${focusRing}`}
                   >
                     <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} className="size-3.5" />
                   </button>
@@ -189,7 +200,9 @@ export default function Dashboard() {
 
         {/* 近期截止任务 */}
         <Panel title={t("dashboard.panelRecentDue")} onMore={() => navigate("/board")}>
-          {upcomingTasks.length === 0 ? (
+          {!loaded ? (
+            <PanelSkeleton />
+          ) : upcomingTasks.length === 0 ? (
             <Empty text={t("dashboard.panelEmptyDue")} />
           ) : (
             upcomingTasks.map((task) => (
@@ -205,7 +218,9 @@ export default function Dashboard() {
 
         {/* 近期事件 */}
         <Panel title={t("dashboard.panelRecentEvents")} onMore={() => navigate("/calendar")}>
-          {upcomingEvents.length === 0 ? (
+          {!loaded ? (
+            <PanelSkeleton />
+          ) : upcomingEvents.length === 0 ? (
             <Empty text={t("dashboard.panelEmptyEvents")} />
           ) : (
             upcomingEvents.map((e) => (
@@ -222,7 +237,9 @@ export default function Dashboard() {
 
         {/* 阅读队列 */}
         <Panel title={t("dashboard.panelReadingQueue")} onMore={() => navigate("/reading")}>
-          {readingQueue.length === 0 ? (
+          {!loaded ? (
+            <PanelSkeleton />
+          ) : readingQueue.length === 0 ? (
             <Empty text={t("dashboard.panelEmptyReading")} />
           ) : (
             readingQueue.map((r) => (
@@ -243,21 +260,39 @@ export default function Dashboard() {
 function StatCard({
   label,
   value,
+  loading,
   onClick,
 }: {
   label: string;
   value: number;
+  /** 首帧未载完：数字位显骨架条而非 0，避免先闪 0 再跳真实值 */
+  loading?: boolean;
   onClick?: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-accent/40"
+      className={`rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-accent/40 ${focusRing}`}
     >
-      <div className="text-2xl font-semibold tabular-nums">{value}</div>
+      {loading ? (
+        <div className="h-8 w-8 animate-pulse rounded bg-muted" />
+      ) : (
+        <div className="text-2xl font-semibold tabular-nums">{value}</div>
+      )}
       <div className="mt-0.5 text-xs text-muted-foreground">{label}</div>
     </button>
+  );
+}
+
+/** 面板加载骨架：3 行透明度呼吸占位条，避免加载态「一行灰字→数据到达布局跳变」。 */
+function PanelSkeleton() {
+  return (
+    <div className="flex flex-col gap-2 py-1">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="h-8 animate-pulse rounded-lg bg-muted/60" />
+      ))}
+    </div>
   );
 }
 
@@ -279,7 +314,7 @@ function Panel({
           <button
             type="button"
             onClick={onMore}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className={`rounded text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
           >
             {t("action.viewAll")}
           </button>
@@ -311,7 +346,8 @@ function Row({
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 pr-8 text-left hover:bg-muted"
+        // 有 action 才留右侧 pr-8 给悬停动作，否则 pr-2 让 meta 右对齐不白缩 32px
+        className={`flex w-full items-center gap-2 rounded-lg py-1.5 pl-1.5 text-left hover:bg-muted ${action ? "pr-8" : "pr-2"} ${focusRing}`}
       >
         {dot && (
           <span className="size-2 shrink-0 rounded-full" style={{ background: dot }} />
