@@ -113,6 +113,7 @@ function TaskCardInner({
   // 仅保留下面几个稳定函数 selector（返回同一引用，求值代价可忽略）。
   const updateTask = useBoardStore((s) => s.updateTask);
   const deleteTask = useBoardStore((s) => s.deleteTask);
+  const restoreTask = useBoardStore((s) => s.restoreTask);
   const moveTask = useBoardStore((s) => s.moveTask);
   const navigate = useNavigate();
   const { t, i18n } = useTranslation("board");
@@ -257,10 +258,22 @@ function TaskCardInner({
       toast.error(t("task.toast.moveError", { msg: String(e) })),
     );
   };
-  // 右键菜单：删除
+  // 右键菜单：删除（软删）。成功后弹带「撤销」的 toast——6 秒内可反写 deleted_at 恢复。
   const remove = () => {
+    const snapshot = task; // 留存供撤销回插（软删只置 deleted_at，记录仍在）
     void deleteTask(task.id)
-      .then(() => toast.success(t("task.toast.deleteSuccess")))
+      .then(() =>
+        toast.success(t("task.toast.deleteSuccess"), {
+          duration: 6000,
+          action: {
+            label: t("task.toast.undo"),
+            onClick: () =>
+              void restoreTask(snapshot).catch((e) =>
+                toast.error(t("task.toast.restoreError", { msg: String(e) })),
+              ),
+          },
+        }),
+      )
       .catch((e) => toast.error(t("task.toast.deleteError", { msg: String(e) })));
   };
   // 右键菜单：跳转来源会话（不经卡片点击事件）

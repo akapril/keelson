@@ -144,6 +144,8 @@ interface BoardStoreState {
   updateTask: (id: string, patch: Partial<BoardTask>) => Promise<void>;
   /** 删除任务 */
   deleteTask: (id: string) => Promise<void>;
+  /** 撤销删除：回插任务并反写 deleted_at 取消软删（供删除 toast 的「撤销」动作） */
+  restoreTask: (task: BoardTask) => Promise<void>;
   /** 按状态 ID 分组当前所有任务，用于看板列渲染 */
   tasksByState: () => Record<string, BoardTask[]>;
   /**
@@ -401,6 +403,21 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
     } catch (e) {
       // 回滚并重抛：让调用方真实感知失败（批量删除/单卡删除据此报错，不再误报成功）。
       // 三处调用点均已 try/catch 或 .catch 处理。
+      set({ tasks, error: String(e) });
+      throw e;
+    }
+  },
+
+  // ── 撤销删除任务 ─────────────────────────────────────────
+  // 软删只是把 deleted_at 置为时间戳，撤销即反写空串（un-tombstone）+ 回插内存。
+  restoreTask: async (task: BoardTask) => {
+    const { tasks } = get();
+    // 乐观回插（先按 id 去重，避免与实时订阅回推重复）
+    set({ tasks: [...tasks.filter((t) => t.id !== task.id), task] });
+    try {
+      await updateRecord(COL.boardTasks, task.id, { deleted_at: "" });
+    } catch (e) {
+      // 回滚并重抛：让调用点 toast，不误报成功
       set({ tasks, error: String(e) });
       throw e;
     }
