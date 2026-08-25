@@ -372,6 +372,9 @@ export const ipc = {
   /** 只读取指定 Agent 运行的完整改动 patch（供审阅步骤展示；无副作用）。 */
   agentRunDiff: (runId: string) => call<string>("agent_run_diff", { runId }),
 
+  /** 停止运行中的 Agent（协作式中断 + 杀子进程，run 置 blocked「已手动中止」）。 */
+  agentStop: (runId: string) => call<void>("agent_stop", { runId }),
+
   /** 丢弃指定 Agent 运行（保留 worktree 日志，状态置 discarded）。 */
   agentDiscardRun: (runId: string) => call<void>("agent_discard_run", { runId }),
 };

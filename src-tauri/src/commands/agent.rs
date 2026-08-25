@@ -38,7 +38,10 @@ pub async fn agent_run_task(
     let (client, uid) = make_client(&state)?;
     // 克隆 Channel 供闭包内发送 delta 事件（Channel 实现了 Clone）
     let ev = on_event.clone();
-    let run_id = crate::agent::executor::execute_task_with_agent(
+    // 注册中止信号（task_id 键），供 agent_stop 停止本次运行；无论成败结束后都注销
+    let notify = std::sync::Arc::new(tokio::sync::Notify::new());
+    state.agent_cancels.lock().insert(task_id.clone(), notify.clone());
+    let result = crate::agent::executor::execute_task_with_agent(
         &client,
         &uid,
         &task_id,
@@ -51,8 +54,11 @@ pub async fn agent_run_task(
                 run_id: None,
             });
         },
+        Some(notify),
     )
-    .await?;
+    .await;
+    state.agent_cancels.lock().remove(&task_id);
+    let run_id = result?;
     // 发送 done 事件，携带最终 run_id 供前端刷新状态
     let _ = on_event.send(AgentRunEvent {
         kind: "done".into(),
@@ -99,6 +105,25 @@ pub async fn agent_run_diff(
         crate::agent::executor::executor_get_run(&client, &run_id).await?;
     crate::agent::worktree::run_diff(Path::new(&repo), &task_id, &base_branch)
         .map_err(|e| e.to_string())
+}
+
+/// 停止运行中的 agent：向其 task 的中止信号 notify，执行内核协作式中断 + kill_on_drop 杀子进程，
+/// 并把 run 干净写成 blocked「已手动中止」。信号不存在（run 已结束/非本进程）时静默成功。
+#[tauri::command]
+pub async fn agent_stop(
+    run_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let (client, _) = make_client(&state)?;
+    // run → task_id（agent_cancels 按 task_id 键）
+    let (task_id, _repo, _base) =
+        crate::agent::executor::executor_get_run(&client, &run_id).await?;
+    // 取信号并触发（clone 出来后立即释放锁，避免持锁跨 await/长操作）
+    let sig = state.agent_cancels.lock().get(&task_id).cloned();
+    if let Some(sig) = sig {
+        sig.notify_one();
+    }
+    Ok(())
 }
 
 /// 打回某 run：清理 worktree / 分支，run.status = discarded。

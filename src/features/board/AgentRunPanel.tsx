@@ -85,6 +85,24 @@ export function AgentRunPanel({
     }
   }, [diff]);
 
+  // 停止运行中的 agent（发中止信号，后端协作式中断 + 杀子进程）
+  const [stopping, setStopping] = useState(false);
+  const stop = useCallback(
+    async (runId: string) => {
+      setStopping(true);
+      try {
+        await ipc.agentStop(runId);
+        toast.success("已发送停止信号");
+        onRefresh?.();
+      } catch (e) {
+        toast.error(`停止失败：${String(e)}`);
+      } finally {
+        setStopping(false);
+      }
+    },
+    [onRefresh],
+  );
+
   // 决策动作 hook（合并/打回/重派）：成功后刷新徽标并关闭面板
   const { busy, merge, discard, redispatch } = useAgentRunActions(() => {
     onRefresh?.();
@@ -204,8 +222,19 @@ export function AgentRunPanel({
         );
       }
       case "running":
-        // 执行中无操作按钮；日志由下方统一「执行日志」区实时展示
-        return null;
+        // 执行中：给「停止」按钮（发中止信号）；日志由下方统一「执行日志」区实时展示
+        return (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => void stop(r.id)}
+              disabled={stopping}
+            >
+              {stopping ? "停止中…" : "停止"}
+            </Button>
+          </div>
+        );
       default:
         // merged / discarded：终态，无额外操作
         return null;

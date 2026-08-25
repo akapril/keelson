@@ -3,7 +3,9 @@ use crate::agent::{outcome::{decide_outcome, Outcome}, prompt::build_task_prompt
 use crate::pb::client::PbClient;
 use serde_json::json;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Notify;
 
 /// 单次 agent 运行最长时限（秒）。超时 kill 子进程 → 受阻。
 pub const AGENT_TIMEOUT_SECS: u64 = 1800;
@@ -80,12 +82,15 @@ pub async fn executor_get_run(
 }
 
 /// 执行内核：见模块文档。返回 agent_run id。on_line 用于把日志实时推给前端。
+/// cancel：可选的手动中止信号（agent_stop 触发 notify_one）；触发时协作式中断 CLI 运行，
+/// 靠 run_cli_stream 的 kill_on_drop 杀子进程，并把 run 干净地写成「已手动中止」。None=不可中止。
 pub async fn execute_task_with_agent(
     client: &PbClient,
     owner_id: &str,
     task_id: &str,
     agent_ref: &str,
     mut on_line: impl FnMut(String),
+    cancel: Option<Arc<Notify>>,
 ) -> Result<String, String> {
     // 0) 解析队友：agent_id 优先，回退把 agent_ref 当 provider（S1 兼容）
     // 注意：provider 合法性校验推迟到 run 记录建立之后，确保不支持的 provider 也留可见 blocked run。
@@ -237,7 +242,31 @@ pub async fn execute_task_with_agent(
     );
     // 队友可覆盖超时（>0 才生效，否则用全局默认）
     let timeout = resolved.timeout_secs.unwrap_or(AGENT_TIMEOUT_SECS);
-    let result = tokio::time::timeout(Duration::from_secs(timeout), run_fut).await;
+    let run_with_timeout = tokio::time::timeout(Duration::from_secs(timeout), run_fut);
+    // 协作式取消：提供了 cancel 信号则在「超时完成」与「手动中止」间 select；
+    // 落选的 run_with_timeout 被 drop → 其栈内子进程随 kill_on_drop 被 kill。cancel=None 退化为原逻辑。
+    let result = match &cancel {
+        Some(sig) => tokio::select! {
+            r = run_with_timeout => Ok(r),
+            _ = sig.notified() => Err(()),
+        },
+        None => Ok(run_with_timeout.await),
+    };
+    // Err(()) = 手动中止：run_fut 已被 drop 杀掉子进程，干净写「已手动中止」并返回
+    let result = match result {
+        Ok(r) => r,
+        Err(()) => {
+            let blk = "已手动中止";
+            let _ = client
+                .patch("agent_runs", &run_id, &json!({ "status": "blocked", "blocker": blk }))
+                .await;
+            crate::agent::notify::notify_decision(
+                client, owner_id, "blocked", &resolved.display_name, &title, blk,
+            )
+            .await;
+            return Ok(run_id);
+        }
+    };
 
     // 5) 判定结果
     let timed_out = result.is_err();

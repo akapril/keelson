@@ -289,6 +289,15 @@ async fn poll_once(app: &tauri::AppHandle) -> Result<(), String> {
         let agent_ref = t.agent_ref.clone();
         let app_log = app2.clone();
         let task_log = task_id.clone();
+        // 注册中止信号（task_id 键），供 agent_stop 停止本次后台运行
+        let notify = std::sync::Arc::new(tokio::sync::Notify::new());
+        {
+            use tauri::Manager;
+            app2.state::<AppState>()
+                .agent_cancels
+                .lock()
+                .insert(task_id.clone(), notify.clone());
+        }
         tauri::async_runtime::spawn(async move {
             // 复用执行内核；传 agent_ref（agent_id 优先，否则 provider 回退）。
             // 关键修复：此前 |_piece|{} 把日志全丢了 → worker/MCP 派发的 run 在面板上永久
@@ -305,8 +314,17 @@ async fn poll_once(app: &tauri::AppHandle) -> Result<(), String> {
                         json!({ "task_id": &task_log, "delta": piece }),
                     );
                 },
+                Some(notify),
             )
             .await;
+            // 结束后注销中止信号
+            {
+                use tauri::Manager;
+                app2.state::<AppState>()
+                    .agent_cancels
+                    .lock()
+                    .remove(&task_id);
+            }
             // 完成（review/blocked）后通知前端刷新该任务徽标
             let _ = app2.emit("agent-run-changed", task_id);
         });

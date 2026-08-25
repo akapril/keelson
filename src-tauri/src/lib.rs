@@ -117,6 +117,11 @@ pub struct AppState {
     /// AI 流式对话的取消标志表（stream_id → 取消位），供「停止生成」使用
     pub ai_cancels:
         Arc<Mutex<std::collections::HashMap<String, Arc<std::sync::atomic::AtomicBool>>>>,
+    /// agent 运行的中止信号表（task_id → Notify），供 agent_stop「停止」运行中的 agent。
+    /// 一个任务同时至多一个运行(worker busy_ids 保证)，故按 task_id 键。执行内核收到 notify 后
+    /// 协作式中断、靠 kill_on_drop 杀子进程。派发时注册、结束时注销。
+    pub agent_cancels:
+        Arc<Mutex<std::collections::HashMap<String, Arc<tokio::sync::Notify>>>>,
     /// 当前界面语言（"zh"/"en"），由前端 set_locale 同步，供托盘/通知取文案
     pub locale: Arc<Mutex<String>>,
     /// 托盘菜单项句柄：语言切换时更新其文案
@@ -157,6 +162,7 @@ impl Default for AppState {
             config: Arc::new(Mutex::new(cfg)),
             pb_child: Arc::new(Mutex::new(None)),
             ai_cancels: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            agent_cancels: Arc::new(Mutex::new(std::collections::HashMap::new())),
             locale: Arc::new(Mutex::new(i18n::detect_locale())),
             tray_show: Arc::new(Mutex::new(None)),
             tray_quit: Arc::new(Mutex::new(None)),
@@ -589,6 +595,7 @@ pub fn run() {
             commands::agent::agent_run_task,
             commands::agent::agent_merge_run,
             commands::agent::agent_run_diff,
+            commands::agent::agent_stop,
             commands::agent::agent_discard_run,
             commands::agent::list_agent_runs,
         ])
