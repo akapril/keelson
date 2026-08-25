@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { indexOfMemory } from "@/features/memory/deep-link";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { listMemories, updateMemoryRecord, deleteMemoryRecord } from "@/lib/pb/memory";
 import { listProjects } from "@/lib/pb/board";
 import { type Memory, type MemoryKind } from "@/types/memory";
@@ -157,6 +158,15 @@ export default function MemoryPage() {
     }
   };
 
+  // 待审区批量：逐条复用 accept/remove（二者仅失败时 toast，不刷屏）；丢弃前确认
+  const acceptAll = async () => {
+    for (const m of [...pending]) await accept(m);
+  };
+  const discardAll = async () => {
+    if (!window.confirm(t("page.discardAllConfirm", { count: pending.length }))) return;
+    for (const m of [...pending]) await remove(m);
+  };
+
   // 批量删除所选记忆（逐条删；失败则重载兜底）
   const batchDelete = async () => {
     const ids = [...selected];
@@ -216,6 +226,22 @@ export default function MemoryPage() {
             <span className="font-normal text-muted-foreground">
               {t("page.pendingDesc")}
             </span>
+            {/* 批量：条目多时省去逐条点；仍保留单条把关(每条也有采纳/丢弃) */}
+            {pending.length > 1 && (
+              <span className="ml-auto flex shrink-0 items-center gap-1">
+                <Button variant="ghost" size="xs" onClick={() => void acceptAll()}>
+                  {t("page.acceptAll")}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => void discardAll()}
+                >
+                  {t("page.discardAll")}
+                </Button>
+              </span>
+            )}
           </div>
           <div className="flex max-h-52 flex-col gap-1.5 overflow-y-auto">
             {pending.map((m) => (
@@ -342,6 +368,12 @@ export default function MemoryPage() {
                       <span className="rounded bg-muted px-1">{t(`kind.${m.kind}`)}</span>
                       <span className="rounded bg-muted px-1">{scopeLabel(m)}</span>
                       <span>{t("page.confidence", { confidence: m.confidence })}</span>
+                      {/* 创建时间：无时间戳时旧记忆会伪装成永久真理(还被 MCP 当事实喂给 AI)，露出以助判断新鲜度 */}
+                      {m.created && (
+                        <span title={new Date(m.created).toLocaleString(i18n.language)}>
+                          {new Date(m.created).toLocaleDateString(i18n.language, { month: "short", day: "numeric" })}
+                        </span>
+                      )}
                       {m.source_session_id && (
                         <button
                           type="button"
