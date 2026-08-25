@@ -18,17 +18,19 @@ import {
   Sun02Icon,
   Settings02Icon,
   TerminalIcon,
+  Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { flatNavItems } from "@/lib/navigation";
 import { workspaceRecordUrl } from "@/lib/workspace-navigation";
-import { listProjects } from "@/lib/pb/board";
+import { listProjects, listAllTasks } from "@/lib/pb/board";
 import { listAllDocs } from "@/lib/pb/docs";
 import { listReadingItems } from "@/lib/pb/reading";
 import { useSessionsStore } from "@/store/sessions";
+import { useSessionSearchStore } from "@/store/session-search";
 import { useRestoreStore } from "@/store/restore";
 import { useTheme } from "@/components/theme-provider";
 import { getMru, pushMru } from "@/components/command-mru";
-import type { BoardProject } from "@/types/board";
+import type { BoardProject, BoardTask } from "@/types/board";
 import type { BoardDoc } from "@/types/docs";
 import type { ReadingItem } from "@/types/reading";
 
@@ -46,6 +48,7 @@ export function CommandPalette() {
   const { t } = useTranslation("shell");
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState<BoardProject[]>([]);
+  const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [docs, setDocs] = useState<BoardDoc[]>([]);
   const [reading, setReading] = useState<ReadingItem[]>([]);
   // 输入词（用于文档正文子串搜索；cmdk 对长文本的模糊匹配会误命中，故自行子串过滤）
@@ -107,6 +110,9 @@ export function CommandPalette() {
     void listProjects()
       .then(setProjects)
       .catch(() => {});
+    void listAllTasks()
+      .then(setTasks)
+      .catch(() => {});
     void listAllDocs()
       .then(setDocs)
       .catch(() => {});
@@ -136,6 +142,10 @@ export function CommandPalette() {
             (d.content || "").toLowerCase().includes(q),
         )
         .slice(0, 20)
+    : [];
+  // 任务按标题子串匹配（仅有输入时；任务多、空查询全列会刷屏）——命中直达其项目看板
+  const taskMatches = q
+    ? tasks.filter((tk) => (tk.title || "").toLowerCase().includes(q)).slice(0, 20)
     : [];
   const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
 
@@ -222,6 +232,23 @@ export function CommandPalette() {
           </CommandGroup>
         )}
 
+        {taskMatches.length > 0 && (
+          <CommandGroup heading={t("commandPalette.groupTasks")}>
+            {taskMatches.map((tk) => (
+              <CommandItem
+                key={tk.id}
+                value={`${t("commandPalette.groupTasks")} ${query} ${tk.title} ${tk.id}`}
+                onSelect={() => go(workspaceRecordUrl("board", tk.project), tk.title)}
+              >
+                <span className="min-w-0 flex-1 truncate">{tk.title}</span>
+                <span className="ml-2 shrink-0 text-xs text-muted-foreground">
+                  {projectNameById.get(tk.project) ?? ""}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
         {docMatches.length > 0 && (
           <CommandGroup heading={t("commandPalette.groupDocs")}>
             {docMatches.map((d) => (
@@ -265,6 +292,24 @@ export function CommandPalette() {
                 </span>
               </CommandItem>
             ))}
+          </CommandGroup>
+        )}
+
+        {/* 会话深搜桥：⌘K 只匹配会话首尾提示，聊到一半的内容搜不到；
+            有输入时给一条「在会话正文深搜」→ 跳 /sessions 触发既有 RAG/全文检索 */}
+        {q && (
+          <CommandGroup heading={t("commandPalette.groupSessions")}>
+            <CommandItem
+              value={`session-deep-search ${query}`}
+              onSelect={() => {
+                setOpen(false);
+                useSessionSearchStore.getState().run(query.trim());
+                navigate("/sessions");
+              }}
+            >
+              <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="size-4" />
+              {t("commandPalette.sessionDeepSearch", { q: query.trim() })}
+            </CommandItem>
           </CommandGroup>
         )}
 

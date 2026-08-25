@@ -96,6 +96,8 @@
     "groupRecent": "Recent",
     "groupPages": "Pages",
     "groupProjects": "Projects",
+    "groupTasks": "Tasks",
+    "sessionDeepSearch": "Deep-search session content for \"{{q}}\" →",
     "groupDocs": "Docs",
     "groupSessions": "Sessions",
     "groupReading": "Reading",

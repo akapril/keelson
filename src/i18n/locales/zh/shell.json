@@ -96,6 +96,8 @@
     "groupRecent": "最近",
     "groupPages": "页面",
     "groupProjects": "项目",
+    "groupTasks": "任务",
+    "sessionDeepSearch": "在会话正文中深搜「{{q}}」→",
     "groupDocs": "文档",
     "groupSessions": "会话",
     "groupReading": "阅读",
