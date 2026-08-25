@@ -181,7 +181,8 @@ pub fn commit_worktree(worktree: &Path, task_id: &str) -> Result<()> {
 /// 把 agent 分支合并回指定 base 分支：commit 工作树改动 → 切 base → merge → 切回用户原分支 → 清理。
 /// 仅在人点「合并」时调用。绝不自动调用。
 /// base_branch 必须传入建 worktree 时持久化的值，禁止在此处再次求值（防止漂移）。
-pub fn merge_branch(repo: &Path, task_id: &str, base_branch: &str) -> Result<()> {
+/// 成功返回 merge commit 的短 sha（供 UI 显示 + `git revert -m 1 <sha>` 回退提示）。
+pub fn merge_branch(repo: &Path, task_id: &str, base_branch: &str) -> Result<String> {
     let wt = worktree_path(repo, task_id);
     let branch = branch_name(task_id);
     // 主工作区必须干净，否则 checkout 会失败或丢失改动
@@ -221,6 +222,10 @@ pub fn merge_branch(repo: &Path, task_id: &str, base_branch: &str) -> Result<()>
             "与 {base_branch} 合并冲突，已回滚、未改动你的工作区；agent 分支 {branch} 与其 worktree 已保留，请手动处理该分支。原始错误：{e}"
         ));
     }
+    // 合并成功：此刻仍在 base 上、HEAD = merge commit，捕获其短 sha 供 UI 显示 + 回退提示。
+    let merge_sha = git(repo, &["rev-parse", "--short", "HEAD"])
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
     // 切回用户原分支（仅当原分支与 base 不同时才切，避免多余操作）
     if let Some(o) = &orig {
         if o != base_branch {
@@ -228,7 +233,7 @@ pub fn merge_branch(repo: &Path, task_id: &str, base_branch: &str) -> Result<()>
         }
     }
     remove_worktree(repo, task_id)?;
-    Ok(())
+    Ok(merge_sha)
 }
 
 /// 移除 worktree + 删 agent 分支（合并后 or 打回时清理）。

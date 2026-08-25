@@ -26,8 +26,14 @@ export function useAgentRunActions(onDone?: () => void) {
     if (busy) return;
     setBusy(true);
     try {
-      await ipc.agentMergeRun(run.id);
-      toast.success("已将 Agent 结果合并进主分支");
+      const sha = await ipc.agentMergeRun(run.id);
+      // 带 merge commit 短 sha + 回退提示：动了主干反而该有反悔余地（git-native 用户拿 sha 即可 revert）
+      toast.success(
+        sha
+          ? `已合并进主分支（${sha}）`
+          : "已将 Agent 结果合并进主分支",
+        sha ? { description: `如需回退：git revert -m 1 ${sha}`, duration: 8000 } : undefined,
+      );
       onDone?.();
     } catch (e) {
       toast.error(`合并失败：${String(e)}`);

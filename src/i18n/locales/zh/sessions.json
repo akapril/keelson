@@ -84,8 +84,8 @@
   },
   "preview": {
     "selectHint": "选择一个会话以预览",
-    "noSessionsHint": "还没有会话记录。在终端跑一次 Claude 或 Codex，或接入 MCP，Keelson 就会读取到。",
-    "noSessionsCta": "去接入 MCP",
+    "noSessionsHint": "在 ~/.claude、~/.codex 等目录没找到会话记录。在终端跑一次 Claude 或 Codex 后，点下方重新扫描。",
+    "noSessionsCta": "重新扫描",
     "aiDistill": "AI 提炼",
     "distillTitle": "用 AI 从此会话提炼任务与文档，确认后写入项目",
     "distillMemory": "提炼记忆",

@@ -329,6 +329,9 @@
     "emptyHint": "选择时间范围与项目，点「生成报告」",
     "saving": "保存中…",
     "saveBtn": "存为文档",
+    "dedup": {
+      "confirm": "已有报告「{{title}}」。\n确定 = 替换它的内容；取消 = 另存为新文档。"
+    },
     "toast": {
       "copySuccess": "已复制报告",
       "copyError": "复制失败",

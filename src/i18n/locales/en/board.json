@@ -581,7 +581,7 @@
     "description": "Manage named AI teammates and assign them to tasks.",
     "newAgent": "New agent",
     "loading": "Loading…",
-    "empty": "No agents yet — click \"New agent\" to create your first one.",
+    "empty": "Raise a named teammate for the work you do often — then hand it a task in one click and let it edit code in an isolated background worktree, producing a branch you review. Click \"New agent\" to start.",
     "titleNew": "New agent",
     "titleEdit": "Edit agent",
     "sheetDesc": "Configure the agent's provider, skills and runtime parameters.",

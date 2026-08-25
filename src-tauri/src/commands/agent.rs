@@ -67,7 +67,7 @@ pub async fn agent_run_task(
 pub async fn agent_merge_run(
     run_id: String,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let (client, _) = make_client(&state)?;
     // executor_get_run 返回 (task_id, repo_path, base_branch)，base_branch 为建时持久化的值
     let (task_id, repo, base_branch) =
@@ -76,15 +76,15 @@ pub async fn agent_merge_run(
     if base_branch.trim().is_empty() {
         return Err("agent_run 缺少 base_branch，无法安全合并（请重新派发 agent）".into());
     }
-    // 合并 worktree 分支到持久化的 base 分支，合并后切回用户原分支
-    crate::agent::worktree::merge_branch(Path::new(&repo), &task_id, &base_branch)
+    // 合并 worktree 分支到持久化的 base 分支，合并后切回用户原分支；返回 merge commit 短 sha
+    let merge_sha = crate::agent::worktree::merge_branch(Path::new(&repo), &task_id, &base_branch)
         .map_err(|e| e.to_string())?;
     // 更新 run 状态为 merged
     client
         .patch("agent_runs", &run_id, &json!({ "status": "merged" }))
         .await
         .map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(merge_sha)
 }
 
 /// 只读：取某 run 的完整改动 patch（供审阅步骤展示）。

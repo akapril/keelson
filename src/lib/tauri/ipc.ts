@@ -366,8 +366,8 @@ export const ipc = {
     return call<string>("agent_run_task", { taskId, agentRef, onEvent: ch });
   },
 
-  /** 将指定 Agent 运行结果合并进主分支（审核通过后调用）。 */
-  agentMergeRun: (runId: string) => call<void>("agent_merge_run", { runId }),
+  /** 将指定 Agent 运行结果合并进主分支（审核通过后调用）。返回 merge commit 短 sha（供回退提示）。 */
+  agentMergeRun: (runId: string) => call<string>("agent_merge_run", { runId }),
 
   /** 只读取指定 Agent 运行的完整改动 patch（供审阅步骤展示；无副作用）。 */
   agentRunDiff: (runId: string) => call<string>("agent_run_diff", { runId }),

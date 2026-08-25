@@ -329,6 +329,9 @@
     "emptyHint": "Select a time range and project, then click \"Generate Report\"",
     "saving": "Saving…",
     "saveBtn": "Save as doc",
+    "dedup": {
+      "confirm": "A report \"{{title}}\" already exists.\nOK = replace its content; Cancel = save as a new document."
+    },
     "toast": {
       "copySuccess": "Report copied",
       "copyError": "Copy failed",

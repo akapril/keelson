@@ -22,7 +22,7 @@ import { useBoardStore } from "@/store/board";
 import { useSettingsStore } from "@/store/settings";
 import { useReportJobStore } from "@/store/report-job";
 import { currentUserId } from "@/lib/pb";
-import { createDocRecord } from "@/lib/pb/docs";
+import { createDocRecord, updateDocRecord, listAllDocs } from "@/lib/pb/docs";
 import { listPrompts } from "@/lib/pb/prompts";
 import { promptType } from "@/features/prompts/prompt-utils";
 import { ensureDefaultPromptsSeeded } from "@/features/prompts/seed-defaults";
@@ -136,11 +136,25 @@ export default function ReportPage() {
     try {
       // 标题用「生成时」的范围标签（离开页面再回来控件会重置，range.label 可能已变）
       const label = useReportJobStore.getState().rangeLabel || range.label;
+      const title = `${t("report.title")} ${label}`;
+      // 去重：同标题报告已存在时问「替换还是另存」，避免每周生成把文档区堆成近乎重复的报告副本
+      const existing = (await listAllDocs()).find(
+        (d) => d.title === title && !d.deleted_at,
+      );
+      if (existing) {
+        // 确定=替换其内容；取消=另存为新文档
+        if (window.confirm(t("report.dedup.confirm", { title }))) {
+          await updateDocRecord(existing.id, { content: result });
+          toast.success(t("report.toast.saveSuccess"));
+          navigate(`/docs/${existing.id}`);
+          return;
+        }
+      }
       const doc = await createDocRecord({
         owner: currentUserId(),
         // 单项目范围时挂到该项目；全部项目则不挂（跨项目文档）
         projects: scopeId === "all" ? [] : [scopeId],
-        title: `${t("report.title")} ${label}`,
+        title,
         content: result,
       });
       toast.success(t("report.toast.saveSuccess"));

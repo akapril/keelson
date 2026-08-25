@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { Session } from "../../types/session";
@@ -65,8 +64,7 @@ interface SessionPreviewPaneProps {
  */
 export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   const { t } = useTranslation("sessions");
-  const navigate = useNavigate();
-  // 全空库判定：会话来自 CLI 落盘，新用户否则右栏一片空白不知从何来 → 给接入 CTA
+  // 全空库判定：会话来自本机 CLI 落盘文件的扫描，空态给「重新扫描」而非误导性的接入 CTA
   const sessionCount = useSessionsStore((s) => s.sessions.length);
   // 一键接续：读全局「新窗/标签」偏好直接恢复，不再弹 RestoreDialog。busy 为局部防双击态。
   const resume = useRestoreStore((s) => s.resume);
@@ -124,14 +122,14 @@ export function SessionPreviewPane({ session }: SessionPreviewPaneProps) {
   };
 
   if (!session) {
-    // 全空库：一句人话 + 接入 CTA（复用仪表盘 mcpHint 的跳转，去 MCP 接入）。
-    // 非空只是「未选中」——理论上 sessions 页已自动预选最近一条，这里仅作兜底提示。
+    // 全空库：会话来自本机 CLI 落盘文件的扫描，所以正解是「重新扫描」而非「接入 MCP」——
+    // MCP 是反方向(让外部 AI 写回看板)，接入它不会让任何会话出现，早先那句 CTA 是指错路。
     if (sessionCount === 0) {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
           <p className="max-w-xs text-sm text-muted-foreground">{t("preview.noSessionsHint")}</p>
           <button
-            onClick={() => navigate("/settings?section=mcp")}
+            onClick={() => void useSessionsStore.getState().load()}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             {t("preview.noSessionsCta")}

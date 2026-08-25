@@ -23,7 +23,7 @@
   },
   "empty": {
     "unread": "No unread notifications",
-    "all": "No notifications"
+    "all": "Nothing to act on. After you dispatch agents, results needing your merge / discard decision gather here in one place."
   },
   "time": {
     "minutesAgo": "{{count}} min ago",
