@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSessionsStore } from "../../store/sessions";
 import { useSessionMetaStore } from "../../store/session-meta";
 import { useSessionSearchStore } from "../../store/session-search";
+import { computeRange, type RangePreset } from "../report/report-range";
 import { SessionCard } from "./SessionCard";
 import { PromoteToProjectDialog } from "../board/PromoteToProjectDialog";
 import { AskPane } from "./AskPane";
@@ -89,6 +90,12 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
   const [showHidden, setShowHidden] = useState(false);
   // provider 筛选：多选 toggle 集合。空集=全部（不过滤）；否则仅显示所选 provider。
   const [providerFilter, setProviderFilter] = useState<Set<string>>(new Set());
+  // 时间范围过滤：会话唯一入口是关键词搜，忘词即滚不到底=等于丢；加按 updated_at 收窄的第二检索轴。
+  const [timeChip, setTimeChip] = useState<"all" | RangePreset>("all");
+  const timeRange = useMemo(
+    () => (timeChip === "all" ? null : computeRange(timeChip, new Date())),
+    [timeChip],
+  );
   const toggleProvider = (p: string) =>
     setProviderFilter((prev) => {
       const next = new Set(prev);
@@ -110,8 +117,11 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
     () => (s: Session) =>
       (showHidden || !hidden.has(s.session_id)) &&
       (!favOnly || favorites.has(s.session_id)) &&
-      (providerFilter.size === 0 || providerFilter.has(s.provider)),
-    [showHidden, hidden, favOnly, favorites, providerFilter],
+      (providerFilter.size === 0 || providerFilter.has(s.provider)) &&
+      (!timeRange ||
+        (Date.parse(s.updated_at) >= timeRange.sinceMs &&
+          Date.parse(s.updated_at) <= timeRange.untilMs)),
+    [showHidden, hidden, favOnly, favorites, providerFilter, timeRange],
   );
   const shownResults = useMemo(
     () => results.filter((s) => keep(s)),
@@ -310,6 +320,36 @@ export function SessionListView({ selectedId, onSelect }: SessionListViewProps) 
           })}
         </div>
       )}
+
+      {/* 时间范围过滤 chips：按 updated_at 收窄，配合关键词搜作第二检索轴（忘词也能翻旧账） */}
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+        {(
+          [
+            ["all", t("list.timeAll")],
+            ["this-week", t("list.timeThisWeek")],
+            ["last-week", t("list.timeLastWeek")],
+            ["last-30", t("list.timeLast30")],
+          ] as const
+        ).map(([key, label]) => {
+          const active = timeChip === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTimeChip(key)}
+              aria-pressed={active}
+              className={[
+                "inline-flex items-center rounded-full border px-2 py-0.5 text-xs transition-colors",
+                active
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-accent/50",
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
 
       {/* 批量选择工具栏 */}
       {selectMode && (
