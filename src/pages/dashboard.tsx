@@ -198,60 +198,66 @@ export default function Dashboard() {
           )}
         </Panel>
 
-        {/* 近期截止任务 */}
-        <Panel title={t("dashboard.panelRecentDue")} onMore={() => navigate("/board")}>
-          {!loaded ? (
-            <PanelSkeleton />
-          ) : upcomingTasks.length === 0 ? (
-            <Empty text={t("dashboard.panelEmptyDue")} />
-          ) : (
-            upcomingTasks.map((task) => (
-              <Row
-                key={task.id}
-                onClick={() => navigate(workspaceRecordUrl("board", task.project))}
-                title={task.title}
-                meta={fmtDay(task.due_date)}
-              />
-            ))
-          )}
-        </Panel>
+        {/* 近期截止任务：无数据时折叠成一行入口（恒空面板本身是缺陷；多数任务不设截止） */}
+        {loaded && upcomingTasks.length === 0 ? (
+          <CollapsedPanel title={t("dashboard.panelRecentDue")} hint={t("dashboard.collapsedBoard")} onClick={() => navigate("/board")} />
+        ) : (
+          <Panel title={t("dashboard.panelRecentDue")} onMore={() => navigate("/board")}>
+            {!loaded ? (
+              <PanelSkeleton />
+            ) : (
+              upcomingTasks.map((task) => (
+                <Row
+                  key={task.id}
+                  onClick={() => navigate(workspaceRecordUrl("board", task.project))}
+                  title={task.title}
+                  meta={fmtDay(task.due_date)}
+                />
+              ))
+            )}
+          </Panel>
+        )}
 
         {/* 近期事件 */}
-        <Panel title={t("dashboard.panelRecentEvents")} onMore={() => navigate("/calendar")}>
-          {!loaded ? (
-            <PanelSkeleton />
-          ) : upcomingEvents.length === 0 ? (
-            <Empty text={t("dashboard.panelEmptyEvents")} />
-          ) : (
-            upcomingEvents.map((e) => (
-              <Row
-                key={e.id}
-                onClick={() => navigate("/calendar")}
-                title={e.title}
-                meta={fmtDay(e.start)}
-                dot={e.color || "var(--color-primary)"}
-              />
-            ))
-          )}
-        </Panel>
+        {loaded && upcomingEvents.length === 0 ? (
+          <CollapsedPanel title={t("dashboard.panelRecentEvents")} hint={t("dashboard.collapsedCalendar")} onClick={() => navigate("/calendar")} />
+        ) : (
+          <Panel title={t("dashboard.panelRecentEvents")} onMore={() => navigate("/calendar")}>
+            {!loaded ? (
+              <PanelSkeleton />
+            ) : (
+              upcomingEvents.map((e) => (
+                <Row
+                  key={e.id}
+                  onClick={() => navigate("/calendar")}
+                  title={e.title}
+                  meta={fmtDay(e.start)}
+                  dot={e.color || "var(--color-primary)"}
+                />
+              ))
+            )}
+          </Panel>
+        )}
 
         {/* 阅读队列 */}
-        <Panel title={t("dashboard.panelReadingQueue")} onMore={() => navigate("/reading")}>
-          {!loaded ? (
-            <PanelSkeleton />
-          ) : readingQueue.length === 0 ? (
-            <Empty text={t("dashboard.panelEmptyReading")} />
-          ) : (
-            readingQueue.map((r) => (
-              <Row
-                key={r.id}
-                onClick={() => navigate("/reading")}
-                title={r.title}
-                meta={r.status === "unread" ? t("dashboard.statusUnread") : t("dashboard.statusReading")}
-              />
-            ))
-          )}
-        </Panel>
+        {loaded && readingQueue.length === 0 ? (
+          <CollapsedPanel title={t("dashboard.panelReadingQueue")} hint={t("dashboard.collapsedReading")} onClick={() => navigate("/reading")} />
+        ) : (
+          <Panel title={t("dashboard.panelReadingQueue")} onMore={() => navigate("/reading")}>
+            {!loaded ? (
+              <PanelSkeleton />
+            ) : (
+              readingQueue.map((r) => (
+                <Row
+                  key={r.id}
+                  onClick={() => navigate("/reading")}
+                  title={r.title}
+                  meta={r.status === "unread" ? t("dashboard.statusUnread") : t("dashboard.statusReading")}
+                />
+              ))
+            )}
+          </Panel>
+        )}
       </div>
     </div>
   );
@@ -373,4 +379,26 @@ function Row({
 
 function Empty({ text }: { text: string }) {
   return <p className="py-6 text-center text-xs text-muted-foreground">{text}</p>;
+}
+
+/** 折叠面板：某原生面板无数据时收成一行入口（标题 + 引导 CTA），不占满格空白。 */
+function CollapsedPanel({
+  title,
+  hint,
+  onClick,
+}: {
+  title: string;
+  hint: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center justify-between gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-left transition-colors hover:bg-accent/40 ${focusRing}`}
+    >
+      <span className="text-sm font-medium text-muted-foreground">{title}</span>
+      <span className="shrink-0 text-xs text-muted-foreground">{hint} →</span>
+    </button>
+  );
 }
