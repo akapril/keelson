@@ -178,16 +178,59 @@ pub fn commit_worktree(worktree: &Path, task_id: &str) -> Result<()> {
     Ok(())
 }
 
+/// merge_branch 的结果：合并成功 / 真冲突。冲突不再当作 Err（那是「安全守卫生效」而非故障），
+/// 而是携带可操作信息（分支名 / worktree 路径 / 冲突文件）让 UI 给人一条解决出路。
+pub enum MergeOutcome {
+    /// 合并成功。sha=merge commit 短 sha（供 UI 显示 + `git revert -m 1 <sha>` 回退提示）。
+    /// stash_warning=自动 stash 的改动 pop 失败时的警告（改动仍安全在 stash 里）。
+    Merged {
+        sha: String,
+        stash_warning: Option<String>,
+    },
+    /// 与 base 真冲突：已回滚、未动主工作区。branch/worktree 保留供人工解决后重试。
+    Conflict {
+        branch: String,
+        worktree: String,
+        files: Vec<String>,
+        stash_warning: Option<String>,
+    },
+}
+
+/// 合并收尾：切回用户原分支 + pop 自动 stash（若之前 stash 过）。
+/// 切回失败不致命（吞掉），pop 失败返回警告文案——你的改动仍安全在 stash 里、可手动 pop。
+fn restore_after_merge(
+    repo: &Path,
+    orig: &Option<String>,
+    base_branch: &str,
+    stashed: bool,
+) -> Option<String> {
+    if let Some(o) = orig {
+        if o != base_branch {
+            let _ = git(repo, &["checkout", o]);
+        }
+    }
+    if stashed {
+        if let Err(e) = git(repo, &["stash", "pop"]) {
+            return Some(format!(
+                "你合并前的未提交改动恢复失败，仍在 git stash 中（可手动 `git stash pop`）：{e}"
+            ));
+        }
+    }
+    None
+}
+
 /// 把 agent 分支合并回指定 base 分支：commit 工作树改动 → 切 base → merge → 切回用户原分支 → 清理。
 /// 仅在人点「合并」时调用。绝不自动调用。
 /// base_branch 必须传入建 worktree 时持久化的值，禁止在此处再次求值（防止漂移）。
-/// 成功返回 merge commit 的短 sha（供 UI 显示 + `git revert -m 1 <sha>` 回退提示）。
-pub fn merge_branch(repo: &Path, task_id: &str, base_branch: &str) -> Result<String> {
+/// 主工作区若有未提交改动，自动 stash（含未跟踪）→ 合并 → pop 还原，免逼用户先提交无关改动。
+pub fn merge_branch(repo: &Path, task_id: &str, base_branch: &str) -> Result<MergeOutcome> {
     let wt = worktree_path(repo, task_id);
     let branch = branch_name(task_id);
-    // 主工作区必须干净，否则 checkout 会失败或丢失改动
-    if !git(repo, &["status", "--porcelain"])?.trim().is_empty() {
-        return Err(anyhow!("主工作区有未提交改动，请先提交或暂存后再合并"));
+    // 主工作区有未提交改动时自动 stash（-u 含未跟踪），合并后由 restore_after_merge 还原。
+    // 这样 checkout base 有干净工作区、不会失败/丢改动，同时不再逼用户先提交无关改动。
+    let stashed = !git(repo, &["status", "--porcelain"])?.trim().is_empty();
+    if stashed {
+        git(repo, &["stash", "push", "-u", "-m", "keelson-agent-merge-autostash"])?;
     }
     // 记住用户当前所在分支，合并后切回（分离头状态则为 None）
     let orig = git(repo, &["symbolic-ref", "--short", "HEAD"])
@@ -211,29 +254,38 @@ pub fn merge_branch(repo: &Path, task_id: &str, base_branch: &str) -> Result<Str
             &branch,
         ],
     );
-    // 冲突/失败兜底：绝不把主工作区留在 base 的半合并态。abort 合并 → 切回用户原分支 →
-    // 保留 agent 分支与 worktree 供人工处理，返回明确中文错误。
-    if let Err(e) = merge_res {
+    // 冲突/失败兜底：绝不把主工作区留在 base 的半合并态。先在 abort 前抓冲突文件清单，
+    // 再 abort → 切回原分支 + pop stash → 保留 agent 分支与 worktree，返回结构化 Conflict。
+    if merge_res.is_err() {
+        // 冲突文件（未合并 U 状态）——必须在 abort 之前采集，否则信息丢失
+        let files = git(repo, &["diff", "--name-only", "--diff-filter=U"])
+            .map(|s| {
+                s.lines()
+                    .map(|l| l.trim().to_string())
+                    .filter(|l| !l.is_empty())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         let _ = git(repo, &["merge", "--abort"]);
-        if let Some(o) = &orig {
-            let _ = git(repo, &["checkout", o]);
-        }
-        return Err(anyhow!(
-            "与 {base_branch} 合并冲突，已回滚、未改动你的工作区；agent 分支 {branch} 与其 worktree 已保留，请手动处理该分支。原始错误：{e}"
-        ));
+        let stash_warning = restore_after_merge(repo, &orig, base_branch, stashed);
+        return Ok(MergeOutcome::Conflict {
+            branch,
+            worktree: wt.to_string_lossy().into_owned(),
+            files,
+            stash_warning,
+        });
     }
     // 合并成功：此刻仍在 base 上、HEAD = merge commit，捕获其短 sha 供 UI 显示 + 回退提示。
     let merge_sha = git(repo, &["rev-parse", "--short", "HEAD"])
         .map(|s| s.trim().to_string())
         .unwrap_or_default();
-    // 切回用户原分支（仅当原分支与 base 不同时才切，避免多余操作）
-    if let Some(o) = &orig {
-        if o != base_branch {
-            git(repo, &["checkout", o])?;
-        }
-    }
+    // 切回用户原分支 + pop 自动 stash
+    let stash_warning = restore_after_merge(repo, &orig, base_branch, stashed);
     remove_worktree(repo, task_id)?;
-    Ok(merge_sha)
+    Ok(MergeOutcome::Merged {
+        sha: merge_sha,
+        stash_warning,
+    })
 }
 
 /// 移除 worktree + 删 agent 分支（合并后 or 打回时清理）。
@@ -405,38 +457,39 @@ mod tests {
         assert_eq!(head, base, "合并后主仓库 HEAD 应仍在原分支 {base}");
     }
 
-    /// 用例2（C1 修复验证）：主工作区有未提交改动时，merge_branch 必须返回 Err。
+    /// 用例2（自动 stash 行为）：主工作区有未提交改动时，merge_branch 不再拒绝，
+    /// 而是自动 stash → 合并 → pop 还原，合并成功且用户的未提交改动被完整恢复。
     #[test]
-    fn merge_refuses_when_main_worktree_dirty() {
+    fn merge_autostashes_dirty_main_worktree() {
         let repo = setup_repo("dirty");
         let _guard = TmpGuard(repo.clone());
 
-        // 建 worktree 并在 worktree 里制造改动
+        // 建 worktree 并在 worktree 里制造改动（agent 新增 feature.txt，与主工作区不冲突）
         let (wt, base) = add_worktree(&repo, "t1").expect("add_worktree 失败");
         std::fs::write(wt.join("feature.txt"), "agent work").expect("写 feature.txt 失败");
 
-        // 在**主仓库**工作区制造未提交改动（不 stage，不 commit）
+        // 在**主仓库**工作区制造未提交改动（未跟踪文件，不 stage、不 commit）
         let dirty_file = repo.join("dirty.txt");
         std::fs::write(&dirty_file, "dirty main workspace").expect("写 dirty.txt 失败");
 
-        // merge_branch 应因主工作区脏而返回 Err
-        let result = merge_branch(&repo, "t1", &base);
+        // merge_branch 应自动 stash 后成功合并（返回 Merged）
+        let outcome = merge_branch(&repo, "t1", &base).expect("merge_branch 应成功");
         assert!(
-            result.is_err(),
-            "主工作区脏时 merge_branch 应返回 Err，实际返回 Ok"
+            matches!(outcome, MergeOutcome::Merged { .. }),
+            "脏工区自动 stash 后应返回 Merged"
         );
 
-        // 验证：失败后主仓库的未提交改动应仍然存在（merge 没有破坏工作区）
-        assert!(
-            dirty_file.exists(),
-            "merge 失败后，主仓库 dirty.txt 应仍存在"
-        );
-        // 验证：dirty.txt 仍未提交（在 status 中可见）
+        // 验证：合并成功——base 上有 agent 的 feature.txt
+        let show_out = g(&repo, &["show", &format!("{}:feature.txt", base)]);
+        assert!(show_out.status.success(), "base 上应能看到 feature.txt");
+
+        // 验证：用户合并前的未提交改动已被 pop 还原（dirty.txt 仍在且仍未提交）
+        assert!(dirty_file.exists(), "自动 stash pop 后 dirty.txt 应仍存在");
         let status_out = g(&repo, &["status", "--porcelain"]);
         let status_str = String::from_utf8_lossy(&status_out.stdout).to_string();
         assert!(
             status_str.contains("dirty.txt"),
-            "merge 失败后 dirty.txt 应仍在未提交状态"
+            "pop 还原后 dirty.txt 应仍在未提交状态，实际 status: {status_str}"
         );
     }
 
@@ -607,9 +660,18 @@ mod tests {
             String::from_utf8_lossy(&o.stdout).trim().to_string()
         };
 
-        // 合并应因冲突返回 Err
-        let r = merge_branch(&repo, "t1", &base);
-        assert!(r.is_err(), "冲突时 merge_branch 应返回 Err");
+        // 合并应识别为真冲突：返回 Ok(Conflict) 而非 Err，并带上冲突文件清单
+        let outcome = merge_branch(&repo, "t1", &base).expect("冲突不应作为 Err，而应返回 Conflict");
+        match outcome {
+            MergeOutcome::Conflict { files, branch, .. } => {
+                assert!(
+                    files.iter().any(|f| f == "init.txt"),
+                    "冲突文件清单应包含 init.txt，实际: {files:?}"
+                );
+                assert_eq!(branch, "agent/task-t1", "冲突结果应带回 agent 分支名");
+            }
+            MergeOutcome::Merged { .. } => panic!("同文件双改应冲突，而非合并成功"),
+        }
 
         // 不应留在半合并态（MERGE_HEAD 已被 abort 清除）
         assert!(

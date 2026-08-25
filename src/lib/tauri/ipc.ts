@@ -22,6 +22,20 @@ export interface MdFile {
 }
 
 /**
+ * agent 合并结果：成功(merged) 或真冲突(conflict)。
+ * 冲突时携带可操作信息（分支/worktree路径/base/冲突文件），供 UI 给出解决出路。
+ */
+export interface MergeResult {
+  kind: "merged" | "conflict";
+  sha: string | null;
+  branch: string | null;
+  worktree: string | null;
+  base: string | null;
+  files: string[];
+  warning: string | null;
+}
+
+/**
  * 双通道内部 helper：
  * - Tauri 环境：直接调 invoke<T>(cmd, args)（原生 IPC）。
  * - Web 环境：POST /api/<cmd>，携带 credentials: "same-origin"（复用 kln_token cookie）。
@@ -366,8 +380,8 @@ export const ipc = {
     return call<string>("agent_run_task", { taskId, agentRef, onEvent: ch });
   },
 
-  /** 将指定 Agent 运行结果合并进主分支（审核通过后调用）。返回 merge commit 短 sha（供回退提示）。 */
-  agentMergeRun: (runId: string) => call<string>("agent_merge_run", { runId }),
+  /** 将指定 Agent 运行结果合并进主分支（审核通过后调用）。返回 MergeResult：成功带 sha，冲突带可操作信息。 */
+  agentMergeRun: (runId: string) => call<MergeResult>("agent_merge_run", { runId }),
 
   /** 只读取指定 Agent 运行的完整改动 patch（供审阅步骤展示；无副作用）。 */
   agentRunDiff: (runId: string) => call<string>("agent_run_diff", { runId }),

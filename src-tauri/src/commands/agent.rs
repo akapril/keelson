@@ -68,12 +68,33 @@ pub async fn agent_run_task(
     Ok(run_id)
 }
 
-/// 合并某 run 的 agent 分支到主分支（人工触发；成功后 run.status = merged）。
+/// 合并结果 DTO（回传前端）：kind="merged" 带 sha；kind="conflict" 带分支/worktree/冲突文件，
+/// 供 UI 给出「打开 worktree 目录 + 解决命令」的可操作出路。base=解决冲突时用的 rebase 目标分支。
+#[derive(Serialize)]
+pub struct MergeResultDto {
+    /// "merged" | "conflict"
+    pub kind: String,
+    /// 合并成功时的 merge commit 短 sha
+    pub sha: Option<String>,
+    /// 冲突时保留的 agent 分支名
+    pub branch: Option<String>,
+    /// 冲突时保留的 worktree 绝对路径（供「打开目录」）
+    pub worktree: Option<String>,
+    /// 冲突时的 base 分支名（供解决命令 `git rebase <base>`）
+    pub base: Option<String>,
+    /// 冲突文件清单
+    pub files: Vec<String>,
+    /// 自动 stash 的改动 pop 失败警告（改动仍安全在 stash 里）
+    pub warning: Option<String>,
+}
+
+/// 合并某 run 的 agent 分支到主分支（人工触发）。
+/// 成功 → run.status=merged + 返回 sha；真冲突 → run 保持 review 态供解决后重试 + 返回可操作信息。
 #[tauri::command]
 pub async fn agent_merge_run(
     run_id: String,
     state: State<'_, AppState>,
-) -> Result<String, String> {
+) -> Result<MergeResultDto, String> {
     let (client, _) = make_client(&state)?;
     // executor_get_run 返回 (task_id, repo_path, base_branch)，base_branch 为建时持久化的值
     let (task_id, repo, base_branch) =
@@ -82,15 +103,44 @@ pub async fn agent_merge_run(
     if base_branch.trim().is_empty() {
         return Err("agent_run 缺少 base_branch，无法安全合并（请重新派发 agent）".into());
     }
-    // 合并 worktree 分支到持久化的 base 分支，合并后切回用户原分支；返回 merge commit 短 sha
-    let merge_sha = crate::agent::worktree::merge_branch(Path::new(&repo), &task_id, &base_branch)
+    // 合并 worktree 分支到持久化的 base 分支：脏工区自动 stash、冲突安全回滚
+    let outcome = crate::agent::worktree::merge_branch(Path::new(&repo), &task_id, &base_branch)
         .map_err(|e| e.to_string())?;
-    // 更新 run 状态为 merged
-    client
-        .patch("agent_runs", &run_id, &json!({ "status": "merged" }))
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(merge_sha)
+    match outcome {
+        crate::agent::worktree::MergeOutcome::Merged { sha, stash_warning } => {
+            // 合并成功：更新 run 状态为 merged
+            client
+                .patch("agent_runs", &run_id, &json!({ "status": "merged" }))
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(MergeResultDto {
+                kind: "merged".into(),
+                sha: Some(sha),
+                branch: None,
+                worktree: None,
+                base: None,
+                files: vec![],
+                warning: stash_warning,
+            })
+        }
+        crate::agent::worktree::MergeOutcome::Conflict {
+            branch,
+            worktree,
+            files,
+            stash_warning,
+        } => {
+            // 真冲突：run 保持 review 态（不改状态），供人解决冲突后重新点合并
+            Ok(MergeResultDto {
+                kind: "conflict".into(),
+                sha: None,
+                branch: Some(branch),
+                worktree: Some(worktree),
+                base: Some(base_branch),
+                files,
+                warning: stash_warning,
+            })
+        }
+    }
 }
 
 /// 只读：取某 run 的完整改动 patch（供审阅步骤展示）。

@@ -21,17 +21,43 @@ export interface RedispatchOptions {
 export function useAgentRunActions(onDone?: () => void) {
   const [busy, setBusy] = useState(false);
 
-  /** 合并 run（review 态）：agentMergeRun → toast → onDone */
+  /** 合并 run（review 态）：agentMergeRun → 按结果分流（成功 toast / 冲突给可操作出口）→ onDone */
   const merge = async (run: AgentRun) => {
     if (busy) return;
     setBusy(true);
     try {
-      const sha = await ipc.agentMergeRun(run.id);
-      // 带 merge commit 短 sha + 回退提示：动了主干反而该有反悔余地（git-native 用户拿 sha 即可 revert）
+      const res = await ipc.agentMergeRun(run.id);
+      // 自动 stash 的改动 pop 失败：无论成功/冲突都单独警告一次（改动仍安全在 stash 里）
+      if (res.warning) toast.warning(res.warning, { duration: 10000 });
+
+      if (res.kind === "conflict") {
+        // 真冲突不是故障：已安全回滚、未动主干。给一条可操作出路而非甩「请手动处理」。
+        const shown = res.files.slice(0, 6).join("、");
+        const fileHint = res.files.length
+          ? `${shown}${res.files.length > 6 ? ` 等 ${res.files.length} 个文件` : ""}`
+          : "若干文件";
+        // 解决办法：进隔离 worktree rebase 到 base、解决后回来重点合并（主干全程未动）
+        const steps = res.base
+          ? `进入 worktree 执行 git rebase ${res.base}，解决冲突后回来重新点合并`
+          : "进入 worktree 解决冲突后回来重新点合并";
+        toast.error(`与主分支冲突：${fileHint}`, {
+          description: `已安全回滚、未改动主分支。agent 分支 ${res.branch ?? ""} 已保留。${steps}。`,
+          duration: 14000,
+          action: res.worktree
+            ? {
+                label: "打开 worktree 目录",
+                onClick: () => void ipc.openPath(res.worktree as string),
+              }
+            : undefined,
+        });
+        // 不 onDone：run 保持 review 态，让用户解决后重试合并
+        return;
+      }
+
+      // 合并成功：带 merge commit 短 sha + 回退提示（动了主干该有反悔余地，git-native 用户拿 sha 即可 revert）
+      const sha = res.sha;
       toast.success(
-        sha
-          ? `已合并进主分支（${sha}）`
-          : "已将 Agent 结果合并进主分支",
+        sha ? `已合并进主分支（${sha}）` : "已将 Agent 结果合并进主分支",
         sha ? { description: `如需回退：git revert -m 1 ${sha}`, duration: 8000 } : undefined,
       );
       onDone?.();
