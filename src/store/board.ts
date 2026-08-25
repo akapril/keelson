@@ -333,11 +333,20 @@ export const useBoardStore = create<BoardStoreState>((set, get) => ({
       data.source_provider = input.source_provider;
     if (input.source_anchor != null) data.source_anchor = input.source_anchor;
 
-    const created = await createRecord<BoardTask>(COL.boardTasks, data);
-    // 按 id upsert 去重：PB 实时 create 事件可能在 await 期间已插入同一条，
-    // 避免本地再追加一次造成重复显示。
-    set((s) => ({ tasks: upsertById(s.tasks, created) }));
-    return created;
+    // 乐观插卡：立刻可见（连录时下一条也能看到它、算对 rank），后台落库后用真实记录替换。
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const optimistic = { ...data, id: tempId, labels: input.labels ?? [] } as unknown as BoardTask;
+    set((s) => ({ tasks: [...s.tasks, optimistic] }));
+    try {
+      const created = await createRecord<BoardTask>(COL.boardTasks, data);
+      // 移除临时卡 + upsert 真实记录（PB 实时 create 事件可能已插入同一条，upsert 去重）
+      set((s) => ({ tasks: upsertById(s.tasks.filter((t) => t.id !== tempId), created) }));
+      return created;
+    } catch (e) {
+      // 失败回滚：移除临时卡（不吞错，调用点 toast）
+      set((s) => ({ tasks: s.tasks.filter((t) => t.id !== tempId), error: String(e) }));
+      throw e;
+    }
   },
 
   // ── 导入计划任务为卡片（幂等） ───────────────────────────

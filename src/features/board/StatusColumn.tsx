@@ -47,20 +47,16 @@ function QuickAdd({
   const { t } = useTranslation("board");
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const submit = async () => {
+  // 非阻塞提交：回车瞬间清空+保留焦点，onAdd 甩到后台（乐观插卡在 store 内，失败由调用点 toast）。
+  // 不再 await/disable → 连续快录如流水，不一顿一顿。
+  const submit = () => {
     const v = title.trim();
-    if (!v || busy) return;
-    setBusy(true);
-    try {
-      await onAdd(stateId, v);
-      setTitle(""); // 清空续输，保留焦点
-      inputRef.current?.focus();
-    } finally {
-      setBusy(false);
-    }
+    if (!v) return;
+    setTitle("");
+    inputRef.current?.focus();
+    void onAdd(stateId, v);
   };
 
   if (!open) {
@@ -81,7 +77,6 @@ function QuickAdd({
       ref={inputRef}
       autoFocus
       value={title}
-      disabled={busy}
       onChange={(e) => setTitle(e.target.value)}
       onKeyDown={(e) => {
         // Enter 提交（避开中文输入法组合态）；Esc 收起
