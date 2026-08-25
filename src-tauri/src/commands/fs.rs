@@ -53,8 +53,11 @@ pub fn open_path(path: String) -> Result<(), String> {
     // 各平台对应的文件管理器打开命令
     #[cfg(target_os = "windows")]
     let mut cmd = {
+        // Windows explorer 只认反斜杠：正斜杠路径会静默失败（不报错也不打开）。
+        // worktree 等路径可能带正斜杠(来自 PB 存储的 repo_path)，此处归一后再传。
+        let win_path = path.replace('/', "\\");
         let mut c = Command::new("explorer");
-        c.arg(&path);
+        c.arg(&win_path);
         c
     };
     #[cfg(target_os = "macos")]
