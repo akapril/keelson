@@ -26,6 +26,7 @@
     "sourceSessionTitle": "Source session: {{id}}",
     "sourceSessionCliTitle": "CLI-synced task, source session: {{id}}",
     "addTask": "+ Add task",
+    "quickAddHint": "↵ adds next · Esc to close",
     "titleRequired": "Task title cannot be empty",
     "noOpenProject": "No project is open",
     "toast": {

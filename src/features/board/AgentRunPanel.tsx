@@ -262,12 +262,13 @@ export function AgentRunPanel({
 
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <SheetContent side="right" className="flex w-[480px] max-w-full flex-col gap-0 sm:max-w-[520px]">
+      <SheetContent side="right" className="flex w-[640px] max-w-full flex-col gap-0 sm:max-w-[640px]">
         <SheetHeader className="shrink-0 border-b pb-4">
           <SheetTitle className="text-base">Agent 运行详情</SheetTitle>
         </SheetHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-4">
+        {/* 横向补 px-6（原先 body 无横向内边距致内容贴边）+ 区块间距 gap-5，观感更透气 */}
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 py-5">
           {/* 加载态 */}
           {loading && (
             <p className="text-sm text-muted-foreground">加载中…</p>

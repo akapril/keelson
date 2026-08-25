@@ -73,28 +73,32 @@ function QuickAdd({
   }
 
   return (
-    <input
-      ref={inputRef}
-      autoFocus
-      value={title}
-      onChange={(e) => setTitle(e.target.value)}
-      onKeyDown={(e) => {
-        // Enter 提交（避开中文输入法组合态）；Esc 收起
-        if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-          e.preventDefault();
-          void submit();
-        } else if (e.key === "Escape") {
-          setTitle("");
-          setOpen(false);
-        }
-      }}
-      // 失焦且无输入才收起（有内容时保留，避免误触丢失）
-      onBlur={() => {
-        if (!title.trim()) setOpen(false);
-      }}
-      placeholder={t("sheet.titlePlaceholder")}
-      className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-    />
+    <div className="mt-1 flex flex-col gap-0.5">
+      <input
+        ref={inputRef}
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          // Enter 提交（避开中文输入法组合态）；Esc 收起
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            void submit();
+          } else if (e.key === "Escape") {
+            setTitle("");
+            setOpen(false);
+          }
+        }}
+        // 失焦且无输入才收起（有内容时保留，避免误触丢失）
+        onBlur={() => {
+          if (!title.trim()) setOpen(false);
+        }}
+        placeholder={t("sheet.titlePlaceholder")}
+        className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+      />
+      {/* 淡提示：让「回车后继续录入」这个行为可发现——想停按 Esc，不至于突兀 */}
+      <span className="px-1 text-2xs text-muted-foreground">{t("task.quickAddHint")}</span>
+    </div>
   );
 }
 

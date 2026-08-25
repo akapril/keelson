@@ -26,6 +26,7 @@
     "sourceSessionTitle": "来源会话：{{id}}",
     "sourceSessionCliTitle": "CLI 同步任务，来源会话：{{id}}",
     "addTask": "+ 添加任务",
+    "quickAddHint": "↵ 添加下一个 · Esc 关闭",
     "titleRequired": "任务标题不能为空",
     "noOpenProject": "尚未打开任何项目",
     "toast": {
