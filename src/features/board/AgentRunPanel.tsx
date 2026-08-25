@@ -16,16 +16,24 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { statusTone } from "@/lib/status-tone";
 import { cn } from "@/lib/utils";
 
-// ── 状态徽标样式映射（提升到模块顶层，避免组件每次渲染重建对象）────────────────────
+// ── 状态徽标样式映射（走 statusTone 单一色调，与看板卡片状态徽标同源，不再内联色）───────
 const RUN_STATUS_BADGE: Record<AgentRunStatus, { label: string; cls: string }> = {
-  running: { label: "执行中", cls: "bg-blue-500/15 text-blue-700 dark:text-blue-400" },
-  review:  { label: "待审",   cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
-  blocked: { label: "受阻",   cls: "bg-red-500/15 text-red-700 dark:text-red-400" },
-  merged:  { label: "已合并", cls: "bg-green-500/15 text-green-700 dark:text-green-400" },
-  discarded: { label: "已打回", cls: "bg-muted text-muted-foreground" },
+  running: { label: "执行中", cls: statusTone("info").chip },
+  review:  { label: "待审",   cls: statusTone("warning").chip },
+  blocked: { label: "受阻",   cls: statusTone("danger").chip },
+  merged:  { label: "已合并", cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+  discarded: { label: "已打回", cls: statusTone("neutral").chip },
 };
+
+/** 已耗时格式化：秒级差 → "Xm Ys" / "Ys"（供 running run 计时展示）。 */
+function fmtElapsed(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+}
 
 // ── Props ────────────────────────────────────────────────────────────────────
 interface AgentRunPanelProps {
@@ -102,6 +110,15 @@ export function AgentRunPanel({
     },
     [onRefresh],
   );
+
+  // running 态每秒滴答，用于「已执行 Xm Ys」计时——打消「卡了没」的疑虑，是在途可见性的一环
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    if (run?.status !== "running") return;
+    setNowTs(Date.now());
+    const id = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [run?.status]);
 
   // 决策动作 hook（合并/打回/重派）：成功后刷新徽标并关闭面板
   const { busy, merge, discard, redispatch } = useAgentRunActions(() => {
@@ -264,42 +281,35 @@ export function AgentRunPanel({
           {/* run 详情 */}
           {!loading && run && (
             <>
-              {/* 基础信息行 */}
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                {/* S2：优先显示命名队友名称，找不到则回退 providerLabel */}
-                {(() => {
-                  const agentProfile = run.agent
-                    ? agents.find((a) => a.id === run.agent) ?? null
-                    : null;
-                  if (agentProfile) {
-                    return (
-                      <span className="font-medium">
-                        {agentProfile.emoji ? `${agentProfile.emoji} ` : ""}{agentProfile.name}
-                      </span>
-                    );
-                  }
-                  return <span className="font-medium">{providerLabel(run.provider)}</span>;
-                })()}
-
-                {/* 状态徽标 */}
-                {badge && (
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-xs font-medium",
-                      badge.cls,
+              {/* 头部：队友名(突出) + 状态徽标 一行；下面一行元信息(开始时间 · 已耗时) */}
+              {(() => {
+                const agentProfile = run.agent
+                  ? agents.find((a) => a.id === run.agent) ?? null
+                  : null;
+                const name = agentProfile
+                  ? `${agentProfile.emoji ? `${agentProfile.emoji} ` : ""}${agentProfile.name}`
+                  : providerLabel(run.provider);
+                return (
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-foreground">{name}</span>
+                      {badge && (
+                        <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", badge.cls)}>
+                          {badge.label}
+                        </span>
+                      )}
+                    </div>
+                    {run.started && (
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>{new Date(run.started).toLocaleString()}</span>
+                        {run.status === "running" && (
+                          <span className="tabular-nums">· 已执行 {fmtElapsed(nowTs - Date.parse(run.started))}</span>
+                        )}
+                      </div>
                     )}
-                  >
-                    {badge.label}
-                  </span>
-                )}
-
-                {/* 开始时间 */}
-                {run.started && (
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(run.started).toLocaleString()}
-                  </span>
-                )}
-              </div>
+                  </div>
+                );
+              })()}
 
               {/* diff_stat（有变更时显示） */}
               {run.diff_stat && (
