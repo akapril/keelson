@@ -287,10 +287,24 @@ async fn poll_once(app: &tauri::AppHandle) -> Result<(), String> {
         let app2 = app.clone();
         let task_id = t.task_id.clone();
         let agent_ref = t.agent_ref.clone();
+        let app_log = app2.clone();
+        let task_log = task_id.clone();
         tauri::async_runtime::spawn(async move {
-            // 复用执行内核；传 agent_ref（agent_id 优先，否则 provider 回退）
+            // 复用执行内核；传 agent_ref（agent_id 优先，否则 provider 回退）。
+            // 关键修复：此前 |_piece|{} 把日志全丢了 → worker/MCP 派发的 run 在面板上永久
+            // 显示「执行中，等待输出…」(实质在撒谎)。改为 emit 全局 agent-run-log 事件，
+            // 前端全局桥接 append 到日志 store，让在途 run 真的看得见。
             let _ = crate::agent::executor::execute_task_with_agent(
-                &client2, &owner2, &task_id, &agent_ref, |_piece| {},
+                &client2,
+                &owner2,
+                &task_id,
+                &agent_ref,
+                move |piece| {
+                    let _ = app_log.emit(
+                        "agent-run-log",
+                        json!({ "task_id": &task_log, "delta": piece }),
+                    );
+                },
             )
             .await;
             // 完成（review/blocked）后通知前端刷新该任务徽标
