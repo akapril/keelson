@@ -14,7 +14,13 @@
     "week": "周",
     "day": "日",
     "agenda": "议程",
+    "review": "回顾",
     "comingSoon": "敬请期待（即将上线）"
+  },
+  "review": {
+    "items": "项活动",
+    "byProject": "按项目",
+    "empty": "近 30 天暂无活动记录"
   },
   "agenda": {
     "today": "今天",

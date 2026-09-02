@@ -41,6 +41,7 @@ import { parseQuickLog } from "@/lib/calendar/quick-log";
 import { collectMaterial } from "@/features/report/generateReport";
 import { computeRange } from "@/features/report/report-range";
 import type { ReportMaterial } from "@/features/report/report-collect";
+import { ReviewView } from "./ReviewView";
 import type { CalendarEvent } from "@/types/calendar";
 import { listDueTasks, listProjects, updateTaskDueDate } from "@/lib/pb/board";
 import type { BoardTask, BoardProject } from "@/types/board";
@@ -91,7 +92,7 @@ function plusOneHour(hhmm: string): string {
 }
 
 // 日历视图种类
-type CalendarView = "month" | "week" | "day" | "agenda";
+type CalendarView = "month" | "week" | "day" | "agenda" | "review";
 // 视图偏好持久化的 localStorage 键
 const VIEW_STORAGE_KEY = "keelson-calendar-view";
 
@@ -99,7 +100,8 @@ const VIEW_STORAGE_KEY = "keelson-calendar-view";
 function loadInitialView(): CalendarView {
   try {
     const v = localStorage.getItem(VIEW_STORAGE_KEY);
-    if (v === "month" || v === "week" || v === "day" || v === "agenda") return v;
+    if (v === "month" || v === "week" || v === "day" || v === "agenda" || v === "review")
+      return v;
   } catch {
     /* localStorage 不可用时静默回退 */
   }
@@ -257,6 +259,9 @@ export default function CalendarPage() {
   const [projects, setProjects] = useState<BoardProject[]>([]);
   // 「今日活动」自动汇入（今天的提交/完成任务/会话，只读）——议程视图展示
   const [todayActivity, setTodayActivity] = useState<ReportMaterial | null>(null);
+  // 「回顾」视图数据（近 30 天采集，只读）
+  const [reviewMaterial, setReviewMaterial] = useState<ReportMaterial | null>(null);
+  const reviewRange = useMemo(() => computeRange("last-30", new Date()), []);
 
   // 当前浏览的月份（取任意一天即可代表该月）
   const [viewDate, setViewDate] = useState<Date>(() => new Date());
@@ -317,6 +322,20 @@ export default function CalendarPage() {
       alive = false;
     };
   }, [view]);
+
+  // 回顾视图打开时采集近 30 天活动（热力图/聚合数据源）；失败静默
+  useEffect(() => {
+    if (view !== "review") return;
+    let alive = true;
+    void collectMaterial(reviewRange, "all")
+      .then((m) => {
+        if (alive) setReviewMaterial(m);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [view, reviewRange]);
 
   // 计算网格覆盖的所有日期：从当月首日所在周的周日，到末日所在周的周六
   const days = useMemo(() => {
@@ -569,7 +588,7 @@ export default function CalendarPage() {
           </h1>
           {/* 分段视图切换：月 | 周 | 日 | 议程 */}
           <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
-            {(["month", "week", "day", "agenda"] as CalendarView[]).map((v) => (
+            {(["month", "week", "day", "agenda", "review"] as CalendarView[]).map((v) => (
               <Button
                 key={v}
                 type="button"
@@ -637,6 +656,9 @@ export default function CalendarPage() {
           activity={todayActivity}
         />
       )}
+
+      {/* 回顾视图：近 30 天活动热力图 + 类型/项目聚合 */}
+      {view === "review" && <ReviewView material={reviewMaterial} range={reviewRange} />}
 
       {/* 周视图：全天行 + 小时时间轴（Stage 3） */}
       {view === "week" && (

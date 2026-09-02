@@ -14,7 +14,13 @@
     "week": "Week",
     "day": "Day",
     "agenda": "Agenda",
+    "review": "Review",
     "comingSoon": "Coming soon"
+  },
+  "review": {
+    "items": "activities",
+    "byProject": "By project",
+    "empty": "No activity in the last 30 days"
   },
   "agenda": {
     "today": "Today",
