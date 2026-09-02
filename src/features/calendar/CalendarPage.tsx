@@ -96,7 +96,8 @@ type CalendarView = "month" | "week" | "day" | "agenda" | "review";
 // 视图偏好持久化的 localStorage 键
 const VIEW_STORAGE_KEY = "keelson-calendar-view";
 
-/** 从 localStorage 读取上次选中的视图（非法值回退 month）。 */
+/** 从 localStorage 读取上次选中的视图（非法值回退）。
+ *  无历史选择时：移动端(窄屏)默认「议程」列表（月网格在手机上太挤），桌面默认「月」。 */
 function loadInitialView(): CalendarView {
   try {
     const v = localStorage.getItem(VIEW_STORAGE_KEY);
@@ -104,6 +105,12 @@ function loadInitialView(): CalendarView {
       return v;
   } catch {
     /* localStorage 不可用时静默回退 */
+  }
+  // 未存过偏好：窄屏(<640)默认议程，宽屏默认月
+  try {
+    if (typeof window !== "undefined" && window.innerWidth < 640) return "agenda";
+  } catch {
+    /* ignore */
   }
   return "month";
 }
@@ -574,27 +581,27 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
-      {/* 头部：标题 + 视图切换 + 导航 + 新建 */}
-      <header className="mb-4 flex shrink-0 items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden p-3 sm:p-6">
+      {/* 头部：标题 + 视图切换 + 导航 + 新建。窄屏可换行、收紧间距，避免拥挤 */}
+      <header className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 sm:mb-4 sm:gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
           {/* 月/周视图显示所在月份标题（周视图跟随游标所在月）；日视图显示当日日期；其它显示视图名 */}
-          <h1 className="font-heading text-xl font-semibold text-foreground">
+          <h1 className="font-heading text-lg font-semibold text-foreground sm:text-xl">
             {view === "month" || view === "week"
               ? formatMonthTitle(viewDate)
               : view === "day"
                 ? formatDayTitle(viewDate)
                 : t(`view.${view}`)}
           </h1>
-          {/* 分段视图切换：月 | 周 | 日 | 议程 */}
-          <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
+          {/* 分段视图切换：月 | 周 | 日 | 议程 | 回顾。窄屏可横向滚动 */}
+          <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-md border border-border p-0.5">
             {(["month", "week", "day", "agenda", "review"] as CalendarView[]).map((v) => (
               <Button
                 key={v}
                 type="button"
                 size="sm"
                 variant={view === v ? "default" : "ghost"}
-                className="h-7 px-2.5 text-xs"
+                className="h-7 shrink-0 px-2.5 text-xs"
                 onClick={() => changeView(v)}
               >
                 {t(`view.${v}`)}
