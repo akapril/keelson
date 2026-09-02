@@ -18,7 +18,8 @@
     "workspace": "Workspace",
     "terminal": "Terminal",
     "notifications": "Notifications",
-    "settings": "Settings"
+    "settings": "Settings",
+    "calendar": "Calendar"
   },
   "placeholder": {
     "comingSoon": "Coming soon"

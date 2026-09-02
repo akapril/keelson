@@ -18,7 +18,8 @@
     "workspace": "工作台",
     "terminal": "终端",
     "notifications": "通知",
-    "settings": "设置"
+    "settings": "设置",
+    "calendar": "日历"
   },
   "placeholder": {
     "comingSoon": "即将推出"

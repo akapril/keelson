@@ -8,6 +8,7 @@ import { Logo } from "@/components/logo";
 import { initPbAuth } from "@/lib/pb";
 import { PairScreen } from "./PairScreen";
 import { Workbench } from "./panels/Workbench";
+import { CalendarPanel } from "./panels/CalendarPanel";
 import { Notifications } from "./panels/Notifications";
 import { Terminal } from "./panels/Terminal";
 import { Settings } from "./panels/Settings";
@@ -17,10 +18,10 @@ import type { Session } from "@/types/session";
 // 认证过期处理收口到 auth-expiry 模块（ipc/pb 收 401 时调用）；此处保留具名导出兼容既有引用。
 export const onAuthExpired = handleAuthExpired;
 
-/** 4 栏 tab 标识 */
-type TabKey = "workspace" | "terminal" | "notifications" | "settings";
+/** tab 标识 */
+type TabKey = "workspace" | "calendar" | "terminal" | "notifications" | "settings";
 
-const TABS: TabKey[] = ["workspace", "terminal", "notifications", "settings"];
+const TABS: TabKey[] = ["workspace", "calendar", "terminal", "notifications", "settings"];
 
 /** 各 tab 的 SVG 图标（内联，避免额外依赖） */
 function TabIcon({ tab, active }: { tab: TabKey; active: boolean }) {
@@ -31,6 +32,13 @@ function TabIcon({ tab, active }: { tab: TabKey; active: boolean }) {
         <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <rect x="3" y="3" width="18" height="18" rx="2" />
           <path d="M3 9h18M9 21V9" />
+        </svg>
+      );
+    case "calendar":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
         </svg>
       );
     case "terminal":
@@ -136,6 +144,9 @@ function MainLayout() {
         <main className="min-h-0 flex-1 overflow-hidden">
           <TabPane active={activeTab === "workspace"}>
             <Workbench onOpenTerminal={handleOpenTerminal} />
+          </TabPane>
+          <TabPane active={activeTab === "calendar"}>
+            <CalendarPanel />
           </TabPane>
           <TabPane active={activeTab === "terminal"}>
             {/* Task 13：接入真实终端面板，传入当前选中会话 */}
