@@ -82,6 +82,14 @@ const DEFAULT_COLOR = "#6366f1";
 // 月视图每格最多显示的事件条数；超出折叠为「+N 更多」→ 点击跳该天日视图看全部
 const MONTH_CELL_MAX_EVENTS = 3;
 
+// "HH:mm" 加一小时（跨 24 点回绕）；非法/空串返回空串。供结束时刻自动 = 开始 + 1h。
+function plusOneHour(hhmm: string): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
+  if (!m) return "";
+  const h = (parseInt(m[1], 10) + 1) % 24;
+  return `${String(h).padStart(2, "0")}:${m[2]}`;
+}
+
 // 日历视图种类
 type CalendarView = "month" | "week" | "day" | "agenda";
 // 视图偏好持久化的 localStorage 键
@@ -193,13 +201,15 @@ function initialForm(state: DialogState): FormState {
   }
   // 新建：起始日预填为点击的日期（或今天）；点时间轴空白时另带落点时刻（非全天定时事件）
   const dateStr = state.dateStr || format(new Date(), "yyyy-MM-dd");
+  // 落点时刻优先；否则预填「当前时刻」——按下新建即带上此刻，贴合「记录刚做了什么」
+  const startTime = state.startTime || format(new Date(), "HH:mm");
   return {
     title: "",
     start: dateStr,
     end: "",
-    // 落点时刻优先；否则预填「当前时刻」——按下新建即带上此刻，贴合「记录刚做了什么」
-    startTime: state.startTime || format(new Date(), "HH:mm"),
-    endTime: state.endTime || "",
+    startTime,
+    // 结束时刻默认 = 开始 + 1 小时（免手填；落点已带 endTime 则用之）
+    endTime: state.endTime || plusOneHour(startTime),
     all_day: false, // 新建默认非全天（带落点时刻时即为定时事件）
     color: DEFAULT_COLOR,
     description: "",
@@ -837,15 +847,25 @@ export default function CalendarPage() {
               e.preventDefault();
               void handleSave();
             }}
+            onKeyDown={(e) => {
+              // ⌘/Ctrl+Enter 从任意字段保存（标题是多行 Textarea，Enter 用于换行故不触发保存）
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                if (form.title.trim()) void handleSave();
+              }
+            }}
           >
-            {/* 标题（必填） */}
+            {/* 标题（必填）——多行 Textarea：可换行、承载记录内容；⌘/Ctrl+Enter 保存 */}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="cal-title">{t("dialog.fieldTitle")}</Label>
-              <Input
+              <Textarea
                 id="cal-title"
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 placeholder={t("dialog.fieldTitlePlaceholder")}
+                autoFocus
+                rows={2}
+                className="resize-y"
                 required
               />
             </div>
@@ -913,7 +933,12 @@ export default function CalendarPage() {
                     type="time"
                     value={form.startTime}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, startTime: e.target.value }))
+                      setForm((f) => ({
+                        ...f,
+                        startTime: e.target.value,
+                        // 结束时刻为空时自动 = 开始 + 1h（不覆盖用户已填的结束）
+                        endTime: f.endTime || plusOneHour(e.target.value),
+                      }))
                     }
                   />
                 </div>
