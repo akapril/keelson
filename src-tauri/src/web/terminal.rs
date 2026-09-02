@@ -25,12 +25,18 @@
 //! `AppState` 上以 `Arc` 共享，供 gateway WS handler 访问。`kill` 在终止后 `wait` 收尸；
 //! `Drop for PtyRegistry` 在 registry 释放（app 退出）时清场所有残留子进程，杜绝孤儿 agent。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
+use tokio::sync::{broadcast, watch};
+
+/// 每会话输出环形缓冲上限（字节）：供刷新/重连时回放最近历史。512KB 够看最近多屏。
+const SCROLLBACK_CAP: usize = 512 * 1024;
+/// 输出广播通道容量（每订阅者滞后超过此数会 Lagged，丢中间帧但缓冲仍有历史）。
+const OUTPUT_CHANNEL_CAP: usize = 1024;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
@@ -53,6 +59,13 @@ struct PtySession {
     master: Box<dyn MasterPty + Send>,
     /// 子进程句柄：kill / 回收。`Send + Sync` 以便跨线程（WS handler）持有。
     child: Box<dyn Child + Send + Sync>,
+    /// 输出广播：常驻抽取线程把 PTY 输出发到此处，当前连着的 WS 订阅收实时字节。
+    /// 独立于 WS 生命周期——断连不影响抽取，agent 永不因 stdout 满而阻塞。
+    output_tx: broadcast::Sender<Vec<u8>>,
+    /// 输出环形缓冲（有上限）：供刷新/重连时回放最近历史，xterm 用原始字节重绘。
+    scrollback: Arc<Mutex<VecDeque<u8>>>,
+    /// 退出信号：常驻抽取线程读到 EOF（PTY 关闭）时 send(true)。WS handler watch 之以感知退出。
+    exit_tx: watch::Sender<bool>,
 }
 
 /// PTY 会话注册表：`session_id -> PtySession`。
@@ -171,11 +184,57 @@ impl PtyRegistry {
             .master
             .take_writer()
             .map_err(|e| format!("获取 PTY writer 失败: {e}"))?;
+        // 克隆只读句柄给常驻抽取线程（master 仍留会话表继续 resize）。
+        let reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|e| format!("克隆 PTY reader 失败: {e}"))?;
+
+        // 7. 输出通道：广播(实时) + 环形缓冲(回放) + 退出 watch。
+        let (output_tx, _) = broadcast::channel::<Vec<u8>>(OUTPUT_CHANNEL_CAP);
+        let scrollback = Arc::new(Mutex::new(VecDeque::<u8>::new()));
+        let (exit_tx, _exit_rx) = watch::channel(false);
+
+        // 8. 常驻抽取线程：持续 drain PTY → 环形缓冲 + 广播；EOF 置退出信号。
+        //    独立于 WS 生命周期——断连也照抽干，agent 输出不会因无人读而阻塞卡死。
+        {
+            let sb = Arc::clone(&scrollback);
+            let otx = output_tx.clone();
+            let etx = exit_tx.clone();
+            let mut reader = reader;
+            std::thread::spawn(move || {
+                let mut buf = [0u8; 4096];
+                loop {
+                    match reader.read(&mut buf) {
+                        Ok(0) => break, // EOF：PTY 关闭
+                        Ok(n) => {
+                            let chunk = &buf[..n];
+                            // 环形缓冲追加 + 广播 在同一把 scrollback 锁内完成：使"回放快照"与
+                            // "实时订阅"对每个 chunk 原子——重连接管无缝隙、无重复帧。
+                            // 无订阅者时 send 返回 Err，忽略（字节已进缓冲，供下次回放）。
+                            let mut g = sb.lock();
+                            g.extend(chunk.iter().copied());
+                            let over = g.len().saturating_sub(SCROLLBACK_CAP);
+                            if over > 0 {
+                                g.drain(0..over);
+                            }
+                            let _ = otx.send(chunk.to_vec());
+                            drop(g);
+                        }
+                        Err(_) => break, // 读错误（含子进程退出后 master 报错）
+                    }
+                }
+                let _ = etx.send(true); // 通知所有 watch 订阅者：PTY 已退出
+            });
+        }
 
         let session = PtySession {
             writer,
             master: pair.master,
             child,
+            output_tx,
+            scrollback,
+            exit_tx,
         };
         self.sessions.lock().insert(id.to_string(), session);
         Ok(())
@@ -210,17 +269,23 @@ impl PtyRegistry {
             .map_err(|e| format!("resize PTY 失败: {e}"))
     }
 
-    /// 克隆一个只读句柄，供 Task 11 的 WS handler 在独立线程持续读 PTY 输出。
+    /// 接管一个会话的输出流：返回 (环形缓冲快照, 实时输出订阅, 退出信号订阅)。
     ///
-    /// 用 `try_clone_reader`（非移动 master），故可多次调用/master 仍留在会话表继续 resize。
-    pub fn take_reader(&self, id: &str) -> Result<Box<dyn Read + Send>, String> {
+    /// WS 连接/重连时调用：先把 `快照` 回放给 xterm（重绘刷新前的历史，实现"不被打断"），
+    /// 再订阅 `广播` 收实时字节、`watch` 感知 PTY 退出。会话不存在返回 None。
+    pub fn attach(
+        &self,
+        id: &str,
+    ) -> Option<(Vec<u8>, broadcast::Receiver<Vec<u8>>, watch::Receiver<bool>)> {
         let guard = self.sessions.lock();
-        let s = guard
-            .get(id)
-            .ok_or_else(|| format!("PTY 会话不存在: {id}"))?;
-        s.master
-            .try_clone_reader()
-            .map_err(|e| format!("克隆 PTY reader 失败: {e}"))
+        let s = guard.get(id)?;
+        // 持 scrollback 锁期间订阅 + 快照，与 drain 的"push+send 同锁"配对 → 每 chunk 原子，
+        // 回放与实时之间无缝隙、无重复（锁序 sessions→scrollback，drain 只持 scrollback，无环）。
+        let sb = s.scrollback.lock();
+        let rx = s.output_tx.subscribe();
+        let snapshot: Vec<u8> = sb.iter().copied().collect();
+        drop(sb);
+        Some((snapshot, rx, s.exit_tx.subscribe()))
     }
 
     /// 判断某会话是否已存在（供 WS handler 决定「新开」还是「接管重连」）。
@@ -464,99 +529,85 @@ async fn run_terminal_ws(
         }
     }
 
-    // 2) 取只读 reader；失败则关闭（会话虽在但克隆 reader 异常，属罕见）。
-    let reader = match st.pty.take_reader(&id) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("[ws-terminal] take_reader 失败(id={id}): {e}");
+    // 2) 接管输出：环形缓冲快照 + 实时广播订阅 + 退出订阅。会话不存在（罕见）则关闭。
+    let (snapshot, mut out_rx, mut exit_rx) = match st.pty.attach(&id) {
+        Some(x) => x,
+        None => {
             let (mut tx, _rx) = socket.split();
             let _ = tx.send(Message::Text(Utf8Bytes::from(EXIT_FRAME))).await;
             return;
         }
     };
 
-    // 拆分 WS 为发送/接收两半，供两个方向独立使用。
     let (mut ws_tx, mut ws_rx) = socket.split();
 
-    // 3) pty→channel：阻塞读放到 blocking 线程（PTY read 是同步阻塞 IO，不能占用 async 运行时）。
-    //    读到的字节经 mpsc channel 送回 async 侧；EOF/错误则关闭 channel（发送端 drop）。
-    let (byte_tx, mut byte_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(64);
-    let reader_handle = tokio::task::spawn_blocking(move || {
-        let mut reader = reader;
-        let mut buf = [0u8; 4096];
-        loop {
-            match reader.read(&mut buf) {
-                Ok(0) => break,            // EOF：PTY 关闭
-                Ok(n) => {
-                    // channel 满/接收端已关：blocking_send 报错 → 退出读循环。
-                    if byte_tx.blocking_send(buf[..n].to_vec()).is_err() {
-                        break;
-                    }
-                }
-                Err(_) => break, // 读错误（含子进程退出后 master 报错）：结束
-            }
-        }
-        // 发送端在此 drop → byte_rx 收到 None，async 侧据此判定 pty 退出。
-    });
+    // 3) 回放历史：把刷新/断连前的输出快照发给新 xterm，重绘出上下文——"不被打断"的关键。
+    if !snapshot.is_empty() && ws_tx.send(Message::Binary(snapshot.into())).await.is_err() {
+        return; // ws 刚建就断：不清理 pty，留待下次重连
+    }
+    // 3b) 连接前 PTY 已退出：回放完历史后通知 exit 并清理会话。
+    if *exit_rx.borrow() {
+        let _ = ws_tx.send(Message::Text(Utf8Bytes::from(EXIT_FRAME))).await;
+        let _ = st.pty.kill(&id);
+        return;
+    }
 
-    // 4) 双向泵：tokio::select! 同时处理「pty→ws」与「ws→pty」。
-    //    注意：handler 内**不持锁跨 await**——所有 PtyRegistry 调用（write/resize）都是
-    //    同步方法（内部 parking_lot 锁在方法内即取即放），不横跨 .await 边界。
+    // 4) 双向泵：广播输出→ws / 退出信号 / ws输入→pty。
+    //    handler 内**不持锁跨 await**——write/resize 均为同步方法（锁即取即放）。
     let pty = Arc::clone(&st.pty);
     loop {
         tokio::select! {
-            // 4a) pty→ws：从 channel 收到 PTY 输出字节 → Binary 帧发给浏览器。
-            maybe_bytes = byte_rx.recv() => {
-                match maybe_bytes {
-                    Some(bytes) => {
+            // 4a) 实时输出：广播 → Binary 帧给浏览器。
+            r = out_rx.recv() => {
+                match r {
+                    Ok(bytes) => {
                         if ws_tx.send(Message::Binary(bytes.into())).await.is_err() {
-                            // ws 已断：跳出，进入「不杀 pty」的清理（允许后续重连接管）。
-                            break;
+                            break; // ws 断：不杀 pty（重连接管），仅退泵循环
                         }
                     }
-                    None => {
-                        // channel 关闭 = PTY 退出：通知前端 exit 后关闭 ws，并清理该会话。
+                    // 订阅滞后：丢了中间帧（环形缓冲仍留历史）。继续收后续，不中断。
+                    Err(broadcast::error::RecvError::Lagged(_)) => {}
+                    // 广播关闭：抽取线程已结束（通常 exit 先触发）。当作退出处理。
+                    Err(broadcast::error::RecvError::Closed) => {
                         let _ = ws_tx.send(Message::Text(Utf8Bytes::from(EXIT_FRAME))).await;
-                        let _ = pty.kill(&id); // pty 已退出，kill 主要为 remove+wait 收尸
+                        let _ = pty.kill(&id);
                         return;
                     }
                 }
             }
-            // 4b) ws→pty：收浏览器帧 → 解析为 stdin / resize。
+            // 4b) 退出信号：PTY 关闭 → 通知前端 exit + 清理会话。
+            changed = exit_rx.changed() => {
+                if changed.is_ok() && *exit_rx.borrow() {
+                    let _ = ws_tx.send(Message::Text(Utf8Bytes::from(EXIT_FRAME))).await;
+                    let _ = pty.kill(&id);
+                    return;
+                }
+            }
+            // 4c) 浏览器输入：stdin / resize。
             maybe_msg = ws_rx.next() => {
                 match maybe_msg {
                     Some(Ok(Message::Binary(data))) => {
-                        // Binary 恒为 stdin。
                         if let InboundFrame::Stdin(bytes) = parse_binary_frame(data.to_vec()) {
                             let _ = pty.write(&id, &bytes);
                         }
                     }
                     Some(Ok(Message::Text(text))) => {
-                        // Text：控制 JSON（resize/exit）或普通 stdin。
                         match parse_text_frame(text.as_str()) {
-                            InboundFrame::Resize { cols, rows } => {
-                                let _ = pty.resize(&id, cols, rows);
-                            }
-                            InboundFrame::Stdin(bytes) => {
-                                let _ = pty.write(&id, &bytes);
-                            }
+                            InboundFrame::Resize { cols, rows } => { let _ = pty.resize(&id, cols, rows); }
+                            InboundFrame::Stdin(bytes) => { let _ = pty.write(&id, &bytes); }
                             InboundFrame::Ignore => {}
                         }
                     }
-                    Some(Ok(Message::Close(_))) | None => {
-                        // 前端主动关或连接断：跳出循环。**不杀 pty**（重连接管）。
-                        break;
-                    }
-                    Some(Ok(_)) => { /* Ping/Pong：axum 自动处理，忽略 */ }
-                    Some(Err(_)) => break, // ws 读错误：跳出，不杀 pty
+                    Some(Ok(Message::Close(_))) | None => break, // 断连：不杀 pty
+                    Some(Ok(_)) => { /* Ping/Pong：axum 自动处理 */ }
+                    Some(Err(_)) => break,
                 }
             }
         }
     }
 
-    // 5) 循环退出=WS 断连（非 pty 退出）：**不 kill pty**，仅结束 reader 线程的字节泵。
-    //    reader 线程会在 byte_tx 因本 async 任务结束而无接收方时自然收敛；此处显式 abort 加速回收。
-    reader_handle.abort();
+    // 循环退出 = WS 断连（非 pty 退出）：**不 kill pty**，pty + 常驻抽取线程继续跑等待重连接管。
+    // out_rx / exit_rx 在此 drop（退订），不影响抽取线程或其它订阅者。
 }
 
 /// pty 退出时发给前端的控制帧（约定：Text JSON `{"type":"exit"}`）。

@@ -115,9 +115,34 @@ function TabPane({ active, children }: { active: boolean; children: ReactNode })
 /** 已配对后的 4 栏布局：大屏左侧栏（参考桌面侧栏），移动窄屏底部 tab。 */
 function MainLayout() {
   const { t } = useTranslation("web");
-  const [activeTab, setActiveTab] = useState<TabKey>("workspace");
+  // activeTab / selectedSession 持久化到 localStorage：刷新后回到原 tab 并自动重连回原终端会话
+  // （后端 PTY 不随 WS 断连而死 + 环形缓冲回放 → 刷新"不被打断"）。
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    const v = localStorage.getItem("keelson-web-tab") as TabKey | null;
+    return v && TABS.includes(v) ? v : "workspace";
+  });
   // 用户从工作台选中的会话（Task 13：真正消费，传入 Terminal 面板）
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [selectedSession, setSelectedSession] = useState<Session | null>(() => {
+    try {
+      const raw = localStorage.getItem("keelson-web-session");
+      return raw ? (JSON.parse(raw) as Session) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // 记住当前 tab
+  useEffect(() => {
+    localStorage.setItem("keelson-web-tab", activeTab);
+  }, [activeTab]);
+  // 记住选中会话（供刷新后重连；null 时清除）
+  useEffect(() => {
+    if (selectedSession) {
+      localStorage.setItem("keelson-web-session", JSON.stringify(selectedSession));
+    } else {
+      localStorage.removeItem("keelson-web-session");
+    }
+  }, [selectedSession]);
   // PB 初始化状态（web 分支全程 fetch，不调 invoke）
   const [pbReady, setPbReady] = useState(false);
   // 移动端「更多」弹层开合
