@@ -1,6 +1,7 @@
 // 议程视图 —— 今天起未来 30 天（含今天）的事件 + 任务，按天分组的列表。
 // 组件仅接收父级已加载好的数据（展开后的事件 + 任务），自身不发起数据访问。
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import {
@@ -28,18 +29,31 @@ const ACTIVITY_MAX = 6;
  *  让"工作自动写了日志"、你只需补充手动记录。全空则不渲染。 */
 function TodayActivity({ activity }: { activity: ReportMaterial }) {
   const { t } = useTranslation("calendar");
+  const navigate = useNavigate();
   // 三类拍平：提交带仓库标签、任务带项目名、会话带项目名 + 末次提示
+  // 每类补 to（点击跳转目标）：提交→关联会话(有 keelson_session 才可点)、任务→项目看板、会话→会话深链
   const commits = activity.commitGroups.flatMap((g) =>
-    g.commits.map((c) => ({ key: c.hash, main: c.subject, sub: g.label })),
+    g.commits.map((c) => ({
+      key: c.hash,
+      main: c.subject,
+      sub: g.label,
+      to: c.keelson_session ? `/sessions?session=${c.keelson_session}` : undefined,
+    })),
   );
   const tasks = activity.taskGroups.flatMap((g) =>
-    g.tasks.map((tk) => ({ key: tk.id, main: tk.title, sub: g.label })),
+    g.tasks.map((tk) => ({
+      key: tk.id,
+      main: tk.title,
+      sub: g.label,
+      to: tk.project ? `/board?open=${tk.project}&tab=board` : undefined,
+    })),
   );
   const sessions = activity.sessionGroups.flatMap((g) =>
     g.sessions.map((s) => ({
       key: s.session_id,
       main: s.last_prompt || s.first_prompt || s.session_id,
       sub: g.label,
+      to: `/sessions?session=${s.session_id}` as string | undefined,
     })),
   );
   const sections = [
@@ -58,12 +72,24 @@ function TodayActivity({ activity }: { activity: ReportMaterial }) {
           <span className="text-2xs font-medium uppercase text-muted-foreground/70">
             {sec.label}（{sec.items.length}）
           </span>
-          {sec.items.slice(0, ACTIVITY_MAX).map((it) => (
-            <div key={it.key} className="flex items-baseline gap-2 pl-1 text-xs">
-              <span className="min-w-0 flex-1 truncate text-foreground/80">{it.main}</span>
-              <span className="shrink-0 text-2xs text-muted-foreground">{it.sub}</span>
-            </div>
-          ))}
+          {sec.items.slice(0, ACTIVITY_MAX).map((it) =>
+            it.to ? (
+              <button
+                key={it.key}
+                type="button"
+                onClick={() => navigate(it.to as string)}
+                className="flex items-baseline gap-2 rounded px-1 text-left text-xs transition-colors hover:bg-muted"
+              >
+                <span className="min-w-0 flex-1 truncate text-foreground/80">{it.main}</span>
+                <span className="shrink-0 text-2xs text-muted-foreground">{it.sub}</span>
+              </button>
+            ) : (
+              <div key={it.key} className="flex items-baseline gap-2 pl-1 text-xs">
+                <span className="min-w-0 flex-1 truncate text-foreground/80">{it.main}</span>
+                <span className="shrink-0 text-2xs text-muted-foreground">{it.sub}</span>
+              </div>
+            ),
+          )}
           {sec.items.length > ACTIVITY_MAX && (
             <span className="pl-1 text-2xs text-muted-foreground">
               {t("event.more", { count: sec.items.length - ACTIVITY_MAX })}
