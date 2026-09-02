@@ -8,6 +8,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {
@@ -20,6 +21,7 @@ import {
   StarIcon,
   ArrowRight01Icon,
   ArrowDown01Icon,
+  Cancel01Icon,
 } from "@hugeicons/core-free-icons";
 import { useTranslation } from "react-i18next";
 
@@ -38,7 +40,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { Logo } from "@/components/logo";
-import { navGroups } from "@/lib/navigation";
+import { navGroups, type NavItem } from "@/lib/navigation";
 import { useBoardStore, selectPinnedProjects } from "@/store/board";
 import { useSessionsStore } from "@/store/sessions";
 import { useRestoreStore } from "@/store/restore";
@@ -135,6 +137,73 @@ function FavoriteRow({
   );
 }
 
+// 「更多」组的 i18n label 键（其页面可被拖进「常用」组）
+const MORE_GROUP_KEY = "nav.groupKnowledge";
+// 「常用」组的放置区 droppable id（拖到空组/组容器时用）
+const CUSTOM_DROP_ID = "nav-custom-drop";
+// 自定义「常用」栏持久化键（存被置顶页面的 url 列表，含顺序）
+const NAV_CUSTOM_LS = "keelson-nav-custom";
+
+/** 可拖拽的导航行：用于「常用」组与「更多」组。
+ * 拖进「常用」=置顶、组内拖=排序；在「常用」里 hover 出「×」可移除（比拖回更好发现）。
+ * NavLink 同时承接拖拽 listeners：PointerSensor distance:6 → 小于阈值即点击导航，超过即拖拽。
+ */
+function DraggableNavRow({
+  item,
+  active,
+  onUnpin,
+}: {
+  item: NavItem;
+  /** 是否为当前路由（高亮） */
+  active: boolean;
+  /** 传入则渲染「×」移除按钮（仅「常用」组行传入） */
+  onUnpin?: () => void;
+}) {
+  const { t } = useTranslation("shell");
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.url });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      data-slot="sidebar-menu-item"
+      data-sidebar="menu-item"
+      className="group/nav-item relative"
+    >
+      <SidebarMenuButton asChild tooltip={t(item.titleKey)} isActive={active}>
+        <NavLink
+          to={item.url}
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing"
+        >
+          <HugeiconsIcon icon={item.icon} strokeWidth={2} />
+          <span>{t(item.titleKey)}</span>
+        </NavLink>
+      </SidebarMenuButton>
+      {onUnpin && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onUnpin();
+          }}
+          title={t("nav.unpinCustom")}
+          className="absolute right-1 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded text-sidebar-foreground/45 opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-foreground group-hover/nav-item:opacity-100 group-data-[collapsible=icon]:hidden"
+        >
+          <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} className="size-3.5" />
+        </button>
+      )}
+    </li>
+  );
+}
+
 export function AppSidebar() {
   const { t } = useTranslation("shell");
   const { pathname } = useLocation();
@@ -171,6 +240,67 @@ export function AppSidebar() {
       localStorage.setItem("keelson-nav-fav-open", next ? "1" : "0");
       return next;
     });
+
+  // ── 自定义「常用」栏：把「更多」组里的页面拖出来置顶（url 列表持久化 localStorage） ──
+  const [customUrls, setCustomUrls] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(NAV_CUSTOM_LS);
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const persistCustom = (next: string[]) => {
+    setCustomUrls(next);
+    localStorage.setItem(NAV_CUSTOM_LS, JSON.stringify(next));
+  };
+  // 拖拽进行中：用于「常用」组为空时临时浮现放置区（平时不占位）
+  const [navDragging, setNavDragging] = useState(false);
+
+  // 「更多」组及其页面（唯一可被置顶的来源）
+  const moreGroup = useMemo(
+    () => navGroups.find((g) => g.labelKey === MORE_GROUP_KEY),
+    [],
+  );
+  const moreItems = moreGroup?.items ?? [];
+  const moreUrlSet = useMemo(() => new Set(moreItems.map((i) => i.url)), [moreItems]);
+  // 已置顶页面（按 customUrls 顺序，过滤掉失效 url）
+  const customItems = useMemo(
+    () =>
+      customUrls
+        .map((url) => moreItems.find((i) => i.url === url))
+        .filter((i): i is NavItem => Boolean(i)),
+    [customUrls, moreItems],
+  );
+  // 「更多」组里剩余（未置顶）的页面
+  const moreRemaining = useMemo(
+    () => moreItems.filter((i) => !customUrls.includes(i.url)),
+    [moreItems, customUrls],
+  );
+
+  // 「常用」组放置区（拖到空组/组容器时用 over.id === CUSTOM_DROP_ID 命中）
+  const { setNodeRef: setCustomDropRef } = useDroppable({ id: CUSTOM_DROP_ID });
+
+  // 导航拖拽结束：仅当落到「常用」组才处理（置顶/排序）；移除走行内「×」
+  const handleNavDragEnd = (e: DragEndEvent) => {
+    setNavDragging(false);
+    const { active, over } = e;
+    if (!over) return;
+    const activeUrl = String(active.id);
+    if (!moreUrlSet.has(activeUrl)) return; // 只接受「更多」组来源
+    const overId = String(over.id);
+    const customSet = new Set(customUrls);
+    const targetIsCustom = overId === CUSTOM_DROP_ID || customSet.has(overId);
+    if (!targetIsCustom) return; // 没落到「常用」组 → 不动（移除请用行内 ×）
+    // 先摘出自己，再按落点插入：落在某常用项上=插到它前面，落在空组/容器上=追加到末尾
+    const base = customUrls.filter((u) => u !== activeUrl);
+    let idx = base.length;
+    if (overId !== CUSTOM_DROP_ID) {
+      const i = base.indexOf(overId);
+      if (i >= 0) idx = i;
+    }
+    persistCustom([...base.slice(0, idx), activeUrl, ...base.slice(idx)]);
+  };
 
   // 兜底：侧栏在任意页都可见，若项目尚未加载（用户没进过「项目」页）则拉一次，
   // 使收藏组启动即可用。loadProjects 仅做列表拉取（无实时订阅副作用），重复调用安全。
@@ -274,59 +404,128 @@ export function AppSidebar() {
             )}
           </SidebarGroup>
         )}
-        {navGroups.map((group) => {
-          // 「知识 · 更多」组可折叠（默认收起）；其余组照常展开
-          const isMore = group.labelKey === "nav.groupKnowledge";
-          const showItems = !isMore || moreOpen;
-          return (
-            <SidebarGroup key={group.labelKey}>
-              {isMore ? (
-                <SidebarGroupLabel asChild className="sticky top-0 z-10 bg-sidebar">
-                  <button
-                    type="button"
-                    onClick={toggleMore}
-                    aria-expanded={moreOpen}
-                    className="flex w-full items-center gap-1"
-                  >
-                    <HugeiconsIcon
-                      icon={moreOpen ? ArrowDown01Icon : ArrowRight01Icon}
-                      strokeWidth={2}
-                      className="size-3.5 shrink-0"
-                    />
-                    {t(group.labelKey)}
-                  </button>
-                </SidebarGroupLabel>
-              ) : (
-                <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
-                  {t(group.labelKey)}
-                </SidebarGroupLabel>
-              )}
-              {showItems && (
-                <SidebarGroupContent>
+        {/* 常用 + 导航组：包一层 DndContext，支持把「更多」页面拖进「常用」组置顶 */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={() => setNavDragging(true)}
+          onDragEnd={handleNavDragEnd}
+          onDragCancel={() => setNavDragging(false)}
+        >
+          {/* 「常用」组：有置顶项 or 拖拽进行中才渲染（平时不占位）；组内可拖排序、hover 出「×」移除 */}
+          {(customItems.length > 0 || navDragging) && (
+            <SidebarGroup>
+              <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
+                {t("nav.groupCustom")}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                {/* droppable 容器：拖到空组/间隙时 over.id === CUSTOM_DROP_ID 命中 */}
+                <div ref={setCustomDropRef}>
                   <SidebarMenu>
-                    {group.items.map((item) => (
-                      <SidebarMenuItem key={item.titleKey}>
-                        <SidebarMenuButton
-                          asChild
-                          tooltip={t(item.titleKey)}
-                          isActive={
-                            pathname === item.url ||
-                            pathname.startsWith(item.url + "/")
+                    <SortableContext
+                      items={customItems.map((i) => i.url)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {customItems.map((item) => (
+                        <DraggableNavRow
+                          key={item.url}
+                          item={item}
+                          active={
+                            pathname === item.url || pathname.startsWith(item.url + "/")
                           }
-                        >
-                          <NavLink to={item.url}>
-                            <HugeiconsIcon icon={item.icon} strokeWidth={2} />
-                            <span>{t(item.titleKey)}</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
+                          onUnpin={() =>
+                            persistCustom(customUrls.filter((u) => u !== item.url))
+                          }
+                        />
+                      ))}
+                    </SortableContext>
+                    {/* 空组（仅拖拽时浮现）：给个虚线放置区 + 引导文案，让「拖出来」可发现 */}
+                    {customItems.length === 0 && (
+                      <li className="mx-2 my-1 rounded-md border border-dashed border-sidebar-border px-2 py-3 text-center text-xs text-sidebar-foreground/50">
+                        {t("nav.customDropHint")}
+                      </li>
+                    )}
                   </SidebarMenu>
-                </SidebarGroupContent>
-              )}
+                </div>
+              </SidebarGroupContent>
             </SidebarGroup>
-          );
-        })}
+          )}
+          {navGroups.map((group) => {
+            // 「知识 · 更多」组可折叠（默认收起）+ 其页面可拖进「常用」；其余组照常展开
+            const isMore = group.labelKey === "nav.groupKnowledge";
+            const showItems = !isMore || moreOpen;
+            // 更多组只渲染未置顶项（已置顶的移到「常用」组）
+            const items = isMore ? moreRemaining : group.items;
+            return (
+              <SidebarGroup key={group.labelKey}>
+                {isMore ? (
+                  <SidebarGroupLabel asChild className="sticky top-0 z-10 bg-sidebar">
+                    <button
+                      type="button"
+                      onClick={toggleMore}
+                      aria-expanded={moreOpen}
+                      className="flex w-full items-center gap-1"
+                    >
+                      <HugeiconsIcon
+                        icon={moreOpen ? ArrowDown01Icon : ArrowRight01Icon}
+                        strokeWidth={2}
+                        className="size-3.5 shrink-0"
+                      />
+                      {t(group.labelKey)}
+                    </button>
+                  </SidebarGroupLabel>
+                ) : (
+                  <SidebarGroupLabel className="sticky top-0 z-10 bg-sidebar">
+                    {t(group.labelKey)}
+                  </SidebarGroupLabel>
+                )}
+                {showItems && (
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {isMore ? (
+                        // 更多组：可拖拽行（拖进「常用」置顶）
+                        <SortableContext
+                          items={items.map((i) => i.url)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          {items.map((item) => (
+                            <DraggableNavRow
+                              key={item.url}
+                              item={item}
+                              active={
+                                pathname === item.url ||
+                                pathname.startsWith(item.url + "/")
+                              }
+                            />
+                          ))}
+                        </SortableContext>
+                      ) : (
+                        // 其余组：静态导航项（不参与拖拽）
+                        items.map((item) => (
+                          <SidebarMenuItem key={item.titleKey}>
+                            <SidebarMenuButton
+                              asChild
+                              tooltip={t(item.titleKey)}
+                              isActive={
+                                pathname === item.url ||
+                                pathname.startsWith(item.url + "/")
+                              }
+                            >
+                              <NavLink to={item.url}>
+                                <HugeiconsIcon icon={item.icon} strokeWidth={2} />
+                                <span>{t(item.titleKey)}</span>
+                              </NavLink>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        ))
+                      )}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                )}
+              </SidebarGroup>
+            );
+          })}
+        </DndContext>
       </SidebarContent>
 
       <SidebarFooter>
