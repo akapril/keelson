@@ -208,7 +208,7 @@ export default function DocPage({ windowMode = false }: { windowMode?: boolean }
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col p-6">
+    <div className="flex h-full min-h-0 flex-col p-3 sm:p-6">
       {/* 头部工具栏：返回 + 标题 + 所属项目 + 删除。
           独立窗口的窗口控制(拖拽/最小化/最大化/关闭)在顶部 TitleBar，不放这一行——
           避免破坏性「删除」和窗口「关闭」相邻误点。 */}

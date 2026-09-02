@@ -21,7 +21,8 @@
     "settings": "Settings",
     "calendar": "Calendar",
     "board": "Board",
-    "docs": "Docs"
+    "docs": "Docs",
+    "more": "More"
   },
   "placeholder": {
     "comingSoon": "Coming soon"

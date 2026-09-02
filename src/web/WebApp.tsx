@@ -40,6 +40,10 @@ const TABS: TabKey[] = [
   "settings",
 ];
 
+// 移动端底栏分流：常用直排 + 其余收进「更多」，避免 7 个挤成一排（桌面侧栏仍列全部）
+const PRIMARY_TABS: TabKey[] = ["workspace", "board", "calendar", "docs"];
+const MORE_TABS: TabKey[] = ["terminal", "notifications", "settings"];
+
 /** 各 tab 的 SVG 图标（内联，避免额外依赖） */
 function TabIcon({ tab, active }: { tab: TabKey; active: boolean }) {
   const cls = `size-5 transition-colors ${active ? "text-foreground" : "text-muted-foreground"}`;
@@ -116,6 +120,8 @@ function MainLayout() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   // PB 初始化状态（web 分支全程 fetch，不调 invoke）
   const [pbReady, setPbReady] = useState(false);
+  // 移动端「更多」弹层开合
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // mount 时初始化 PB 认证（web 分支：baseURL→/pb 反代 + /api/bootstrap_auth 取 token）
   useEffect(() => {
@@ -199,13 +205,47 @@ function MainLayout() {
           </TabPane>
         </main>
 
-        {/* 移动窄屏：底部 tab 栏（<lg 显示，大屏用左侧栏） */}
+        {/* 移动窄屏：底部 tab 栏（<lg 显示，大屏用左侧栏）。常用直排 + 「更多」收纳 terminal/通知/设置 */}
         <nav
-          className="border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:hidden"
+          className="relative border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:hidden"
           aria-label={t("nav.main")}
         >
+          {/* 「更多」弹层：浮在底栏上方；点遮罩关闭 */}
+          {moreOpen && (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-10 cursor-default"
+                aria-hidden
+                onClick={() => setMoreOpen(false)}
+              />
+              <div className="absolute bottom-full right-2 z-20 mb-1 w-44 overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
+                {MORE_TABS.map((tab) => {
+                  const isActive = tab === activeTab;
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActiveTab(tab);
+                        setMoreOpen(false);
+                      }}
+                      aria-current={isActive ? "page" : undefined}
+                      className={`flex w-full items-center gap-3 px-3 py-2.5 text-sm transition-colors ${
+                        isActive
+                          ? "bg-muted font-medium text-foreground"
+                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                      }`}
+                    >
+                      <TabIcon tab={tab} active={isActive} />
+                      <span>{t(`tabs.${tab}`)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
           <div className="mx-auto flex max-w-3xl">
-            {TABS.map((tab) => {
+            {PRIMARY_TABS.map((tab) => {
               const isActive = tab === activeTab;
               return (
                 <button
@@ -223,6 +263,34 @@ function MainLayout() {
                 </button>
               );
             })}
+            {/* 更多：收纳 terminal/通知/设置；当前若在其中则高亮 */}
+            {(() => {
+              const moreActive = MORE_TABS.includes(activeTab);
+              return (
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen((o) => !o)}
+                  aria-expanded={moreOpen}
+                  className={`flex flex-1 flex-col items-center gap-1 px-2 py-2.5 text-xs transition-colors ${
+                    moreActive || moreOpen
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <svg
+                    className={`size-5 transition-colors ${moreActive || moreOpen ? "text-foreground" : "text-muted-foreground"}`}
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden
+                  >
+                    <circle cx="5" cy="12" r="1.75" />
+                    <circle cx="12" cy="12" r="1.75" />
+                    <circle cx="19" cy="12" r="1.75" />
+                  </svg>
+                  <span>{t("tabs.more")}</span>
+                </button>
+              );
+            })()}
           </div>
         </nav>
       </div>

@@ -21,7 +21,8 @@
     "settings": "设置",
     "calendar": "日历",
     "board": "看板",
-    "docs": "文档"
+    "docs": "文档",
+    "more": "更多"
   },
   "placeholder": {
     "comingSoon": "即将推出"
