@@ -150,8 +150,8 @@ export default function DocsPage() {
   };
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 p-6">
-      <header className="flex shrink-0 items-start justify-between gap-2">
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 p-3 sm:p-6">
+      <header className="flex shrink-0 flex-wrap items-start justify-between gap-2">
         <div>
           <h1 className="text-lg font-semibold">{t("docs.title")}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">

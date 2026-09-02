@@ -143,9 +143,9 @@ export function ProjectWorkspace() {
   if (!project) return null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col p-6">
-      {/* 头部 */}
-      <div className="mb-4 flex shrink-0 items-center gap-3">
+    <div className="flex h-full min-h-0 flex-col p-3 sm:p-6">
+      {/* 头部：窄屏换行 + 收紧间距 */}
+      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2 sm:mb-4 sm:gap-3">
         <Button
           variant="ghost"
           size="icon-sm"
@@ -221,7 +221,7 @@ export function ProjectWorkspace() {
         }}
         className="min-h-0 flex-1"
       >
-        <TabsList className="shrink-0">
+        <TabsList className="max-w-full shrink-0 justify-start overflow-x-auto [&>*]:shrink-0">
           <TabsTrigger value="overview">{t("workspace.tabs.overview")}</TabsTrigger>
           <TabsTrigger value="sessions">{t("workspace.tabs.sessions")}</TabsTrigger>
           {/* 提交面仅在绑定了仓库路径时有意义 */}
