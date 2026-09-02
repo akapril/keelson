@@ -30,6 +30,7 @@
   "event": {
     "contextEdit": "Edit",
     "contextDelete": "Delete",
+    "more": "+{{count}} more",
     "taskTooltip": "Task: {{title}} (drag to reschedule)"
   },
   "dialog": {

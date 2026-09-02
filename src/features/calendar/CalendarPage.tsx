@@ -75,6 +75,9 @@ import { minutesToHM, addMinutesToHM, durationMin } from "./timeGrid";
 // 弹窗默认颜色（十六进制，供 <input type="color"> 使用）
 const DEFAULT_COLOR = "#6366f1";
 
+// 月视图每格最多显示的事件条数；超出折叠为「+N 更多」→ 点击跳该天日视图看全部
+const MONTH_CELL_MAX_EVENTS = 3;
+
 // 日历视图种类
 type CalendarView = "month" | "week" | "day" | "agenda";
 // 视图偏好持久化的 localStorage 键
@@ -688,7 +691,7 @@ export default function CalendarPage() {
 
               {/* 事件小片列表 */}
               <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
-                {dayEvents.map((ev) => (
+                {dayEvents.slice(0, MONTH_CELL_MAX_EVENTS).map((ev) => (
                   <ContextMenu key={ev.id}>
                     <ContextMenuTrigger asChild>
                       <button
@@ -739,6 +742,21 @@ export default function CalendarPage() {
                     </ContextMenuContent>
                   </ContextMenu>
                 ))}
+
+                {/* 超出上限：「+N 更多」→ 跳该天日视图看全部（消灭 overflow-hidden 静默裁切） */}
+                {dayEvents.length > MONTH_CELL_MAX_EVENTS && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation(); // 阻止冒泡到格子的新建
+                      setViewDate(day);
+                      changeView("day");
+                    }}
+                    className="rounded px-1 py-0.5 text-left text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    {t("event.more", { count: dayEvents.length - MONTH_CELL_MAX_EVENTS })}
+                  </button>
+                )}
 
                 {/* 看板任务 due_date（只读叠加，点击跳到该任务的项目工作台） */}
                 {dayTasks.map((tk) => (

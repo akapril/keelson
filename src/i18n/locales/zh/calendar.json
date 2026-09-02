@@ -30,6 +30,7 @@
   "event": {
     "contextEdit": "编辑",
     "contextDelete": "删除",
+    "more": "+{{count}} 更多",
     "taskTooltip": "任务：{{title}}（可拖到其它日期改期）"
   },
   "dialog": {
