@@ -8,7 +8,9 @@ import { Logo } from "@/components/logo";
 import { initPbAuth } from "@/lib/pb";
 import { PairScreen } from "./PairScreen";
 import { Workbench } from "./panels/Workbench";
+import { BoardPanel } from "./panels/BoardPanel";
 import { CalendarPanel } from "./panels/CalendarPanel";
+import { DocsPanel } from "./panels/DocsPanel";
 import { Notifications } from "./panels/Notifications";
 import { Terminal } from "./panels/Terminal";
 import { Settings } from "./panels/Settings";
@@ -19,9 +21,24 @@ import type { Session } from "@/types/session";
 export const onAuthExpired = handleAuthExpired;
 
 /** tab 标识 */
-type TabKey = "workspace" | "calendar" | "terminal" | "notifications" | "settings";
+type TabKey =
+  | "workspace"
+  | "board"
+  | "calendar"
+  | "docs"
+  | "terminal"
+  | "notifications"
+  | "settings";
 
-const TABS: TabKey[] = ["workspace", "calendar", "terminal", "notifications", "settings"];
+const TABS: TabKey[] = [
+  "workspace",
+  "board",
+  "calendar",
+  "docs",
+  "terminal",
+  "notifications",
+  "settings",
+];
 
 /** 各 tab 的 SVG 图标（内联，避免额外依赖） */
 function TabIcon({ tab, active }: { tab: TabKey; active: boolean }) {
@@ -32,6 +49,20 @@ function TabIcon({ tab, active }: { tab: TabKey; active: boolean }) {
         <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <rect x="3" y="3" width="18" height="18" rx="2" />
           <path d="M3 9h18M9 21V9" />
+        </svg>
+      );
+    case "board":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M9 3v18M15 3v18" />
+        </svg>
+      );
+    case "docs":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" />
         </svg>
       );
     case "calendar":
@@ -145,9 +176,15 @@ function MainLayout() {
           <TabPane active={activeTab === "workspace"}>
             <Workbench onOpenTerminal={handleOpenTerminal} />
           </TabPane>
+          <TabPane active={activeTab === "board"}>
+            <BoardPanel pbReady={pbReady} />
+          </TabPane>
           <TabPane active={activeTab === "calendar"}>
             {/* 等 pbReady 再挂载：避免抢在 initPbAuth 设好 baseURL 之前发 PB 请求 */}
             <CalendarPanel pbReady={pbReady} />
+          </TabPane>
+          <TabPane active={activeTab === "docs"}>
+            <DocsPanel pbReady={pbReady} />
           </TabPane>
           <TabPane active={activeTab === "terminal"}>
             {/* Task 13：接入真实终端面板，传入当前选中会话 */}

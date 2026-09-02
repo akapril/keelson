@@ -19,7 +19,9 @@
     "terminal": "Terminal",
     "notifications": "Notifications",
     "settings": "Settings",
-    "calendar": "Calendar"
+    "calendar": "Calendar",
+    "board": "Board",
+    "docs": "Docs"
   },
   "placeholder": {
     "comingSoon": "Coming soon"
