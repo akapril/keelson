@@ -766,21 +766,6 @@ export default function CalendarPage() {
                   </ContextMenu>
                 ))}
 
-                {/* 超出上限：「+N 更多」→ 跳该天日视图看全部（消灭 overflow-hidden 静默裁切） */}
-                {dayEvents.length > MONTH_CELL_MAX_EVENTS && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation(); // 阻止冒泡到格子的新建
-                      setViewDate(day);
-                      changeView("day");
-                    }}
-                    className="rounded px-1 py-0.5 text-left text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                  >
-                    {t("event.more", { count: dayEvents.length - MONTH_CELL_MAX_EVENTS })}
-                  </button>
-                )}
-
                 {/* 看板任务 due_date（只读叠加，点击跳到该任务的项目工作台） */}
                 {dayTasks.map((tk) => (
                   <button
@@ -813,6 +798,20 @@ export default function CalendarPage() {
                   </button>
                 ))}
               </div>
+              {/* 「+N 更多」放在滚动容器外（否则被 overflow-hidden 裁掉点不到）；点击跳该天日视图看全部 */}
+              {dayEvents.length > MONTH_CELL_MAX_EVENTS && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation(); // 阻止冒泡到格子的新建
+                    setViewDate(day);
+                    changeView("day");
+                  }}
+                  className="mt-0.5 shrink-0 rounded px-1 py-0.5 text-left text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  {t("event.more", { count: dayEvents.length - MONTH_CELL_MAX_EVENTS })}
+                </button>
+              )}
             </div>
           );
         })}
