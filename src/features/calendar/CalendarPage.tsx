@@ -456,15 +456,16 @@ export default function CalendarPage() {
 
   // 快速记录（Toggl 式）：以当前时刻在指定日建一条事件；乐观插卡在 store 内，失败弹 toast。
   const handleQuickLog = async (dayStr: string, text: string) => {
-    // 解析 @项目 标记：命中则关联项目并从标题剥离该 token
-    const { title, project } = parseQuickLog(text, projects);
-    if (!title) return;
+    // 解析 @项目 + 中文时间/时长：识别到日期/时刻/时长就预填，否则回退落点日/当前时刻
+    const parsed = parseQuickLog(text, projects);
+    if (!parsed.title) return;
     try {
       await addEvent({
-        title,
-        project,
-        start: dayStr,
-        start_time: format(new Date(), "HH:mm"),
+        title: parsed.title,
+        project: parsed.project,
+        start: parsed.start ?? dayStr,
+        start_time: parsed.startTime ?? format(new Date(), "HH:mm"),
+        end_time: parsed.endTime,
         all_day: false,
         color: DEFAULT_COLOR,
       });

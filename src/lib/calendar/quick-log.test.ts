@@ -42,3 +42,56 @@ describe("parseQuickLog", () => {
     });
   });
 });
+
+describe("parseQuickLog 中文时间/时长解析", () => {
+  // 固定基准：2026-09-02 10:00（注入 now 保证「明天」等相对日确定）
+  const NOW = new Date("2026-09-02T10:00:00");
+
+  it("明天 + 下午H点 + @项目：解析日期/时刻并剥离，剩余当标题", () => {
+    expect(parseQuickLog("明天下午3点 复盘 @keelson", projects, NOW)).toEqual({
+      title: "复盘",
+      project: "p1",
+      start: "2026-09-03",
+      startTime: "15:00",
+    });
+  });
+
+  it("时长无显式时刻：以当前时刻为锚合成结束时刻", () => {
+    expect(parseQuickLog("写周报 1小时 @keelson", projects, NOW)).toEqual({
+      title: "写周报",
+      project: "p1",
+      endTime: "11:00", // 锚 now 10:00 + 60min
+    });
+  });
+
+  it("H:MM 冒号形按 24 小时、不走下午启发式", () => {
+    expect(parseQuickLog("发布 15:30", projects, NOW)).toEqual({
+      title: "发布",
+      project: "",
+      startTime: "15:30",
+    });
+  });
+
+  it("开始时刻 + 半小时：结束 = 开始 + 30min", () => {
+    expect(parseQuickLog("下午2点 开会 半小时", projects, NOW)).toEqual({
+      title: "开会",
+      project: "",
+      startTime: "14:00",
+      endTime: "14:30",
+    });
+  });
+
+  it("裸「H点」无时段词：1-6 点启发式判为下午", () => {
+    expect(parseQuickLog("3点 站会", projects, NOW)).toEqual({
+      title: "站会",
+      project: "",
+      startTime: "15:00",
+    });
+  });
+
+  it("含「周报」不误判为星期几（周后须跟星期字）", () => {
+    const r = parseQuickLog("写周报", projects, NOW);
+    expect(r.title).toBe("写周报");
+    expect(r.start).toBeUndefined();
+  });
+});

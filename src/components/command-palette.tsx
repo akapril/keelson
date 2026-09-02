@@ -99,19 +99,21 @@ export function CommandPalette() {
   const quickLog = async () => {
     const text = query.trim();
     if (!text) return;
-    const { title, project } = parseQuickLog(text, projects);
-    if (!title) return;
+    // 解析 @项目 + 中文时间/时长；未识别的字段回退今天/当前时刻
+    const parsed = parseQuickLog(text, projects);
+    if (!parsed.title) return;
     setOpen(false);
     try {
       await useCalendarStore.getState().addEvent({
-        title,
-        project,
-        start: format(new Date(), "yyyy-MM-dd"),
-        start_time: format(new Date(), "HH:mm"),
+        title: parsed.title,
+        project: parsed.project,
+        start: parsed.start ?? format(new Date(), "yyyy-MM-dd"),
+        start_time: parsed.startTime ?? format(new Date(), "HH:mm"),
+        end_time: parsed.endTime,
         all_day: false,
         color: DEFAULT_EVENT_COLOR,
       });
-      toast.success(t("commandPalette.quickLogDone", { text: title }));
+      toast.success(t("commandPalette.quickLogDone", { text: parsed.title }));
     } catch (e) {
       toast.error(String(e));
     }
