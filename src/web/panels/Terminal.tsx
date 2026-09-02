@@ -85,15 +85,24 @@ const VIRTUAL_KEYS = [
 interface VirtualKeybarProps {
   /** 调用此方法向 pty stdin 发送字节 */
   onSend: (data: string) => void;
+  /** 滚动终端 viewport 若干行（负=向上看历史） */
+  onScroll: (lines: number) => void;
+  /** 回到底部（最新输出） */
+  onScrollBottom: () => void;
 }
+
+// 单次滚动行数（移动端触摸滚 xterm 常失灵，用按钮驱动）
+const SCROLL_STEP = 8;
 
 /**
  * 虚拟按键条（移动端显示，桌面 lg: 隐藏）
- * - 横向可滚动，避免在窄屏挤压按钮
- * - 按钮使用触摸友好的 min-w + h 确保点击区域充足
+ * - 前排为滚动控制（看历史输出）：触屏在 canvas 上常滚不动 xterm viewport，故用按钮驱动
+ * - 横向可滚动，避免在窄屏挤压按钮；按钮触摸友好的 min-w + h
  */
-function VirtualKeybar({ onSend }: VirtualKeybarProps) {
+function VirtualKeybar({ onSend, onScroll, onScrollBottom }: VirtualKeybarProps) {
   const { t } = useTranslation("web");
+  const btnCls =
+    "flex min-w-[2.5rem] shrink-0 items-center justify-center rounded border border-border bg-background px-2 py-1.5 text-xs font-mono text-foreground transition-colors active:bg-muted hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return (
     <div
       className="shrink-0 overflow-x-auto border-t border-border bg-muted/40 py-1.5 lg:hidden"
@@ -101,6 +110,15 @@ function VirtualKeybar({ onSend }: VirtualKeybarProps) {
       role="toolbar"
     >
       <div className="flex gap-1 px-2">
+        {/* 滚动控制：看历史输出 */}
+        <button type="button" title={t("terminal.scroll.up")} aria-label={t("terminal.scroll.up")}
+          onClick={() => onScroll(-SCROLL_STEP)} className={btnCls}>▲</button>
+        <button type="button" title={t("terminal.scroll.down")} aria-label={t("terminal.scroll.down")}
+          onClick={() => onScroll(SCROLL_STEP)} className={btnCls}>▼</button>
+        <button type="button" title={t("terminal.scroll.bottom")} aria-label={t("terminal.scroll.bottom")}
+          onClick={onScrollBottom} className={btnCls}>⤓</button>
+        {/* 分隔 */}
+        <span className="mx-0.5 shrink-0 self-stretch border-l border-border" aria-hidden />
         {VIRTUAL_KEYS.map(({ label, bytes, title }) => (
           <button
             key={label}
@@ -108,7 +126,7 @@ function VirtualKeybar({ onSend }: VirtualKeybarProps) {
             title={title}
             aria-label={title}
             onClick={() => onSend(bytes)}
-            className="flex min-w-[2.5rem] shrink-0 items-center justify-center rounded border border-border bg-background px-2 py-1.5 text-xs font-mono text-foreground transition-colors active:bg-muted hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={btnCls}
           >
             {label}
           </button>
@@ -203,7 +221,11 @@ export function Terminal({ session }: TerminalPanelProps) {
       </div>
 
       {/* 虚拟按键条：仅移动端显示（lg:hidden） */}
-      <VirtualKeybar onSend={handleVirtualKey} />
+      <VirtualKeybar
+        onSend={handleVirtualKey}
+        onScroll={(n) => xtermRef.current?.scrollLines(n)}
+        onScrollBottom={() => xtermRef.current?.scrollToBottom()}
+      />
     </div>
   );
 }

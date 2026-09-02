@@ -71,6 +71,11 @@
     },
     "virtualKeys": {
       "label": "Virtual keyboard shortcuts"
+    },
+    "scroll": {
+      "up": "Scroll up",
+      "down": "Scroll down",
+      "bottom": "To bottom"
     }
   },
   "settings": {

@@ -71,6 +71,11 @@
     },
     "virtualKeys": {
       "label": "虚拟控制键"
+    },
+    "scroll": {
+      "up": "向上滚（看历史）",
+      "down": "向下滚",
+      "bottom": "回到底部"
     }
   },
   "settings": {

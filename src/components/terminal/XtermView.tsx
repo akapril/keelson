@@ -22,6 +22,10 @@ import { resolveXtermTheme, makeSafeFit } from "./xterm-shared";
 export interface XtermHandle {
   /** 向 pty stdin 发送原始字节序列（用于虚拟按键条的控制字符） */
   sendInput: (data: string) => void;
+  /** 滚动终端 viewport 若干行（负=向上看历史，正=向下）——移动端触摸滚不动时用按钮驱动 */
+  scrollLines: (amount: number) => void;
+  /** 滚回底部（最新输出） */
+  scrollToBottom: () => void;
 }
 
 export interface XtermViewProps {
@@ -63,6 +67,8 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
   const containerRef = useRef<HTMLDivElement>(null);
   // ws 句柄用 ref 存储，供 useImperativeHandle 中的 sendInput 访问
   const wsRef = useRef<{ send: (data: string) => void } | null>(null);
+  // term 实例 ref，供命令式滚动（移动端滚动按钮）
+  const termRef = useRef<Terminal | null>(null);
 
   // 用 ref 存最新回调，避免回调引用变化导致 effect 重跑（Terminal 重挂/闪烁）
   const onExitRef = useRef(onExit);
@@ -70,10 +76,16 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
   const onStatusChangeRef = useRef(onStatusChange);
   onStatusChangeRef.current = onStatusChange;
 
-  // 暴露 sendInput 给父组件（虚拟按键条使用）
+  // 暴露 sendInput + 滚动给父组件（虚拟按键条使用）
   useImperativeHandle(ref, () => ({
     sendInput(data: string) {
       wsRef.current?.send(data);
+    },
+    scrollLines(amount: number) {
+      termRef.current?.scrollLines(amount);
+    },
+    scrollToBottom() {
+      termRef.current?.scrollToBottom();
     },
   }), []);
 
@@ -108,6 +120,7 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
 
     // 渲染到 DOM
     term.open(containerRef.current);
+    termRef.current = term;
     safeFit();
 
     // 连接 WS（回调经 ref 取最新值，不将函数引用纳入 effect deps）
@@ -156,6 +169,7 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     // 清理：卸载时释放所有资源
     return () => {
       wsRef.current = null;
+      termRef.current = null;
       observer.disconnect();
       dataDisposable.dispose();
       ws.close();
