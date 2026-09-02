@@ -146,7 +146,8 @@ function MainLayout() {
             <Workbench onOpenTerminal={handleOpenTerminal} />
           </TabPane>
           <TabPane active={activeTab === "calendar"}>
-            <CalendarPanel />
+            {/* 等 pbReady 再挂载：避免抢在 initPbAuth 设好 baseURL 之前发 PB 请求 */}
+            <CalendarPanel pbReady={pbReady} />
           </TabPane>
           <TabPane active={activeTab === "terminal"}>
             {/* Task 13：接入真实终端面板，传入当前选中会话 */}

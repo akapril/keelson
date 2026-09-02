@@ -28,7 +28,8 @@
     "main": "Main navigation"
   },
   "pbInit": {
-    "error": "Failed to connect to local data store, some features may be unavailable"
+    "error": "Failed to connect to local data store, some features may be unavailable",
+    "loading": "Connecting…"
   },
   "notifications": {
     "title": "Notifications",
