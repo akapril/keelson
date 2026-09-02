@@ -23,6 +23,10 @@
     "taskBadge": "Task",
     "empty": "No events in the next 30 days"
   },
+  "quicklog": {
+    "placeholder": "What did you just do… press Enter to log",
+    "hint": "↵ logs at current time"
+  },
   "event": {
     "contextEdit": "Edit",
     "contextDelete": "Delete",

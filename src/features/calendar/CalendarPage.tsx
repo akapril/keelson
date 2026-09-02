@@ -190,7 +190,8 @@ function initialForm(state: DialogState): FormState {
     title: "",
     start: dateStr,
     end: "",
-    startTime: state.startTime || "", // 落点时刻，或无时刻默认
+    // 落点时刻优先；否则预填「当前时刻」——按下新建即带上此刻，贴合「记录刚做了什么」
+    startTime: state.startTime || format(new Date(), "HH:mm"),
     endTime: state.endTime || "",
     all_day: false, // 新建默认非全天（带落点时刻时即为定时事件）
     color: DEFAULT_COLOR,
@@ -420,6 +421,23 @@ export default function CalendarPage() {
     closeDialog();
   };
 
+  // 快速记录（Toggl 式）：以当前时刻在指定日建一条事件；乐观插卡在 store 内，失败弹 toast。
+  const handleQuickLog = async (dayStr: string, text: string) => {
+    const title = text.trim();
+    if (!title) return;
+    try {
+      await addEvent({
+        title,
+        start: dayStr,
+        start_time: format(new Date(), "HH:mm"),
+        all_day: false,
+        color: DEFAULT_COLOR,
+      });
+    } catch (e) {
+      toast.error(t("toast.createError", { msg: String(e) }));
+    }
+  };
+
   // 删除（仅编辑态可用）
   const handleDelete = async () => {
     if (!dialog.editing) return;
@@ -579,6 +597,7 @@ export default function CalendarPage() {
           tasks={dueTasks}
           onEventClick={openEdit}
           onTaskClick={(tk) => navigate(`/board?open=${tk.project}`)}
+          onQuickLog={(text) => void handleQuickLog(format(new Date(), "yyyy-MM-dd"), text)}
         />
       )}
 
@@ -605,6 +624,7 @@ export default function CalendarPage() {
           onTaskClick={(tk) => navigate(`/board?open=${tk.project}`)}
           onDayClick={handleTimedAdd}
           onEventReschedule={handleReschedule}
+          onQuickLog={(text) => void handleQuickLog(format(viewDate, "yyyy-MM-dd"), text)}
         />
       )}
 
@@ -686,17 +706,18 @@ export default function CalendarPage() {
                           e.stopPropagation(); // 阻止冒泡到格子的新建
                           openEdit(ev);
                         }}
-                        className="flex items-center gap-1 rounded px-1 py-0.5 text-left text-xs hover:bg-muted"
-                        title={ev.title}
+                        className="flex items-start gap-1 rounded px-1 py-0.5 text-left text-xs hover:bg-muted"
+                        title={ev.description ? `${ev.title}\n${ev.description}` : ev.title}
                       >
-                        {/* 颜色圆点：事件自定义颜色（用户数据）走内联样式 */}
+                        {/* 颜色圆点：事件自定义颜色（用户数据）走内联样式；两行标题下对齐首行 */}
                         <span
-                          className="size-2 shrink-0 rounded-full"
+                          className="mt-1 size-2 shrink-0 rounded-full"
                           style={{
                             background: ev.color || "var(--color-primary)",
                           }}
                         />
-                        <span className="truncate text-foreground">
+                        {/* 标题放宽到两行（line-clamp-2）：不再逼你把内容全挤进单行标题 */}
+                        <span className="line-clamp-2 leading-snug text-foreground">
                           {/* 带时刻的非全天事件：标题前缀显示 "HH:mm " */}
                           {!ev.all_day && ev.start_time ? ev.start_time + " " : ""}
                           {ev.title}

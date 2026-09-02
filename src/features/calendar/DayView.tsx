@@ -16,6 +16,7 @@ import type { CalendarEvent } from "@/types/calendar";
 import type { BoardTask } from "@/types/board";
 import { cn } from "@/lib/utils";
 import { DayColumn, HOUR_PX, isTimedEvent } from "./WeekView";
+import { QuickLogBar } from "./QuickLogBar";
 
 // 初始滚动定位到的可视起始小时（凌晨可继续往上滚），与周视图保持一致
 const DEFAULT_SCROLL_HOUR = 6;
@@ -63,6 +64,8 @@ export interface DayViewProps {
    * 时段事件拖拽落定改期（复用父级落库）：日视图仅改时刻，day 恒为本日。
    */
   onEventReschedule?: (ev: CalendarEvent, targetDay: Date, newStartMin: number) => void;
+  /** 快速记录：以当前时刻在本日建一条事件（Toggl 式）。省略则不渲染录入条。 */
+  onQuickLog?: (text: string) => void;
 }
 
 export default function DayView({
@@ -73,6 +76,7 @@ export default function DayView({
   onTaskClick,
   onDayClick,
   onEventReschedule,
+  onQuickLog,
 }: DayViewProps) {
   const { t } = useTranslation("calendar");
   // 时间轴滚动容器：挂载后定位到默认可视起始小时（6:00），与周视图一致
@@ -100,6 +104,12 @@ export default function DayView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* 快速记录条：置顶，随手记「刚在这天做了什么」，回车即以当前时刻建条 */}
+      {onQuickLog && (
+        <div className="shrink-0 p-2">
+          <QuickLogBar onSubmit={onQuickLog} />
+        </div>
+      )}
       {/* ── 表头行：左侧留出时间刻度列宽 + 单日「周几 + 日期」 ── */}
       <div className="grid shrink-0 border-b border-border" style={gridCols}>
         <div className="border-r border-border" /> {/* 时间列占位 */}

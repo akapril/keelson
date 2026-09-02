@@ -23,6 +23,10 @@
     "taskBadge": "任务",
     "empty": "未来 30 天暂无日程"
   },
+  "quicklog": {
+    "placeholder": "刚才做了什么…回车即记录",
+    "hint": "↵ 以当前时刻记一条"
+  },
   "event": {
     "contextEdit": "编辑",
     "contextDelete": "删除",

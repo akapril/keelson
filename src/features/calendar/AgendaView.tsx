@@ -18,6 +18,7 @@ import { KanbanIcon } from "@hugeicons/core-free-icons";
 import type { CalendarEvent } from "@/types/calendar";
 import type { BoardTask } from "@/types/board";
 import { cn } from "@/lib/utils";
+import { QuickLogBar } from "./QuickLogBar";
 
 // 议程覆盖天数（含今天）：今天起未来 30 天
 const AGENDA_DAYS = 30;
@@ -62,6 +63,8 @@ export interface AgendaViewProps {
   onEventClick: (ev: CalendarEvent) => void;
   /** 点击任务 → 跳转看板（复用父级跳转逻辑） */
   onTaskClick: (task: BoardTask) => void;
+  /** 快速记录：以当前时刻在今天建一条事件（Toggl 式）。省略则不渲染录入条。 */
+  onQuickLog?: (text: string) => void;
 }
 
 export default function AgendaView({
@@ -69,6 +72,7 @@ export default function AgendaView({
   tasks,
   onEventClick,
   onTaskClick,
+  onQuickLog,
 }: AgendaViewProps) {
   const { t } = useTranslation("calendar");
 
@@ -128,17 +132,14 @@ export default function AgendaView({
       : format(day, "MMM d, EEE");
   };
 
-  if (groups.length === 0) {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center">
-        <p className="text-sm text-muted-foreground">{t("agenda.empty")}</p>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-6 py-4">
+        {/* 快速记录条：置顶常驻，空议程时也在，方便随手记「刚做了什么」 */}
+        {onQuickLog && <QuickLogBar onSubmit={onQuickLog} />}
+        {groups.length === 0 && (
+          <p className="py-8 text-center text-sm text-muted-foreground">{t("agenda.empty")}</p>
+        )}
         {groups.map((g) => (
           <section key={g.day.toISOString()} className="flex flex-col gap-1.5">
             {/* 段头：分组日期 */}
@@ -158,21 +159,27 @@ export default function AgendaView({
                     key={`ev-${item.ev.id}-${item.ev.start}`}
                     type="button"
                     onClick={() => onEventClick(item.ev)}
-                    className="flex items-center gap-3 rounded-lg border border-border px-3 py-2 text-left transition-colors hover:bg-muted/50"
+                    className="flex items-start gap-3 rounded-lg border border-border px-3 py-2 text-left transition-colors hover:bg-muted/50"
                   >
                     {/* 时刻列：带时刻显示 "HH:mm"，否则显示「全天」 */}
-                    <span className="w-14 shrink-0 text-xs tabular-nums text-muted-foreground">
+                    <span className="mt-0.5 w-14 shrink-0 text-xs tabular-nums text-muted-foreground">
                       {!item.ev.all_day && item.ev.start_time
                         ? item.ev.start_time
                         : t("agenda.allDay")}
                     </span>
                     {/* 项目色点 */}
                     <span
-                      className="size-2.5 shrink-0 rounded-full"
+                      className="mt-1 size-2.5 shrink-0 rounded-full"
                       style={{ background: item.ev.color || "var(--color-primary)" }}
                     />
-                    <span className="truncate text-sm text-foreground">
-                      {item.ev.title}
+                    {/* 标题 + 描述预览：写在描述里的内容在这里可见，不必再全挤进标题 */}
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-sm text-foreground">{item.ev.title}</span>
+                      {item.ev.description && (
+                        <span className="truncate text-xs text-muted-foreground">
+                          {item.ev.description}
+                        </span>
+                      )}
                     </span>
                   </button>
                 ) : (
