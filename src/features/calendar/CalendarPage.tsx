@@ -37,6 +37,7 @@ import {
   ContextMenuItem,
 } from "@/components/ui/context-menu";
 import { useCalendarStore } from "@/store/calendar";
+import { parseQuickLog } from "@/lib/calendar/quick-log";
 import type { CalendarEvent } from "@/types/calendar";
 import { listDueTasks, listProjects, updateTaskDueDate } from "@/lib/pb/board";
 import type { BoardTask, BoardProject } from "@/types/board";
@@ -426,11 +427,13 @@ export default function CalendarPage() {
 
   // 快速记录（Toggl 式）：以当前时刻在指定日建一条事件；乐观插卡在 store 内，失败弹 toast。
   const handleQuickLog = async (dayStr: string, text: string) => {
-    const title = text.trim();
+    // 解析 @项目 标记：命中则关联项目并从标题剥离该 token
+    const { title, project } = parseQuickLog(text, projects);
     if (!title) return;
     try {
       await addEvent({
         title,
+        project,
         start: dayStr,
         start_time: format(new Date(), "HH:mm"),
         all_day: false,

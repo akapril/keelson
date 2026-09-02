@@ -89,6 +89,8 @@
     "empty": "No results",
     "groupActions": "Actions",
     "actionReport": "Generate work report",
+    "actionQuickLog": "Log \"{{q}}\"",
+    "quickLogDone": "Logged to calendar: {{text}}",
     "actionResumeLast": "Resume last session",
     "actionToggleTheme": "Toggle theme",
     "actionSettings": "Open settings",

@@ -89,6 +89,8 @@
     "empty": "无结果",
     "groupActions": "操作",
     "actionReport": "生成工作报告",
+    "actionQuickLog": "记一笔「{{q}}」",
+    "quickLogDone": "已记入日历：{{text}}",
     "actionResumeLast": "继续上次会话",
     "actionToggleTheme": "切换明暗主题",
     "actionSettings": "打开设置",

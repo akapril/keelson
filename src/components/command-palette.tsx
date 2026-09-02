@@ -19,7 +19,10 @@ import {
   Settings02Icon,
   TerminalIcon,
   Search01Icon,
+  Add01Icon,
 } from "@hugeicons/core-free-icons";
+import { format } from "date-fns";
+import { toast } from "sonner";
 import { flatNavItems } from "@/lib/navigation";
 import { workspaceRecordUrl } from "@/lib/workspace-navigation";
 import { listProjects, listAllTasks } from "@/lib/pb/board";
@@ -27,6 +30,8 @@ import { listAllDocs } from "@/lib/pb/docs";
 import { listReadingItems } from "@/lib/pb/reading";
 import { useSessionsStore } from "@/store/sessions";
 import { useSessionSearchStore } from "@/store/session-search";
+import { useCalendarStore } from "@/store/calendar";
+import { parseQuickLog, DEFAULT_EVENT_COLOR } from "@/lib/calendar/quick-log";
 import { useRestoreStore } from "@/store/restore";
 import { useTheme } from "@/components/theme-provider";
 import { getMru, pushMru } from "@/components/command-mru";
@@ -85,6 +90,28 @@ export function CommandPalette() {
         window.matchMedia("(prefers-color-scheme: dark)").matches);
     setTheme(isDark ? "light" : "dark");
     setOpen(false);
+  };
+
+  // ⌘K 里「记一笔」：用当前输入词、以此刻在今天建一条日历事件（解析 @项目 关联），不用切到日历页
+  const quickLog = async () => {
+    const text = query.trim();
+    if (!text) return;
+    const { title, project } = parseQuickLog(text, projects);
+    if (!title) return;
+    setOpen(false);
+    try {
+      await useCalendarStore.getState().addEvent({
+        title,
+        project,
+        start: format(new Date(), "yyyy-MM-dd"),
+        start_time: format(new Date(), "HH:mm"),
+        all_day: false,
+        color: DEFAULT_EVENT_COLOR,
+      });
+      toast.success(t("commandPalette.quickLogDone", { text: title }));
+    } catch (e) {
+      toast.error(String(e));
+    }
   };
 
   // ⌘K / Ctrl+K 切换面板；也响应头部搜索按钮派发的自定义事件
@@ -160,6 +187,13 @@ export function CommandPalette() {
 
         <CommandGroup heading={t("commandPalette.groupActions")}>
           {/* value 随语言对齐可见文本，确保英文模式下关键词可搜到。仅收「无上下文歧义」动作 */}
+          {/* 记一笔：有输入时置顶，用输入词以此刻在今天建一条日历事件（支持 @项目） */}
+          {q && (
+            <CommandItem value={`quick-log ${query}`} onSelect={quickLog}>
+              <HugeiconsIcon icon={Add01Icon} strokeWidth={2} className="size-4" />
+              {t("commandPalette.actionQuickLog", { q: query.trim() })}
+            </CommandItem>
+          )}
           {latestSession && (
             <CommandItem
               value={t("commandPalette.actionResumeLast")}
