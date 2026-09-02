@@ -2,6 +2,7 @@ import PocketBase from "pocketbase";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "@/lib/env";
 import { handleAuthExpired } from "@/web/auth-expiry";
+import { useWebFeaturesStore, type WebFeatures } from "@/store/web-features";
 // 组件禁止直接 import 本文件的 pb 之外的东西；数据访问走 lib/pb/collections.ts
 export const pb = new PocketBase("http://127.0.0.1:0"); // 占位，init 时覆盖 baseURL
 // 桌面应用无需浏览器式的请求自动取消；关闭它，避免 StrictMode 双跑 effect /
@@ -82,8 +83,8 @@ export async function initPbAuth(): Promise<void> {
     // 经 gateway 同源反代访问 PocketBase（/pb/* → 127.0.0.1:<pb_port>/*）
     pb.baseURL = `${location.origin}/pb`;
     try {
-      // 从 gateway /api/bootstrap_auth 获取 PB token 和 userId
-      const { token, userId } = await fetch("/api/bootstrap_auth", {
+      // 从 gateway /api/bootstrap_auth 获取 PB token / userId + web 功能开关
+      const { token, userId, features } = await fetch("/api/bootstrap_auth", {
         method: "POST", // 服务端注册为 POST only；缺此则发 GET → 405，web 端永远认证失败
         credentials: "same-origin",
       }).then((r) => {
@@ -93,8 +94,14 @@ export async function initPbAuth(): Promise<void> {
           throw new Error("bootstrap_auth 401");
         }
         if (!r.ok) throw new Error(`bootstrap_auth ${r.status}`);
-        return r.json() as Promise<{ token: string; userId: string }>;
+        return r.json() as Promise<{
+          token: string;
+          userId: string;
+          features?: WebFeatures;
+        }>;
       });
+      // web 端：用服务端返回的功能开关覆盖（组件据此隐藏未启用能力）
+      if (features) useWebFeaturesStore.getState().setFeatures(features);
       // 用 PB token 填充 authStore，免登录（与桌面端行为对称）
       pb.authStore.save(token, { id: userId, collectionName: "users" } as any);
       // 尝试刷新拉取完整用户记录；失败时保留最小 token（web 端常见场景）

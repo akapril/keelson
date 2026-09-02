@@ -137,6 +137,9 @@ pub struct AppState {
     /// PB bootstrap 认证信息（token/userId），供 gateway `/api/bootstrap_auth` 返回给
     /// 已配对 web 端。PB bootstrap 完成后写入；gateway 提前启动时此处为 None（返回 503）。
     pub web_api_state: web::api::ApiState,
+    /// Web 远程访问功能开关（按能力分组）：网关按位放行 `/api/*`，`web_features_set` 热更新、
+    /// bootstrap 响应回传给前端自适应。与 config.web_features 同步（set 时双写持久化）。
+    pub web_features: Arc<Mutex<config::WebFeatures>>,
     /// 内嵌 PTY 会话表（Task 10）：远程终端核心。gateway 的 WS handler（Task 11）经此
     /// 开/写/resize/读/杀伪终端会话。`Arc` 共享，供跨线程持有。
     pub web_pty: Arc<web::terminal::PtyRegistry>,
@@ -151,6 +154,8 @@ impl Default for AppState {
         let paths = paths::AppPaths::detect();
         let config_path = paths.app_data.join("config.toml");
         let cfg = config::AppConfig::load(&config_path);
+        // 从 config 初始化 web 功能开关（clone 出来，cfg 稍后 move 进 config mutex）
+        let web_features_init = cfg.web_features.clone();
         // 已配对设备表持久化路径：跨重启保留 web 配对（token hash，不含明文）。
         let web_devices_path = paths.app_data.join("web_devices.json");
         Self {
@@ -169,6 +174,7 @@ impl Default for AppState {
             web_gateway: Arc::new(Mutex::new(None)),
             web_auth: Arc::new(web::auth::AuthState::new_persistent(web_devices_path)),
             web_api_state: Arc::new(Mutex::new(None)),
+            web_features: Arc::new(Mutex::new(web_features_init)),
             web_pty: Arc::new(web::terminal::PtyRegistry::new()),
             runtime_pty: Arc::new(runtime::pty::InteractivePtyRegistry::new()),
             started_at: std::time::Instant::now(),
@@ -580,6 +586,8 @@ pub fn run() {
             commands::web::web_gateway_start,
             commands::web::web_gateway_stop,
             commands::web::web_gateway_status,
+            commands::web::web_features_get,
+            commands::web::web_features_set,
             // Web Gateway 认证 / 设备管理（Task 5 设置栏）
             commands::web::web_pairing_code,
             commands::web::web_regenerate_pairing_code,

@@ -49,6 +49,30 @@ fn remember_web_autostart(state: &AppState, enabled: bool) {
     }
 }
 
+/// 读取当前 web 功能开关（供设置页展示）。
+#[tauri::command]
+pub fn web_features_get(state: State<'_, AppState>) -> crate::config::WebFeatures {
+    state.web_features.lock().clone()
+}
+
+/// 更新 web 功能开关：热更新共享句柄（gateway 立即对新请求生效）+ 写盘持久化。
+#[tauri::command]
+pub fn web_features_set(
+    state: State<'_, AppState>,
+    features: crate::config::WebFeatures,
+) -> Result<(), String> {
+    // 1) 热更新 gateway 共享态
+    *state.web_features.lock() = features.clone();
+    // 2) 写入 config 并存盘（锁内改值 clone 出来，IO 不持锁）
+    let path = state.paths.app_data.join("config.toml");
+    let cfg = {
+        let mut guard = state.config.lock();
+        guard.web_features = features;
+        guard.clone()
+    };
+    cfg.save(&path).map_err(|e| format!("保存 web 功能开关失败: {e:#}"))
+}
+
 /// 启动 Web Gateway 的**核心逻辑**（绑固定端口）。已在运行则复用现有端口（幂等）。
 ///
 /// 供 `web_gateway_start` 命令与 setup 自启动共用（后者不经 State，故取 `&AppState`）。
@@ -97,6 +121,7 @@ pub async fn start_gateway(state: &AppState, dist_dir: Option<PathBuf>) -> Resul
         pb_base,
         state.web_api_state.clone(),
         state.sessions.clone(),
+        state.web_features.clone(),
         ws_terminal,
         dist_dir,
     ).await?;

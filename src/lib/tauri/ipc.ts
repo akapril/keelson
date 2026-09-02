@@ -7,6 +7,7 @@ import type { CommitInfo, CorrelatedCommit, HookStatus } from "@/types/git";
 import type { MemFilesStatus, FileMemory } from "@/types/memory";
 import type { RuntimeProcess, RuntimeLog, RuntimeStatus } from "@/types/runtime";
 import type { FileChange } from "@/types/file-change";
+import type { WebFeatures } from "@/store/web-features";
 import type {
   AiConfig,
   AiChatMessage,
@@ -118,6 +119,10 @@ export const ipc = {
   webGatewayStop: () => call<void>("web_gateway_stop"),
   /** 查询 Web Gateway 状态：运行中返回端口号，未运行返回 null */
   webGatewayStatus: () => call<number | null>("web_gateway_status"),
+  /** 读取 web 远程访问功能开关（按能力分组） */
+  webFeaturesGet: () => call<WebFeatures>("web_features_get"),
+  /** 更新 web 远程访问功能开关（热更新 gateway + 持久化） */
+  webFeaturesSet: (features: WebFeatures) => call<void>("web_features_set", { features }),
   /** 读取当前配对码（仅本机 UI 调用；切勿记录到日志/外传） */
   webPairingCode: () => call<string>("web_pairing_code"),
   /** 手动轮换配对码：作废旧码并返回新码（用于换新设备配对或作废泄露码） */

@@ -10,8 +10,10 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Edit02Icon, Delete02Icon } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
+import type { WebFeatures } from "@/store/web-features";
 
 /** 已配对设备信息（脱敏，仅含可公开字段）。 */
 interface DeviceInfo {
@@ -34,6 +36,9 @@ export function WebGatewaySection() {
   // 已配对设备列表
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
+
+  // web 功能开关（按能力分组，持久化）
+  const [features, setFeatures] = useState<WebFeatures | null>(null);
 
   // 开关/设备吊销的 busy 标志
   const [toggleBusy, setToggleBusy] = useState(false);
@@ -88,6 +93,25 @@ export function WebGatewaySection() {
       }
     });
   }, [refreshCode, refreshDevices]);
+
+  // 加载 web 功能开关（持久化，与 gateway 是否运行无关）
+  useEffect(() => {
+    void ipc.webFeaturesGet().then(setFeatures).catch(() => {});
+  }, []);
+
+  // 更新单个功能开关（乐观 + 失败回滚 + toast）
+  const updateFeature = async (key: keyof WebFeatures, val: boolean) => {
+    if (!features) return;
+    const prev = features;
+    const next = { ...features, [key]: val };
+    setFeatures(next);
+    try {
+      await ipc.webFeaturesSet(next);
+    } catch (e) {
+      setFeatures(prev);
+      toast.error(t("webGateway.featSaveError", { message: String(e) }));
+    }
+  };
 
   // 网关开启时轮询：某设备成功配对后服务端会自动轮换配对码——静默刷新以显示新码 + 新设备（不闪 loading）。
   useEffect(() => {
@@ -233,6 +257,37 @@ export function WebGatewaySection() {
               : t("webGateway.startBtn")}
         </Button>
       </div>
+
+      {/* 功能开关：按能力分组决定 web 远程端能用哪些功能（敏感默认关、按需开） */}
+      {features && (
+        <div className="space-y-1 rounded-md border border-border px-3 py-3">
+          <span className="text-xs font-medium">{t("webGateway.featuresTitle")}</span>
+          <p className="pb-1 text-xs text-muted-foreground">{t("webGateway.featuresDesc")}</p>
+          {(
+            [
+              { key: "sessions", label: t("webGateway.featSessions"), desc: t("webGateway.featSessionsDesc"), disabled: false },
+              { key: "activity", label: t("webGateway.featActivity"), desc: t("webGateway.featActivityDesc"), disabled: false },
+              { key: "ai", label: t("webGateway.featAi"), desc: t("webGateway.featAiDesc"), disabled: true },
+            ] as const
+          ).map((f) => (
+            <label key={f.key} className="flex cursor-pointer items-start gap-2.5 py-1">
+              <Checkbox
+                checked={features[f.key]}
+                disabled={f.disabled}
+                onCheckedChange={(v) => void updateFeature(f.key, v === true)}
+                className="mt-0.5"
+              />
+              <span className="flex flex-col gap-0.5">
+                <span className="text-sm">
+                  {f.label}
+                  {f.disabled && ` · ${t("webGateway.featSoon")}`}
+                </span>
+                <span className="text-xs text-muted-foreground">{f.desc}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
 
       {/* 配对码区块（仅 gateway 开启时显示） */}
       {enabled && (

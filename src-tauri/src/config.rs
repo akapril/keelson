@@ -42,6 +42,40 @@ pub struct AppConfig {
     /// 立即回收磁盘），清完自动复位。为 false 时不动。
     #[serde(default)]
     pub clear_logs_pending: bool,
+
+    /// Web 远程访问的功能开关（敏感能力默认关、按需开）。
+    #[serde(default)]
+    pub web_features: WebFeatures,
+}
+
+/// Web 远程访问按能力分组的功能开关。
+/// 安全默认：只读能力（会话浏览 / 日历 git 活动）默认开；用密钥/高风险能力默认关。
+/// 网关按位放行对应 `/api/*` 端点，关着一律 403。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebFeatures {
+    /// 会话浏览（`/api/sessions_list`）。只读，默认开。
+    #[serde(default = "default_true")]
+    pub sessions: bool,
+    /// 日历「今日活动 / 回顾」的 git 活动读取（`/api/git_log`）。只读，默认开。
+    #[serde(default = "default_true")]
+    pub activity: bool,
+    /// AI 日报 / 对话（`/api/ai_chat`，使用你的密钥）。默认关（占位，路由后续接入）。
+    #[serde(default)]
+    pub ai: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for WebFeatures {
+    fn default() -> Self {
+        Self {
+            sessions: true,
+            activity: true,
+            ai: false,
+        }
+    }
 }
 
 fn default_on_exit_processes() -> String {
@@ -65,6 +99,7 @@ impl Default for AppConfig {
             on_exit_processes: default_on_exit_processes(),
             log_retention_days: default_log_retention_days(),
             clear_logs_pending: false,
+            web_features: WebFeatures::default(),
         }
     }
 }

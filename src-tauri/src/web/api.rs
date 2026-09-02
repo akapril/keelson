@@ -11,7 +11,7 @@ use parking_lot::Mutex;
 use serde::Serialize;
 use std::sync::Arc;
 
-/// `POST /api/bootstrap_auth` 的响应体：仅含前端需要的 PB token + userId。
+/// gateway 侧存储的 PB 认证信息（token/userId）。响应时由 handler 合并实时 features 一起返回。
 /// 不含 baseUrl（web 端固定用 /pb 反代，不暴露内部 PocketBase 地址）。
 #[derive(Debug, Serialize)]
 pub struct BootstrapAuthResp {
@@ -19,6 +19,9 @@ pub struct BootstrapAuthResp {
     #[serde(rename = "userId")]
     pub user_id: String,
 }
+
+/// gateway 侧共享的 web 功能开关句柄（与 AppState.web_features 同一 Arc，热更新可见）。
+pub type WebFeaturesState = Arc<Mutex<crate::config::WebFeatures>>;
 
 /// Gateway 侧持有的 PB 认证信息（bootstrap 完成后由 setup_pocketbase 写入）。
 ///

@@ -12,7 +12,7 @@
 //!
 //! 路由装配集中在 `build_router()` 一处，便于统一审计鉴权边界。
 use crate::models::Session;
-use crate::web::api::{ApiState, BootstrapAuthResp};
+use crate::web::api::{ApiState, WebFeaturesState};
 use crate::web::auth::{check_and_rotate, issue_token, verify_token, AuthState};
 use crate::web::pb_proxy::{pb_proxy_handler, PbProxyState};
 use axum::{
@@ -32,6 +32,15 @@ use tower_http::services::ServeDir;
 
 /// Gateway 侧会话缓存共享句柄（与 AppState.sessions 同一 Arc）。
 pub type SessionsState = Arc<Mutex<Vec<Session>>>;
+
+/// `/api/git_log` 请求体（对齐前端 ipc.gitLog 参数）。
+#[derive(serde::Deserialize)]
+struct GitLogReq {
+    path: String,
+    since: Option<String>,
+    until: Option<String>,
+    limit: Option<u32>,
+}
 
 /// `/ws/terminal/{id}` handler 的共享状态：PTY 会话表 + provider 注册表 + 已知会话集合。
 ///
@@ -211,6 +220,7 @@ fn build_router(
     pb_base: String,
     api_state: ApiState,
     sessions_state: SessionsState,
+    features_state: WebFeaturesState,
     ws_terminal: WsTerminalState,
     dist_dir: Option<PathBuf>,
 ) -> Router {
@@ -245,16 +255,20 @@ fn build_router(
     // `/api/bootstrap_auth` handler（闭包捕获 api_state，规避 axum Router<()> 类型推断问题）。
     // 返回 PB token/userId 给已配对 web 端（不含 baseUrl，web 端经 /pb 反代访问 PocketBase）。
     let api_state_clone = api_state;
+    let feat_for_bootstrap = features_state.clone();
     let bootstrap_auth_handler = move || {
         let state = api_state_clone.clone();
+        let feats = feat_for_bootstrap.clone();
         async move {
             let guard = state.lock();
             match guard.as_ref() {
                 Some(auth) => {
-                    let resp = BootstrapAuthResp {
-                        token: auth.token.clone(),
-                        user_id: auth.user_id.clone(),
-                    };
+                    // token/userId（存储）+ 实时功能开关合并返回，供前端隐藏未启用能力（避免空跑 403/404）
+                    let resp = serde_json::json!({
+                        "token": auth.token,
+                        "userId": auth.user_id,
+                        "features": *feats.lock(),
+                    });
                     (StatusCode::OK, axum::Json(resp)).into_response()
                 }
                 None => {
@@ -269,11 +283,40 @@ fn build_router(
     // Router<()> 类型推断限制）。调用 `sessions::list_core` 复用与 Tauri command 相同的读锁逻辑。
     // 在 require_token layer 内，未配对设备无法到达此路由。
     let sessions_state_clone = sessions_state;
+    let feat_for_sessions = features_state.clone();
     let sessions_list_handler = move || {
         let state = sessions_state_clone.clone();
+        let feats = feat_for_sessions.clone();
         async move {
+            // 功能门控：会话浏览关闭时拒绝（默认开）
+            if !feats.lock().sessions {
+                return (StatusCode::FORBIDDEN, "会话浏览未在 web 端启用").into_response();
+            }
             let sessions = crate::commands::sessions::list_core(&state);
             (StatusCode::OK, axum::Json(sessions)).into_response()
+        }
+    };
+
+    // `/api/git_log`：日历「今日活动 / 回顾」的 git 活动读取。activity 门控（默认开），关着 403。
+    // git 为阻塞子进程 → spawn_blocking 移出 async 线程；复用与 Tauri command 同一 git_log_impl。
+    let feat_for_git = features_state.clone();
+    let git_log_handler = move |axum::Json(body): axum::Json<GitLogReq>| {
+        let feats = feat_for_git.clone();
+        async move {
+            if !feats.lock().activity {
+                return (StatusCode::FORBIDDEN, "git 活动未在 web 端启用").into_response();
+            }
+            let commits = tokio::task::spawn_blocking(move || {
+                crate::commands::git::git_log_impl(
+                    &body.path,
+                    body.since,
+                    body.until,
+                    body.limit.unwrap_or(200),
+                )
+            })
+            .await
+            .unwrap_or_default();
+            (StatusCode::OK, axum::Json(commits)).into_response()
         }
     };
 
@@ -288,6 +331,8 @@ fn build_router(
         // 受保护 API 路由（/api/sessions_list）：token 闸内，不在白名单。
         // 返回全量会话列表 Vec<Session> JSON（Task 8 工作台栏）。
         .route("/api/sessions_list", post(sessions_list_handler))
+        // 受保护 API 路由（/api/git_log）：activity 门控，供 web 日历今日活动/回顾读 git。
+        .route("/api/git_log", post(git_log_handler))
         // PB 同源反向代理（token 闸内，防 SSRF）。
         .merge(pb_router)
         // WS 终端双向泵（token 闸内，非白名单 → require_token 自动覆盖握手）。
@@ -323,6 +368,7 @@ pub async fn start(
     pb_base: String,
     api_state: ApiState,
     sessions_state: SessionsState,
+    features_state: WebFeaturesState,
     ws_terminal: WsTerminalState,
     dist_dir: Option<PathBuf>,
 ) -> Result<(u16, GatewayHandle), String> {
@@ -337,7 +383,15 @@ pub async fn start(
         .port();
 
     let (tx, rx) = oneshot::channel::<()>();
-    let router = build_router(auth, pb_base, api_state, sessions_state, ws_terminal, dist_dir);
+    let router = build_router(
+        auth,
+        pb_base,
+        api_state,
+        sessions_state,
+        features_state,
+        ws_terminal,
+        dist_dir,
+    );
 
     // 后台运行：收到 shutdown 信号（rx 完成）后优雅退出。
     tokio::spawn(async move {
@@ -371,6 +425,8 @@ mod tests {
         let auth = Arc::new(AuthState::new());
         let api_state: ApiState = Arc::new(Mutex::new(None));
         let sessions_state: SessionsState = Arc::new(Mutex::new(Vec::<Session>::new()));
+        let features_state: WebFeaturesState =
+            Arc::new(Mutex::new(crate::config::WebFeatures::default()));
         let ws_terminal = WsTerminalState {
             pty: Arc::new(crate::web::terminal::PtyRegistry::new()),
             reg: Arc::new(crate::providers::ProviderRegistry::new()),
@@ -381,6 +437,7 @@ mod tests {
             "http://127.0.0.1:8790".to_string(),
             api_state,
             sessions_state,
+            features_state,
             ws_terminal,
             None, // 测试不装载 dist（走占位页回落分支）
         );
