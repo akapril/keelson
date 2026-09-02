@@ -32,6 +32,9 @@ import { useSessionsStore } from "@/store/sessions";
 import { useSessionSearchStore } from "@/store/session-search";
 import { useCalendarStore } from "@/store/calendar";
 import { parseQuickLog, DEFAULT_EVENT_COLOR } from "@/lib/calendar/quick-log";
+import { useReportJobStore } from "@/store/report-job";
+import { useSettingsStore } from "@/store/settings";
+import { computeRange } from "@/features/report/report-range";
 import { useRestoreStore } from "@/store/restore";
 import { useTheme } from "@/components/theme-provider";
 import { getMru, pushMru } from "@/components/command-mru";
@@ -112,6 +115,25 @@ export function CommandPalette() {
     } catch (e) {
       toast.error(String(e));
     }
+  };
+
+  // ⌘K 一键「今天回顾」：以今天为范围后台生成 AI 日报（复用 report-job），跳报告页看进度/结果
+  const todayReview = () => {
+    const cfg = useSettingsStore.getState().aiConfig;
+    const isCli = cfg.provider === "claude-cli" || cfg.provider === "codex-cli";
+    setOpen(false);
+    if (!isCli && !cfg.api_key) {
+      // 未配置 AI：跳报告页让用户配置，不静默失败
+      navigate("/report");
+      return;
+    }
+    useReportJobStore.getState().run({
+      range: computeRange("today", new Date()),
+      scope: "all",
+      cfg,
+    });
+    toast.message(t("commandPalette.todayReviewStarted"));
+    navigate("/report");
   };
 
   // ⌘K / Ctrl+K 切换面板；也响应头部搜索按钮派发的自定义事件
@@ -203,6 +225,10 @@ export function CommandPalette() {
               {t("commandPalette.actionResumeLast")}
             </CommandItem>
           )}
+          <CommandItem value={t("commandPalette.actionTodayReview")} onSelect={todayReview}>
+            <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} className="size-4" />
+            {t("commandPalette.actionTodayReview")}
+          </CommandItem>
           <CommandItem value={t("commandPalette.actionReport")} onSelect={() => go("/report")}>
             <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} className="size-4" />
             {t("commandPalette.actionReport")}

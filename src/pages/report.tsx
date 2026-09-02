@@ -45,6 +45,7 @@ export default function ReportPage() {
 
   // 时间范围预设（顺序即展示顺序）
   const PRESETS: { key: RangePreset; label: string }[] = [
+    { key: "today", label: t("report.rangeToday") },
     { key: "this-week", label: t("report.rangeThisWeek") },
     { key: "last-week", label: t("report.rangeLastWeek") },
     { key: "last-7", label: t("report.rangeLast7") },

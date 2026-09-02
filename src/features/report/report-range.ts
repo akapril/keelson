@@ -5,7 +5,7 @@
 //     "YYYY-MM-DD HH:MM:SS.sssZ"（空格分隔）与 toISOString 的 "T" 分隔
 //     字典序不可比，故过滤统一用 Date.parse 后比毫秒。
 
-export type RangePreset = "this-week" | "last-week" | "last-7" | "last-30" | "custom";
+export type RangePreset = "today" | "this-week" | "last-week" | "last-7" | "last-30" | "custom";
 
 export interface DateRange {
   /** gitLog --since（含起点），本地边界转 ISO */
@@ -72,6 +72,11 @@ export function computeRange(
   custom?: { from: string; to: string },
 ): DateRange {
   switch (preset) {
+    case "today": {
+      const s = startOfDay(now);
+      const e = endOfDay(now);
+      return make(s, e, `今天（${md(s)}）`);
+    }
     case "this-week": {
       const mon = mondayOf(now);
       const sun = endOfDay(addDays(mon, 6));
