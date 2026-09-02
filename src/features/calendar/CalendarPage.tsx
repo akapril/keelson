@@ -38,6 +38,9 @@ import {
 } from "@/components/ui/context-menu";
 import { useCalendarStore } from "@/store/calendar";
 import { parseQuickLog } from "@/lib/calendar/quick-log";
+import { collectMaterial } from "@/features/report/generateReport";
+import { computeRange } from "@/features/report/report-range";
+import type { ReportMaterial } from "@/features/report/report-collect";
 import type { CalendarEvent } from "@/types/calendar";
 import { listDueTasks, listProjects, updateTaskDueDate } from "@/lib/pb/board";
 import type { BoardTask, BoardProject } from "@/types/board";
@@ -242,6 +245,8 @@ export default function CalendarPage() {
   const [dueTasks, setDueTasks] = useState<BoardTask[]>([]);
   // 项目列表（用于事件的「关联项目」下拉）
   const [projects, setProjects] = useState<BoardProject[]>([]);
+  // 「今日活动」自动汇入（今天的提交/完成任务/会话，只读）——议程视图展示
+  const [todayActivity, setTodayActivity] = useState<ReportMaterial | null>(null);
 
   // 当前浏览的月份（取任意一天即可代表该月）
   const [viewDate, setViewDate] = useState<Date>(() => new Date());
@@ -288,6 +293,20 @@ export default function CalendarPage() {
       .then(setProjects)
       .catch(() => {});
   }, []);
+
+  // 议程视图打开时采集「今日活动」（今天的提交/完成任务/会话），只读汇入；失败静默不阻断
+  useEffect(() => {
+    if (view !== "agenda") return;
+    let alive = true;
+    void collectMaterial(computeRange("today", new Date()), "all")
+      .then((m) => {
+        if (alive) setTodayActivity(m);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [view]);
 
   // 计算网格覆盖的所有日期：从当月首日所在周的周日，到末日所在周的周六
   const days = useMemo(() => {
@@ -604,6 +623,7 @@ export default function CalendarPage() {
           onEventClick={openEdit}
           onTaskClick={(tk) => navigate(`/board?open=${tk.project}`)}
           onQuickLog={(text) => void handleQuickLog(format(new Date(), "yyyy-MM-dd"), text)}
+          activity={todayActivity}
         />
       )}
 

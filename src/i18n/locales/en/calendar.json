@@ -27,6 +27,12 @@
     "placeholder": "What did you just do… press Enter to log",
     "hint": "↵ logs at current time"
   },
+  "activity": {
+    "title": "Today's activity · auto",
+    "commits": "Commits",
+    "tasks": "Completed tasks",
+    "sessions": "Sessions"
+  },
   "event": {
     "contextEdit": "Edit",
     "contextDelete": "Delete",

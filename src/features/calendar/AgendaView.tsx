@@ -17,8 +17,63 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { KanbanIcon } from "@hugeicons/core-free-icons";
 import type { CalendarEvent } from "@/types/calendar";
 import type { BoardTask } from "@/types/board";
+import type { ReportMaterial } from "@/features/report/report-collect";
 import { cn } from "@/lib/utils";
 import { QuickLogBar } from "./QuickLogBar";
+
+// 「今日活动」每个子类最多列出的条数，超出显示「+N 更多」
+const ACTIVITY_MAX = 6;
+
+/** 今日活动只读汇入：把今天的提交/完成任务/会话（来自 report 采集层）紧凑展示，
+ *  让"工作自动写了日志"、你只需补充手动记录。全空则不渲染。 */
+function TodayActivity({ activity }: { activity: ReportMaterial }) {
+  const { t } = useTranslation("calendar");
+  // 三类拍平：提交带仓库标签、任务带项目名、会话带项目名 + 末次提示
+  const commits = activity.commitGroups.flatMap((g) =>
+    g.commits.map((c) => ({ key: c.hash, main: c.subject, sub: g.label })),
+  );
+  const tasks = activity.taskGroups.flatMap((g) =>
+    g.tasks.map((tk) => ({ key: tk.id, main: tk.title, sub: g.label })),
+  );
+  const sessions = activity.sessionGroups.flatMap((g) =>
+    g.sessions.map((s) => ({
+      key: s.session_id,
+      main: s.last_prompt || s.first_prompt || s.session_id,
+      sub: g.label,
+    })),
+  );
+  const sections = [
+    { label: t("activity.commits"), items: commits },
+    { label: t("activity.tasks"), items: tasks },
+    { label: t("activity.sessions"), items: sessions },
+  ].filter((s) => s.items.length > 0);
+
+  if (sections.length === 0) return null;
+
+  return (
+    <section className="flex flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/20 p-3">
+      <h3 className="text-xs font-semibold text-muted-foreground">{t("activity.title")}</h3>
+      {sections.map((sec) => (
+        <div key={sec.label} className="flex flex-col gap-0.5">
+          <span className="text-2xs font-medium uppercase text-muted-foreground/70">
+            {sec.label}（{sec.items.length}）
+          </span>
+          {sec.items.slice(0, ACTIVITY_MAX).map((it) => (
+            <div key={it.key} className="flex items-baseline gap-2 pl-1 text-xs">
+              <span className="min-w-0 flex-1 truncate text-foreground/80">{it.main}</span>
+              <span className="shrink-0 text-2xs text-muted-foreground">{it.sub}</span>
+            </div>
+          ))}
+          {sec.items.length > ACTIVITY_MAX && (
+            <span className="pl-1 text-2xs text-muted-foreground">
+              {t("event.more", { count: sec.items.length - ACTIVITY_MAX })}
+            </span>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
 
 // 议程覆盖天数（含今天）：今天起未来 30 天
 const AGENDA_DAYS = 30;
@@ -65,6 +120,8 @@ export interface AgendaViewProps {
   onTaskClick: (task: BoardTask) => void;
   /** 快速记录：以当前时刻在今天建一条事件（Toggl 式）。省略则不渲染录入条。 */
   onQuickLog?: (text: string) => void;
+  /** 今日活动只读汇入（提交/完成任务/会话）；null=未加载/无。 */
+  activity?: ReportMaterial | null;
 }
 
 export default function AgendaView({
@@ -73,6 +130,7 @@ export default function AgendaView({
   onEventClick,
   onTaskClick,
   onQuickLog,
+  activity,
 }: AgendaViewProps) {
   const { t } = useTranslation("calendar");
 
@@ -137,6 +195,8 @@ export default function AgendaView({
       <div className="mx-auto flex max-w-2xl flex-col gap-6 py-4">
         {/* 快速记录条：置顶常驻，空议程时也在，方便随手记「刚做了什么」 */}
         {onQuickLog && <QuickLogBar onSubmit={onQuickLog} />}
+        {/* 今日活动只读汇入：工作(提交/完成任务/会话)自动写日志，你只需补充 */}
+        {activity && <TodayActivity activity={activity} />}
         {groups.length === 0 && (
           <p className="py-8 text-center text-sm text-muted-foreground">{t("agenda.empty")}</p>
         )}

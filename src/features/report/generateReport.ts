@@ -41,16 +41,14 @@ function repoTail(path: string): string {
 }
 
 /**
- * 生成工作报告。
- * @param systemPrompt 可选的模板系统提示（来自指令库）；缺省用内置 REPORT_SYSTEM。
- * @returns Markdown 正文；素材为空时返回占位说明。
+ * 采集三类素材（Git 提交 / 完成任务 / AI 会话），不调用 AI——纯数据函数。
+ * 供 AI 日报（generateReport）与日历「今日活动」只读视图共用同一采集层。
+ * @returns 分组好的 ReportMaterial；素材空时各组为空数组（调用方自行判空）。
  */
-export async function generateReport(
+export async function collectMaterial(
   range: DateRange,
   scope: ReportScope,
-  cfg: AiConfig,
-  systemPrompt?: string,
-): Promise<string> {
+): Promise<ReportMaterial> {
   const singleId = typeof scope === "object" ? scope.projectId : null;
 
   // 项目 / 任务 / 状态：PB 全量拉（owner 范围由访问规则保证）
@@ -144,6 +142,21 @@ export async function generateReport(
     taskGroups,
     sessionGroups,
   };
+  return material;
+}
+
+/**
+ * 生成工作报告。
+ * @param systemPrompt 可选的模板系统提示（来自指令库）；缺省用内置 REPORT_SYSTEM。
+ * @returns Markdown 正文；素材为空时返回占位说明。
+ */
+export async function generateReport(
+  range: DateRange,
+  scope: ReportScope,
+  cfg: AiConfig,
+  systemPrompt?: string,
+): Promise<string> {
+  const material = await collectMaterial(range, scope);
   if (!hasAnyMaterial(material)) return EMPTY_REPORT;
 
   const msgs: AiChatMessage[] = [
