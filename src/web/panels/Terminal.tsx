@@ -85,15 +85,20 @@ const VIRTUAL_KEYS = [
 interface VirtualKeybarProps {
   /** 调用此方法向 pty stdin 发送字节 */
   onSend: (data: string) => void;
+  /** 点「键盘」→ 显式弹出软键盘（默认点终端不弹，避免挡界面） */
+  onShowKeyboard: () => void;
 }
 
 /**
  * 虚拟按键条（移动端显示，桌面 lg: 隐藏）
+ * - 首位为「⌨ 键盘」：默认点终端不弹软键盘（可滚动不挡界面），要打字点它才弹
  * - 横向可滚动，避免在窄屏挤压按钮；按钮触摸友好的 min-w + h
  * - 历史滚动改由终端区**直接触摸滑动**（见 XtermView 手势），此处不再放滚动按钮
  */
-function VirtualKeybar({ onSend }: VirtualKeybarProps) {
+function VirtualKeybar({ onSend, onShowKeyboard }: VirtualKeybarProps) {
   const { t } = useTranslation("web");
+  const btnCls =
+    "flex min-w-[2.5rem] shrink-0 items-center justify-center rounded border border-border bg-background px-2 py-1.5 text-xs font-mono text-foreground transition-colors active:bg-muted hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return (
     <div
       className="shrink-0 overflow-x-auto border-t border-border bg-muted/40 py-1.5 lg:hidden"
@@ -101,6 +106,17 @@ function VirtualKeybar({ onSend }: VirtualKeybarProps) {
       role="toolbar"
     >
       <div className="flex gap-1 px-2">
+        {/* 键盘按钮：点它才弹软键盘 */}
+        <button
+          type="button"
+          title={t("terminal.keyboard")}
+          aria-label={t("terminal.keyboard")}
+          onClick={onShowKeyboard}
+          className={`${btnCls} border-primary/40 text-primary`}
+        >
+          ⌨
+        </button>
+        <span className="mx-0.5 shrink-0 self-stretch border-l border-border" aria-hidden />
         {VIRTUAL_KEYS.map(({ label, bytes, title }) => (
           <button
             key={label}
@@ -190,7 +206,10 @@ function TerminalInstance({ session, active }: { session: Session; active: boole
         />
       </div>
       {/* 虚拟按键条：仅移动端显示（lg:hidden）。历史滚动改由终端区直接触摸滑动 */}
-      <VirtualKeybar onSend={(d) => xtermRef.current?.sendInput(d)} />
+      <VirtualKeybar
+        onSend={(d) => xtermRef.current?.sendInput(d)}
+        onShowKeyboard={() => xtermRef.current?.focusKeyboard()}
+      />
     </div>
   );
 }

@@ -26,6 +26,8 @@ export interface XtermHandle {
   scrollLines: (amount: number) => void;
   /** 滚回底部（最新输出） */
   scrollToBottom: () => void;
+  /** 显式弹出移动端软键盘（默认聚焦不弹，避免点终端就挡界面）：临时开 inputmode 再聚焦 */
+  focusKeyboard: () => void;
 }
 
 export interface XtermViewProps {
@@ -87,6 +89,14 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     scrollToBottom() {
       termRef.current?.scrollToBottom();
     },
+    focusKeyboard() {
+      // 临时把隐藏输入框 inputmode 改回 text 再聚焦 → 软键盘弹出（用户显式点「键盘」才触发）
+      const ta = containerRef.current?.querySelector<HTMLTextAreaElement>(
+        ".xterm-helper-textarea",
+      );
+      if (ta) ta.inputMode = "text";
+      termRef.current?.focus();
+    },
   }), []);
 
   useEffect(() => {
@@ -124,6 +134,20 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     term.open(containerRef.current);
     termRef.current = term;
     safeFit();
+
+    // 移动端软键盘策略：默认给隐藏输入框设 inputmode="none"——点终端可聚焦(滚动/选择)但**不弹软键盘**，
+    // 避免点终端就被键盘挡住界面。需要打字时由「键盘」按钮走 focusKeyboard() 临时改回 text 再聚焦。
+    // 失焦即复位 none，保证下次点终端不弹。（inputmode 不影响桌面硬件键盘输入。）
+    const helperTa = containerRef.current.querySelector<HTMLTextAreaElement>(
+      ".xterm-helper-textarea",
+    );
+    const resetInputMode = () => {
+      if (helperTa) helperTa.inputMode = "none";
+    };
+    if (helperTa) {
+      helperTa.inputMode = "none";
+      helperTa.addEventListener("blur", resetInputMode);
+    }
 
     // 主题竞态修复：硬刷新后 xterm 可能在主题 class 应用到 <html> 之前挂载 →
     // resolveXtermTheme 读到默认(浅色)调色板致"刷新后颜色变了"。观察 <html> class 变化，
@@ -239,6 +263,7 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       el.removeEventListener("touchstart", onTouchStart, { capture: true });
       el.removeEventListener("touchmove", onTouchMove, { capture: true });
       el.removeEventListener("touchend", onTouchEnd, { capture: true });
+      helperTa?.removeEventListener("blur", resetInputMode);
       dataDisposable.dispose();
       ws.close();
       term.dispose();

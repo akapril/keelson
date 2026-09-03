@@ -76,7 +76,8 @@
       "up": "向上滚（看历史）",
       "down": "向下滚",
       "bottom": "回到底部"
-    }
+    },
+    "keyboard": "键盘"
   },
   "settings": {
     "theme": {

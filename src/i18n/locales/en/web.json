@@ -76,7 +76,8 @@
       "up": "Scroll up",
       "down": "Scroll down",
       "bottom": "To bottom"
-    }
+    },
+    "keyboard": "Keyboard"
   },
   "settings": {
     "theme": {
