@@ -72,27 +72,19 @@ vi.mock("react-i18next", () => ({
   Trans: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// xterm-shared 里调 getComputedStyle（jsdom 环境下为空），mock 掉以免报错
-vi.mock("../xterm-shared", () => ({
-  resolveXtermTheme: () => ({
-    background: "#1a1b1e",
-    foreground: "#c9d1d9",
-    cursor: "#58a6ff",
-    selectionBackground: "#3d444d40",
-  }),
-  makeSafeFit: (getContainer: () => HTMLElement | null, fit: () => void) => {
-    // 在 jsdom 中 clientWidth/Height 始终为 0，直接返回总是 skip 的 stub
-    // 但需要能调用 fit，测试只关注接线逻辑，不关注 fit 触发
-    return () => {
-      const el = getContainer();
-      if (!el) return false;
-      try { fit(); } catch { /* ignore */ }
-      return true;
-    };
-  },
-  // WebGL 渲染器在 jsdom 无 GL 上下文，桩成 noop（返回 noop 清理函数），不影响接线测试
-  loadWebglRenderer: () => () => {},
-}));
+// createXtermCore 内部会 new Terminal + WebGL + getComputedStyle（jsdom 下均不可用），
+// 整体桩掉：返回被 mock 的 Terminal（捕获 onData/write）+ 恒真 safeFit + noop dispose，
+// 只验接线（订阅事件名、键入转发），不验真实渲染。
+vi.mock("../xterm-shared", async () => {
+  const xterm = await import("@xterm/xterm"); // 取上面 mock 的 MockTerminal
+  return {
+    createXtermCore: () => ({
+      term: new xterm.Terminal(),
+      safeFit: () => true,
+      dispose: () => {},
+    }),
+  };
+});
 
 import { InteractivePtyView } from "../InteractivePtyView";
 

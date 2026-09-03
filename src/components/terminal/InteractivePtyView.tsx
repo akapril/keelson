@@ -9,12 +9,9 @@
  */
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import "@xterm/xterm/css/xterm.css";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ipc } from "@/lib/tauri/ipc";
-import { resolveXtermTheme, makeSafeFit, loadWebglRenderer } from "./xterm-shared";
+import { createXtermCore } from "./xterm-shared";
 
 export function InteractivePtyView({
   id,
@@ -32,31 +29,10 @@ export function InteractivePtyView({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // 初始化终端（主题从 CSS 变量读取，不硬编码颜色）
-    const term = new Terminal({
-      theme: resolveXtermTheme(),
-      fontFamily: '"JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace',
-      fontSize: 14,
-      lineHeight: 1.4,
-      cursorBlink: true,
-      allowProposedApi: false,
-      scrollback: 5000,
-    });
-
-    // 挂载 FitAddon，自动根据容器尺寸设置 cols/rows
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
-    term.open(containerRef.current);
-    // 启用 WebGL 硬件加速渲染（必须在 open 之后）：提升整帧重绘/滚动流畅度；
-    // 不支持时静默回退默认渲染。返回的 dispose 在卸载时调用。
-    const disposeWebgl = loadWebglRenderer(term);
-
-    // safeFit：容器可见（有实际尺寸）时才 fit，keep-alive 隐藏时跳过
-    const safeFit = makeSafeFit(
-      () => containerRef.current,
-      () => fitAddon.fit(),
-    );
-    safeFit();
+    // 创建终端核心（new Terminal + FitAddon + 挂载 + WebGL + 主题实时跟随 + safeFit，
+    // 见 createXtermCore；与 web 终端复用同一套样板，桌面端同样获得主题实时切换）。
+    const core = createXtermCore(containerRef.current);
+    const { term, safeFit } = core;
 
     // 键入 → stdin（term.onData 发出 xterm 解码后的字符序列）
     const dataDisposable = term.onData((data) => {
@@ -91,8 +67,8 @@ export function InteractivePtyView({
       dataDisposable.dispose();
       // 解绑 Tauri 事件监听（已注册的按序调用，未注册的不在数组里）
       unlisteners.forEach((un) => un());
-      disposeWebgl(); // 先 dispose WebGL 渲染器再 dispose 终端，避免 GL 资源泄漏
-      term.dispose();
+      // 拆完监听再 core.dispose()（内部按序：主题 observer → WebGL → term.dispose）
+      core.dispose();
     };
   }, [id]); // deps 仅保留进程 id；t 经 tRef 传递，不纳入
 

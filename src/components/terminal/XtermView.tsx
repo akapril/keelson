@@ -12,11 +12,9 @@
  * ref 暴露：XtermHandle.sendInput(data) 供父组件（虚拟按键条）发送控制字节。
  */
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import "@xterm/xterm/css/xterm.css";
+import type { Terminal } from "@xterm/xterm";
 import { openTerminalWs, type WsStatus } from "@/web/webterm-ws";
-import { resolveXtermTheme, makeSafeFit, loadWebglRenderer } from "./xterm-shared";
+import { createXtermCore } from "./xterm-shared";
 
 /** 通过 ref 暴露给父组件的句柄 */
 export interface XtermHandle {
@@ -122,56 +120,15 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // 解析主题色（首次挂载时读取 CSS 变量，适配当前深/浅模式）
-    const theme = resolveXtermTheme();
-
-    // 初始化 Terminal
-    const term = new Terminal({
-      theme,
-      // 末尾补 CJK 等宽兜底：中文字形宽度更一致，缓解 IME 组字时的左移/抖动
-      fontFamily:
-        '"JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Sarasa Mono SC", "Microsoft YaHei", "PingFang SC", "Noto Sans Mono CJK SC", monospace',
-      fontSize: 14,
-      lineHeight: 1.4,
-      cursorBlink: true,
-      allowProposedApi: false,
-      scrollback: 5000,
-    });
-
-    // 挂载 FitAddon（自动根据容器尺寸设置 cols/rows）
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
-
-    // 仅在容器可见（有实际尺寸）时 fit：keep-alive 布局下切走 tab 会把容器设为
-    // display:none（clientWidth/Height=0），此时 fit() 会算出 1x1 破坏终端；跳过即可，
-    // 切回可见时 ResizeObserver 会再触发一次正常 fit。返回是否真正执行了 fit。
-    const safeFit = makeSafeFit(
-      () => containerRef.current,
-      () => fitAddon.fit(),
-    );
-
-    // 渲染到 DOM
-    term.open(containerRef.current);
+    // 创建终端核心（new Terminal + FitAddon + 挂载 + WebGL + 主题实时跟随 + safeFit，
+    // 见 createXtermCore；与桌面终端复用同一套样板）。传输/触摸/键盘等仍在本视图接线。
+    const core = createXtermCore(containerRef.current);
+    const { term, safeFit } = core;
     termRef.current = term;
-    // 启用 WebGL 硬件加速渲染（必须在 open 之后）：大幅提升整帧重绘/滚动流畅度；
-    // 不支持时静默回退默认渲染。返回的 dispose 在卸载时调用。
-    const disposeWebgl = loadWebglRenderer(term);
-    safeFit();
 
     // 移动端软键盘策略：**点终端即聚焦隐藏输入框、直接弹出软键盘**（与桌面/普通输入框一致，最直觉）。
     // 键盘遮挡问题改由外层 visualViewport 方案解决（根容器随可视高度收缩+顶起，输入行落到键盘之上），
     // 不再用 inputmode="none" 抑制键盘。滚动历史仍走触摸手势（onTouchMove，见下）。
-
-    // 主题竞态修复：硬刷新后 xterm 可能在主题 class 应用到 <html> 之前挂载 →
-    // resolveXtermTheme 读到默认(浅色)调色板致"刷新后颜色变了"。观察 <html> class 变化，
-    // 主题一变即重解析并重应用（同时覆盖运行时明暗切换）。
-    const themeObserver = new MutationObserver(() => {
-      term.options.theme = resolveXtermTheme();
-    });
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
 
     // 移动端触摸滑动滚动历史：xterm 的 canvas 层遮挡可滚动 viewport，原生触摸滚不动，
     // 故自行手势 → term.scrollLines（手指下滑=看历史/上滚）。仅真正滚动时 preventDefault，
@@ -272,14 +229,13 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       wsRef.current = null;
       termRef.current = null;
       observer.disconnect();
-      themeObserver.disconnect();
       el.removeEventListener("touchstart", onTouchStart, { capture: true });
       el.removeEventListener("touchmove", onTouchMove, { capture: true });
       el.removeEventListener("touchend", onTouchEnd, { capture: true });
       dataDisposable.dispose();
       ws.close();
-      disposeWebgl(); // 先 dispose WebGL 渲染器再 dispose 终端，避免 GL 资源泄漏
-      term.dispose();
+      // 先拆传输/监听，再 core.dispose()（内部按序：主题 observer → WebGL → term.dispose）
+      core.dispose();
     };
   // deps 仅保留会导致会话变化的值；onExit/onStatusChange 经 ref 传递，不纳入
   }, [sessionId, provider, projectPath]);

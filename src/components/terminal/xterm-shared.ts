@@ -4,8 +4,10 @@
  * 供 XtermView（web 终端）和 InteractivePtyView（交互式 PTY 终端）复用。
  * 职责：主题解析 + 安全 fit 工厂（keep-alive 布局保护）+ WebGL 渲染器加载。
  */
-import type { Terminal } from "@xterm/xterm";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+import "@xterm/xterm/css/xterm.css";
 
 /**
  * 将 CSS 变量值转换为 xterm 可接受的色值字符串。
@@ -90,4 +92,77 @@ export function loadWebglRenderer(term: Terminal): () => void {
     // WebGL 初始化失败：保持默认渲染，返回 noop 清理。
     return () => {};
   }
+}
+
+/** 终端默认等宽字体栈：末尾补 CJK 兜底，缓解中文字宽不一致 / IME 组字抖动。 */
+export const TERMINAL_FONT_FAMILY =
+  '"JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Sarasa Mono SC", "Microsoft YaHei", "PingFang SC", "Noto Sans Mono CJK SC", monospace';
+
+/** createXtermCore 返回的核心句柄：终端实例 + 安全 fit + 统一清理。 */
+export interface XtermCore {
+  /** xterm 终端实例（调用方接线传输：onData→发送、输出→write）。 */
+  term: Terminal;
+  /** 安全 fit：容器可见时才 fit，返回是否真正执行（隐藏态跳过，见 makeSafeFit）。 */
+  safeFit: () => boolean;
+  /** 统一清理：解绑主题 observer、dispose WebGL 渲染器、dispose 终端（按此序，避免 GL 泄漏）。 */
+  dispose: () => void;
+}
+
+/**
+ * 创建终端核心（web 与桌面两端复用）：`new Terminal` + FitAddon + 挂载 + WebGL 渲染器 +
+ * 主题实时跟随 + safeFit。把两个终端视图重复的样板收拢到一处（DRY），且让**桌面终端也白拿**
+ * 主题实时切换与 CJK 字体兜底。
+ *
+ * 传输层（WS / Tauri 事件）与视图特有交互（触摸滚动、移动键盘、ResizeObserver 的 resize 下发）
+ * 仍留各视图——本工厂只负责与传输无关的 xterm 生命周期。
+ *
+ * 调用方须在 `container` 已挂载后调用；清理时（在拆除自己的传输/监听之后）调用 `dispose()`。
+ *
+ * @param container 终端挂载的 DOM 容器（通常 containerRef.current）
+ * @param opts.fontFamily 覆盖默认字体栈（默认 [`TERMINAL_FONT_FAMILY`]）
+ */
+export function createXtermCore(
+  container: HTMLElement,
+  opts?: { fontFamily?: string },
+): XtermCore {
+  const term = new Terminal({
+    theme: resolveXtermTheme(),
+    fontFamily: opts?.fontFamily ?? TERMINAL_FONT_FAMILY,
+    fontSize: 14,
+    lineHeight: 1.4,
+    cursorBlink: true,
+    allowProposedApi: false,
+    scrollback: 5000,
+  });
+
+  const fitAddon = new FitAddon();
+  term.loadAddon(fitAddon);
+  term.open(container);
+
+  // WebGL 硬件加速渲染（必须在 open 之后）；不支持时静默回退默认渲染。
+  const disposeWebgl = loadWebglRenderer(term);
+
+  // safeFit：容器可见（有实际尺寸）时才 fit，keep-alive 隐藏（0 尺寸）时跳过。
+  const safeFit = makeSafeFit(
+    () => container,
+    () => fitAddon.fit(),
+  );
+  safeFit();
+
+  // 主题实时跟随：观察 <html> class 变化（深/浅切换、硬刷新时主题 class 晚到）→ 重解析并重应用。
+  const themeObserver = new MutationObserver(() => {
+    term.options.theme = resolveXtermTheme();
+  });
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+
+  const dispose = () => {
+    themeObserver.disconnect();
+    disposeWebgl(); // 先 dispose WebGL 渲染器再 dispose 终端，避免 GL 资源泄漏
+    term.dispose();
+  };
+
+  return { term, safeFit, dispose };
 }
