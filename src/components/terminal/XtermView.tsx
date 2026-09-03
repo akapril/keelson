@@ -139,7 +139,9 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     // 移动端触摸滑动滚动历史：xterm 的 canvas 层遮挡可滚动 viewport，原生触摸滚不动，
     // 故自行手势 → term.scrollLines（手指下滑=看历史/上滚）。仅真正滚动时 preventDefault，
     // 避免误吞点击聚焦；单指才处理（双指缩放/其它手势放行）。
-    const cellH = 14 * 1.4; // fontSize(14) * lineHeight(1.4)，与 Terminal 配置一致
+    const cellH = 14 * 1.4; // 真实行高 fontSize*lineHeight，供 alt-screen 滚轮算行号
+    // 每滑动多少像素触发一档滚动：越小越跟手（灵敏），越大越钝。取行高 0.6 倍更跟手。
+    const STEP_PX = cellH * 0.6;
     let touchY: number | null = null;
     let accum = 0;
     const onTouchStart = (e: TouchEvent) => {
@@ -156,9 +158,9 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       const y = e.touches[0].clientY;
       accum += y - touchY;
       touchY = y;
-      const lines = Math.trunc(accum / cellH);
+      const lines = Math.trunc(accum / STEP_PX);
       if (lines === 0) return;
-      accum -= lines * cellH;
+      accum -= lines * STEP_PX;
       // 备用屏(alt-screen，如 claude/codex 全屏交互界面)无 xterm 回滚缓冲，scrollLines 无效。
       // 方向键会被当成输入历史导航（碰输入框），故改**模拟鼠标滚轮**(SGR 1006)：这类 TUI 开了
       // 鼠标追踪，滚轮走鼠标通道、不碰输入——桌面终端就是这样滚 claude 的。
