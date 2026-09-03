@@ -98,7 +98,9 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     // 初始化 Terminal
     const term = new Terminal({
       theme,
-      fontFamily: '"JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace',
+      // 末尾补 CJK 等宽兜底：中文字形宽度更一致，缓解 IME 组字时的左移/抖动
+      fontFamily:
+        '"JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Sarasa Mono SC", "Microsoft YaHei", "PingFang SC", "Noto Sans Mono CJK SC", monospace',
       fontSize: 14,
       lineHeight: 1.4,
       cursorBlink: true,
@@ -148,6 +150,9 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     };
     const onTouchMove = (e: TouchEvent) => {
       if (touchY === null || e.touches.length !== 1) return;
+      // 单指拖拽期间一律 preventDefault：否则起手的前几像素(lines 仍为 0)会被浏览器
+      // 当成下拉刷新/页面滚动抢走，导致"下滑刷新页面、终端没滚"。
+      e.preventDefault();
       const y = e.touches[0].clientY;
       accum += y - touchY;
       touchY = y;
@@ -155,7 +160,6 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       if (lines !== 0) {
         term.scrollLines(-lines);
         accum -= lines * cellH;
-        e.preventDefault(); // 阻止页面跟着滚/回弹
       }
     };
     const onTouchEnd = () => {
@@ -229,8 +233,16 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     <div
       ref={containerRef}
       className={className}
-      // xterm 内部 canvas 需要明确尺寸，flex 布局下继承父高
-      style={{ width: "100%", height: "100%", overflow: "hidden" }}
+      // xterm 内部 canvas 需要明确尺寸，flex 布局下继承父高。
+      // touchAction:none → 浏览器不对终端上的触摸做默认滚动/缩放/下拉刷新，全交给手势处理；
+      // overscrollBehavior:contain → 兜底阻断下拉刷新透传到页面。
+      style={{
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        touchAction: "none",
+        overscrollBehavior: "contain",
+      }}
       aria-label="Terminal"
       role="region"
     />
