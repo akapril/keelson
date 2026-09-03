@@ -42,6 +42,15 @@ struct GitLogReq {
     limit: Option<u32>,
 }
 
+/// `/api/sessions_timeline` 请求体：读某会话的完整对话记录（provider + 会话 id）。
+/// web 端 `ipc.sessionTimeline` 发的 body 键为 camelCase `sessionId`，故 rename 对齐。
+#[derive(serde::Deserialize)]
+struct TimelineReq {
+    provider: String,
+    #[serde(rename = "sessionId")]
+    session_id: String,
+}
+
 /// `/ws/terminal/{id}` handler 的共享状态：PTY 会话表 + provider 注册表 + 已知会话集合。
 ///
 /// 三者均以 `Arc` 共享（与 `AppState.web_pty` / `AppState.reg` / `AppState.sessions` 同一实例），
@@ -239,6 +248,9 @@ fn build_router(
         .route("/pb/{*path}", any(pb_proxy_handler))
         .with_state(pb_proxy_state);
 
+    // 在 ws_terminal 被 move 进 ws_router 前，克隆 provider 注册表 Arc 供会话记录路由按 provider 路由。
+    let reg_for_timeline = ws_terminal.reg.clone();
+
     // WS 终端子路由（独立 Router + with_state 注入 WsTerminalState）。
     // `/ws/terminal/{id}` **不在** `is_public_path` 白名单 → 进入此 Router 前已过 `require_token`
     // layer（升级握手请求带 cookie，中间件校验 token 通过才会触达 handler → 未鉴权连接不 open PTY）。
@@ -320,6 +332,28 @@ fn build_router(
         }
     };
 
+    // `/api/sessions_timeline`：读某会话完整对话记录（Vec<TimelineMessage>）。sessions 门控（默认开），
+    // 关着 403。read_timeline 读磁盘 jsonl 为阻塞 IO → spawn_blocking 移出 async 线程；按 provider 路由，
+    // 复用与 Tauri command `sessions_timeline` 相同的 registry 分派逻辑。
+    let feat_for_timeline = features_state.clone();
+    let sessions_timeline_handler = move |axum::Json(body): axum::Json<TimelineReq>| {
+        let feats = feat_for_timeline.clone();
+        let reg = reg_for_timeline.clone();
+        async move {
+            if !feats.lock().sessions {
+                return (StatusCode::FORBIDDEN, "会话浏览未在 web 端启用").into_response();
+            }
+            let timeline = tokio::task::spawn_blocking(move || {
+                reg.by_id(&body.provider)
+                    .map(|p| p.read_timeline(&body.session_id))
+                    .unwrap_or_default()
+            })
+            .await
+            .unwrap_or_default();
+            (StatusCode::OK, axum::Json(timeline)).into_response()
+        }
+    };
+
     Router::new()
         // 健康探针：常量 "ok"，无敏感信息（白名单公开）。
         .route("/healthz", get(|| async { "ok" }))
@@ -333,6 +367,8 @@ fn build_router(
         .route("/api/sessions_list", post(sessions_list_handler))
         // 受保护 API 路由（/api/git_log）：activity 门控，供 web 日历今日活动/回顾读 git。
         .route("/api/git_log", post(git_log_handler))
+        // 受保护 API 路由（/api/sessions_timeline）：sessions 门控，供 web 会话记录查看器读完整对话。
+        .route("/api/sessions_timeline", post(sessions_timeline_handler))
         // PB 同源反向代理（token 闸内，防 SSRF）。
         .merge(pb_router)
         // WS 终端双向泵（token 闸内，非白名单 → require_token 自动覆盖握手）。

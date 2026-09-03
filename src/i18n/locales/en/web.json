@@ -110,5 +110,22 @@
       "status": "Status",
       "connected": "Connected"
     }
+  },
+  "transcript": {
+    "view": "Log",
+    "title": "Session log",
+    "loading": "Loading session log…",
+    "empty": "No messages in this session",
+    "error": "Failed to load",
+    "copyAll": "Copy all",
+    "copied": "Copied to clipboard",
+    "copyError": "Copy failed",
+    "close": "Close",
+    "role": {
+      "user": "User",
+      "assistant": "Assistant",
+      "system": "System",
+      "tool": "Tool"
+    }
   }
 }

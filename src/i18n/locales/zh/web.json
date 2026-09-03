@@ -110,5 +110,22 @@
       "status": "状态",
       "connected": "已连接"
     }
+  },
+  "transcript": {
+    "view": "记录",
+    "title": "会话记录",
+    "loading": "正在读取会话记录…",
+    "empty": "该会话暂无消息",
+    "error": "读取失败",
+    "copyAll": "复制全部",
+    "copied": "已复制到剪贴板",
+    "copyError": "复制失败",
+    "close": "关闭",
+    "role": {
+      "user": "用户",
+      "assistant": "助手",
+      "system": "系统",
+      "tool": "工具"
+    }
   }
 }

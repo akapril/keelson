@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
 import type { Session } from "@/types/session";
+import { SessionTranscript } from "./SessionTranscript";
 
 // ── 纯工具函数 ────────────────────────────────────────────────
 
@@ -36,9 +37,10 @@ function relativeTime(iso: string, now: number = Date.now()): string {
 interface SessionRowProps {
   session: Session;
   onOpenTerminal: (session: Session) => void;
+  onViewTranscript: (session: Session) => void;
 }
 
-function SessionRow({ session, onOpenTerminal }: SessionRowProps) {
+function SessionRow({ session, onOpenTerminal, onViewTranscript }: SessionRowProps) {
   const { t } = useTranslation("web");
   const relTime = relativeTime(session.updated_at);
 
@@ -66,10 +68,21 @@ function SessionRow({ session, onOpenTerminal }: SessionRowProps) {
         )}
       </div>
 
-      {/* 第二行：provider 徽章 + 消息数 */}
+      {/* 第二行：provider 徽章 + 消息数 + 「记录」入口 */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{session.provider}</span>
         <span>{t("workbench.session.messages", { count: session.message_count })}</span>
+        {/* 记录：读完整对话记录（只读、可复制）。stopPropagation 避免触发整卡片的开终端 */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewTranscript(session);
+          }}
+          className="ml-auto rounded border border-border px-1.5 py-0.5 hover:bg-muted hover:text-foreground"
+        >
+          📄 {t("transcript.view")}
+        </button>
       </div>
 
       {/* 第三行：最后一条 prompt 截断 */}
@@ -120,6 +133,8 @@ export function Workbench({ onOpenTerminal }: WorkbenchProps) {
   type LoadState = "loading" | "empty" | "loaded" | "error";
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [sessions, setSessions] = useState<Session[]>([]);
+  // 当前正在查看记录的会话（null=未打开记录浮层）
+  const [transcriptSession, setTranscriptSession] = useState<Session | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,7 +164,7 @@ export function Workbench({ onOpenTerminal }: WorkbenchProps) {
   }, [t]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {/* 标题行 */}
       <div className="shrink-0 border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold text-foreground">{t("workbench.title")}</h2>
@@ -180,12 +195,24 @@ export function Workbench({ onOpenTerminal }: WorkbenchProps) {
           <ul className="flex flex-col gap-2" role="list" aria-label={t("workbench.title")}>
             {sessions.map((session) => (
               <li key={`${session.provider}:${session.session_id}`}>
-                <SessionRow session={session} onOpenTerminal={onOpenTerminal} />
+                <SessionRow
+                  session={session}
+                  onOpenTerminal={onOpenTerminal}
+                  onViewTranscript={setTranscriptSession}
+                />
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {/* 会话记录浮层：读完整对话记录，只读展示 + 复制全部 */}
+      {transcriptSession && (
+        <SessionTranscript
+          session={transcriptSession}
+          onClose={() => setTranscriptSession(null)}
+        />
+      )}
     </div>
   );
 }
