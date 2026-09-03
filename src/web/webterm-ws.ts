@@ -32,6 +32,8 @@ export interface TermWsHandle {
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 8000;
 const RECONNECT_MAX_ATTEMPTS = 8;
+/** 心跳保活间隔：定时发 {"type":"ping"}（后端当控制帧忽略），防 NAT/代理空闲超时静默断连。 */
+const PING_INTERVAL_MS = 20000;
 
 /**
  * 打开到 /ws/terminal/:id 的 WebSocket，处理帧分发与断线重连。
@@ -55,6 +57,8 @@ export function openTerminalWs(
   let exited = false;
   let attempts = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  // 心跳定时器：连接期间定时发 ping 保活；断开时清除。
+  let pingTimer: ReturnType<typeof setInterval> | null = null;
 
   /** 构建同源 WS URL */
   function buildUrl(): string {
@@ -77,6 +81,48 @@ export function openTerminalWs(
     return exp * (0.8 + Math.random() * 0.4); // ±20% 抖动
   }
 
+  /** 启动心跳保活：定时发 ping（仅连接时）。防移动端 NAT/代理空闲超时静默断连。 */
+  function startPing(): void {
+    stopPing();
+    pingTimer = setInterval(() => {
+      // 后端 parse_text_frame 把 {"type":"ping"} 当控制帧 Ignore，不注入 PTY stdin。
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "ping" }));
+      }
+    }, PING_INTERVAL_MS);
+  }
+
+  /** 停止心跳。 */
+  function stopPing(): void {
+    if (pingTimer !== null) {
+      clearInterval(pingTimer);
+      pingTimer = null;
+    }
+  }
+
+  /**
+   * 立即唤醒重连：移动端回前台（visibilitychange）/ 网络恢复（online）时调用。
+   *
+   * 移动端切后台/信号波动常致 WS 断开；退避重连甚至可能已耗尽 8 次上限彻底 closed。
+   * 此时若仍未连接（非主动关闭、非 pty 退出），**重置退避计数并立即重连接管**——
+   * 后端 PTY 不随断连而死 + 环形缓冲回放 → 回前台无缝续接。
+   */
+  function wakeReconnect(): void {
+    if (manualClose || exited) return;
+    // 已连接或正在连接：无需唤醒。
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+    cancelReconnect(); // 取消待定的退避定时器，改为立即重连
+    attempts = 0; // 重置退避：回前台/恢复网络是"新机会"，不受之前失败次数封顶影响
+    connect();
+  }
+
+  // 回前台 / 网络恢复即尝试重连（移动端关键：后台化频繁）。监听在 close() 时解绑。
+  const onVisible = () => {
+    if (document.visibilityState === "visible") wakeReconnect();
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  window.addEventListener("online", wakeReconnect);
+
   /** 建立（或重建）WebSocket 连接 */
   function connect(): void {
     callbacks.onStatus(attempts === 0 ? "connecting" : "reconnecting");
@@ -87,6 +133,7 @@ export function openTerminalWs(
 
     socket.onopen = () => {
       attempts = 0;
+      startPing(); // 连接建立即开心跳保活
       callbacks.onStatus("connected");
     };
 
@@ -115,6 +162,7 @@ export function openTerminalWs(
 
     socket.onclose = (ev) => {
       ws = null;
+      stopPing(); // 断开即停心跳（重连成功后 onopen 会重新开）
       if (manualClose || exited) {
         // 主动关闭 或 pty 已退出：均不重连（exited 见上方注释——避免死循环重连必然失败的会话）
         callbacks.onStatus("closed");
@@ -164,6 +212,10 @@ export function openTerminalWs(
     close(): void {
       manualClose = true;
       cancelReconnect();
+      stopPing();
+      // 解绑前后台/网络监听，避免关闭后仍被唤醒重连（组件卸载时泄漏）
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", wakeReconnect);
       if (ws) {
         // 不在此处置 ws = null，让浏览器异步触发 onclose 后由 handler 完成清理。
         // 不主动调 onStatus("closed")——onclose 的 manualClose 分支会调一次。
