@@ -20,11 +20,11 @@ Keelson is a local-first, cross-platform desktop app that brings your scattered 
 
 - **Session hub + Spotlight** — Aggregates sessions from local CLIs (Claude / Codex, etc.), full-text search (Tantivy + jieba), a global hotkey for instant recall, and one-click terminal-context restore.
 - **Project board** — Two-tier project model: any directory with sessions becomes a lightweight project automatically, and can be "promoted" to a managed board (tasks / workflows / drag-to-reorder / templates) with two-way session↔task traceability.
-- **Docs / Calendar** — Versioned documents (optimistic concurrency, slash commands, KaTeX, inline AI) and a calendar with recurrence rules and reminders.
+- **Docs / Calendar** — Versioned documents (optimistic concurrency, slash commands, KaTeX, inline AI); a calendar that doubles as an activity log ("quick log") and supports recurrence rules plus **natural-language reminders** (only entries that say "remind" notify — and they fire even when the window is hidden).
 - **AI Chat + RAG** — Configurable multi-provider (Anthropic / OpenAI-compatible / local), scoped tools authorized via your PocketBase token, retrieving past sessions to answer "how did I solve X last time".
 - **Distillation** — Session → candidate extraction → confirm → materialize into docs / tasks / calendar, with provenance back-links.
 - **Reading · Memory ledger · MCP Server** — Save external articles with AI summaries (paste body text for login-walled sites); a review-gated memory ledger; expose MCP tools so other AIs can read/write workspace data.
-- **Web remote access** — Device pairing + Tailscale to reach your workspace's terminal / sessions / notifications from a phone or browser; token auth, rate-limiting, off by default.
+- **Web remote access** — Device pairing + Tailscale to reach your workspace from a phone or browser: sessions · board · calendar · docs · multiple terminals · session transcripts · notifications, **each capability toggled individually** (front-end hidden + back-end enforced); token auth, rate-limiting, off by default.
 - **Process manager + interactive terminal** — A built-in PTY terminal manages long-running processes with sudo password interaction; live log viewing / copy; command favorites and history.
 - **Prompt library · Work reports · Command palette** — Reusable `{{variable}}` prompt templates, AI-summarized work reports, and a ⌘K global command palette.
 - **Bilingual + auto-update** — English / Chinese i18n; built-in in-app auto-update (minisign-verified), checked on launch and silently every 6 hours.
@@ -121,12 +121,15 @@ Advanced / manual setup, available tools, and verification: [`docs/mcp-setup.md`
 
 ## Remote access (Web)
 
-Securely reach your local Keelson from your **phone / tablet / another computer** — browse the workspace, view sessions and notifications, and even drive `claude` / `codex` remotely via a **web terminal**.
+**Agent grinding on a long task while you have to step away from the machine?** Glance at its progress and keep chatting with `claude` / `codex` from your phone, tablet, or another computer — no need to stay at your desk. This is Keelson's **companion remote**, not remote administration meant for exposing a box to the public internet.
 
+- **What you can do remotely**: multiple terminals (run and resume the CLI) · workbench sessions · board · calendar (quick log / reminders) · docs · **session transcripts** (full conversation, selectable & copyable) · notifications — a mobile-first responsive UI with a drag-to-reorder bottom bar.
+- **You control exactly what's exposed**: every capability (board / calendar / docs / terminal…) is **toggled individually** in Settings, sensitive ones off by default; **front-end hidden + back-end enforced** — a disabled capability can't be reached even by a direct request.
 - **Two-layer security**: ① a Tailscale private network (only devices on your own account can reach it — not the public internet) ② an app **pairing token** (external devices enter a pairing code once, then authenticate by token, with rate-limiting and revocation). **Off by default**; enable it explicitly in Settings.
-- **What you can do remotely**: web terminal (run the CLI), workbench session list, notifications — a mobile-first responsive UI.
 - **Setup**: install Tailscale on both machines (same account) → enable the "Web gateway" in Settings and pair → access over HTTPS via `tailscale serve` (the `Secure` cookie requires HTTPS, see the doc).
-- ⚠️ The remote terminal can run arbitrary commands on your machine — only pair **trusted devices**; if a device is lost, revoke its token in Settings.
+- ⚠️ The remote terminal can run arbitrary commands on your machine — only pair **trusted devices**; if a device is lost, revoke its token in Settings (or just turn off the "Terminal" capability toggle).
+
+**Who it's for**: people who step away from the machine but want to watch / continue their agents. **Not for**: putting a box naked on the public internet — it isn't designed for that.
 
 Full setup steps in [`docs/web-remote-access.md`](docs/web-remote-access.md).
 
