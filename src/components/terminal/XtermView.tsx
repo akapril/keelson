@@ -90,12 +90,17 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       termRef.current?.scrollToBottom();
     },
     focusKeyboard() {
-      // 临时把隐藏输入框 inputmode 改回 text 再聚焦 → 软键盘弹出（用户显式点「键盘」才触发）
+      // 用户显式点「键盘」才弹：把隐藏输入框 inputmode 改回 text 并**直接聚焦**它。
+      // 直接 ta.focus()（而非 term.focus）+ 在点击手势内同步执行，iOS 才可靠拉起软键盘。
       const ta = containerRef.current?.querySelector<HTMLTextAreaElement>(
         ".xterm-helper-textarea",
       );
-      if (ta) ta.inputMode = "text";
-      termRef.current?.focus();
+      if (!ta) {
+        termRef.current?.focus();
+        return;
+      }
+      ta.inputMode = "text";
+      ta.focus();
     },
   }), []);
 
@@ -164,8 +169,8 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     // 故自行手势 → term.scrollLines（手指下滑=看历史/上滚）。仅真正滚动时 preventDefault，
     // 避免误吞点击聚焦；单指才处理（双指缩放/其它手势放行）。
     const cellH = 14 * 1.4; // 真实行高 fontSize*lineHeight，供 alt-screen 滚轮算行号
-    // 每滑动多少像素触发一档滚动：越小越跟手（灵敏），越大越钝。取行高 0.6 倍更跟手。
-    const STEP_PX = cellH * 0.6;
+    // 每滑动多少像素触发一档滚动：取一整行行高 → 手指每滑过一行高度滚一行(1:1)，最自然可控。
+    const STEP_PX = cellH;
     let touchY: number | null = null;
     let accum = 0;
     const onTouchStart = (e: TouchEvent) => {
