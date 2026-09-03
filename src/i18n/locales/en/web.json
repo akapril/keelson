@@ -82,7 +82,17 @@
     "copyAll": "Copy all",
     "close": "Close",
     "copied": "Copied to clipboard",
-    "copyError": "Copy failed"
+    "copyError": "Copy failed",
+    "search": "Search",
+    "searchPlaceholder": "Find in output…",
+    "searchNext": "Next match",
+    "searchPrev": "Previous match",
+    "paste": "Paste",
+    "fontInc": "Larger font",
+    "fontDec": "Smaller font",
+    "restart": "Restart",
+    "exited": "Process exited",
+    "pasteError": "Failed to read clipboard"
   },
   "settings": {
     "theme": {

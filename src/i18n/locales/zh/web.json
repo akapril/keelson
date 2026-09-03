@@ -82,7 +82,17 @@
     "copyAll": "复制全部",
     "close": "关闭",
     "copied": "已复制到剪贴板",
-    "copyError": "复制失败"
+    "copyError": "复制失败",
+    "search": "搜索",
+    "searchPlaceholder": "查找输出…",
+    "searchNext": "下一个匹配",
+    "searchPrev": "上一个匹配",
+    "paste": "粘贴",
+    "fontInc": "放大字号",
+    "fontDec": "缩小字号",
+    "restart": "重启",
+    "exited": "进程已退出",
+    "pasteError": "读取剪贴板失败"
   },
   "settings": {
     "theme": {

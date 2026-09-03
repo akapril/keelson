@@ -7,6 +7,8 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import { SearchAddon, type ISearchOptions } from "@xterm/addon-search";
 import "@xterm/xterm/css/xterm.css";
 
 /**
@@ -98,12 +100,22 @@ export function loadWebglRenderer(term: Terminal): () => void {
 export const TERMINAL_FONT_FAMILY =
   '"JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Sarasa Mono SC", "Microsoft YaHei", "PingFang SC", "Noto Sans Mono CJK SC", monospace';
 
-/** createXtermCore 返回的核心句柄：终端实例 + 安全 fit + 统一清理。 */
+/** 搜索高亮装饰色（match=琥珀、activeMatch=主色）；overviewRuler 两项为必填。 */
+export const SEARCH_DECORATIONS: ISearchOptions["decorations"] = {
+  matchBackground: "#f59e0b66", // amber 40%
+  matchOverviewRuler: "#f59e0b",
+  activeMatchBackground: "#3b82f688", // primary-ish 53%
+  activeMatchColorOverviewRuler: "#3b82f6",
+};
+
+/** createXtermCore 返回的核心句柄：终端实例 + 安全 fit + 搜索插件 + 统一清理。 */
 export interface XtermCore {
   /** xterm 终端实例（调用方接线传输：onData→发送、输出→write）。 */
   term: Terminal;
   /** 安全 fit：容器可见时才 fit，返回是否真正执行（隐藏态跳过，见 makeSafeFit）。 */
   safeFit: () => boolean;
+  /** 搜索插件：回滚缓冲内查找（findNext/findPrevious/clearDecorations）；供搜索框接线。 */
+  search: SearchAddon;
   /** 统一清理：解绑主题 observer、dispose WebGL 渲染器、dispose 终端（按此序，避免 GL 泄漏）。 */
   dispose: () => void;
 }
@@ -120,10 +132,12 @@ export interface XtermCore {
  *
  * @param container 终端挂载的 DOM 容器（通常 containerRef.current）
  * @param opts.fontFamily 覆盖默认字体栈（默认 [`TERMINAL_FONT_FAMILY`]）
+ * @param opts.onLinkClick 提供则启用可点链接（输出里的 URL 可点）；点击回调收到 uri
+ *   （web 端传 `window.open`；桌面端不传以避免 Tauri webview 内导航）
  */
 export function createXtermCore(
   container: HTMLElement,
-  opts?: { fontFamily?: string },
+  opts?: { fontFamily?: string; onLinkClick?: (uri: string) => void },
 ): XtermCore {
   const term = new Terminal({
     theme: resolveXtermTheme(),
@@ -137,6 +151,14 @@ export function createXtermCore(
 
   const fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
+  // 搜索插件：供回滚缓冲查找（返回给调用方接搜索框 UI）。
+  const search = new SearchAddon();
+  term.loadAddon(search);
+  // 可点链接：仅在提供 onLinkClick 时启用（点击 URL 走该回调；不提供则不加，避免桌面误导航）。
+  if (opts?.onLinkClick) {
+    const onClick = opts.onLinkClick;
+    term.loadAddon(new WebLinksAddon((_e, uri) => onClick(uri)));
+  }
   term.open(container);
 
   // WebGL 硬件加速渲染（必须在 open 之后）；不支持时静默回退默认渲染。
@@ -164,5 +186,5 @@ export function createXtermCore(
     term.dispose();
   };
 
-  return { term, safeFit, dispose };
+  return { term, safeFit, search, dispose };
 }

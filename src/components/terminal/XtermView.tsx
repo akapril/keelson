@@ -13,8 +13,9 @@
  */
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { Terminal } from "@xterm/xterm";
-import { openTerminalWs, type WsStatus } from "@/web/webterm-ws";
-import { createXtermCore } from "./xterm-shared";
+import type { SearchAddon } from "@xterm/addon-search";
+import { openTerminalWs, type WsStatus, type TermWsHandle } from "@/web/webterm-ws";
+import { createXtermCore, SEARCH_DECORATIONS } from "./xterm-shared";
 
 /** 通过 ref 暴露给父组件的句柄 */
 export interface XtermHandle {
@@ -28,6 +29,14 @@ export interface XtermHandle {
   focusKeyboard: () => void;
   /** 倒出终端缓冲区文本（普通屏=含回滚的完整历史；备用屏=当前可见屏）。供「查看/复制」文本浮层。 */
   getText: () => string;
+  /** 搜索回滚缓冲：查找下一个匹配（空串则清除高亮）。供搜索框接线。 */
+  findNext: (query: string) => void;
+  /** 搜索回滚缓冲：查找上一个匹配（空串则清除高亮）。 */
+  findPrevious: (query: string) => void;
+  /** 清除搜索高亮与选区。 */
+  clearSearch: () => void;
+  /** 调整字号（delta 正=放大/负=缩小，带上下限）并重新 fit。移动端小屏调节可读性。 */
+  adjustFontSize: (delta: number) => void;
 }
 
 export interface XtermViewProps {
@@ -67,10 +76,13 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // ws 句柄用 ref 存储，供 useImperativeHandle 中的 sendInput 访问
-  const wsRef = useRef<{ send: (data: string) => void } | null>(null);
+  // ws 句柄用 ref 存储，供 useImperativeHandle 中的 sendInput / resize 访问
+  const wsRef = useRef<TermWsHandle | null>(null);
   // term 实例 ref，供命令式滚动（移动端滚动按钮）
   const termRef = useRef<Terminal | null>(null);
+  // 搜索插件 ref（供搜索框查找）、safeFit ref（供调字号后重新 fit）
+  const searchRef = useRef<SearchAddon | null>(null);
+  const safeFitRef = useRef<(() => boolean) | null>(null);
 
   // 用 ref 存最新回调，避免回调引用变化导致 effect 重跑（Terminal 重挂/闪烁）
   const onExitRef = useRef(onExit);
@@ -115,16 +127,52 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       while (lines.length && lines[lines.length - 1] === "") lines.pop();
       return lines.join("\n");
     },
+    findNext(query: string) {
+      const s = searchRef.current;
+      if (!s) return;
+      if (!query) {
+        s.clearDecorations();
+        return;
+      }
+      s.findNext(query, { decorations: SEARCH_DECORATIONS });
+    },
+    findPrevious(query: string) {
+      const s = searchRef.current;
+      if (!s) return;
+      if (!query) {
+        s.clearDecorations();
+        return;
+      }
+      s.findPrevious(query, { decorations: SEARCH_DECORATIONS });
+    },
+    clearSearch() {
+      searchRef.current?.clearDecorations();
+    },
+    adjustFontSize(delta: number) {
+      const term = termRef.current;
+      if (!term) return;
+      const cur = term.options.fontSize ?? 14;
+      const next = Math.min(24, Math.max(8, cur + delta)); // 上下限 8~24px
+      if (next === cur) return;
+      term.options.fontSize = next;
+      // 字号变了要重新 fit（cols/rows 变化），并把新尺寸同步给 PTY，避免换行错位。
+      if (safeFitRef.current?.()) wsRef.current?.resize(term.cols, term.rows);
+    },
   }), []);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // 创建终端核心（new Terminal + FitAddon + 挂载 + WebGL + 主题实时跟随 + safeFit，
-    // 见 createXtermCore；与桌面终端复用同一套样板）。传输/触摸/键盘等仍在本视图接线。
-    const core = createXtermCore(containerRef.current);
+    // 创建终端核心（new Terminal + FitAddon + 挂载 + WebGL + 搜索 + 可点链接 + 主题实时跟随 +
+    // safeFit，见 createXtermCore；与桌面终端复用同一套样板）。传输/触摸/键盘等仍在本视图接线。
+    // web 端提供 onLinkClick=window.open：输出里的 URL 可点开（新标签页）。
+    const core = createXtermCore(containerRef.current, {
+      onLinkClick: (uri) => window.open(uri, "_blank", "noopener,noreferrer"),
+    });
     const { term, safeFit } = core;
     termRef.current = term;
+    searchRef.current = core.search;
+    safeFitRef.current = safeFit;
 
     // 移动端软键盘策略：**点终端即聚焦隐藏输入框、直接弹出软键盘**（与桌面/普通输入框一致，最直觉）。
     // 键盘遮挡问题改由外层 visualViewport 方案解决（根容器随可视高度收缩+顶起，输入行落到键盘之上），
@@ -133,9 +181,8 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     // 移动端触摸滑动滚动历史：xterm 的 canvas 层遮挡可滚动 viewport，原生触摸滚不动，
     // 故自行手势 → term.scrollLines（手指下滑=看历史/上滚）。仅真正滚动时 preventDefault，
     // 避免误吞点击聚焦；单指才处理（双指缩放/其它手势放行）。
-    const cellH = 14 * 1.4; // 真实行高 fontSize*lineHeight，供 alt-screen 滚轮算行号
-    // 每滑动多少像素触发一档滚动：取一整行行高 → 手指每滑过一行高度滚一行(1:1)，最自然可控。
-    const STEP_PX = cellH;
+    // 真实行高 = 当前 fontSize * lineHeight（动态读取：调字号后滚动步长/行号仍准确）。
+    const cellHeight = () => (term.options.fontSize ?? 14) * 1.4;
     let touchY: number | null = null;
     let accum = 0;
     const onTouchStart = (e: TouchEvent) => {
@@ -152,9 +199,11 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       const y = e.touches[0].clientY;
       accum += y - touchY;
       touchY = y;
-      const lines = Math.trunc(accum / STEP_PX);
+      // 每滑一整行行高滚一行(1:1)，最自然可控。
+      const cellH = cellHeight();
+      const lines = Math.trunc(accum / cellH);
       if (lines === 0) return;
-      accum -= lines * STEP_PX;
+      accum -= lines * cellH;
       // 备用屏(alt-screen，如 claude/codex 全屏交互界面)无 xterm 回滚缓冲，scrollLines 无效。
       // 方向键会被当成输入历史导航（碰输入框），故改**模拟鼠标滚轮**(SGR 1006)：这类 TUI 开了
       // 鼠标追踪，滚轮走鼠标通道、不碰输入——桌面终端就是这样滚 claude 的。
@@ -228,6 +277,8 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     return () => {
       wsRef.current = null;
       termRef.current = null;
+      searchRef.current = null;
+      safeFitRef.current = null;
       observer.disconnect();
       el.removeEventListener("touchstart", onTouchStart, { capture: true });
       el.removeEventListener("touchmove", onTouchMove, { capture: true });
