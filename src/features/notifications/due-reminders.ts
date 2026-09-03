@@ -1,9 +1,12 @@
-// 截止提醒 —— 把到期/逾期的任务与事件推送到通知中心。
+// 截止提醒 —— 把到期/逾期的**任务**推送到通知中心。
 // 时机:应用启动后跑一次(通知铃挂载时)。窗口:当天 + 已逾期(回看 14 天,防旧项刷屏)。
 // 去重:通知 link 里埋 `reminder=<type>-<id>-<date>` 标记;已存在则不重复建
 //      (改了截止日 -> 新 date -> 重新提醒;标记已读的通知仍在列表里 -> 不会重复)。
+//
+// ⚠️ 不再为**日历事件**生成提醒:日历现为「活动流水账」(记录刚才做了什么=过去时),
+// 原逻辑对 start<=今天 的事件逐条推提醒,等于提醒"已经发生的事"——纯噪音、且刷爆收件箱。
+// 事件提醒功能整体移除;将来若要"未来事件提醒"应作为单独的 opt-in 功能重做(默认关)。
 import { listDueTasks, listAllStates } from "@/lib/pb/board";
-import { listEvents } from "@/lib/pb/calendar";
 import { useNotificationsStore } from "@/store/notifications";
 import i18n from "@/i18n";
 
@@ -39,14 +42,25 @@ export function inDueWindow(day: string, today: string, cutoff: string): boolean
 }
 
 /**
- * 扫描到期的任务/事件,为尚未提醒过的生成通知。幂等:重复调用不会重复推送。
+ * 扫描到期的任务,为尚未提醒过的生成通知。幂等:重复调用不会重复推送。
  * 任何数据加载失败都静默跳过(不阻断应用)。
+ * 并顺带一次性清理历史遗留的"日历事件提醒"噪音(自愈,见下)。
  */
 export async function syncDueReminders(): Promise<void> {
   const store = useNotificationsStore.getState();
   // 确保通知已加载(去重依据现有 items 的 link 标记)
   if (store.items.length === 0 && !store.loading) {
     await store.load().catch(() => {});
+  }
+
+  // 一次性自愈清理:事件提醒功能已移除,历史遗留的"日历事件提醒"(link 含 reminder=event-)
+  // 是活动流水账刷出来的噪音,主动删除,让老用户收件箱自动回归干净。清完后续运行为空 no-op。
+  const staleEventReminders = useNotificationsStore
+    .getState()
+    .items.filter((n) => n.link.includes("reminder=event-"))
+    .map((n) => n.id);
+  if (staleEventReminders.length > 0) {
+    await useNotificationsStore.getState().removeMany(staleEventReminders).catch(() => {});
   }
 
   const today = todayKey();
@@ -83,26 +97,5 @@ export async function syncDueReminders(): Promise<void> {
     /* 任务加载失败：跳过 */
   }
 
-  // ── 事件(start <= 今天、在回看窗内) ──
-  try {
-    const events = await listEvents();
-    for (const e of events) {
-      const day = dayOf(e.start || "");
-      if (!inDueWindow(day, today, cutoff)) continue;
-      const mark = `reminder=event-${e.id}-${day}`;
-      if (hasMark(mark)) continue;
-      const overdue = day < today;
-      await useNotificationsStore.getState().add({
-        title: i18n.t("notif.eventSoon", { ns: "shell", title: e.title }),
-        body: overdue
-          ? i18n.t("notif.eventOverdueBody", { ns: "shell", date: day })
-          : i18n.t("notif.eventBody", { ns: "shell" }),
-        kind: overdue ? "warning" : "info",
-        source: "截止提醒",
-        link: `/calendar?${mark}`,
-      });
-    }
-  } catch {
-    /* 事件加载失败：跳过 */
-  }
+  // 日历事件不再生成提醒(见文件头注释:活动流水账=过去时,提醒即噪音)。
 }
