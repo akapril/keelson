@@ -90,6 +90,8 @@ vi.mock("../xterm-shared", () => ({
       return true;
     };
   },
+  // WebGL 渲染器在 jsdom 无 GL 上下文，桩成 noop（返回 noop 清理函数），不影响接线测试
+  loadWebglRenderer: () => () => {},
 }));
 
 import { InteractivePtyView } from "../InteractivePtyView";

@@ -14,7 +14,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ipc } from "@/lib/tauri/ipc";
-import { resolveXtermTheme, makeSafeFit } from "./xterm-shared";
+import { resolveXtermTheme, makeSafeFit, loadWebglRenderer } from "./xterm-shared";
 
 export function InteractivePtyView({
   id,
@@ -47,6 +47,9 @@ export function InteractivePtyView({
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(containerRef.current);
+    // 启用 WebGL 硬件加速渲染（必须在 open 之后）：提升整帧重绘/滚动流畅度；
+    // 不支持时静默回退默认渲染。返回的 dispose 在卸载时调用。
+    const disposeWebgl = loadWebglRenderer(term);
 
     // safeFit：容器可见（有实际尺寸）时才 fit，keep-alive 隐藏时跳过
     const safeFit = makeSafeFit(
@@ -88,6 +91,7 @@ export function InteractivePtyView({
       dataDisposable.dispose();
       // 解绑 Tauri 事件监听（已注册的按序调用，未注册的不在数组里）
       unlisteners.forEach((un) => un());
+      disposeWebgl(); // 先 dispose WebGL 渲染器再 dispose 终端，避免 GL 资源泄漏
       term.dispose();
     };
   }, [id]); // deps 仅保留进程 id；t 经 tRef 传递，不纳入

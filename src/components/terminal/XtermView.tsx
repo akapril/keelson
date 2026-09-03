@@ -16,7 +16,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { openTerminalWs, type WsStatus } from "@/web/webterm-ws";
-import { resolveXtermTheme, makeSafeFit } from "./xterm-shared";
+import { resolveXtermTheme, makeSafeFit, loadWebglRenderer } from "./xterm-shared";
 
 /** 通过 ref 暴露给父组件的句柄 */
 export interface XtermHandle {
@@ -153,6 +153,9 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     // 渲染到 DOM
     term.open(containerRef.current);
     termRef.current = term;
+    // 启用 WebGL 硬件加速渲染（必须在 open 之后）：大幅提升整帧重绘/滚动流畅度；
+    // 不支持时静默回退默认渲染。返回的 dispose 在卸载时调用。
+    const disposeWebgl = loadWebglRenderer(term);
     safeFit();
 
     // 移动端软键盘策略：**点终端即聚焦隐藏输入框、直接弹出软键盘**（与桌面/普通输入框一致，最直觉）。
@@ -275,6 +278,7 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       el.removeEventListener("touchend", onTouchEnd, { capture: true });
       dataDisposable.dispose();
       ws.close();
+      disposeWebgl(); // 先 dispose WebGL 渲染器再 dispose 终端，避免 GL 资源泄漏
       term.dispose();
     };
   // deps 仅保留会导致会话变化的值；onExit/onStatusChange 经 ref 传递，不纳入
