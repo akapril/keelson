@@ -155,19 +155,9 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     termRef.current = term;
     safeFit();
 
-    // 移动端软键盘策略：默认给隐藏输入框设 inputmode="none"——点终端可聚焦(滚动/选择)但**不弹软键盘**，
-    // 避免点终端就被键盘挡住界面。需要打字时由「键盘」按钮走 focusKeyboard() 临时改回 text 再聚焦。
-    // 失焦即复位 none，保证下次点终端不弹。（inputmode 不影响桌面硬件键盘输入。）
-    const helperTa = containerRef.current.querySelector<HTMLTextAreaElement>(
-      ".xterm-helper-textarea",
-    );
-    const resetInputMode = () => {
-      if (helperTa) helperTa.inputMode = "none";
-    };
-    if (helperTa) {
-      helperTa.inputMode = "none";
-      helperTa.addEventListener("blur", resetInputMode);
-    }
+    // 移动端软键盘策略：**点终端即聚焦隐藏输入框、直接弹出软键盘**（与桌面/普通输入框一致，最直觉）。
+    // 键盘遮挡问题改由外层 visualViewport 方案解决（根容器随可视高度收缩+顶起，输入行落到键盘之上），
+    // 不再用 inputmode="none" 抑制键盘。滚动历史仍走触摸手势（onTouchMove，见下）。
 
     // 主题竞态修复：硬刷新后 xterm 可能在主题 class 应用到 <html> 之前挂载 →
     // resolveXtermTheme 读到默认(浅色)调色板致"刷新后颜色变了"。观察 <html> class 变化，
@@ -283,7 +273,6 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       el.removeEventListener("touchstart", onTouchStart, { capture: true });
       el.removeEventListener("touchmove", onTouchMove, { capture: true });
       el.removeEventListener("touchend", onTouchEnd, { capture: true });
-      helperTa?.removeEventListener("blur", resetInputMode);
       dataDisposable.dispose();
       ws.close();
       term.dispose();
