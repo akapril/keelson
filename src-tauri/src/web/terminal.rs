@@ -35,6 +35,9 @@ use tokio::sync::{broadcast, watch};
 
 /// 每会话输出环形缓冲上限（字节）：供刷新/重连时回放最近历史。512KB 够看最近多屏。
 const SCROLLBACK_CAP: usize = 512 * 1024;
+/// 环形缓冲超限裁剪时的"对齐扫描"窗口上限（字节）：裁到换行边界时最多再多扫这么多字节
+/// 找 `\n`，找不到就停（避免整帧无换行的 alt-screen 全屏重绘被过度裁剪）。
+const LINE_ALIGN_SCAN_CAP: usize = 8 * 1024;
 /// 输出广播通道容量（每订阅者滞后超过此数会 Lagged，丢中间帧但缓冲仍有历史）。
 const OUTPUT_CHANNEL_CAP: usize = 1024;
 
@@ -214,10 +217,7 @@ impl PtyRegistry {
                             // 无订阅者时 send 返回 Err，忽略（字节已进缓冲，供下次回放）。
                             let mut g = sb.lock();
                             g.extend(chunk.iter().copied());
-                            let over = g.len().saturating_sub(SCROLLBACK_CAP);
-                            if over > 0 {
-                                g.drain(0..over);
-                            }
+                            trim_scrollback(&mut g, SCROLLBACK_CAP);
                             let _ = otx.send(chunk.to_vec());
                             drop(g);
                         }
@@ -379,6 +379,31 @@ pub fn is_valid_project_path(p: &str) -> bool {
 /// - 纯函数，无 IO，可 standalone 测。
 pub fn is_project_path_in_known_sessions(path: &str, known_paths: &std::collections::HashSet<String>) -> bool {
     known_paths.contains(path)
+}
+
+/// 把环形缓冲裁剪到不超过 `cap` 字节，且**尽量裁到换行边界**。
+///
+/// 先裁掉硬性超出的 `over` 字节使其不超过 cap；再从新起点继续裁到下一个 `\n`（含）之后，
+/// 使回放快照从一整行开头开始——避免从**半个 ANSI 转义序列中间**开始导致 xterm 首屏乱码
+/// （C1：字节任意边界截断会切断转义序列）。
+///
+/// 额外的对齐扫描限幅 [`LINE_ALIGN_SCAN_CAP`]：若新起点后一段窗口内找不到 `\n`（如 claude
+/// 全屏重绘整帧无换行），则不再强裁——保留字节，交由重连时 resize 触发的整屏重绘自愈
+/// （C2：alt-screen 无换行帧的固有局限，见模块注释；终端层拿不到更干净的边界）。
+///
+/// 纯函数（只操作传入的 `VecDeque`，无 IO），可 standalone `rustc --test` 验证。
+pub fn trim_scrollback(buf: &mut VecDeque<u8>, cap: usize) {
+    let over = buf.len().saturating_sub(cap);
+    if over == 0 {
+        return;
+    }
+    // 1) 先裁掉硬性超出部分，保证不超过 cap。
+    buf.drain(0..over);
+    // 2) 继续裁到下一个换行边界（含该 `\n`），使快照从整行开头开始；扫描限幅，找不到就停。
+    let scan = buf.len().min(LINE_ALIGN_SCAN_CAP);
+    if let Some(pos) = buf.iter().take(scan).position(|&b| b == b'\n') {
+        buf.drain(0..=pos);
+    }
 }
 
 // ── WS 协议帧解析（纯逻辑，抽出便于 standalone `rustc --test`）───────────────
@@ -655,6 +680,53 @@ mod tests {
         assert!(!is_valid_project_path("   "));
         assert!(!is_valid_project_path("relative/path"));
         assert!(!is_valid_project_path("./x"));
+    }
+
+    /// 未超上限：trim 不动缓冲（noop）。
+    #[test]
+    fn trim_scrollback_noop_under_cap() {
+        let mut buf: VecDeque<u8> = b"hello\nworld".iter().copied().collect();
+        let before = buf.clone();
+        trim_scrollback(&mut buf, 1024);
+        assert_eq!(buf, before);
+    }
+
+    /// 超上限且窗口内有换行：裁到 `\n` 之后，快照从整行开头开始（不从半个转义序列中间起）。
+    #[test]
+    fn trim_scrollback_aligns_to_newline() {
+        // 14 字节内容 "aaaa\x1b[31m\nBBBB"，cap=6 → over=8：硬裁掉 "aaaa\x1b[31"
+        // （切在转义序列 \x1b[31m 中间），剩 "m\nBBBB"；再裁到 `\n`（含）之后 → 只剩 "BBBB"。
+        let mut buf: VecDeque<u8> = Vec::from(*b"aaaa\x1b[31m\nBBBB").into();
+        assert_eq!(buf.len(), 14);
+        trim_scrollback(&mut buf, 6);
+        assert_eq!(buf.iter().copied().collect::<Vec<u8>>(), b"BBBB".to_vec());
+    }
+
+    /// 超上限但扫描窗口内无换行：只做硬裁（不过度裁剪），保留其余字节交由重绘自愈。
+    #[test]
+    fn trim_scrollback_no_newline_only_hard_trim() {
+        // 全无换行：cap 后应恰好等于 cap 长度（仅硬裁 over），不因找不到 `\n` 而清空。
+        let mut buf: VecDeque<u8> = std::iter::repeat(b'x').take(100).collect();
+        trim_scrollback(&mut buf, 60);
+        assert_eq!(buf.len(), 60);
+        assert!(buf.iter().all(|&b| b == b'x'));
+    }
+
+    /// 换行在扫描窗口之外：不强裁到那个远处的 `\n`，只硬裁（限幅保护生效）。
+    #[test]
+    fn trim_scrollback_newline_beyond_scan_window() {
+        // cap 取比 scan 窗口更大，使硬裁后缓冲仍长于窗口；换行落在硬裁后索引 = 窗口大小
+        // （恰好在 take(scan) 覆盖范围之外），故不应触发对齐裁剪。
+        let cap = LINE_ALIGN_SCAN_CAP + 100; // 硬裁后长度 = cap，> 扫描窗口
+        let over = 50usize;
+        let total = cap + over;
+        let mut v = vec![b'x'; total];
+        // 硬裁掉前 over 字节后，此换行位于新缓冲索引 = LINE_ALIGN_SCAN_CAP（窗口 [0,窗口) 之外）。
+        v[over + LINE_ALIGN_SCAN_CAP] = b'\n';
+        let mut buf: VecDeque<u8> = v.into();
+        trim_scrollback(&mut buf, cap);
+        // 只发生硬裁：长度恰为 cap（换行在扫描窗口外，未触发对齐裁剪，不被清空/过裁）。
+        assert_eq!(buf.len(), cap);
     }
 
     /// Binary 帧恒为 stdin（原样字节，可含非 UTF-8）。
