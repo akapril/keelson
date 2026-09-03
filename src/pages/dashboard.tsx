@@ -104,10 +104,12 @@ export default function Dashboard() {
         .slice(0, 6),
     [tasks, today],
   );
+  // 近期事件只显示**设了提醒的日程**（remind_at 非空）：纯流水账（记"刚才做了什么"、不提醒）
+  // 不挤进近期事件（与项目概览「近期事件」口径一致）。
   const upcomingEvents = useMemo(
     () =>
       events
-        .filter((e) => new Date(e.end || e.start).getTime() >= today)
+        .filter((e) => e.remind_at && new Date(e.end || e.start).getTime() >= today)
         .sort((a, b) => (a.start || "").localeCompare(b.start || ""))
         .slice(0, 6),
     [events, today],
