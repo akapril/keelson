@@ -151,6 +151,17 @@ function MainLayout() {
   const [pbReady, setPbReady] = useState(false);
   // 移动端「更多」弹层开合
   const [moreOpen, setMoreOpen] = useState(false);
+  // 移动端软键盘弹出会盖住底部（终端输入行等）：跟随 visualViewport 高度收缩根容器，
+  // 让内容始终落在键盘之上（终端会随之 fit 到更少行、输入行可见）。
+  const [viewportH, setViewportH] = useState<number | null>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => setViewportH(vv.height);
+    vv.addEventListener("resize", onResize);
+    onResize();
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
 
   // mount 时初始化 PB 认证（web 分支：baseURL→/pb 反代 + /api/bootstrap_auth 取 token）
   useEffect(() => {
@@ -183,7 +194,11 @@ function MainLayout() {
   }
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
+    <div
+      className="flex h-screen bg-background text-foreground"
+      // 键盘弹出时用 visualViewport 实高覆盖 100vh，使内容收到键盘之上
+      style={viewportH != null ? { height: viewportH } : undefined}
+    >
       {/* 大屏：左侧导航栏（≥lg 显示，参考桌面侧栏） */}
       <aside
         className="hidden w-56 shrink-0 flex-col border-r border-border lg:flex"
