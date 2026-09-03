@@ -121,28 +121,32 @@ function MainLayout() {
     const v = localStorage.getItem("keelson-web-tab") as TabKey | null;
     return v && TABS.includes(v) ? v : "workspace";
   });
-  // 用户从工作台选中的会话（Task 13：真正消费，传入 Terminal 面板）
-  const [selectedSession, setSelectedSession] = useState<Session | null>(() => {
+  // 已打开的终端会话列表（多终端 tab）+ 当前活动终端 id。刷新后按列表逐个重连（各自回放历史）。
+  const [openTerminals, setOpenTerminals] = useState<Session[]>(() => {
     try {
-      const raw = localStorage.getItem("keelson-web-session");
-      return raw ? (JSON.parse(raw) as Session) : null;
+      const raw = localStorage.getItem("keelson-web-terminals");
+      return raw ? (JSON.parse(raw) as Session[]) : [];
     } catch {
-      return null;
+      return [];
     }
   });
+  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(
+    () => localStorage.getItem("keelson-web-active-terminal") || null,
+  );
 
   // 记住当前 tab
   useEffect(() => {
     localStorage.setItem("keelson-web-tab", activeTab);
   }, [activeTab]);
-  // 记住选中会话（供刷新后重连；null 时清除）
+  // 记住已打开终端列表（供刷新后逐个重连）
   useEffect(() => {
-    if (selectedSession) {
-      localStorage.setItem("keelson-web-session", JSON.stringify(selectedSession));
-    } else {
-      localStorage.removeItem("keelson-web-session");
-    }
-  }, [selectedSession]);
+    localStorage.setItem("keelson-web-terminals", JSON.stringify(openTerminals));
+  }, [openTerminals]);
+  // 记住活动终端 id
+  useEffect(() => {
+    if (activeTerminalId) localStorage.setItem("keelson-web-active-terminal", activeTerminalId);
+    else localStorage.removeItem("keelson-web-active-terminal");
+  }, [activeTerminalId]);
   // PB 初始化状态（web 分支全程 fetch，不调 invoke）
   const [pbReady, setPbReady] = useState(false);
   // 移动端「更多」弹层开合
@@ -161,10 +165,21 @@ function MainLayout() {
       });
   }, [t]);
 
-  /** 工作台点击会话：记录选中 + 切换到终端 tab */
+  /** 工作台点击会话：加入终端列表（已开则切过去）+ 切到终端 tab */
   function handleOpenTerminal(session: Session) {
-    setSelectedSession(session);
+    setOpenTerminals((prev) =>
+      prev.some((s) => s.session_id === session.session_id) ? prev : [...prev, session],
+    );
+    setActiveTerminalId(session.session_id);
     setActiveTab("terminal");
+  }
+  /** 关闭一个终端 tab：仅从列表移除（断该 WS；后端 PTY 仍在，可再从工作台打开重连） */
+  function closeTerminal(id: string) {
+    setOpenTerminals((prev) => {
+      const next = prev.filter((s) => s.session_id !== id);
+      setActiveTerminalId((cur) => (cur === id ? (next[0]?.session_id ?? null) : cur));
+      return next;
+    });
   }
 
   return (
@@ -219,7 +234,12 @@ function MainLayout() {
           </TabPane>
           <TabPane active={activeTab === "terminal"}>
             {/* Task 13：接入真实终端面板，传入当前选中会话 */}
-            <Terminal session={selectedSession} />
+            <Terminal
+              terminals={openTerminals}
+              activeId={activeTerminalId}
+              onSelect={setActiveTerminalId}
+              onClose={closeTerminal}
+            />
           </TabPane>
           <TabPane active={activeTab === "notifications"}>
             {/* PB 未就绪时展示加载态（initPbAuth 通常 <1s，失败时 pbReady 也置 true） */}

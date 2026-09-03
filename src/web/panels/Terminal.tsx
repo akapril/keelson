@@ -169,46 +169,34 @@ function EmptyState() {
 // ── 主组件 ────────────────────────────────────────────────────
 
 export interface TerminalPanelProps {
-  /** 当前选中的会话（null 时展示空态提示） */
-  session: Session | null;
+  /** 已打开的终端会话列表（多终端 tab） */
+  terminals: Session[];
+  /** 当前活动终端 session_id */
+  activeId: string | null;
+  /** 切换活动终端 */
+  onSelect: (id: string) => void;
+  /** 关闭某终端 tab（断该 WS；后端 PTY 仍在，可再打开重连） */
+  onClose: (id: string) => void;
 }
 
 /**
- * 终端栏（Task 13）：
- *   - session !== null → XtermView + 连接态角标 + 虚拟按键条
- *   - session === null → 空态提示
+ * 单个终端实例：XtermView + 连接态角标 + 虚拟按键条。
+ * keep-alive：非活动时 `hidden`（display:none）而非卸载 → WS 不断、xterm 缓冲不丢
+ * （配合后端持久化，切 tab / 刷新都无损续接）。
  */
-export function Terminal({ session }: TerminalPanelProps) {
+function TerminalInstance({ session, active }: { session: Session; active: boolean }) {
   const { t } = useTranslation("web");
   const [wsStatus, setWsStatus] = useState<WsStatus>("connecting");
-  // ref 用于从虚拟按键条调用 XtermView.sendInput()
   const xtermRef = useRef<XtermHandle>(null);
-
-  /** 虚拟按键条点击 → 转发到 XtermView */
-  function handleVirtualKey(data: string) {
-    xtermRef.current?.sendInput(data);
-  }
-
-  if (!session) {
-    return <EmptyState />;
-  }
-
   return (
-    <div className="flex h-full flex-col">
-      {/* 顶栏：会话标题 + 连接态角标 */}
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-2">
-        <div className="flex min-w-0 flex-col">
-          <span className="truncate text-sm font-medium text-foreground" title={session.project_path}>
-            {session.project_name}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {t("terminal.header.provider", { provider: session.provider })}
-          </span>
-        </div>
+    <div className={active ? "absolute inset-0 flex flex-col" : "hidden"}>
+      {/* 顶栏：provider + 连接态（会话名在上方 tab 栏） */}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+        <span className="truncate text-xs text-muted-foreground" title={session.project_path}>
+          {t("terminal.header.provider", { provider: session.provider })}
+        </span>
         <StatusBadge status={wsStatus} />
       </div>
-
-      {/* 终端内容区：撑满剩余高度 */}
       <div className="min-h-0 flex-1 overflow-hidden bg-background">
         <XtermView
           ref={xtermRef}
@@ -219,13 +207,65 @@ export function Terminal({ session }: TerminalPanelProps) {
           className="size-full"
         />
       </div>
-
       {/* 虚拟按键条：仅移动端显示（lg:hidden） */}
       <VirtualKeybar
-        onSend={handleVirtualKey}
+        onSend={(d) => xtermRef.current?.sendInput(d)}
         onScroll={(n) => xtermRef.current?.scrollLines(n)}
         onScrollBottom={() => xtermRef.current?.scrollToBottom()}
       />
+    </div>
+  );
+}
+
+/**
+ * 终端面板（多 tab）：
+ *   - 空列表 → 空态提示
+ *   - 否则 → 终端 tab 栏（移动端横向滚动）+ 各实例常驻挂载切显隐
+ */
+export function Terminal({ terminals, activeId, onSelect, onClose }: TerminalPanelProps) {
+  if (terminals.length === 0) {
+    return <EmptyState />;
+  }
+  return (
+    <div className="flex h-full flex-col">
+      {/* 终端 tab 栏：多终端切换，窄屏横向滚动，不再挤 */}
+      <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-2 py-1">
+        {terminals.map((s) => {
+          const isActive = s.session_id === activeId;
+          return (
+            <div
+              key={s.session_id}
+              className={`flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
+                isActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => onSelect(s.session_id)}
+                className="max-w-[8rem] truncate"
+                title={s.project_path}
+              >
+                {s.project_name}
+              </button>
+              <button
+                type="button"
+                onClick={() => onClose(s.session_id)}
+                aria-label="close"
+                className="shrink-0 rounded px-1 leading-none hover:bg-background hover:text-foreground"
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 内容区：所有实例常驻挂载，仅切显隐（keep-alive） */}
+      <div className="relative min-h-0 flex-1">
+        {terminals.map((s) => (
+          <TerminalInstance key={s.session_id} session={s} active={s.session_id === activeId} />
+        ))}
+      </div>
     </div>
   );
 }
