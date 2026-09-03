@@ -265,7 +265,11 @@ export function WebGatewaySection() {
           <p className="pb-1 text-xs text-muted-foreground">{t("webGateway.featuresDesc")}</p>
           {(
             [
-              { key: "sessions", label: t("webGateway.featSessions"), desc: t("webGateway.featSessionsDesc"), disabled: false },
+              // 工作台（sessions）为基础能力、始终开，故不列开关。以下按内容 tab 一一对应。
+              { key: "board", label: t("webGateway.featBoard"), desc: t("webGateway.featBoardDesc"), disabled: false },
+              { key: "calendar", label: t("webGateway.featCalendar"), desc: t("webGateway.featCalendarDesc"), disabled: false },
+              { key: "docs", label: t("webGateway.featDocs"), desc: t("webGateway.featDocsDesc"), disabled: false },
+              { key: "terminal", label: t("webGateway.featTerminal"), desc: t("webGateway.featTerminalDesc"), disabled: false },
               { key: "activity", label: t("webGateway.featActivity"), desc: t("webGateway.featActivityDesc"), disabled: false },
               { key: "ai", label: t("webGateway.featAi"), desc: t("webGateway.featAiDesc"), disabled: true },
             ] as const

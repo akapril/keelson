@@ -62,6 +62,18 @@ pub struct WebFeatures {
     /// AI 日报 / 对话（`/api/ai_chat`，使用你的密钥）。默认关（占位，路由后续接入）。
     #[serde(default)]
     pub ai: bool,
+    /// 看板 tab（`/pb` board_* 集合）。默认开。
+    #[serde(default = "default_true")]
+    pub board: bool,
+    /// 日历 tab（`/pb` calendar_events 集合）。默认开。
+    #[serde(default = "default_true")]
+    pub calendar: bool,
+    /// 文档 tab（`/pb` docs/doc_assets/reading_items 集合）。默认开。
+    #[serde(default = "default_true")]
+    pub docs: bool,
+    /// 终端 tab（`/ws/terminal` 远程 PTY）。最敏感（远程 shell），默认开但可关。
+    #[serde(default = "default_true")]
+    pub terminal: bool,
 }
 
 fn default_true() -> bool {
@@ -74,6 +86,10 @@ impl Default for WebFeatures {
             sessions: true,
             activity: true,
             ai: false,
+            board: true,
+            calendar: true,
+            docs: true,
+            terminal: true,
         }
     }
 }

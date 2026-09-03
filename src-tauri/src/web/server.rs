@@ -64,6 +64,8 @@ pub struct WsTerminalState {
     pub reg: Arc<crate::providers::ProviderRegistry>,
     /// 已知会话列表（与 AppState.sessions 同一 Arc），供 project_path 集合校验（I-1）。
     pub sessions: SessionsState,
+    /// web 功能开关（与 AppState.web_features 同一 Arc）：`terminal` 关则拒绝 WS 升级。
+    pub features: WebFeaturesState,
 }
 
 /// Gateway 运行句柄：持有实际端口 + 优雅关闭信号发送端。
@@ -243,7 +245,7 @@ fn build_router(
     // PB 反代子路由（独立 Router + with_state，避免与 AuthState 共用状态冲突）。
     // `/pb/{*path}` axum 0.8 通配捕获语法；`any(...)` 接受所有 HTTP 方法（GET/POST/PATCH…）。
     // 此路由**不**添加至公开白名单——进入此 Router 前已过 `require_token` layer。
-    let pb_proxy_state = PbProxyState::new(pb_base);
+    let pb_proxy_state = PbProxyState::new(pb_base, features_state.clone());
     let pb_router = Router::new()
         .route("/pb/{*path}", any(pb_proxy_handler))
         .with_state(pb_proxy_state);
@@ -467,6 +469,7 @@ mod tests {
             pty: Arc::new(crate::web::terminal::PtyRegistry::new()),
             reg: Arc::new(crate::providers::ProviderRegistry::new()),
             sessions: sessions_state.clone(),
+            features: features_state.clone(),
         };
         let _router = build_router(
             auth,

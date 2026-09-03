@@ -16,8 +16,9 @@ import { Notifications } from "./panels/Notifications";
 import { Terminal } from "./panels/Terminal";
 import { Settings } from "./panels/Settings";
 import { isPaired, handleAuthExpired } from "./auth-expiry";
-import { TabIcon, CONTENT_TABS, UTILITY_TABS, normalizeTabOrder, type TabKey } from "./tabs";
+import { TabIcon, CONTENT_TABS, UTILITY_TABS, normalizeTabOrder, isTabEnabled, type TabKey } from "./tabs";
 import { MobileTabBar } from "./MobileTabBar";
+import { useWebFeaturesStore } from "@/store/web-features";
 import type { Session } from "@/types/session";
 
 // 认证过期处理收口到 auth-expiry 模块（ipc/pb 收 401 时调用）；此处保留具名导出兼容既有引用。
@@ -38,6 +39,10 @@ function TabPane({ active, children }: { active: boolean; children: ReactNode })
 /** 已配对后的布局：顶栏（通知/设置）+ 主体（桌面侧栏 / 移动底栏，均只列内容 tab）。 */
 function MainLayout() {
   const { t } = useTranslation("web");
+  // web 功能开关（bootstrap 后由后端 features 覆盖）：据此隐藏关掉的内容 tab。
+  const features = useWebFeaturesStore((s) => s.features);
+  // 当前可见的内容 tab（按开关过滤；workspace 始终在）。
+  const visibleContent = CONTENT_TABS.filter((tab) => isTabEnabled(tab, features));
   // activeTab / selectedSession 持久化到 localStorage：刷新后回到原 tab 并自动重连回原终端会话。
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const v = localStorage.getItem("keelson-web-tab") as TabKey | null;
@@ -66,6 +71,11 @@ function MainLayout() {
   );
   // 通知未读数（顶栏徽标）。web 端通知只读，pbReady 后拉一次即可。
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // 当前 tab 若被功能开关关掉（远端 features 覆盖后）→ 回落工作台，避免停在空白隐藏页。
+  useEffect(() => {
+    if (!isTabEnabled(activeTab, features)) setActiveTab("workspace");
+  }, [activeTab, features]);
 
   // 记住当前 tab / 终端列表 / 活动终端 / 底栏顺序
   useEffect(() => {
@@ -193,7 +203,7 @@ function MainLayout() {
         {/* 大屏：左侧导航栏（≥lg 显示），只列内容 tab */}
         <aside className="hidden w-56 shrink-0 flex-col border-r border-border py-2 lg:flex" aria-label={t("nav.main")}>
           <nav className="flex flex-col gap-1 px-2">
-            {CONTENT_TABS.map((tab) => {
+            {visibleContent.map((tab) => {
               const isActive = tab === activeTab;
               return (
                 <button
@@ -246,12 +256,15 @@ function MainLayout() {
             </TabPane>
           </main>
 
-          {/* 移动窄屏：底部内容 tab 栏（<lg 显示），可长按拖拽排序 */}
+          {/* 移动窄屏：底部内容 tab 栏（<lg 显示），可长按拖拽排序。按开关过滤到可见 tab；
+              排序结果合并回完整顺序（隐藏 tab 保留在末尾），避免关能力时丢失其排序位置。 */}
           <MobileTabBar
-            order={tabOrder}
+            order={tabOrder.filter((tab) => visibleContent.includes(tab))}
             activeTab={activeTab}
             onSelect={setActiveTab}
-            onReorder={setTabOrder}
+            onReorder={(next) =>
+              setTabOrder([...next, ...tabOrder.filter((tab) => !next.includes(tab))])
+            }
             label={(tab) => t(`tabs.${tab}`)}
             ariaLabel={t("nav.main")}
           />

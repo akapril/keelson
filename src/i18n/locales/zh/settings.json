@@ -1,7 +1,18 @@
 {
-  "language": { "title": "语言", "desc": "界面语言。默认跟随系统，手动切换后记住。", "followSystem": "跟随系统" },
-  "page": { "title": "设置" },
-  "categories": { "general": "通用", "ai": "AI 与集成", "data": "数据与远程", "system": "系统" },
+  "language": {
+    "title": "语言",
+    "desc": "界面语言。默认跟随系统，手动切换后记住。",
+    "followSystem": "跟随系统"
+  },
+  "page": {
+    "title": "设置"
+  },
+  "categories": {
+    "general": "通用",
+    "ai": "AI 与集成",
+    "data": "数据与远程",
+    "system": "系统"
+  },
   "shortcut": {
     "title": "全局唤起快捷键",
     "desc": "任意界面按此组合键唤起 / 隐藏 Spotlight 搜索。修改即时生效。",
@@ -78,8 +89,12 @@
       "claudeCli": "Claude Code（本地 CLI）",
       "codexCli": "Codex（本地 CLI）"
     },
-    "baseUrl": { "label": "Base URL" },
-    "apiKey": { "label": "API 密钥" },
+    "baseUrl": {
+      "label": "Base URL"
+    },
+    "apiKey": {
+      "label": "API 密钥"
+    },
     "model": {
       "label": "模型",
       "fetchBtn": "拉取模型",
@@ -114,9 +129,16 @@
     "reuseAiKeyTitle": "把 AI 对话配置的 OpenAI base_url/密钥填入嵌入(api)",
     "reuseAiKeyDisabledTitle": "需先在「AI 助手」把服务商设为 OpenAI 并填密钥",
     "reuseAiKeySuccess": "已复用 AI 对话的 OpenAI 密钥（可点「重建索引」启用语义）",
-    "baseUrl": { "label": "Base URL", "placeholder": "https://api.openai.com/v1（留空用默认）" },
-    "apiKey": { "label": "API 密钥" },
-    "model": { "label": "模型" },
+    "baseUrl": {
+      "label": "Base URL",
+      "placeholder": "https://api.openai.com/v1（留空用默认）"
+    },
+    "apiKey": {
+      "label": "API 密钥"
+    },
+    "model": {
+      "label": "模型"
+    },
     "indexStale": "嵌入配置已变（上次索引用 {{model}}），语义检索可能过期，请点「重建索引」。",
     "rebuildBtn": "重建索引",
     "rebuilding": "索引中…",
@@ -258,7 +280,15 @@
     "renameCancel": "取消",
     "renaming": "保存中…",
     "renameLabel": "设备名",
-    "renameError": "改名失败：{{message}}"
+    "renameError": "改名失败：{{message}}",
+    "featBoard": "看板",
+    "featBoardDesc": "web 端可看/改看板任务",
+    "featCalendar": "日历",
+    "featCalendarDesc": "web 端可看/记日历事件",
+    "featDocs": "文档",
+    "featDocsDesc": "web 端可看/编辑文档",
+    "featTerminal": "终端",
+    "featTerminalDesc": "web 端可用远程终端（最敏感：远程 shell）"
   },
   "export": {
     "title": "数据导出",

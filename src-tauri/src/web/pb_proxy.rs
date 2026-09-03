@@ -30,12 +30,32 @@ pub struct PbProxyState {
     pub pb_base: Arc<String>,
     /// 共享的 reqwest 客户端（连接池复用，避免每请求重建 TLS 握手开销）。
     pub client: reqwest::Client,
+    /// web 功能开关（与 AppState.web_features 同一 Arc）：按集合门控内容 tab 数据。
+    pub features: crate::web::api::WebFeaturesState,
+}
+
+/// 从 `/pb` 反代 path 解析 PB 集合名并按功能开关判定是否放行。
+///
+/// path 形如 `api/collections/<coll>/records...`。只门控**内容 tab 对应集合**
+/// （calendar_events→calendar、board_*→board、docs/doc_assets/reading_items→docs）；
+/// 其余（认证 `api/collections/users/auth-*`、realtime、notifications、memories 等）一律放行，
+/// 避免破坏 PB SDK 内部路径。纯函数，可 standalone 测。
+pub fn pb_path_allowed(path: &str, f: &crate::config::WebFeatures) -> bool {
+    let coll = path
+        .strip_prefix("api/collections/")
+        .and_then(|rest| rest.split('/').next());
+    match coll {
+        Some("calendar_events") => f.calendar,
+        Some(c) if c.starts_with("board_") => f.board,
+        Some("docs") | Some("doc_assets") | Some("reading_items") => f.docs,
+        _ => true, // 其余集合 / 认证 / realtime 放行
+    }
 }
 
 impl PbProxyState {
-    /// 构造：传入 PB base URL（形如 `http://127.0.0.1:<port>`）。
+    /// 构造：传入 PB base URL（形如 `http://127.0.0.1:<port>`）+ 功能开关 Arc。
     /// reqwest::Client 在此构建并复用——连接池、超时等统一在此配置。
-    pub fn new(pb_base: String) -> Self {
+    pub fn new(pb_base: String, features: crate::web::api::WebFeaturesState) -> Self {
         let client = reqwest::Client::builder()
             // 绕过代理：反代目标是本机 PB(127.0.0.1)，禁走系统/环境代理，
             // 否则代理已就绪时会拦截 localhost 请求致连接中止（os error 10053）。
@@ -50,6 +70,7 @@ impl PbProxyState {
         Self {
             pb_base: Arc::new(pb_base),
             client,
+            features,
         }
     }
 }
@@ -91,6 +112,11 @@ pub async fn pb_proxy_handler(
     req_headers: HeaderMap,
     body: Body,
 ) -> Response {
+    // ── 0. 功能开关门控：关掉的内容 tab 对应集合直接 403（后端强制，纵深防御）。 ──
+    if !pb_path_allowed(&path, &state.features.lock()) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
     // ── 1. 构造目标 URL（防 SSRF：主机固定为 pb_base，不从 path/header 取） ──
     // path 已由 axum 从 `/pb/{*path}` 捕获，不包含前导 `/pb`。
     // `RawQuery` 提取已编码的原始 query string，直接透传（避免先 decode 再 encode 的双重编码）。
@@ -222,8 +248,32 @@ mod tests {
     }
 
     #[test]
+    fn pb_path_gate_maps_collections_to_flags() {
+        use crate::config::WebFeatures;
+        // 全关：内容集合被拒，认证/realtime/其它放行
+        let off = WebFeatures { calendar: false, board: false, docs: false, ..Default::default() };
+        assert!(!pb_path_allowed("api/collections/calendar_events/records", &off));
+        assert!(!pb_path_allowed("api/collections/board_tasks/records", &off));
+        assert!(!pb_path_allowed("api/collections/board_project_states/records", &off));
+        assert!(!pb_path_allowed("api/collections/docs/records", &off));
+        assert!(!pb_path_allowed("api/collections/doc_assets/records", &off));
+        // 非内容集合与认证/realtime 一律放行（即使全关）
+        assert!(pb_path_allowed("api/collections/users/auth-refresh", &off));
+        assert!(pb_path_allowed("api/collections/notifications/records", &off));
+        assert!(pb_path_allowed("api/realtime", &off));
+        // 全开：内容集合放行
+        let on = WebFeatures::default();
+        assert!(pb_path_allowed("api/collections/calendar_events/records", &on));
+        assert!(pb_path_allowed("api/collections/board_tasks/records", &on));
+        assert!(pb_path_allowed("api/collections/docs/records", &on));
+    }
+
+    #[test]
     fn pb_proxy_state_new_builds_without_panic() {
+        use parking_lot::Mutex;
+        use std::sync::Arc;
         // 构造 PbProxyState 不应 panic（仅验证 reqwest Client 能正常构建）
-        let _ = PbProxyState::new("http://127.0.0.1:8790".to_string());
+        let feats = Arc::new(Mutex::new(crate::config::WebFeatures::default()));
+        let _ = PbProxyState::new("http://127.0.0.1:8790".to_string(), feats);
     }
 }

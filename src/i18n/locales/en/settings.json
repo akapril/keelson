@@ -1,7 +1,18 @@
 {
-  "language": { "title": "Language", "desc": "Interface language. Follows the system by default; remembered after you switch.", "followSystem": "Follow system" },
-  "page": { "title": "Settings" },
-  "categories": { "general": "General", "ai": "AI & Integration", "data": "Data & Remote", "system": "System" },
+  "language": {
+    "title": "Language",
+    "desc": "Interface language. Follows the system by default; remembered after you switch.",
+    "followSystem": "Follow system"
+  },
+  "page": {
+    "title": "Settings"
+  },
+  "categories": {
+    "general": "General",
+    "ai": "AI & Integration",
+    "data": "Data & Remote",
+    "system": "System"
+  },
   "shortcut": {
     "title": "Global Shortcut",
     "desc": "Toggle Spotlight search from any screen. Takes effect immediately.",
@@ -78,8 +89,12 @@
       "claudeCli": "Claude Code (local CLI)",
       "codexCli": "Codex (local CLI)"
     },
-    "baseUrl": { "label": "Base URL" },
-    "apiKey": { "label": "API Key" },
+    "baseUrl": {
+      "label": "Base URL"
+    },
+    "apiKey": {
+      "label": "API Key"
+    },
     "model": {
       "label": "Model",
       "fetchBtn": "Fetch models",
@@ -114,9 +129,16 @@
     "reuseAiKeyTitle": "Copy the OpenAI base_url/key from AI config into embeddings (api)",
     "reuseAiKeyDisabledTitle": "Set the AI assistant provider to OpenAI and enter an API key first",
     "reuseAiKeySuccess": "OpenAI key reused from AI config (click 'Rebuild index' to enable semantics)",
-    "baseUrl": { "label": "Base URL", "placeholder": "https://api.openai.com/v1 (leave empty for default)" },
-    "apiKey": { "label": "API Key" },
-    "model": { "label": "Model" },
+    "baseUrl": {
+      "label": "Base URL",
+      "placeholder": "https://api.openai.com/v1 (leave empty for default)"
+    },
+    "apiKey": {
+      "label": "API Key"
+    },
+    "model": {
+      "label": "Model"
+    },
     "indexStale": "Embedding config changed (last indexed with {{model}}); semantic search may be stale — click 'Rebuild index'.",
     "rebuildBtn": "Rebuild index",
     "rebuilding": "Indexing…",
@@ -258,7 +280,15 @@
     "renameCancel": "Cancel",
     "renaming": "Saving…",
     "renameLabel": "Device name",
-    "renameError": "Rename failed: {{message}}"
+    "renameError": "Rename failed: {{message}}",
+    "featBoard": "Board",
+    "featBoardDesc": "View/edit board tasks on web",
+    "featCalendar": "Calendar",
+    "featCalendarDesc": "View/log calendar events on web",
+    "featDocs": "Docs",
+    "featDocsDesc": "View/edit documents on web",
+    "featTerminal": "Terminal",
+    "featTerminalDesc": "Remote terminal on web (most sensitive: remote shell)"
   },
   "export": {
     "title": "Data Export",

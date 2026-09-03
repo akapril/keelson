@@ -493,6 +493,10 @@ pub async fn ws_terminal_handler(
     State(st): State<WsTerminalState>,
 ) -> Response {
     use axum::response::IntoResponse;
+    // 0) 功能开关：终端在 web 端被关则拒绝升级（后端强制，前端隐藏之外的纵深防御）。
+    if !st.features.lock().terminal {
+        return (axum::http::StatusCode::FORBIDDEN, "终端未在 web 端启用").into_response();
+    }
     // 1) provider 白名单：未知 provider 直接拒（不升级）。
     if st.reg.by_id(&q.provider).is_none() {
         return (axum::http::StatusCode::BAD_REQUEST, "未知 provider").into_response();

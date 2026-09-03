@@ -5,12 +5,20 @@
 import { create } from "zustand";
 
 export interface WebFeatures {
-  /** 会话浏览（/api/sessions_list） */
+  /** 会话浏览（/api/sessions_list）——工作台基础能力，始终开 */
   sessions: boolean;
   /** 日历「今日活动 / 回顾」的 git 活动读取（/api/git_log） */
   activity: boolean;
   /** AI 日报 / 对话（/api/ai_chat，占位，路由后续接入） */
   ai: boolean;
+  /** 看板 tab（/pb board_* 集合） */
+  board: boolean;
+  /** 日历 tab（/pb calendar_events 集合） */
+  calendar: boolean;
+  /** 文档 tab（/pb docs 集合） */
+  docs: boolean;
+  /** 终端 tab（/ws/terminal 远程 PTY，最敏感） */
+  terminal: boolean;
 }
 
 interface WebFeaturesState {
@@ -20,6 +28,14 @@ interface WebFeaturesState {
 
 export const useWebFeaturesStore = create<WebFeaturesState>((set) => ({
   // 桌面端默认全开；web 端 bootstrap 后覆盖
-  features: { sessions: true, activity: true, ai: true },
+  features: {
+    sessions: true,
+    activity: true,
+    ai: true,
+    board: true,
+    calendar: true,
+    docs: true,
+    terminal: true,
+  },
   setFeatures: (features) => set({ features }),
 }));

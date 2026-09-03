@@ -110,6 +110,8 @@ pub async fn start_gateway(state: &AppState, dist_dir: Option<PathBuf>) -> Resul
         reg: state.reg.clone(),
         // I-1 纵深防御：WS handler 用此集合校验 project_path 属于已知项目（共享同一 Arc）。
         sessions: state.sessions.clone(),
+        // 功能开关：terminal 关则 WS handler 拒绝升级（共享同一 Arc，随设置热更）。
+        features: state.web_features.clone(),
     };
     // Web Gateway 固定端口：内网穿透(tailscale/frp/cloudflared)需稳定端口定位，
     // 故不用随机端口(0)。端口被占用时 bind 失败返回 Err，由用户关闭占用进程重试
