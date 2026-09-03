@@ -159,10 +159,16 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       const lines = Math.trunc(accum / cellH);
       if (lines === 0) return;
       accum -= lines * cellH;
-      // 备用屏(alt-screen，如 claude/codex 全屏交互界面)无 xterm 回滚缓冲，scrollLines 无效；
-      // 改把滑动转成上/下方向键发给 CLI，让应用自己滚（下滑 lines>0 = 看更早内容 = 上箭头）。
+      // 备用屏(alt-screen，如 claude/codex 全屏交互界面)无 xterm 回滚缓冲，scrollLines 无效。
+      // 方向键会被当成输入历史导航（碰输入框），故改**模拟鼠标滚轮**(SGR 1006)：这类 TUI 开了
+      // 鼠标追踪，滚轮走鼠标通道、不碰输入——桌面终端就是这样滚 claude 的。
+      // 下滑 lines>0 = 看更早内容 = 滚轮上(按钮 64)；lines<0 = 滚轮下(65)。
       if (term.buffer.active.type === "alternate") {
-        const seq = lines > 0 ? "\x1b[A" : "\x1b[B";
+        const rect = el.getBoundingClientRect();
+        const row = Math.min(term.rows, Math.max(1, Math.ceil((y - rect.top) / cellH)));
+        const col = Math.max(1, Math.round(term.cols / 2));
+        const btn = lines > 0 ? 64 : 65;
+        const seq = `\x1b[<${btn};${col};${row}M`;
         const n = Math.min(Math.abs(lines), 20); // 限幅，避免一次甩太多
         for (let i = 0; i < n; i++) wsRef.current?.send(seq);
       } else {
