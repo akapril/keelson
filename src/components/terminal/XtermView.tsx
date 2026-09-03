@@ -50,6 +50,8 @@ export interface XtermViewProps {
   onExit?: () => void;
   /** 连接状态变化回调（可选，供父组件显示状态角标） */
   onStatusChange?: (s: WsStatus) => void;
+  /** 移动端长按终端回调：canvas 无法原生选中文字，故长按转为打开可选文本层（复制历史） */
+  onLongPress?: () => void;
   /** 额外 className，供布局层控制尺寸 */
   className?: string;
 }
@@ -71,6 +73,7 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     projectPath,
     onExit,
     onStatusChange,
+    onLongPress,
     className,
   },
   ref
@@ -89,6 +92,8 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
   onExitRef.current = onExit;
   const onStatusChangeRef = useRef(onStatusChange);
   onStatusChangeRef.current = onStatusChange;
+  const onLongPressRef = useRef(onLongPress);
+  onLongPressRef.current = onLongPress;
 
   // 暴露 sendInput + 滚动给父组件（虚拟按键条使用）
   useImperativeHandle(ref, () => ({
@@ -184,15 +189,38 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     // 真实行高 = 当前 fontSize * lineHeight（动态读取：调字号后滚动步长/行号仍准确）。
     const cellHeight = () => (term.options.fontSize ?? 14) * 1.4;
     let touchY: number | null = null;
+    let touchStartY = 0; // 起手 Y，判长按期间是否明显移动
     let accum = 0;
+    // 长按检测：canvas 无原生可选文字，故长按(≥500ms 基本不动) → 打开可选文本层复制历史。
+    const LONG_PRESS_MS = 500;
+    const LONG_PRESS_MOVE_TOL = 10; // 移动超过此像素即视为滚动，取消长按
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+    const cancelLongPress = () => {
+      if (longPressTimer !== null) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    };
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 1) {
         touchY = e.touches[0].clientY;
+        touchStartY = e.touches[0].clientY;
         accum = 0;
+        cancelLongPress();
+        longPressTimer = setTimeout(() => {
+          longPressTimer = null;
+          touchY = null; // 停止把本次手势当滚动
+          navigator.vibrate?.(10); // 触感反馈（支持则振一下）
+          onLongPressRef.current?.();
+        }, LONG_PRESS_MS);
+      } else {
+        cancelLongPress(); // 多指：取消长按
       }
     };
     const onTouchMove = (e: TouchEvent) => {
       if (touchY === null || e.touches.length !== 1) return;
+      // 明显移动即取消长按（这是滚动而非长按）。
+      if (Math.abs(e.touches[0].clientY - touchStartY) > LONG_PRESS_MOVE_TOL) cancelLongPress();
       // 单指拖拽期间一律 preventDefault：否则起手的前几像素(lines 仍为 0)会被浏览器
       // 当成下拉刷新/页面滚动抢走，导致"下滑刷新页面、终端没滚"。
       e.preventDefault();
@@ -223,12 +251,33 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     };
     const onTouchEnd = () => {
       touchY = null;
+      cancelLongPress();
     };
     const el = containerRef.current;
     // touchmove 用捕获阶段 + 非被动：先于 xterm 内部处理拿到事件、可 preventDefault。
     el.addEventListener("touchstart", onTouchStart, { passive: true, capture: true });
     el.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
     el.addEventListener("touchend", onTouchEnd, { passive: true, capture: true });
+
+    // ── PC 鼠标：选中即复制 + 右键粘贴（仿 PuTTY / Windows Terminal）────────────────
+    // 选中即复制：鼠标松开时若有选区，写入剪贴板（免 Ctrl+C）。仅在安全上下文有 clipboard API。
+    const onMouseUp = () => {
+      if (!term.hasSelection()) return;
+      const sel = term.getSelection();
+      if (sel) void navigator.clipboard?.writeText(sel).catch(() => {});
+    };
+    // 右键粘贴：拦掉浏览器右键菜单（preventDefault）→ 读剪贴板 → 送 stdin。
+    const onContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      void navigator.clipboard
+        ?.readText()
+        .then((text) => {
+          if (text) wsRef.current?.send(text);
+        })
+        .catch(() => {});
+    };
+    el.addEventListener("mouseup", onMouseUp);
+    el.addEventListener("contextmenu", onContextMenu);
 
     // 连接 WS（回调经 ref 取最新值，不将函数引用纳入 effect deps）
     const ws = openTerminalWs(
@@ -280,9 +329,12 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       searchRef.current = null;
       safeFitRef.current = null;
       observer.disconnect();
+      cancelLongPress();
       el.removeEventListener("touchstart", onTouchStart, { capture: true });
       el.removeEventListener("touchmove", onTouchMove, { capture: true });
       el.removeEventListener("touchend", onTouchEnd, { capture: true });
+      el.removeEventListener("mouseup", onMouseUp);
+      el.removeEventListener("contextmenu", onContextMenu);
       dataDisposable.dispose();
       ws.close();
       // 先拆传输/监听，再 core.dispose()（内部按序：主题 observer → WebGL → term.dispose）

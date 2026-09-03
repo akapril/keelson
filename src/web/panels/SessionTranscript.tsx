@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
 import { cn } from "@/lib/utils";
 import type { Session, TimelineMessage } from "@/types/session";
+import { WrenchIcon } from "./icons";
 
 /** 展示用只保留 user/assistant/tool（system 等丢弃，与桌面时间线一致）。 */
 function displayable(m: TimelineMessage): boolean {
@@ -125,7 +126,8 @@ export function SessionTranscript({ session, onClose }: SessionTranscriptProps) 
               return (
                 <div key={idx} className="flex justify-center">
                   <span className="inline-flex max-w-[88%] items-center gap-1.5 truncate rounded-full bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground">
-                    🔧 <span className="truncate">{m.content}</span>
+                    <WrenchIcon className="size-3 shrink-0" />
+                    <span className="truncate">{m.content}</span>
                   </span>
                 </div>
               );

@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { XtermView, type XtermHandle } from "@/components/terminal/XtermView";
 import type { WsStatus } from "@/web/webterm-ws";
 import type { Session } from "@/types/session";
+import { KeyboardIcon, PasteIcon, SearchIcon, RestartIcon } from "./icons";
 
 // ── 连接态角标 ────────────────────────────────────────────────
 
@@ -94,8 +95,6 @@ interface VirtualKeybarProps {
   onSend: (data: string) => void;
   /** 点「键盘」→ 显式弹出软键盘（默认点终端不弹，避免挡界面） */
   onShowKeyboard: () => void;
-  /** 点「查看/复制」→ 打开纯文本浮层（原生平滑滚动 + 长按选择复制） */
-  onViewText: () => void;
   /** 点「粘贴」→ 读剪贴板并作为 stdin 发送 */
   onPaste: () => void;
   /** 调整字号（delta 正=放大/负=缩小） */
@@ -104,11 +103,11 @@ interface VirtualKeybarProps {
 
 /**
  * 虚拟按键条（移动端显示，桌面 lg: 隐藏）
- * - 首位为「⌨ 键盘」：默认点终端不弹软键盘（可滚动不挡界面），要打字点它才弹
+ * - 首位为「键盘」：默认点终端不弹软键盘（可滚动不挡界面），要打字点它才弹
  * - 横向可滚动，避免在窄屏挤压按钮；按钮触摸友好的 min-w + h
- * - 历史滚动改由终端区**直接触摸滑动**（见 XtermView 手势），此处不再放滚动按钮
+ * - 历史滚动改由终端区**直接触摸滑动**；复制历史改由**长按终端**打开可选文本层（不再放按钮）
  */
-function VirtualKeybar({ onSend, onShowKeyboard, onViewText, onPaste, onAdjustFont }: VirtualKeybarProps) {
+function VirtualKeybar({ onSend, onShowKeyboard, onPaste, onAdjustFont }: VirtualKeybarProps) {
   const { t } = useTranslation("web");
   const btnCls =
     "flex min-w-[2.5rem] shrink-0 items-center justify-center rounded border border-border bg-background px-2 py-1.5 text-xs font-mono text-foreground transition-colors active:bg-muted hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -127,17 +126,7 @@ function VirtualKeybar({ onSend, onShowKeyboard, onViewText, onPaste, onAdjustFo
           onClick={onShowKeyboard}
           className={`${btnCls} border-primary/40 text-primary`}
         >
-          ⌨
-        </button>
-        {/* 查看/复制：打开纯文本浮层（平滑滚 + 选择复制） */}
-        <button
-          type="button"
-          title={t("terminal.viewCopy")}
-          aria-label={t("terminal.viewCopy")}
-          onClick={onViewText}
-          className={btnCls}
-        >
-          📋
+          <KeyboardIcon className="size-4" />
         </button>
         {/* 粘贴：读剪贴板 → stdin */}
         <button
@@ -147,7 +136,7 @@ function VirtualKeybar({ onSend, onShowKeyboard, onViewText, onPaste, onAdjustFo
           onClick={onPaste}
           className={btnCls}
         >
-          📥
+          <PasteIcon className="size-4" />
         </button>
         {/* 字号缩小 / 放大 */}
         <button
@@ -288,9 +277,9 @@ function TerminalInstance({ session, active }: { session: Session; active: boole
             <button
               type="button"
               onClick={restart}
-              className="rounded border border-primary/40 bg-background px-2 py-0.5 text-xs font-medium text-primary hover:bg-muted"
+              className="flex items-center gap-1 rounded border border-primary/40 bg-background px-2 py-0.5 text-xs font-medium text-primary hover:bg-muted"
             >
-              ↻ {t("terminal.restart")}
+              <RestartIcon className="size-3.5" /> {t("terminal.restart")}
             </button>
           )}
           {/* 搜索开关 */}
@@ -300,11 +289,11 @@ function TerminalInstance({ session, active }: { session: Session; active: boole
             aria-label={t("terminal.search")}
             aria-pressed={searchOpen}
             onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
-            className={`rounded border px-2 py-0.5 text-xs hover:bg-muted ${
+            className={`flex items-center rounded border px-2 py-1 hover:bg-muted ${
               searchOpen ? "border-primary/40 text-primary" : "border-border text-muted-foreground"
             }`}
           >
-            🔍
+            <SearchIcon className="size-3.5" />
           </button>
           <StatusBadge status={wsStatus} />
         </div>
@@ -369,14 +358,14 @@ function TerminalInstance({ session, active }: { session: Session; active: boole
           projectPath={session.project_path}
           onStatusChange={setWsStatus}
           onExit={() => setExited(true)}
+          onLongPress={() => setTextView(xtermRef.current?.getText() ?? "")}
           className="size-full"
         />
       </div>
-      {/* 虚拟按键条：仅移动端显示（lg:hidden）。历史滚动改由终端区直接触摸滑动 */}
+      {/* 虚拟按键条：仅移动端显示（lg:hidden）。历史滚动=触摸滑动；复制历史=长按终端开文本层 */}
       <VirtualKeybar
         onSend={(d) => xtermRef.current?.sendInput(d)}
         onShowKeyboard={() => xtermRef.current?.focusKeyboard()}
-        onViewText={() => setTextView(xtermRef.current?.getText() ?? "")}
         onPaste={pasteFromClipboard}
         onAdjustFont={(delta) => xtermRef.current?.adjustFontSize(delta)}
       />

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ipc } from "@/lib/tauri/ipc";
 import type { Session } from "@/types/session";
 import { SessionTranscript } from "./SessionTranscript";
+import { FileTextIcon } from "./icons";
 
 // ── 纯工具函数 ────────────────────────────────────────────────
 
@@ -79,9 +80,9 @@ function SessionRow({ session, onOpenTerminal, onViewTranscript }: SessionRowPro
             e.stopPropagation();
             onViewTranscript(session);
           }}
-          className="ml-auto rounded border border-border px-1.5 py-0.5 hover:bg-muted hover:text-foreground"
+          className="ml-auto flex items-center gap-1 rounded border border-border px-1.5 py-0.5 hover:bg-muted hover:text-foreground"
         >
-          📄 {t("transcript.view")}
+          <FileTextIcon className="size-3.5" /> {t("transcript.view")}
         </button>
       </div>
 
