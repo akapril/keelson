@@ -125,12 +125,14 @@ export function ProjectWorkspace() {
     [activeTasks],
   );
 
-  // 近期事件（本项目关联，结束日 >= 今天，取前 6）
+  // 近期事件（本项目关联、**设了提醒**、结束日 >= 今天，取前 6）。
+  // 只显示设了提醒的日程（remind_at 非空）：纯流水账（记"刚才做了什么"、不提醒）不挤进近期事件。
   const upcomingEvents = useMemo(() => {
     const eventNow = new Date();
     eventNow.setHours(0, 0, 0, 0);
     return projectEvents
       .filter((e) => {
+        if (!e.remind_at) return false; // 无提醒的流水账不进近期事件
         try {
           return new Date(e.end || e.start) >= eventNow;
         } catch {
