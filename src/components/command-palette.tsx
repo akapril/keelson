@@ -31,7 +31,7 @@ import { listReadingItems } from "@/lib/pb/reading";
 import { useSessionsStore } from "@/store/sessions";
 import { useSessionSearchStore } from "@/store/session-search";
 import { useCalendarStore } from "@/store/calendar";
-import { parseQuickLog, DEFAULT_EVENT_COLOR } from "@/lib/calendar/quick-log";
+import { parseQuickLog, computeRemindAt, DEFAULT_EVENT_COLOR } from "@/lib/calendar/quick-log";
 import { useReportJobStore } from "@/store/report-job";
 import { useSettingsStore } from "@/store/settings";
 import { computeRange } from "@/features/report/report-range";
@@ -112,6 +112,8 @@ export function CommandPalette() {
         end_time: parsed.endTime,
         all_day: false,
         color: DEFAULT_EVENT_COLOR,
+        // 含「提醒」意图才写 remind_at（回退今天）；纯流水账为空=不提醒
+        remind_at: computeRemindAt(parsed, format(new Date(), "yyyy-MM-dd")),
       });
       toast.success(t("commandPalette.quickLogDone", { text: parsed.title }));
     } catch (e) {

@@ -37,7 +37,7 @@ import {
   ContextMenuItem,
 } from "@/components/ui/context-menu";
 import { useCalendarStore } from "@/store/calendar";
-import { parseQuickLog } from "@/lib/calendar/quick-log";
+import { parseQuickLog, computeRemindAt } from "@/lib/calendar/quick-log";
 import { collectMaterial } from "@/features/report/generateReport";
 import { computeRange } from "@/features/report/report-range";
 import type { ReportMaterial } from "@/features/report/report-collect";
@@ -494,6 +494,8 @@ export default function CalendarPage() {
         end_time: parsed.endTime,
         all_day: false,
         color: DEFAULT_COLOR,
+        // 含「提醒」意图才写 remind_at（落点日为无日期时的回退）；纯流水账为空=不提醒
+        remind_at: computeRemindAt(parsed, dayStr),
       });
     } catch (e) {
       toast.error(t("toast.createError", { msg: String(e) }));

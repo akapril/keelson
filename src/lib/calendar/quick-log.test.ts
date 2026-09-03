@@ -94,4 +94,26 @@ describe("parseQuickLog 中文时间/时长解析", () => {
     expect(r.title).toBe("写周报");
     expect(r.start).toBeUndefined();
   });
+
+  it("含「提醒我」：remind=true，剥离「提醒我」token + 时刻", () => {
+    expect(parseQuickLog("18点提醒我健身", projects, NOW)).toEqual({
+      title: "健身",
+      project: "",
+      startTime: "18:00",
+      remind: true,
+    });
+  });
+
+  it("「明天…提醒我…」：remind=true + 日期识别", () => {
+    const r = parseQuickLog("明天下午3点提醒我交报告", projects, NOW);
+    expect(r.remind).toBe(true);
+    expect(r.title).toBe("交报告");
+    expect(r.startTime).toBe("15:00");
+    expect(r.start).toBeDefined();
+  });
+
+  it("纯流水账（无「提醒」二字）：remind 缺省（不提醒）", () => {
+    const r = parseQuickLog("写了一下午代码", projects, NOW);
+    expect(r.remind).toBeUndefined();
+  });
 });

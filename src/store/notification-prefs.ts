@@ -13,7 +13,8 @@ import { create } from "zustand";
  */
 export const NOTIF_TYPES: { source: string; label: string }[] = [
   { source: "沉淀",     label: "沉淀（AI 提炼结果）" },
-  { source: "截止提醒", label: "截止提醒（任务/事件到期）" },
+  { source: "截止提醒", label: "截止提醒（任务到期）" },
+  { source: "日程提醒", label: "日程提醒（日历到点提醒）" },
   { source: "会话",     label: "会话（发现新 CLI 会话）" },
   { source: "更新",     label: "更新（应用新版本）" },
   { source: "MCP",      label: "MCP（外部 Agent 动作）" },

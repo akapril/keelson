@@ -62,6 +62,8 @@ interface CalendarStoreState {
     description?: string;
     project?: string;
     repeat?: string;
+    /** 提醒时间（UTC ISO）；非空则后台到点提醒。纯流水账不传=不提醒。 */
+    remind_at?: string;
   }) => Promise<CalendarEvent>;
   /** 更新日历事件字段（乐观更新 + 回滚） */
   updateEvent: (
@@ -133,6 +135,8 @@ export const useCalendarStore = create<CalendarStoreState>((set, get) => ({
       description: input.description ?? "", // description 默认空串
       project: input.project ?? "", // 关联项目默认空串
       repeat: input.repeat ?? "", // 重复规则默认空串（不重复）
+      remind_at: input.remind_at ?? "", // 提醒时间默认空串（不提醒）
+      reminded: false, // 新建时未提醒
     });
     // 按 id upsert（去重）：PB 实时 create 事件可能在 await 期间已插入同一条，
     // 避免本地再追加一次造成重复。

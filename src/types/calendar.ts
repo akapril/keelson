@@ -21,6 +21,10 @@ export interface CalendarEvent {
   repeat?: string;
   /** 可选：关联的看板项目 id（空串 = 未关联） */
   project: string;
+  /** 提醒时间（UTC ISO，如 "2026-09-03T14:30:00Z"）；空串=不提醒。后台 worker 到点推送。 */
+  remind_at?: string;
+  /** 是否已推送过提醒（去重）；worker 推送后置 true。 */
+  reminded?: boolean;
   created: string;
   updated: string;
   /** 软删除时间戳（非空即已删）；多机同步用。 */

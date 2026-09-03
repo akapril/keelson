@@ -19,6 +19,8 @@ export interface ParsedQuickLog {
   startTime?: string;
   /** 由「时长」合成的结束时刻（HH:mm）；无时长则缺省 */
   endTime?: string;
+  /** 是否要到点提醒：文本含「提醒」意图时为 true（纯流水账无此词=不提醒）。调用方据此写 remind_at。 */
+  remind?: boolean;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -155,10 +157,20 @@ export function parseQuickLog(
   const durR = parseDurationZh(working);
   if (durR) working = working.replace(durR.matched, " ");
 
+  // 3. 提醒意图：含「提醒」即标记要到点提醒，并剥离「提醒我?」token（时间已在上一步剥掉，不干扰）。
+  //    纯流水账（无「提醒」二字）→ remind 缺省 → 不通知。
+  let remind = false;
+  const remindMatch = working.match(/提醒(我)?/);
+  if (remindMatch) {
+    remind = true;
+    working = working.replace(remindMatch[0], " ");
+  }
+
   const result: ParsedQuickLog = {
     title: working.replace(/\s+/g, " ").trim(),
     project,
   };
+  if (remind) result.remind = true;
   if (dateR) result.start = format(dateR.date, "yyyy-MM-dd");
   if (timeR) result.startTime = `${pad(timeR.hh)}:${pad(timeR.mm)}`;
   if (durR) {
@@ -171,4 +183,21 @@ export function parseQuickLog(
     result.title = p ? p.name : raw;
   }
   return result;
+}
+
+/**
+ * 由解析结果算「提醒时间」ISO（UTC，秒级 `YYYY-MM-DDTHH:MM:SSZ`）。
+ * - 仅当 `parsed.remind` 为真时返回非空；无提醒意图返回 `""`（=不提醒）。
+ * - 日期取 `parsed.start ?? fallbackDate`；时刻取 `parsed.startTime ?? "09:00"`（无时刻默认早上 9 点）。
+ * - 定宽 UTC 便于与后台 worker 的「当前时间」字典序比较（同格式=同序）。
+ *
+ * @param fallbackDate 无识别日期时的回退日（yyyy-MM-dd，通常为今天/落点日）
+ */
+export function computeRemindAt(parsed: ParsedQuickLog, fallbackDate: string): string {
+  if (!parsed.remind) return "";
+  const date = parsed.start ?? fallbackDate;
+  const time = parsed.startTime ?? "09:00";
+  const d = new Date(`${date}T${time}:00`); // 本地时区解析 → 下方转 UTC
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 19) + "Z";
 }

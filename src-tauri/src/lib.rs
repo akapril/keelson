@@ -41,6 +41,8 @@ mod i18n;
 // agent 任务自主执行模块（组 prompt / 判结果 / worktree / 执行内核）
 mod agent;
 
+pub mod reminders;
+
 use std::sync::Arc;
 use parking_lot::Mutex;
 use tauri::{Emitter, Manager};
@@ -442,6 +444,10 @@ pub fn run() {
             if let Err(e) = setup_tray(app.handle()) {
                 eprintln!("[keelson] 托盘初始化失败（非致命）: {e:#}");
             }
+
+            // ── 日历日程提醒 worker（常驻，轮询到点提醒→系统通知+收件箱）──
+            // auth 未就绪的轮次自动跳过，故可在此无条件 spawn。
+            reminders::spawn(app.handle().clone());
 
             // ── 进程管理（进程内模块，已去 TCP）──
             // 起后台任务（health 检查 / 旧日志清理）；命令层直接调 daemon::dispatch。
