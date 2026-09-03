@@ -123,6 +123,49 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     termRef.current = term;
     safeFit();
 
+    // 主题竞态修复：硬刷新后 xterm 可能在主题 class 应用到 <html> 之前挂载 →
+    // resolveXtermTheme 读到默认(浅色)调色板致"刷新后颜色变了"。观察 <html> class 变化，
+    // 主题一变即重解析并重应用（同时覆盖运行时明暗切换）。
+    const themeObserver = new MutationObserver(() => {
+      term.options.theme = resolveXtermTheme();
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    // 移动端触摸滑动滚动历史：xterm 的 canvas 层遮挡可滚动 viewport，原生触摸滚不动，
+    // 故自行手势 → term.scrollLines（手指下滑=看历史/上滚）。仅真正滚动时 preventDefault，
+    // 避免误吞点击聚焦；单指才处理（双指缩放/其它手势放行）。
+    const cellH = 14 * 1.4; // fontSize(14) * lineHeight(1.4)，与 Terminal 配置一致
+    let touchY: number | null = null;
+    let accum = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchY = e.touches[0].clientY;
+        accum = 0;
+      }
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (touchY === null || e.touches.length !== 1) return;
+      const y = e.touches[0].clientY;
+      accum += y - touchY;
+      touchY = y;
+      const lines = Math.trunc(accum / cellH);
+      if (lines !== 0) {
+        term.scrollLines(-lines);
+        accum -= lines * cellH;
+        e.preventDefault(); // 阻止页面跟着滚/回弹
+      }
+    };
+    const onTouchEnd = () => {
+      touchY = null;
+    };
+    const el = containerRef.current;
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+
     // 连接 WS（回调经 ref 取最新值，不将函数引用纳入 effect deps）
     const ws = openTerminalWs(
       sessionId,
@@ -171,6 +214,10 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       wsRef.current = null;
       termRef.current = null;
       observer.disconnect();
+      themeObserver.disconnect();
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
       dataDisposable.dispose();
       ws.close();
       term.dispose();
