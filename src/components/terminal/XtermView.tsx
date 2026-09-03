@@ -28,6 +28,8 @@ export interface XtermHandle {
   scrollToBottom: () => void;
   /** 显式弹出移动端软键盘（默认聚焦不弹，避免点终端就挡界面）：临时开 inputmode 再聚焦 */
   focusKeyboard: () => void;
+  /** 倒出终端缓冲区文本（普通屏=含回滚的完整历史；备用屏=当前可见屏）。供「查看/复制」文本浮层。 */
+  getText: () => string;
 }
 
 export interface XtermViewProps {
@@ -101,6 +103,19 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       }
       ta.inputMode = "text";
       ta.focus();
+    },
+    getText() {
+      const term = termRef.current;
+      if (!term) return "";
+      const buf = term.buffer.active;
+      const lines: string[] = [];
+      for (let i = 0; i < buf.length; i++) {
+        const line = buf.getLine(i);
+        lines.push(line ? line.translateToString(true) : "");
+      }
+      // 去掉尾部连续空行，避免一大片空白
+      while (lines.length && lines[lines.length - 1] === "") lines.pop();
+      return lines.join("\n");
     },
   }), []);
 

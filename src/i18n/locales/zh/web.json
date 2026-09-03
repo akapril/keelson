@@ -77,7 +77,12 @@
       "down": "向下滚",
       "bottom": "回到底部"
     },
-    "keyboard": "键盘"
+    "keyboard": "键盘",
+    "viewCopy": "查看/复制",
+    "copyAll": "复制全部",
+    "close": "关闭",
+    "copied": "已复制到剪贴板",
+    "copyError": "复制失败"
   },
   "settings": {
     "theme": {

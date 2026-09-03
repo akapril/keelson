@@ -77,7 +77,12 @@
       "down": "Scroll down",
       "bottom": "To bottom"
     },
-    "keyboard": "Keyboard"
+    "keyboard": "Keyboard",
+    "viewCopy": "View/Copy",
+    "copyAll": "Copy all",
+    "close": "Close",
+    "copied": "Copied to clipboard",
+    "copyError": "Copy failed"
   },
   "settings": {
     "theme": {

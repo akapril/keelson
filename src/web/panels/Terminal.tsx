@@ -12,6 +12,7 @@
 
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { XtermView, type XtermHandle } from "@/components/terminal/XtermView";
 import type { WsStatus } from "@/web/webterm-ws";
 import type { Session } from "@/types/session";
@@ -87,6 +88,8 @@ interface VirtualKeybarProps {
   onSend: (data: string) => void;
   /** 点「键盘」→ 显式弹出软键盘（默认点终端不弹，避免挡界面） */
   onShowKeyboard: () => void;
+  /** 点「查看/复制」→ 打开纯文本浮层（原生平滑滚动 + 长按选择复制） */
+  onViewText: () => void;
 }
 
 /**
@@ -95,7 +98,7 @@ interface VirtualKeybarProps {
  * - 横向可滚动，避免在窄屏挤压按钮；按钮触摸友好的 min-w + h
  * - 历史滚动改由终端区**直接触摸滑动**（见 XtermView 手势），此处不再放滚动按钮
  */
-function VirtualKeybar({ onSend, onShowKeyboard }: VirtualKeybarProps) {
+function VirtualKeybar({ onSend, onShowKeyboard, onViewText }: VirtualKeybarProps) {
   const { t } = useTranslation("web");
   const btnCls =
     "flex min-w-[2.5rem] shrink-0 items-center justify-center rounded border border-border bg-background px-2 py-1.5 text-xs font-mono text-foreground transition-colors active:bg-muted hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -115,6 +118,16 @@ function VirtualKeybar({ onSend, onShowKeyboard }: VirtualKeybarProps) {
           className={`${btnCls} border-primary/40 text-primary`}
         >
           ⌨
+        </button>
+        {/* 查看/复制：打开纯文本浮层（平滑滚 + 选择复制） */}
+        <button
+          type="button"
+          title={t("terminal.viewCopy")}
+          aria-label={t("terminal.viewCopy")}
+          onClick={onViewText}
+          className={btnCls}
+        >
+          📋
         </button>
         <span className="mx-0.5 shrink-0 self-stretch border-l border-border" aria-hidden />
         {VIRTUAL_KEYS.map(({ label, bytes, title }) => (
@@ -185,7 +198,16 @@ export interface TerminalPanelProps {
 function TerminalInstance({ session, active }: { session: Session; active: boolean }) {
   const { t } = useTranslation("web");
   const [wsStatus, setWsStatus] = useState<WsStatus>("connecting");
+  // 文本浮层内容（null=关闭）：倒出终端缓冲文本，原生平滑滚 + 长按选择复制
+  const [textView, setTextView] = useState<string | null>(null);
   const xtermRef = useRef<XtermHandle>(null);
+  const copyAll = () => {
+    if (textView == null) return;
+    void navigator.clipboard.writeText(textView).then(
+      () => toast.success(t("terminal.copied")),
+      () => toast.error(t("terminal.copyError")),
+    );
+  };
   return (
     <div className={active ? "absolute inset-0 flex flex-col" : "hidden"}>
       {/* 顶栏：provider + 连接态（会话名在上方 tab 栏） */}
@@ -209,7 +231,38 @@ function TerminalInstance({ session, active }: { session: Session; active: boole
       <VirtualKeybar
         onSend={(d) => xtermRef.current?.sendInput(d)}
         onShowKeyboard={() => xtermRef.current?.focusKeyboard()}
+        onViewText={() => setTextView(xtermRef.current?.getText() ?? "")}
       />
+
+      {/* 文本浮层：纯文本 = 原生平滑滚动 + 长按选择复制，绕开 canvas 选区之难 */}
+      {textView != null && (
+        <div className="absolute inset-0 z-30 flex flex-col bg-background">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+            <span className="text-sm font-medium">{t("terminal.viewCopy")}</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={copyAll}
+                className="rounded border border-border bg-background px-2 py-1 text-xs hover:bg-muted"
+              >
+                {t("terminal.copyAll")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTextView(null)}
+                aria-label={t("terminal.close")}
+                className="rounded border border-border bg-background px-2 py-1 text-xs hover:bg-muted"
+              >
+                {t("terminal.close")}
+              </button>
+            </div>
+          </div>
+          {/* 纯文本区：可原生选择、平滑滚动；等宽字体保持终端观感 */}
+          <pre className="min-h-0 flex-1 select-text overflow-auto whitespace-pre px-3 py-2 font-mono text-xs leading-relaxed">
+            {textView || t("terminal.empty.hint")}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
