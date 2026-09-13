@@ -92,7 +92,9 @@
     "fontDec": "缩小字号",
     "restart": "重启",
     "exited": "进程已退出",
-    "pasteError": "读取剪贴板失败"
+    "pasteError": "读取剪贴板失败",
+    "scrollSlower": "滚动更慢",
+    "scrollFaster": "滚动更快"
   },
   "settings": {
     "theme": {

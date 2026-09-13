@@ -37,6 +37,8 @@ export interface XtermHandle {
   clearSearch: () => void;
   /** 调整字号（delta 正=放大/负=缩小，带上下限）并重新 fit。移动端小屏调节可读性。 */
   adjustFontSize: (delta: number) => void;
+  /** 调整触摸滚动速度倍率（delta 正=更快/负=更慢，0.5×~3× 步进 0.5，持久化）。 */
+  adjustScrollSpeed: (delta: number) => void;
 }
 
 export interface XtermViewProps {
@@ -86,6 +88,13 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
   // 搜索插件 ref（供搜索框查找）、safeFit ref（供调字号后重新 fit）
   const searchRef = useRef<SearchAddon | null>(null);
   const safeFitRef = useRef<(() => boolean) | null>(null);
+  // 触摸滚动速度倍率（0.5×~3×）：越大越快。从 localStorage 恢复，供触摸手势读取。
+  const scrollSpeedRef = useRef<number>(
+    (() => {
+      const v = parseFloat(localStorage.getItem("keelson-term-scroll-speed") || "");
+      return v >= 0.5 && v <= 3 ? v : 1;
+    })(),
+  );
 
   // 用 ref 存最新回调，避免回调引用变化导致 effect 重跑（Terminal 重挂/闪烁）
   const onExitRef = useRef(onExit);
@@ -160,8 +169,16 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       const next = Math.min(24, Math.max(8, cur + delta)); // 上下限 8~24px
       if (next === cur) return;
       term.options.fontSize = next;
+      localStorage.setItem("keelson-term-font-size", String(next)); // 持久化，下次默认沿用
       // 字号变了要重新 fit（cols/rows 变化），并把新尺寸同步给 PTY，避免换行错位。
       if (safeFitRef.current?.()) wsRef.current?.resize(term.cols, term.rows);
+    },
+    adjustScrollSpeed(delta: number) {
+      const cur = scrollSpeedRef.current;
+      // 步进 0.5，范围 0.5×~3×。
+      const next = Math.min(3, Math.max(0.5, Math.round((cur + delta * 0.5) * 2) / 2));
+      scrollSpeedRef.current = next;
+      localStorage.setItem("keelson-term-scroll-speed", String(next));
     },
   }), []);
 
@@ -171,7 +188,12 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
     // 创建终端核心（new Terminal + FitAddon + 挂载 + WebGL + 搜索 + 可点链接 + 主题实时跟随 +
     // safeFit，见 createXtermCore；与桌面终端复用同一套样板）。传输/触摸/键盘等仍在本视图接线。
     // web 端提供 onLinkClick=window.open：输出里的 URL 可点开（新标签页）。
+    // 字号：优先用户存过的值（键条 A-/A+ 调完持久化）；无则窄屏更密(12)、宽屏 14。
+    const savedFont = parseInt(localStorage.getItem("keelson-term-font-size") || "", 10);
+    const initialFontSize =
+      savedFont >= 8 && savedFont <= 24 ? savedFont : window.innerWidth < 640 ? 12 : 14;
     const core = createXtermCore(containerRef.current, {
+      fontSize: initialFontSize,
       onLinkClick: (uri) => window.open(uri, "_blank", "noopener,noreferrer"),
     });
     const { term, safeFit } = core;
@@ -227,11 +249,12 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       const y = e.touches[0].clientY;
       accum += y - touchY;
       touchY = y;
-      // 每滑一整行行高滚一行(1:1)，最自然可控。
+      // 每滑一个"步长"滚一行；步长 = 行高 / 速度倍率（倍率越大步长越小=滚得越快）。
       const cellH = cellHeight();
-      const lines = Math.trunc(accum / cellH);
+      const step = cellH / scrollSpeedRef.current;
+      const lines = Math.trunc(accum / step);
       if (lines === 0) return;
-      accum -= lines * cellH;
+      accum -= lines * step;
       // 备用屏(alt-screen，如 claude/codex 全屏交互界面)无 xterm 回滚缓冲，scrollLines 无效。
       // 方向键会被当成输入历史导航（碰输入框），故改**模拟鼠标滚轮**(SGR 1006)：这类 TUI 开了
       // 鼠标追踪，滚轮走鼠标通道、不碰输入——桌面终端就是这样滚 claude 的。

@@ -137,12 +137,12 @@ export interface XtermCore {
  */
 export function createXtermCore(
   container: HTMLElement,
-  opts?: { fontFamily?: string; onLinkClick?: (uri: string) => void },
+  opts?: { fontFamily?: string; fontSize?: number; onLinkClick?: (uri: string) => void },
 ): XtermCore {
   const term = new Terminal({
     theme: resolveXtermTheme(),
     fontFamily: opts?.fontFamily ?? TERMINAL_FONT_FAMILY,
-    fontSize: 14,
+    fontSize: opts?.fontSize ?? 14,
     lineHeight: 1.4,
     cursorBlink: true,
     allowProposedApi: false,

@@ -74,6 +74,17 @@ export function FileTextIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** 上下箭头：滚动速度调节。 */
+export function ScrollIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Base {...props}>
+      <path d="M12 5v14" />
+      <path d="m8 9 4-4 4 4" />
+      <path d="m8 15 4 4 4-4" />
+    </Base>
+  );
+}
+
 /** 扳手：工具调用条目标记。 */
 export function WrenchIcon(props: SVGProps<SVGSVGElement>) {
   return (

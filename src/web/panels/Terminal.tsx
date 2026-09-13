@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { XtermView, type XtermHandle } from "@/components/terminal/XtermView";
 import type { WsStatus } from "@/web/webterm-ws";
 import type { Session } from "@/types/session";
-import { KeyboardIcon, PasteIcon, SearchIcon, RestartIcon } from "./icons";
+import { KeyboardIcon, PasteIcon, SearchIcon, RestartIcon, ScrollIcon } from "./icons";
 
 // ── 连接态角标 ────────────────────────────────────────────────
 
@@ -99,6 +99,8 @@ interface VirtualKeybarProps {
   onPaste: () => void;
   /** 调整字号（delta 正=放大/负=缩小） */
   onAdjustFont: (delta: number) => void;
+  /** 调整触摸滚动速度（delta 正=更快/负=更慢） */
+  onAdjustScroll: (delta: number) => void;
 }
 
 /**
@@ -107,7 +109,7 @@ interface VirtualKeybarProps {
  * - 横向可滚动，避免在窄屏挤压按钮；按钮触摸友好的 min-w + h
  * - 历史滚动改由终端区**直接触摸滑动**；复制历史改由**长按终端**打开可选文本层（不再放按钮）
  */
-function VirtualKeybar({ onSend, onShowKeyboard, onPaste, onAdjustFont }: VirtualKeybarProps) {
+function VirtualKeybar({ onSend, onShowKeyboard, onPaste, onAdjustFont, onAdjustScroll }: VirtualKeybarProps) {
   const { t } = useTranslation("web");
   const btnCls =
     "flex min-w-[2.5rem] shrink-0 items-center justify-center rounded border border-border bg-background px-2 py-1.5 text-xs font-mono text-foreground transition-colors active:bg-muted hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -156,6 +158,27 @@ function VirtualKeybar({ onSend, onShowKeyboard, onPaste, onAdjustFont }: Virtua
           className={btnCls}
         >
           A+
+        </button>
+        {/* 滚动速度减 / 加（触摸滚动，跟字号一个样） */}
+        <button
+          type="button"
+          title={t("terminal.scrollSlower")}
+          aria-label={t("terminal.scrollSlower")}
+          onClick={() => onAdjustScroll(-1)}
+          className={btnCls}
+        >
+          <ScrollIcon className="size-3.5" />
+          <span className="ml-0.5">-</span>
+        </button>
+        <button
+          type="button"
+          title={t("terminal.scrollFaster")}
+          aria-label={t("terminal.scrollFaster")}
+          onClick={() => onAdjustScroll(1)}
+          className={btnCls}
+        >
+          <ScrollIcon className="size-3.5" />
+          <span className="ml-0.5">+</span>
         </button>
         <span className="mx-0.5 shrink-0 self-stretch border-l border-border" aria-hidden />
         {VIRTUAL_KEYS.map(({ label, bytes, title }) => (
@@ -368,6 +391,7 @@ function TerminalInstance({ session, active }: { session: Session; active: boole
         onShowKeyboard={() => xtermRef.current?.focusKeyboard()}
         onPaste={pasteFromClipboard}
         onAdjustFont={(delta) => xtermRef.current?.adjustFontSize(delta)}
+        onAdjustScroll={(delta) => xtermRef.current?.adjustScrollSpeed(delta)}
       />
 
       {/* 文本浮层：纯文本 = 原生平滑滚动 + 长按选择复制，绕开 canvas 选区之难 */}

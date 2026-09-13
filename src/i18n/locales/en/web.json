@@ -92,7 +92,9 @@
     "fontDec": "Smaller font",
     "restart": "Restart",
     "exited": "Process exited",
-    "pasteError": "Failed to read clipboard"
+    "pasteError": "Failed to read clipboard",
+    "scrollSlower": "Scroll slower",
+    "scrollFaster": "Scroll faster"
   },
   "settings": {
     "theme": {
