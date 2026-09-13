@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.0](https://github.com/akapril/keelson/compare/v0.8.0...v0.9.0) (2026-09-13)
+
+
+### Features
+
+* **web-terminal:** 键条加滚动速度加减(0.5×~3×,触摸滚动步长=行高/倍率,持久化)+字号持久化(A-/A+ 调完记住,下次默认沿用;窄屏首次默认12更密)——都跟字号加减一个样;新增 ScrollIcon ([46c8da4](https://github.com/akapril/keelson/commit/46c8da4009151c67d2d789e1f0286278c9cc79b4))
+
+
+### Bug Fixes
+
+* **mobile:** board/calendar/docs 弹窗与子页面移动端适配——TaskSheet/日历事件弹窗 两列改窄屏单列(grid-cols-1 sm:grid-cols-2);Dialog/Sheet 基座 padding p-4 sm:p-6;看板列 85vw 露下一列作横滑暗示;命令历史 popover 宽度收窄防贴边;日历移动端本就默认议程视图 ([d22a4bc](https://github.com/akapril/keelson/commit/d22a4bc6794f48a4e3879e65d95e944199b1d79f))
+* **web-mobile:** 终端弹键盘时隐藏顶栏+底部tab最大化终端;换行长命令可见——键盘弹起(可视高比满高矮&gt;150px)且在终端tab时隐藏chrome;容器resize后滚到底保证输入行/换行可见;键盘判定用最大可视高兼容iOS/Android ([36225eb](https://github.com/akapril/keelson/commit/36225eb955bd158aad2a63b479129053223a597d))
+
 ## [0.8.0](https://github.com/akapril/keelson/compare/v0.7.0...v0.8.0) (2026-09-04)
 
 
