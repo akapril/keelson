@@ -123,7 +123,7 @@ export function CommandPicker({ projectKey, version, onPick, onChanged }: Comman
           {t("processes.launch.history")}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-2">
+      <PopoverContent align="end" className="w-[min(20rem,calc(100vw-1rem))] p-2">
         {empty ? (
           <p className="px-1.5 py-3 text-center text-xs text-muted-foreground">
             {t("processes.launch.emptyHint")}

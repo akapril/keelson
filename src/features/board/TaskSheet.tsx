@@ -193,8 +193,8 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
           <SheetTitle>{mode === "edit" ? t("sheet.titleEdit") : t("sheet.titleCreate")}</SheetTitle>
         </SheetHeader>
 
-        {/* 表单主体（可滚动） */}
-        <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-6">
+        {/* 表单主体（可滚动）；窄屏收窄内边距省空间 */}
+        <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-4 sm:p-6">
           {/* 标题（必填） */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="ts-title">
@@ -263,8 +263,8 @@ export function TaskSheet({ open, mode, stateId, task, onClose }: TaskSheetProps
             )}
           </div>
 
-          {/* 状态 + 优先级（两列） */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* 状态 + 优先级（窄屏单列，≥sm 两列） */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label>{t("sheet.fieldState")}</Label>
               <Select

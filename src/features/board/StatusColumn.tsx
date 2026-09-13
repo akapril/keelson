@@ -136,8 +136,9 @@ function StatusColumnInner({
     !!onArchiveColumn &&
     tasks.some((t) => !t.archived);
 
+  // 窄屏列略窄(85vw)以露出下一列边缘作横滑暗示；≥sm 恢复固定 288px
   return (
-    <div className="flex w-72 shrink-0 flex-col">
+    <div className="flex w-[85vw] max-w-72 shrink-0 flex-col sm:w-72">
       {/* 列头 */}
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">

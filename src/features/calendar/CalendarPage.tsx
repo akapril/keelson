@@ -903,7 +903,7 @@ export default function CalendarPage() {
             </div>
 
             {/* 开始 / 结束日期 */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="cal-start">{t("dialog.fieldStart")}</Label>
                 <Input
@@ -957,7 +957,7 @@ export default function CalendarPage() {
 
             {/* 开始 / 结束时刻：仅非全天时显示 */}
             {!form.all_day && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="cal-start-time">{t("dialog.fieldStartTime")}</Label>
                   <Input
