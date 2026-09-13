@@ -318,6 +318,8 @@ export const XtermView = forwardRef<XtermHandle, XtermViewProps>(function XtermV
       // fit() 内部会重新计算 cols/rows；仅在真正 fit 后才把新尺寸同步给 PTY
       if (safeFit()) {
         ws.resize(term.cols, term.rows);
+        // 键盘弹起/收起改变高度后滚到底：确保当前输入行（含换行的长命令）始终可见。
+        term.scrollToBottom();
       }
     });
     observer.observe(containerRef.current);

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -97,10 +97,15 @@ function MainLayout() {
   // 移动端软键盘弹出会盖住底部（终端输入行等）：跟随 visualViewport 收缩+顶起根容器，
   // 让整个界面落到键盘之上、输入行可见（终端会随容器变小 fit 到更少行）。
   const [vp, setVp] = useState<{ height: number; offsetTop: number } | null>(null);
+  // 记录见过的最大可视高度（无键盘时的满高）：判键盘弹起时对照它，兼容 iOS(innerHeight不变)与 Android(innerHeight随键盘缩)。
+  const baseHeightRef = useRef(0);
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const update = () => setVp({ height: vv.height, offsetTop: vv.offsetTop });
+    const update = () => {
+      if (vv.height > baseHeightRef.current) baseHeightRef.current = vv.height;
+      setVp({ height: vv.height, offsetTop: vv.offsetTop });
+    };
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
     update();
@@ -152,6 +157,11 @@ function MainLayout() {
     });
   }
 
+  // 软键盘弹起判定：当前可视高度比"见过的满高"矮出 >150px ≈ 键盘占了底部。
+  const keyboardUp = vp != null && baseHeightRef.current - vp.height > 150;
+  // 终端 tab + 键盘弹起时，隐藏顶栏与底部 tab 栏，把可视空间全让给终端输出/输入行。
+  const hideChrome = keyboardUp && activeTab === "terminal";
+
   return (
     <div
       className="flex h-screen flex-col bg-background text-foreground"
@@ -161,8 +171,10 @@ function MainLayout() {
           : undefined
       }
     >
-      {/* 顶栏：logo/名 + 右上工具入口（通知带未读徽标 / 设置） */}
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
+      {/* 顶栏：logo/名 + 右上工具入口（通知带未读徽标 / 设置）。终端 tab 弹键盘时隐藏，腾出空间。 */}
+      <header
+        className={`h-11 shrink-0 items-center justify-between border-b border-border px-3 ${hideChrome ? "hidden" : "flex"}`}
+      >
         <div className="flex items-center gap-2">
           <Logo className="size-6" />
           <span className="text-sm font-semibold">Keelson</span>
@@ -257,17 +269,20 @@ function MainLayout() {
           </main>
 
           {/* 移动窄屏：底部内容 tab 栏（<lg 显示），可长按拖拽排序。按开关过滤到可见 tab；
-              排序结果合并回完整顺序（隐藏 tab 保留在末尾），避免关能力时丢失其排序位置。 */}
-          <MobileTabBar
-            order={tabOrder.filter((tab) => visibleContent.includes(tab))}
-            activeTab={activeTab}
-            onSelect={setActiveTab}
-            onReorder={(next) =>
-              setTabOrder([...next, ...tabOrder.filter((tab) => !next.includes(tab))])
-            }
-            label={(tab) => t(`tabs.${tab}`)}
-            ariaLabel={t("nav.main")}
-          />
+              排序结果合并回完整顺序（隐藏 tab 保留在末尾），避免关能力时丢失其排序位置。
+              终端 tab 弹键盘时隐藏底栏，把空间全让给终端。 */}
+          {!hideChrome && (
+            <MobileTabBar
+              order={tabOrder.filter((tab) => visibleContent.includes(tab))}
+              activeTab={activeTab}
+              onSelect={setActiveTab}
+              onReorder={(next) =>
+                setTabOrder([...next, ...tabOrder.filter((tab) => !next.includes(tab))])
+              }
+              label={(tab) => t(`tabs.${tab}`)}
+              ariaLabel={t("nav.main")}
+            />
+          )}
         </div>
       </div>
     </div>
