@@ -1,0 +1,9 @@
+# Native mobile boundary
+
+This standalone Tauri 2 crate bundles `../dist`. It does not load the gateway web UI or launch desktop sidecars, plugins, or PTYs. `shell` is the default feature; core checks use `cargo test --no-default-features` without platform webview SDKs.
+
+The local main window has four app command permissions only: `mobile_pair({host, code})`, `mobile_sessions()`, `mobile_timeline({provider, sessionId})`, and `mobile_disconnect()`. No remote capabilities are granted. The host must be an HTTPS root origin with a normally trusted certificate. A TLS reverse proxy is needed in front of the gateway's HTTP listener. Redirects are rejected. The native client posts to `/pair`, `/api/sessions_list`, and `/api/sessions_timeline`; the latter preserves the gateway's camelCase `sessionId` contract.
+
+Pairing and disconnect cancel older in-flight and queued native operations via a watch epoch before acquiring the client lock, so a stalled request does not delay a host switch and an old response cannot mutate the new connection. Pairing replaces previous credentials even when the new attempt fails. The gateway token stays in native process memory, is never returned to JavaScript, and is never written to disk. Restarting the app requires pairing again in this first phase. Disconnect forgets the local credential; it does not revoke the server-side device entry. HTTP 401 forgets the credential and requests pairing; HTTP 403 reports that the host disabled the feature.
+
+Android and iOS share the `mobile_entry_point` library entry. Generating native projects and producing signed device builds requires the relevant platform SDK and signing setup; those are intentionally not installed by this change. Desktop targets serve as a development shell. The frontend is built separately and development uses localhost:1430.

@@ -1,0 +1,91 @@
+name: Mobile test APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [mobile-android-test]
+    paths:
+      - 'apps/mobile/**'
+      - 'src/mobile/**'
+      - 'src/types/session.ts'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/mobile-test.yml'
+
+# Test artifacts only: this workflow cannot create or edit Releases.
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android ARM64 debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      NDK_VERSION: '27.2.12479018'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android build tools
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;$NDK_VERSION"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/mobile/src-tauri -> target
+      - name: Install locked frontend dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check mobile frontend
+        run: |
+          node node_modules/typescript/bin/tsc -p apps/mobile/tsconfig.json
+          node node_modules/vitest/vitest.mjs run src/mobile
+      - name: Test native protocol and connection cancellation
+        run: cargo test --locked --manifest-path apps/mobile/src-tauri/Cargo.toml --no-default-features
+      - name: Generate Android test project
+        working-directory: apps/mobile
+        run: node ../../node_modules/@tauri-apps/cli/tauri.js android init --ci --skip-targets-install
+      - name: Build debug APK with bundled frontend
+        working-directory: apps/mobile
+        run: node ../../node_modules/@tauri-apps/cli/tauri.js android build --debug --apk --target aarch64 --ci
+      - name: Verify and collect APK
+        run: |
+          set -euo pipefail
+          mkdir -p mobile-artifacts
+          mapfile -t apks < <(find apps/mobile/src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -type f)
+          test "${#apks[@]}" -eq 1
+          cp "${apks[0]}" mobile-artifacts/Keelson-Mobile-test-arm64.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs mobile-artifacts/Keelson-Mobile-test-arm64.apk > mobile-artifacts/signature.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging mobile-artifacts/Keelson-Mobile-test-arm64.apk > mobile-artifacts/package-info.txt
+          (cd mobile-artifacts && sha256sum Keelson-Mobile-test-arm64.apk > SHA256SUMS)
+          printf 'Commit: %s\nTest-only debug build; no Release was published.\n' "$GITHUB_SHA" > mobile-artifacts/BUILD.txt
+          cat mobile-artifacts/package-info.txt
+          {
+            echo '### Android test APK'
+            echo 'Download the keelson-mobile-android-debug artifact below and extract the APK.'
+            echo 'ARM64 Android phones only. Debug-signed preview; no GitHub Release is created.'
+            echo 'Use a valid HTTPS Keelson gateway address and the current pairing code.'
+            echo 'Fresh runners use a new debug key: uninstall an older test build if Android reports a signature mismatch.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keelson-mobile-android-debug
+          path: mobile-artifacts/
+          if-no-files-found: error
+          retention-days: 14

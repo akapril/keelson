@@ -1,0 +1,28 @@
+[package]
+name = "keelson-mobile"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[lib]
+name = "keelson_mobile"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "keelson-mobile"
+path = "src/main.rs"
+required-features = ["shell"]
+
+[features]
+default = ["shell"]
+shell = ["dep:tauri", "dep:tauri-build"]
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "rt", "macros"] }
+tauri = { version = "2", optional = true }
+
+[build-dependencies]
+tauri-build = { version = "2", optional = true }
