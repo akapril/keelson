@@ -76,6 +76,9 @@ jobs:
           cp "${apks[0]}" mobile-artifacts/Keelson-Mobile-test-arm64.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs mobile-artifacts/Keelson-Mobile-test-arm64.apk > mobile-artifacts/signature.txt
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging mobile-artifacts/Keelson-Mobile-test-arm64.apk > mobile-artifacts/package-info.txt
+          grep -q "^package: name='com.keelson.mobile'" mobile-artifacts/package-info.txt
+          grep -qx "native-code: 'arm64-v8a'" mobile-artifacts/package-info.txt
+          grep -qx 'application-debuggable' mobile-artifacts/package-info.txt
           (cd mobile-artifacts && sha256sum Keelson-Mobile-test-arm64.apk > SHA256SUMS)
           printf 'Commit: %s\nTest-only debug build; no Release was published.\n' "$GITHUB_SHA" > mobile-artifacts/BUILD.txt
           cat mobile-artifacts/package-info.txt
