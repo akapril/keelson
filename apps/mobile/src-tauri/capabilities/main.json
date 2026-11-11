@@ -4,5 +4,5 @@
   "description": "Only the bundled main UI may pair and read sessions.",
   "local": true,
   "windows": ["main"],
-  "permissions": ["allow-mobile-pair", "allow-mobile-sessions", "allow-mobile-timeline", "allow-mobile-disconnect"]
+  "permissions": ["allow-mobile-restore", "allow-mobile-pair", "allow-mobile-sessions", "allow-mobile-timeline", "allow-mobile-disconnect"]
 }

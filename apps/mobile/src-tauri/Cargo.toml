@@ -16,13 +16,14 @@ required-features = ["shell"]
 
 [features]
 default = ["shell"]
-shell = ["dep:tauri", "dep:tauri-build"]
+shell = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-mobile-vault"]
 
 [dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde_json = "1"
 tokio = { version = "1", features = ["sync", "rt", "macros"] }
 tauri = { version = "2", optional = true }
+tauri-plugin-mobile-vault = { path = "plugins/mobile-vault", optional = true }
 
 [build-dependencies]
 tauri-build = { version = "2", optional = true }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-mobile-restore"
+description = "Enables the mobile_restore command without any pre-configured scope."
+commands.allow = ["mobile_restore"]
+
+[[permission]]
+identifier = "deny-mobile-restore"
+description = "Denies the mobile_restore command without any pre-configured scope."
+commands.deny = ["mobile_restore"]

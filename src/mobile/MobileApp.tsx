@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { nativeClient } from './client';
-import type { MobileClient } from './client';
-import type { Session, TimelineMessage } from '../types/session';
+import type { MobileClient, MobileTimelineMessage } from './client';
+import type { Session } from '../types/session';
+
+const roleLabels = new Map([['user','你'],['assistant','助手'],['system','系统'],['tool','工具']]);
 
 export function MobileApp({ client = nativeClient }: { client?: MobileClient }) {
   const [host, setHost] = useState('');
@@ -10,18 +12,37 @@ export function MobileApp({ client = nativeClient }: { client?: MobileClient }) 
   const [connected, setConnected] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selected, setSelected] = useState<Session | null>(null);
-  const [messages, setMessages] = useState<TimelineMessage[]>([]);
+  const [messages, setMessages] = useState<MobileTimelineMessage[]>([]);
+  const [restoring, setRestoring] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const generation = useRef(0);
   const connectionEpoch = useRef(0);
-  useEffect(() => () => { generation.current++; connectionEpoch.current++; }, []);
+  useEffect(() => {
+    restore();
+    return () => { generation.current++; connectionEpoch.current++; };
+    // The injected transport is fixed for this mounted app.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  function clear() { connectionEpoch.current++; setConnected(false); setSessions([]); setMessages([]); setSelected(null); setCode(''); }
+  function restore() {
+    setRestoring(true);
+    void run(async current => {
+      const result = await client.restore();
+      if (!current()) return;
+      setRestoring(false);
+      if (!result.connected) return;
+      setHost(result.host ?? ''); setConnected(true);
+      const list = await client.sessions();
+      if (current()) setSessions(list);
+    });
+  }
+
+  function clear() { connectionEpoch.current++; setRestoring(false); setConnected(false); setSessions([]); setMessages([]); setSelected(null); setCode(''); }
   function fail(reason: unknown) {
     const text = reason instanceof Error ? reason.message : String(reason);
     if (text.includes('AUTH_REQUIRED:')) clear();
-    setError(text.replace(/^(AUTH_REQUIRED|FEATURE_DISABLED):\s*/, ''));
+    setError(text.replace(/^(AUTH_REQUIRED|PAIR_REJECTED|FEATURE_DISABLED):\s*/, ''));
   }
   async function run(action: (current: () => boolean) => Promise<void>) {
     const id = ++generation.current;
@@ -40,7 +61,11 @@ export function MobileApp({ client = nativeClient }: { client?: MobileClient }) 
   function connect(event: FormEvent) {
     event.preventDefault();
     void run(async current => {
-      await client.pair(host.trim(), code.trim());
+      try { await client.pair(host.trim(), code.trim()); }
+      catch (reason) {
+        const text = reason instanceof Error ? reason.message : String(reason);
+        throw new Error(text.replace(/^AUTH_REQUIRED:/, 'PAIR_REJECTED:'));
+      }
       if (!current()) return;
       setConnected(true); setCode('');
       const result = await client.sessions();
@@ -58,9 +83,13 @@ export function MobileApp({ client = nativeClient }: { client?: MobileClient }) 
     });
   }
   async function disconnect() {
-    ++generation.current; setBusy(true); setError(''); clear();
-    try { await client.disconnect(); } catch (e) { fail(e); }
-    finally { setBusy(false); }
+    const id = ++generation.current;
+    connectionEpoch.current++;
+    setBusy(true); setError(''); setConnected(false); setRestoring(true);
+    setSessions([]); setMessages([]); setSelected(null);
+    try { await client.disconnect(); if (id === generation.current) clear(); }
+    catch (e) { if (id === generation.current) setError(e instanceof Error ? e.message : String(e)); }
+    finally { if (id === generation.current) setBusy(false); }
   }
   function back() { ++generation.current; setSelected(null); setMessages([]); setError(''); setBusy(false); }
   const formatTime = (value: string) => { const date = new Date(value); return Number.isNaN(date.valueOf()) ? '' : date.toLocaleString('zh-CN', {month:'numeric', day:'numeric', hour:'2-digit',minute:'2-digit'}); };
@@ -70,7 +99,14 @@ export function MobileApp({ client = nativeClient }: { client?: MobileClient }) 
     <div className="connection-status"><span className={connected ? 'status-dot online' : 'status-dot'}/>{connected ? host.trim() : '尚未连接电脑'}</div>
     {connected && <div className="mobile-toolbar"><span>会话记录 · 只读预览</span><button className="text-button" onClick={() => void disconnect()}>断开连接</button></div>}
     {error && <div className="mobile-error" role="alert">{error}</div>}
-    {!connected ? <section className="connect-section">
+    {restoring ? <section className="connect-section" aria-busy={busy}>
+      <h1>恢复电脑连接</h1>
+      {busy ? <p role="status">正在处理连接…</p> : <>
+        <p className="intro">暂时无法恢复连接。你可以重试，或忘记此连接后重新配对。</p>
+        <button className="primary-button" onClick={restore}>重试恢复</button>
+        <button className="text-button" onClick={() => void disconnect()}>忘记连接</button>
+      </>}
+    </section> : !connected ? <section className="connect-section">
       <p className="eyebrow">YOUR WORK, WITH YOU</p>
       <h1>离开桌面，<br/>工作仍在眼前。</h1>
       <p className="intro">连接运行 Keelson 的电脑，查看 AI 会话与对话记录。</p>
@@ -81,14 +117,14 @@ export function MobileApp({ client = nativeClient }: { client?: MobileClient }) 
         <input id="mobile-code" type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="输入电脑上显示的配对码" value={code} onChange={e=>setCode(e.target.value)} required disabled={busy}/>
         <button className="primary-button" disabled={busy}>{busy ? '正在连接…' : '连接电脑'}</button>
       </form>
-      <div className="setup-help"><h2>在电脑上准备</h2><p>打开 Keelson 设置中的 Web 网关，使用具有有效证书的 HTTPS 地址，并输入当前配对码。电脑需要保持在线。</p><p>预览版重启后需要重新配对。终端输入与原生通知将在后续阶段加入。</p></div>
+      <div className="setup-help"><h2>在电脑上准备</h2><p>打开 Keelson 设置中的 Web 网关，使用具有有效证书的 HTTPS 地址，并输入当前配对码。电脑需要保持在线。</p><p>Android 会安全保存配对，重启后自动验证并恢复连接；iOS 当前仅在本次运行期间保持连接。终端输入与原生通知将在后续阶段加入。</p></div>
     </section> : selected ? <section className="session-detail" aria-busy={busy}>
       <button className="text-button back-button" onClick={back}>← 返回会话</button>
       <p className="eyebrow">{selected.provider} / {selected.project_name}</p>
       <h1>{selected.first_prompt || '未命名会话'}</h1>
       {busy ? <p role="status">正在读取记录…</p> : messages.length === 0 && !error ? <p className="empty-state">此会话暂无可读记录</p> : null}
-      <div className="timeline">{messages.map((message,index)=><article className={`message message-${message.role}`} key={`${message.timestamp}-${index}`}>
-        <header><strong>{({user:'你',assistant:'助手',system:'系统',tool:'工具'})[message.role] ?? message.role}</strong><time>{formatTime(message.timestamp)}</time></header>
+      <div className="timeline">{messages.map((message,index)=><article className={`message message-${roleLabels.has(message.role) ? message.role : 'unknown'}`} key={`${message.timestamp}-${index}`}>
+        <header><strong>{roleLabels.get(message.role) ?? (message.role || '消息')}</strong><time>{formatTime(message.timestamp)}</time></header>
         <div className="message-content">{message.content}</div>
       </article>)}</div>
       {error && <button onClick={()=>open(selected)} className="primary-button" disabled={busy}>重新读取</button>}

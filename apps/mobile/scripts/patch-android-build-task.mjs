@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -24,4 +24,13 @@ if (source.split(expectedBinary).length !== 2 || source.split(expectedArgs).leng
 }
 const patched = source.replace(expectedArgs, `val args = listOf(${JSON.stringify(entry)}, "android", "android-studio-script")`)
 writeFileSync(task, patched)
-console.log(`Gradle callback: node ${entry} android android-studio-script`)
+
+// Only the Android debug source set permits direct LAN pairing. Release remains HTTPS-only.
+const debugSource = resolve(mobileRoot, 'src-tauri/gen/android/app/src/debug')
+mkdirSync(debugSource, { recursive: true })
+writeFileSync(resolve(debugSource, 'AndroidManifest.xml'), `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application android:usesCleartextTraffic="true" />
+</manifest>
+`)
+console.log(`Gradle callback: node ${entry} android android-studio-script; debug LAN HTTP enabled`)

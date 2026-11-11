@@ -1,0 +1,2 @@
+-keep class com.keelson.mobilevault.MobileVaultPlugin { *; }
+-keep class com.keelson.mobilevault.SaveArgs { *; }

@@ -3,9 +3,19 @@ mod state;
 pub use state::MobileState;
 
 fn validate_host(host: &str) -> Result<Url, String> {
-    let invalid = || "主机必须是 HTTPS 根地址，不可包含用户名、路径、查询或片段".to_string();
+    validate_host_with_debug(host, cfg!(all(debug_assertions, target_os = "android")))
+}
+
+fn validate_host_with_debug(host: &str, debug_http: bool) -> Result<Url, String> {
+    let invalid = || "主机必须是 HTTPS 根地址；调试版仅允许私网 IP 的 HTTP 根地址".to_string();
     // Check raw syntax as well: URL parsing normalizes dot paths and backslashes.
-    let authority = host.strip_prefix("https://").ok_or_else(invalid)?;
+    let (authority, is_http) = if let Some(authority) = host.strip_prefix("https://") {
+        (authority, false)
+    } else if debug_http {
+        (host.strip_prefix("http://").ok_or_else(invalid)?, true)
+    } else {
+        return Err(invalid());
+    };
     let authority = authority.strip_suffix('/').unwrap_or(authority);
     if authority.is_empty()
         || authority
@@ -23,6 +33,17 @@ fn validate_host(host: &str) -> Result<Url, String> {
         || url.password().is_some()
     {
         return Err(invalid());
+    }
+    if is_http {
+        let ip = url
+            .host_str()
+            .and_then(|host| host.parse::<std::net::Ipv4Addr>().ok());
+        if url.port().is_none()
+            || !matches!(ip, Some(ip) if ip.is_private())
+            || !authority.starts_with(&format!("{}:", url.host_str().unwrap_or("")))
+        {
+            return Err(invalid());
+        }
     }
     Ok(url)
 }
@@ -75,7 +96,7 @@ pub struct MobileClient {
 impl MobileClient {
     pub fn new() -> Result<Self, String> {
         let http = Client::builder()
-            .https_only(true)
+            .https_only(!cfg!(all(debug_assertions, target_os = "android")))
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(30))
@@ -90,6 +111,27 @@ impl MobileClient {
 
     pub fn disconnect(&mut self) {
         self.connection = None;
+    }
+
+    pub(crate) fn credentials(&self) -> Option<(String, String)> {
+        self.connection.as_ref().map(|value| {
+            (
+                value.host.to_string().trim_end_matches('/').to_string(),
+                value.token.clone(),
+            )
+        })
+    }
+
+    pub(crate) fn restore_connection(&mut self, host: &str, token: &str) -> Result<(), String> {
+        let host = validate_host(host)?;
+        if !valid_token(token) {
+            return Err("保存的凭据无效，请重新配对".into());
+        }
+        self.connection = Some(Connection {
+            host,
+            token: token.to_string(),
+        });
+        Ok(())
     }
 
     fn pair_request(&self, host: &Url, code: &str) -> Result<Request, String> {
@@ -111,7 +153,7 @@ impl MobileClient {
             .execute(self.pair_request(&host, code)?)
             .await
             .map_err(|_| "无法连接主机，请检查网络及 HTTPS 证书".to_string())?;
-        self.check_status(response.status())?;
+        self.check_pair_status(response.status())?;
         let token = extract_token(response.headers())?;
         self.connection = Some(Connection { host, token });
         Ok(())
@@ -129,6 +171,13 @@ impl MobileClient {
             .json(&body)
             .build()
             .map_err(|_| "无法创建会话请求".into())
+    }
+
+    fn check_pair_status(&mut self, status: StatusCode) -> Result<(), String> {
+        if status == StatusCode::UNAUTHORIZED {
+            return Err("PAIR_REJECTED: 配对码无效或已过期，请重试".into());
+        }
+        self.check_status(status)
     }
 
     fn check_status(&mut self, status: StatusCode) -> Result<(), String> {
@@ -259,6 +308,73 @@ mod tests {
         for bad in ["", "abc", "a; injected=yes", "a b", "a\r\nb"] {
             assert!(!valid_token(bad));
         }
+    }
+    #[test]
+    fn debug_http_allows_only_literal_private_ipv4_with_port() {
+        assert_eq!(
+            validate_host_with_debug("http://10.0.2.2:47700", true)
+                .unwrap()
+                .as_str(),
+            "http://10.0.2.2:47700/"
+        );
+        assert_eq!(
+            validate_host_with_debug("http://192.168.10.145:47700", true)
+                .unwrap()
+                .as_str(),
+            "http://192.168.10.145:47700/"
+        );
+        for host in ["http://10.0.2.2:47700", "http://192.168.10.145:47700"] {
+            assert!(validate_host_with_debug(host, false).is_err());
+        }
+        for host in [
+            "http://example.com:47700",
+            "http://127.0.0.1:47700",
+            "http://8.8.8.8:47700",
+            "http://10.0.2.2",
+            "http://10.0.2.2:47700/path",
+            "http://user@10.0.2.2:47700",
+            "http://[::1]:47700",
+        ] {
+            assert!(
+                validate_host_with_debug(host, true).is_err(),
+                "accepted {host}"
+            );
+        }
+    }
+    #[test]
+    fn restore_validates_host_and_token_before_using_them() {
+        let mut client = MobileClient::new().unwrap();
+        assert!(client
+            .restore_connection("https://valid.example", "bad")
+            .is_err());
+        assert!(client
+            .restore_connection("http://8.8.8.8:47700", &"a".repeat(43))
+            .is_err());
+        assert!(client.connection.is_none());
+        client
+            .restore_connection("https://valid.example", &"a".repeat(43))
+            .unwrap();
+        assert_eq!(
+            client
+                .api_request("/api/sessions_list", json!({}))
+                .unwrap()
+                .headers()["cookie"],
+            format!("kln_token={}", "a".repeat(43))
+        );
+    }
+    #[test]
+    fn invalid_pairing_code_is_not_reported_as_expired_device() {
+        let mut client = MobileClient::new().unwrap();
+        assert_eq!(
+            client
+                .check_pair_status(StatusCode::UNAUTHORIZED)
+                .unwrap_err(),
+            "PAIR_REJECTED: 配对码无效或已过期，请重试"
+        );
+        assert!(client
+            .check_status(StatusCode::UNAUTHORIZED)
+            .unwrap_err()
+            .starts_with("AUTH_REQUIRED:"));
     }
     #[test]
     fn accepts_only_https_root_origins() {
