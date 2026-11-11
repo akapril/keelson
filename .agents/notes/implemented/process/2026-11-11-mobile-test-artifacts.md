@@ -21,6 +21,12 @@ Artifact 保存14天，包含 APK、SHA256、apksigner验证、aapt包信息和�
 - 正式签名APK/AAB：可以覆盖安装与商店分发，但本轮只测功能，不引入发布密钥。临时debug签名不同可能需要卸载旧测试版。
 - iOS IPA：需要Apple签名配置，当前先生成可安装的Android测试包；不把模拟器App称为iPhone安装包。
 
+## Build observations
+
+首次运行42987748477在setup-android失败：默认packages含已撤下的tools。显式指定platform-tools后SDK安装通过。第二次42988005114前端8项与原生5项测试通过，但Android generate_context要求icons/icon.png；只有Windows ICO不足，已补用仓库现有PNG图标。
+
+上游CLI2.12.0提交f654f470c122e925e425424cea733f13d3306412将生成模板compileSdk/targetSdk升级为37。工作流的SDK36工具供APK检查使用，Gradle会按实际模板安装额外平台；具体构建结果仍以本次CI为准。产物门禁同时断言com.keelson.mobile、arm64-v8a和application-debuggable。
+
 ## Consequences
 
 不触碰主工作区脏改动，也不修改现有Release。代价是单一ARM64目标、临时签名及Artifact过期；通过编译与签名验证不等于真机运行通过。历史审计：移动架构笔记描述运行时隔离，AppImage笔记描述桌面发布，均与本篇部分相关但不被取代。

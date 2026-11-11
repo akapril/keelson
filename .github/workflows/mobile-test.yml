@@ -62,11 +62,11 @@ jobs:
       - name: Test native protocol and connection cancellation
         run: cargo test --locked --manifest-path apps/mobile/src-tauri/Cargo.toml --no-default-features
       - name: Generate Android test project
-        working-directory: apps/mobile
-        run: node ../../node_modules/@tauri-apps/cli/tauri.js android init --ci --skip-targets-install
+        working-directory: apps/mobile/src-tauri
+        run: node ../../../node_modules/@tauri-apps/cli/tauri.js android init --ci --skip-targets-install
       - name: Build debug APK with bundled frontend
-        working-directory: apps/mobile
-        run: node ../../node_modules/@tauri-apps/cli/tauri.js android build --debug --apk --target aarch64 --ci
+        working-directory: apps/mobile/src-tauri
+        run: node ../../../node_modules/@tauri-apps/cli/tauri.js android build --debug --apk --target aarch64 --ci
       - name: Verify and collect APK
         run: |
           set -euo pipefail
