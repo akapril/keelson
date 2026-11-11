@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/akapril/keelson/compare/v0.9.0...v0.9.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* upgrade Tauri CLI and verify AppImage launch permissions ([16b9959](https://github.com/akapril/keelson/commit/16b995925b9eb7636a9b5ca001164222574817a0))
+
 ## [0.9.0](https://github.com/akapril/keelson/compare/v0.8.0...v0.9.0) (2026-09-13)
 
 
