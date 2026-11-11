@@ -17,9 +17,9 @@ if (tasks.length !== 1) throw new Error(`Expected one generated BuildTask.kt, fo
 const task = tasks[0]
 const entry = resolve(mobileRoot, '../../node_modules/@tauri-apps/cli/tauri.js')
 const source = readFileSync(task, 'utf8')
-const expectedBinary = 'val executable = """node"""'
+const executables = [...source.matchAll(/val executable = """([^"\n]+)"""/g)]
 const expectedArgs = 'val args = listOf("tauri", "android", "android-studio-script")'
-if (source.split(expectedBinary).length !== 2 || source.split(expectedArgs).length !== 2) {
+if (executables.length !== 1 || !/(?:^|[\\/])node(?:\.exe)?$/.test(executables[0][1]) || source.split(expectedArgs).length !== 2) {
   throw new Error('Unexpected Tauri Android Gradle callback template; inspect before changing it')
 }
 const patched = source.replace(expectedArgs, `val args = listOf(${JSON.stringify(entry)}, "android", "android-studio-script")`)

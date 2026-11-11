@@ -117,7 +117,7 @@ export function MobileApp({ client = nativeClient }: { client?: MobileClient }) 
         <input id="mobile-code" type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="输入电脑上显示的配对码" value={code} onChange={e=>setCode(e.target.value)} required disabled={busy}/>
         <button className="primary-button" disabled={busy}>{busy ? '正在连接…' : '连接电脑'}</button>
       </form>
-      <div className="setup-help"><h2>在电脑上准备</h2><p>打开 Keelson 设置中的 Web 网关，使用具有有效证书的 HTTPS 地址，并输入当前配对码。电脑需要保持在线。</p><p>Android 会安全保存配对，重启后自动验证并恢复连接；iOS 当前仅在本次运行期间保持连接。终端输入与原生通知将在后续阶段加入。</p></div>
+      <div className="setup-help"><h2>在电脑上准备</h2><p>打开 Keelson 设置中的 Web 网关，使用有效 HTTPS 地址和当前配对码。Android 调试包也可连接同一私网 IP 的 HTTP 地址（需带端口）；正式包仍只接受 HTTPS。电脑需要保持在线。</p><p>Android 会安全保存配对，重启后自动验证并恢复连接；iOS 当前仅在本次运行期间保持连接。终端输入与原生通知将在后续阶段加入。</p></div>
     </section> : selected ? <section className="session-detail" aria-busy={busy}>
       <button className="text-button back-button" onClick={back}>← 返回会话</button>
       <p className="eyebrow">{selected.provider} / {selected.project_name}</p>
