@@ -64,6 +64,8 @@ jobs:
       - name: Generate Android test project
         working-directory: apps/mobile/src-tauri
         run: node ../../../node_modules/@tauri-apps/cli/tauri.js android init --ci --skip-targets-install
+      - name: Verify generated Gradle callback and point it at the installed CLI
+        run: node apps/mobile/scripts/patch-android-build-task.mjs
       - name: Build debug APK with bundled frontend
         working-directory: apps/mobile/src-tauri
         run: node ../../../node_modules/@tauri-apps/cli/tauri.js android build --debug --apk --target aarch64 --ci
